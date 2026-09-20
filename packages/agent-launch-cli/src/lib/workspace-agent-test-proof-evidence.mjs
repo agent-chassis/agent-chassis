@@ -3,21 +3,34 @@ import { createHash } from "node:crypto";
 import {
   TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2,
   TEST_PROOF_VERSION_V1,
-  projectStableTestProofCurrentPopulation,
   validateTestProofRuntimeEvidenceV2
 } from "@agent-chassis/controlled-contract";
 import {
+  authenticateUnsupportedTestProofFalsification,
   authenticateUnsupportedTestProofTraversal,
   assertRegistryUnsupportedTraversalAttestation,
   executeLauncherTestProofProvider,
+  prepareLauncherTestProofProviderRuntime,
   resolveTestProofProviders
 } from "./workspace-agent-test-proof-provider-registry.mjs";
 import {
+  assertLauncherNativeRuntimeInputsCurrent,
   assertLauncherTestProofAttemptContext,
-  assertLauncherTestProofSourceSnapshotCurrent
+  assertLauncherTestProofSourceSnapshotCurrent,
+  bindLauncherNativeRuntimeInputs
 } from "./workspace-agent-test-proof-runtime-identity.mjs";
+import { observeLauncherPytestRun } from "./workspace-agent-test-proof-pytest-provider.mjs";
+import { projectNativeObservation } from "./test-execution/native-observation.mjs";
+import { PROOF_CAPABILITY_LIMITATION_CODES } from
+  "./test-execution/proof-providers/execution.mjs";
+import {
+  TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE,
+  projectTestProofForcedInvocationIdentityFailure
+} from "./workspace-agent-test-proof-module-fault-contract.mjs";
 import { stableRuntimeTestId as deriveStableRuntimeTestId } from
   "./workspace-agent-test-proof-node-reporter.mjs";
+
+import { projectObservedTestFact } from "./workspace-agent-test-proof-node-observation.mjs";
 
 export const TEST_PROOF_ATTEMPT_SCHEMA_VERSION = "workspace-agent-test-proof-attempt.v1";
 export const TEST_PROOF_ATTEMPT_AUTHORITY = "advisory_execution_facts";
@@ -35,12 +48,47 @@ function fail(code, message, detail = null) {
   throw new TestProofEvidenceError(code, message, detail);
 }
 
+const STABLE_RUN_CODE_RE = /^[a-z][a-z0-9_.]{0,159}$/u;
+
+const BOUNDED_RUN_FACT_KEYS = Object.freeze([
+  "ran", "disposition", "exit_code", "signal", "timed_out",
+  "blocker_code", "output_truncated", "output_elided_bytes"
+]);
+
+function boundedRun(run) {
+  if (!isObject(run)) return null;
+  const bounded = {};
+  for (const key of BOUNDED_RUN_FACT_KEYS) {
+    if (Object.hasOwn(run, key)) bounded[key] = run[key];
+  }
+  if (typeof run.refusal_code === "string") {
+    bounded.refusal_code = run.refusal_code;
+    if (typeof run.detail?.errno === "string") bounded.detail = { errno: run.detail.errno };
+  }
+
+  if (typeof run.spawn_error === "string" &&
+      STABLE_RUN_CODE_RE.test(run.spawn_error.toLowerCase())) {
+    bounded.spawn_error_code = run.spawn_error;
+  }
+
+  if (typeof run.test_proof_observation?.code === "string") {
+    const { code, detail } = run.test_proof_observation;
+    const identityFailure = code === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code
+      ? projectTestProofForcedInvocationIdentityFailure(detail) : null;
+    bounded.test_proof_observation = { code, ...(identityFailure === null ? {} : {
+      detail: { reason: identityFailure.reason, module_path: identityFailure.module_path,
+        export_name: identityFailure.export_name }
+    }) };
+  }
+  return bounded;
+}
+
 function providerExecutionFailureDetail(trusted, executionStage, run) {
   return {
     execution_stage: executionStage,
     test_proof_id: trusted.test_proof_binding.test_proof_id,
     verification_id: trusted.evidence_identity.verification_id,
-    run
+    run: boundedRun(run)
   };
 }
 
@@ -52,7 +100,8 @@ function selectedIdentityNotObservedDetail(trusted, executionStage, run) {
     execution_stage: executionStage,
     test_proof_id: trusted.test_proof_binding.test_proof_id,
     verification_id: trusted.evidence_identity.verification_id,
-    ...observation.detail
+    ...observation.detail,
+    run: boundedRun(run)
   };
 }
 
@@ -60,34 +109,39 @@ function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-const STABLE_TEST_ID_RE = /^test-[a-f0-9]{64}$/u;
-const MAX_BOUND_IDENTITY_CANDIDATES = 8;
+const LIMITATION_REASON_RE = /^[a-z][a-z0-9_]{0,63}$/u;
 
-function safeRelativeTestFile(value) {
-  return typeof value === "string" && value.length > 0 && value.length <= 4096 &&
-    !value.includes("\\") && !pathIsAbsolute(value) && value.split("/").every(
-      (part) => part !== "" && part !== "." && part !== ".." &&
-        /^[A-Za-z0-9_.-]+$/u.test(part)
-    );
+const REGISTRY_LIMITATION_CODES = Object.freeze([
+  "test_proof_registry_falsification_unsupported"
+]);
+const CAPABILITY_LIMITATION_CODES = Object.freeze([
+  ...PROOF_CAPABILITY_LIMITATION_CODES,
+  ...REGISTRY_LIMITATION_CODES
+]);
+
+export function assertCapabilityLimitation(limitation) {
+  if (!isObject(limitation) ||
+      !CAPABILITY_LIMITATION_CODES.includes(limitation.reason_code)) fail(
+    "test_proof_capability_limitation_invalid",
+    "a capability limitation must carry one provider-owned limitation code",
+    { reason_code: limitation?.reason_code ?? null });
+  const detail = limitation.detail ?? null;
+  if (detail !== null && (!isObject(detail) || Object.values(detail).some((value) =>
+    typeof value !== "string" || !LIMITATION_REASON_RE.test(value)))) fail(
+    "test_proof_capability_limitation_invalid",
+    "capability limitation detail carries only stable adapter reason terms");
+  return Object.freeze({ reason_code: limitation.reason_code,
+    detail: detail === null ? null : Object.freeze({ ...detail }) });
 }
 
-function pathIsAbsolute(value) {
-  return value.startsWith("/");
-}
-
-function boundedIdentityCandidate(event) {
-  if (!isObject(event) || !STABLE_TEST_ID_RE.test(event.test_id) ||
-      !safeRelativeTestFile(event.file) || typeof event.name !== "string" ||
-      event.name.length === 0 || event.name.length > 512 ||
-      /[\u0000-\u001f\u007f]/u.test(event.name) ||
-      !Number.isSafeInteger(event.nesting) || event.nesting < 0 ||
-      event.nesting > 1_000_000) return null;
-  return {
-    test_id: event.test_id,
-    file: event.file,
-    name: event.name,
-    nesting: event.nesting
-  };
+export function projectCapabilityLimitations(limitations) {
+  return Object.freeze([...limitations].map((entry) => Object.freeze({
+    check_kind: entry.check_kind,
+    check_id: entry.check_id,
+    ...assertCapabilityLimitation(entry)
+  })).sort((left, right) =>
+    left.check_kind.localeCompare(right.check_kind) ||
+    String(left.check_id).localeCompare(String(right.check_id))));
 }
 
 function boundIdentityMismatchDetail(candidate, expectedTestId, target) {
@@ -96,12 +150,12 @@ function boundIdentityMismatchDetail(candidate, expectedTestId, target) {
     ? [...(Array.isArray(structured.pass_events) ? structured.pass_events : []),
         ...(Array.isArray(structured.fail_events) ? structured.fail_events : [])]
     : [];
-  const projected = events.map(boundedIdentityCandidate).filter((value) => value !== null)
+  const projected = events.map(projectObservedTestFact)
     .sort((left, right) =>
       Number(right.file === target) - Number(left.file === target) ||
-      left.file.localeCompare(right.file) || left.nesting - right.nesting ||
-      left.name.localeCompare(right.name) || left.test_id.localeCompare(right.test_id)
-    ).slice(0, MAX_BOUND_IDENTITY_CANDIDATES);
+      (left.file ?? "").localeCompare(right.file ?? "") || left.nesting - right.nesting ||
+      (left.name ?? "").localeCompare(right.name ?? "") || left.test_id.localeCompare(right.test_id)
+    );
   return {
     expected_test_id: expectedTestId,
     observed_count: events.length,
@@ -143,71 +197,28 @@ function sortedUnique(values, field) {
   return sorted;
 }
 
-function difference(left, right) {
-  const rightSet = new Set(right);
-  return left.filter((value) => !rightSet.has(value));
-}
-
-export function compareTestProofInventories({
-  baselineId,
-  declaredTestIds,
-  baselineExecutedTestIds,
-  baselineSkippedTestIds = [],
+export function projectTestProofInventory({
+  selectedTestId,
   observedTestIds,
   executedTestIds,
-  skippedTestIds,
-  declaredRenames = [],
-  coverageDispositions = []
+  skippedTestIds
 } = {}) {
-  const declared = sortedUnique(declaredTestIds, "declaredTestIds");
-  const baselineExecuted = sortedUnique(baselineExecutedTestIds, "baselineExecutedTestIds");
-  const baselineSkipped = sortedUnique(baselineSkippedTestIds, "baselineSkippedTestIds");
+  if (typeof selectedTestId !== "string" || !/^test-[a-f0-9]{64}$/u.test(selectedTestId)) {
+    fail("test_proof_test_identity_invalid", "selectedTestId must be one stable runtime test identity");
+  }
   const observed = sortedUnique(observedTestIds, "observedTestIds");
   const executed = sortedUnique(executedTestIds, "executedTestIds");
   const skipped = sortedUnique(skippedTestIds, "skippedTestIds");
-  if (typeof baselineId !== "string" || baselineId === "") {
-    fail("test_proof_inventory_invalid", "baselineId must be a nonempty identity");
-  }
   const observedSet = new Set(observed);
   for (const id of [...executed, ...skipped]) {
     if (!observedSet.has(id)) fail("test_proof_inventory_invalid", "executed and skipped identities must be observed", { test_id: id });
   }
-  const renameByBaseline = new Map();
-  const renameObserved = new Set();
-  for (const rename of declaredRenames) {
-    if (!isObject(rename) || typeof rename.baseline_test_id !== "string" ||
-        typeof rename.observed_test_id !== "string" || renameByBaseline.has(rename.baseline_test_id) ||
-        renameObserved.has(rename.observed_test_id)) {
-      fail("test_proof_rename_invalid", "declared rename identities must be unique pairs");
-    }
-    renameByBaseline.set(rename.baseline_test_id, rename.observed_test_id);
-    renameObserved.add(rename.observed_test_id);
-  }
-  const baselinePopulation = [...new Set([...baselineExecuted, ...baselineSkipped])].sort();
-  const renamed = baselinePopulation.filter((id) => {
-    const replacement = renameByBaseline.get(id);
-    return replacement !== undefined && !observedSet.has(id) && observedSet.has(replacement);
-  }).map((id) => ({ baseline_test_id: id, observed_test_id: renameByBaseline.get(id) }));
-  const renamedBaseline = new Set(renamed.map(({ baseline_test_id: id }) => id));
-  const removed = difference(baselinePopulation, observed).filter((id) => !renamedBaseline.has(id));
-  const declaredSet = new Set(declared);
-  const unexpected = observed.filter((id) => !declaredSet.has(id) && !renameObserved.has(id));
-  const baselineSkippedSet = new Set(baselineSkipped);
-  const newlySkipped = skipped.filter((id) => !baselineSkippedSet.has(id));
-  const dispositionSet = new Set(sortedUnique(coverageDispositions, "coverageDispositions"));
-  const changedCoverage = [...new Set([...removed, ...renamed.map((entry) => entry.baseline_test_id), ...newlySkipped])].sort();
-  const undispositioned = changedCoverage.filter((id) => !dispositionSet.has(id));
   return Object.freeze({
-    baseline_id: baselineId,
-    declared_test_ids: Object.freeze(declared),
+    selected_test_id: selectedTestId,
+    declared_test_ids: Object.freeze([selectedTestId]),
     discovered_test_ids: Object.freeze(observed),
     executed_test_ids: Object.freeze(executed),
-    skipped_test_ids: Object.freeze(skipped),
-    removed_baseline_test_ids: Object.freeze(removed),
-    renamed_baseline_tests: Object.freeze(renamed),
-    unexpected_test_ids: Object.freeze(unexpected),
-    newly_skipped_test_ids: Object.freeze(newlySkipped),
-    undispositioned_coverage_test_ids: Object.freeze(undispositioned)
+    skipped_test_ids: Object.freeze(skipped)
   });
 }
 
@@ -221,13 +232,15 @@ export function projectBoundaryTraversal({
   boundaryKind = null,
   observationMechanism = null,
   observationSeam = null,
+  limitation = null,
   provider,
   providerAttestation
 } = {}) {
   if (providerSupport !== "supported" && providerSupport !== "unsupported") {
     fail("test_proof_traversal_provider_invalid", "provider support must be supported or unsupported");
   }
-  if (providerSupport === "unsupported") {
+
+  if (providerSupport === "unsupported" && limitation === null) {
     const attestation = assertRegistryUnsupportedTraversalAttestation(providerAttestation);
     return Object.freeze({
       boundary_id: boundaryId,
@@ -239,6 +252,22 @@ export function projectBoundaryTraversal({
       observation_mechanism: "registry_unsupported",
       observation_seam: null,
       status: "review_only",
+      limitation: null,
+      evidence_artifact_ids: Object.freeze([])
+    });
+  }
+  if (providerSupport === "unsupported") {
+    return Object.freeze({
+      boundary_id: boundaryId,
+      observable_id: observableId,
+      provider_support: "unsupported",
+      provider,
+      authenticated: false,
+      boundary_kind: boundaryKind,
+      observation_mechanism: observationMechanism,
+      observation_seam: null,
+      status: "review_only",
+      limitation: assertCapabilityLimitation(limitation),
       evidence_artifact_ids: Object.freeze([])
     });
   }
@@ -252,6 +281,7 @@ export function projectBoundaryTraversal({
     observation_mechanism: observationMechanism,
     observation_seam: observationSeam,
     status: authenticated === true && observed === true ? "proven" : "not_proven",
+    limitation: null,
     evidence_artifact_ids: Object.freeze(sortedUnique(artifactIds, "artifactIds"))
   });
 }
@@ -267,9 +297,34 @@ export function projectFalsifierExecution({
   candidateStatus,
   falsifiedStatus,
   observedFailureReasonCode = null,
+  limitation = null,
   artifactIds = [],
   provider
 } = {}) {
+  const declaredMutation = Object.freeze({
+    mutation_id: mutation.mutation_id,
+    strategy: mutation.strategy,
+    mechanism: mutation.mechanism,
+    target_kind: mutation.target_kind,
+    module_path: mutation.module_path,
+    observed: limitation === null && mutationObserved === true
+  });
+
+  if (limitation !== null) return Object.freeze({
+    falsifier_id: falsifierId,
+    attempt_id: attemptId,
+    target_verification_id: targetVerificationId,
+    provider,
+    provider_support: "unsupported",
+    isolated: false,
+    candidate_status: candidateStatus,
+    falsified_status: "not_run",
+    failure_reason_code: null,
+    mutation: declaredMutation,
+    status: "review_only",
+    limitation: assertCapabilityLimitation(limitation),
+    evidence_artifact_ids: Object.freeze([])
+  });
   const detected = isolated === true && mutationObserved === true &&
     candidateStatus === "passed" && falsifiedStatus === "failed" &&
     typeof expectedFailureReasonCode === "string" && expectedFailureReasonCode !== "" &&
@@ -280,19 +335,14 @@ export function projectFalsifierExecution({
     attempt_id: attemptId,
     target_verification_id: targetVerificationId,
     provider,
+    provider_support: "supported",
     isolated: isolated === true,
     candidate_status: candidateStatus,
     falsified_status: falsifiedStatus,
     failure_reason_code: observedFailureReasonCode,
-    mutation: Object.freeze({
-      mutation_id: mutation.mutation_id,
-      strategy: mutation.strategy,
-      mechanism: mutation.mechanism,
-      target_kind: mutation.target_kind,
-      module_path: mutation.module_path,
-      observed: mutationObserved === true
-    }),
+    mutation: declaredMutation,
     status: detected ? "detected" : executionError ? "execution_error" : "not_detected",
+    limitation: null,
     evidence_artifact_ids: Object.freeze(sortedUnique(artifactIds, "artifactIds"))
   });
 }
@@ -325,6 +375,7 @@ export function buildTestProofRuntimeEvidence({
   testInventory,
   boundaryTraversals,
   falsifierExecutions,
+  capabilityLimitations = [],
   observedShortcuts = [],
   artifacts = []
 } = {}) {
@@ -341,6 +392,7 @@ export function buildTestProofRuntimeEvidence({
     test_inventory: testInventory,
     boundary_traversals: boundaryTraversals,
     falsifier_executions: falsifierExecutions,
+    capability_limitations: projectCapabilityLimitations(capabilityLimitations),
     observed_shortcuts: sortedUnique(observedShortcuts, "observedShortcuts"),
     artifacts: [...artifacts].sort((left, right) => left.artifact_id.localeCompare(right.artifact_id))
   });
@@ -394,53 +446,69 @@ export function projectTestProofRuntimeEvidenceReceipt(attempt) {
     evidence_identity: Object.freeze(structuredClone(attempt.evidence.evidence_identity)),
     contract_binding: Object.freeze(structuredClone(attempt.evidence.contract_binding)),
     execution_result: Object.freeze(structuredClone(attempt.evidence.execution_result)),
-    inventory_change_count:
-      attempt.evidence.test_inventory.removed_baseline_test_ids.length +
-      attempt.evidence.test_inventory.renamed_baseline_tests.length +
-      attempt.evidence.test_inventory.unexpected_test_ids.length +
-      attempt.evidence.test_inventory.newly_skipped_test_ids.length +
-      attempt.evidence.test_inventory.undispositioned_coverage_test_ids.length,
+    selected_test_id: attempt.evidence.test_inventory.selected_test_id,
+    observed_test_count: attempt.evidence.test_inventory.discovered_test_ids.length,
+    selected_test_executed: attempt.evidence.test_inventory.executed_test_ids.includes(
+      attempt.evidence.test_inventory.selected_test_id),
     falsifier_statuses: Object.freeze(attempt.evidence.falsifier_executions.map(
-      ({ falsifier_id, status, provider }) => ({ falsifier_id, status,
-        provider: structuredClone(provider) })
+      ({ falsifier_id, status, provider_support, provider }) => ({ falsifier_id, status,
+        provider_support, provider: structuredClone(provider) })
     )),
     traversal_statuses: Object.freeze(attempt.evidence.boundary_traversals.map(
       ({ boundary_id, observable_id, status, provider }) => ({ boundary_id,
         observable_id, status, provider: structuredClone(provider) })
     )),
+    capability_limitations: Object.freeze(
+      structuredClone(attempt.evidence.capability_limitations)),
     semantic_judgment: "not_performed_coordinator_owned",
     advisory: true,
     authority_effect: "none"
   });
 }
 
-function deriveCanonicalTestInventory(testProofBinding, evidenceIdentity, mismatchDetail) {
-  const disposition = testProofBinding?.coverage_disposition;
-  if (!isObject(disposition) || !Array.isArray(disposition.items) ||
-      typeof disposition.baseline_id !== "string" || disposition.baseline_id === "") {
-    fail("test_proof_inventory_binding_invalid",
-      "package-validated coverage disposition is required for inventory authority");
-  }
+function selectedTestIdentity(trusted, evidenceIdentity, mismatchDetail) {
   if (!isObject(evidenceIdentity) || typeof evidenceIdentity.test_id !== "string" ||
       evidenceIdentity.test_id === "") {
     fail("test_proof_test_identity_invalid",
       "launcher-bound evidence identity must provide a test_id");
   }
-  const baselineExecutedTestIds = disposition.baseline_state === "complete_executed_inventory"
-    ? disposition.items.map(({ test_id: testId }) => testId)
-    : [];
-  const baselineSkippedTestIds = [];
-  const declaredTestIds = projectStableTestProofCurrentPopulation(testProofBinding);
-  if (!declaredTestIds.includes(evidenceIdentity.test_id)) {
+  if (trusted.selected_test?.test_id !== evidenceIdentity.test_id) {
     fail("test_proof_bound_identity_mismatch",
-      "launcher-bound evidence identity is not in the canonical declared inventory",
+      "launcher-bound evidence identity is not the declaratively selected test",
       mismatchDetail);
   }
-  return { baselineId: disposition.baseline_id, declaredTestIds,
-    baselineExecutedTestIds, baselineSkippedTestIds };
+  return evidenceIdentity.test_id;
 }
 
-export async function executeTestProofAttempt({ context } = {}) {
+export function observeLauncherNativeTestProofRun({ protocolText, exitCode, expectation,
+  reporterProtocolOverflow = false } = {}) {
+  if (expectation?.family_id === undefined || expectation.family_id === "pytest") {
+    return observeLauncherPytestRun({ protocolText, exitCode, expectation, reporterProtocolOverflow });
+  }
+  return projectNativeObservation({ channelBytes: Buffer.from(String(protocolText ?? ""), "utf8"),
+    channelOverflow: reporterProtocolOverflow, exitCode, expectation });
+}
+
+export function acceptLauncherNativeTestProofObservation(input = {}) {
+  const observation = observeLauncherNativeTestProofRun(input);
+  if (observation?.valid !== true) fail("test_proof_native_observation_refused",
+    "native observation population is not authentic complete selected-test evidence",
+    { observation_code: observation?.code ?? "test_proof_structured_observation_invalid" });
+  return observation;
+}
+
+function budgetInterruptionRun(executionBudget) {
+  const interruption = executionBudget?.interruption?.() ?? null;
+  return interruption === null ? null : {
+    ran: false, disposition: "not_run", exit_code: null, signal: null,
+    timed_out: interruption === "timed_out",
+    blocker_code: interruption === "timed_out"
+      ? "test_proof_execution_timed_out" : "test_proof_execution_cancelled",
+    output_truncated: false, output_elided_bytes: 0
+  };
+}
+
+export async function executeTestProofAttempt({ context, executionBudget = undefined } = {}) {
   const supplied = arguments[0] ?? {};
   for (const key of ["executeCandidate", "executeFalsifier", "executor", "callback",
     "executable", "command", "argv", "shell", "module", "artifacts", "artifact",
@@ -457,7 +525,7 @@ export async function executeTestProofAttempt({ context } = {}) {
       "test_proof_caller_inventory_forbidden",
       `caller-supplied inventory population is forbidden: ${field}`);
   }
-  for (const key of Object.keys(supplied)) if (key !== "context") fail(
+  for (const key of Object.keys(supplied)) if (key !== "context" && key !== "executionBudget") fail(
     "test_proof_caller_identity_forbidden",
     `caller-supplied test-proof identity or execution input is forbidden: ${key}`
   );
@@ -472,12 +540,40 @@ export async function executeTestProofAttempt({ context } = {}) {
   const falsifierInputs = testProofBinding.falsifiers.map(
     ({ falsifier_id: falsifierId }) => ({ falsifierId })
   );
-  if (falsifierInputs.length === 0) fail(
-    "test_proof_falsifiers_required", "at least one declared falsifier is required"
-  );
+
   const providers = resolveTestProofProviders(testProofBinding);
-  const executionBase = { authority, target, authorizedTargets,
-    targetTestId: evidenceIdentity.test_id };
+  const capabilityLimitations = [];
+  if (providers.falsification.mode === "registry_unsupported") {
+    capabilityLimitations.push({ check_kind: "falsifier", check_id: null,
+      ...authenticateUnsupportedTestProofFalsification(testProofBinding.falsification_provider) });
+  }
+  const assertBudgetOpen = (stage) => {
+    const interrupted = budgetInterruptionRun(executionBudget);
+    if (interrupted !== null) fail(`test_proof_${stage}_execution_error`,
+      "the invocation execution budget interrupted this proof attempt",
+      providerExecutionFailureDetail(trusted, stage, interrupted));
+  };
+  const preparationBase = { authority, target, authorizedTargets,
+    selectedTest: trusted.selected_test,
+    ...(executionBudget === undefined ? {} : { executionBudget }) };
+  assertBudgetOpen("candidate");
+  const prepared = await prepareLauncherTestProofProviderRuntime(providers.candidate, preparationBase);
+  let nativeDependencies = null;
+  if (prepared !== null) {
+    if (prepared.status !== "prepared") fail("test_proof_candidate_execution_error",
+      "launcher-owned native provider preparation did not complete",
+      providerExecutionFailureDetail(trusted, "candidate", prepared.run));
+    nativeDependencies = bindLauncherNativeRuntimeInputs({ context: trusted,
+      runtimeInputs: prepared.runtime });
+  }
+  const executionBase = prepared === null ? preparationBase
+    : { ...preparationBase, preparedRuntime: prepared };
+  const assertNativeInputsCurrent = () => {
+    if (nativeDependencies !== null) {
+      assertLauncherNativeRuntimeInputsCurrent(nativeDependencies, prepared.runtime);
+    }
+  };
+  assertBudgetOpen("candidate");
   const candidate = await executeLauncherTestProofProvider(
     providers.candidate, executionBase
   );
@@ -503,6 +599,8 @@ export async function executeTestProofAttempt({ context } = {}) {
     if (!association) fail("test_proof_falsifier_provider_missing",
       "every falsifier execution requires one resolved provider association",
       { falsifier_id: falsifier.falsifierId });
+    assertBudgetOpen("falsifier");
+    assertNativeInputsCurrent();
     const result = await executeLauncherTestProofProvider(association.provider, {
       ...executionBase
     });
@@ -514,30 +612,43 @@ export async function executeTestProofAttempt({ context } = {}) {
       "launcher-owned falsifier did not observe the selected runtime test identity",
       falsifierIdentityFailure
     );
+    const providerSelection = association.provider.selection;
+    const falsifierProjection = {
+      ...falsifier,
+      attemptId: executionAttemptId(evidenceIdentity, "falsifier", falsifier.falsifierId),
+      targetVerificationId: testProofBinding.verification_claim_id,
+      candidateStatus: candidate.selected_status,
+      mutation: { ...providerSelection.mutation, strategy: providerSelection.strategy },
+      provider: result.provider
+    };
+
+    if (result.limitation !== null) {
+      capabilityLimitations.push({ check_kind: "falsifier", check_id: falsifier.falsifierId,
+        ...result.limitation });
+      falsifierExecutions.push(projectFalsifierExecution({ ...falsifierProjection,
+        limitation: result.limitation }));
+      continue;
+    }
     if (result.status === "skipped") fail("test_proof_falsifier_execution_error",
       "launcher-owned falsifier observation did not complete",
       providerExecutionFailureDetail(trusted, "falsifier", result.run));
     launcherArtifacts.push(...result.artifacts);
-    const providerSelection = association.provider.selection;
     falsifierExecutions.push(projectFalsifierExecution({
-      ...falsifier,
-      attemptId: executionAttemptId(evidenceIdentity, "falsifier", falsifier.falsifierId),
-      targetVerificationId: testProofBinding.verification_claim_id,
+      ...falsifierProjection,
       isolated: result.isolated,
-      candidateStatus: candidate.selected_status,
       falsifiedStatus: result.status,
       expectedFailureReasonCode: providerSelection.failure_reason_code,
       observedFailureReasonCode: result.failure_reason_code,
-      mutation: { ...providerSelection.mutation, strategy: providerSelection.strategy },
       mutationObserved: result.mutation_observed,
-      artifactIds: result.artifacts.map(({ artifact_id: id }) => id),
-      provider: result.provider
+      artifactIds: result.artifacts.map(({ artifact_id: id }) => id)
     }));
   }
   let traversalResult;
   if (providers.traversal.mode === "registry_unsupported") {
     traversalResult = authenticateUnsupportedTestProofTraversal(testProofBinding.traversal_provider);
   } else {
+    assertBudgetOpen("traversal");
+    assertNativeInputsCurrent();
     traversalResult = await executeLauncherTestProofProvider(providers.traversal.provider, {
       ...executionBase
     });
@@ -549,28 +660,27 @@ export async function executeTestProofAttempt({ context } = {}) {
       "launcher-owned traversal did not observe the selected runtime test identity",
       traversalIdentityFailure
     );
-    if (traversalResult.run?.test_proof_observation?.valid !== true) fail(
+    if (traversalResult.limitation !== null) {
+      capabilityLimitations.push({ check_kind: "traversal",
+        check_id: testProofBinding.system_under_test_boundary.boundary_id,
+        ...traversalResult.limitation });
+    } else if (traversalResult.run?.test_proof_observation?.valid !== true) fail(
       "test_proof_traversal_execution_error",
       "launcher-owned traversal observation did not complete",
       providerExecutionFailureDetail(trusted, "traversal", traversalResult.run)
     );
-    launcherArtifacts.push(...traversalResult.artifacts);
+    else launcherArtifacts.push(...traversalResult.artifacts);
   }
   assertLauncherTestProofSourceSnapshotCurrent(trusted);
   const mismatchDetail = boundIdentityMismatchDetail(
     candidate, evidenceIdentity.test_id, target
   );
-  const canonicalInventory = deriveCanonicalTestInventory(
-    testProofBinding, evidenceIdentity, mismatchDetail
-  );
-  const testInventory = compareTestProofInventories({
-    ...canonicalInventory,
+  const selectedTestId = selectedTestIdentity(trusted, evidenceIdentity, mismatchDetail);
+  const testInventory = projectTestProofInventory({
+    selectedTestId,
     observedTestIds: candidate.test_inventory.observed_test_ids,
     executedTestIds: candidate.test_inventory.executed_test_ids,
-    skippedTestIds: candidate.test_inventory.skipped_test_ids,
-    coverageDispositions: testProofBinding.coverage_disposition.items.map(
-      ({ test_id: testId }) => testId
-    )
+    skippedTestIds: candidate.test_inventory.skipped_test_ids
   });
   if (!testInventory.discovered_test_ids.includes(evidenceIdentity.test_id)) fail(
     "test_proof_selected_identity_not_observed",
@@ -595,11 +705,13 @@ export async function executeTestProofAttempt({ context } = {}) {
       boundaryKind: traversalResult.boundary_kind,
       observationMechanism: traversalResult.observation_mechanism,
       observationSeam: traversalResult.observation_seam,
+      limitation: traversalResult.limitation ?? null,
       provider: traversalResult.provider,
       providerAttestation: providers.traversal.mode === "registry_unsupported"
         ? traversalResult : undefined
     })],
     falsifierExecutions,
+    capabilityLimitations,
     observedShortcuts: candidate.observed_shortcuts ?? [],
     artifacts: [...new Map(launcherArtifacts.map(
       (artifact) => [artifact.artifact_id, artifact]

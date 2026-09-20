@@ -29,12 +29,40 @@ export const ATTEMPT_EVENT_KINDS = Object.freeze({
   INTEGRATION_STATUS_EFFECT: "integration_status_effect",
   INTEGRATION_COMPLETED: "integration_completed",
 
+  RUN_RESULT_RECORDED: "run_result_recorded",
+  LIFECYCLE_FAILURE_RECORDED: "lifecycle_failure_recorded",
+
+  PROOF_VERIFICATION_RECORDED: "proof_verification_recorded",
+
   ATTEMPT_TERMINAL: "attempt_terminal",
 
   RESERVATION_RELEASED: "reservation_released"
 });
 
 const EVENT_KIND_VALUES = new Set(Object.values(ATTEMPT_EVENT_KINDS));
+
+export const ATTEMPT_INFORMATIONAL_EVENT_KINDS = Object.freeze(new Set([
+  ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED,
+  ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED,
+  ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED
+]));
+
+const INVOCATION_OBSERVATION_PAYLOADS = Object.freeze({
+  [ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED]: Object.freeze({
+    keys: Object.freeze(["dispatch_tuple", "invocation_id", "failure"]), field: "failure"
+  }),
+  [ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED]: Object.freeze({
+    keys: Object.freeze(["dispatch_tuple", "invocation_id", "verification"]), field: "verification"
+  })
+});
+
+function isValidInvocationObservationPayload(kind, payload) {
+  const shape = INVOCATION_OBSERVATION_PAYLOADS[kind];
+  return hasExactKeys(payload, shape.keys) &&
+    isValidAttemptTuple(payload.dispatch_tuple) &&
+    isNonEmptyString(payload.invocation_id) &&
+    isPlainObject(payload[shape.field]);
+}
 
 export const INTEGRATION_EVENT_KINDS = Object.freeze(new Set([
   ATTEMPT_EVENT_KINDS.INTEGRATION_INTENT,
@@ -347,6 +375,25 @@ export function validateAttemptJournal({ repository, subject, events }) {
         refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.UNEXPECTED_KEYS, "attempt event payload must be an object", { sequence: index })
       };
     }
+    if (event.kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED) {
+      if (!hasExactKeys(event.payload, ["dispatch_tuple", "result_digest", "result"]) ||
+          !isValidAttemptTuple(event.payload.dispatch_tuple) ||
+          !isNonEmptyString(event.payload.result_digest) ||
+          !isPlainObject(event.payload.result) ||
+          digestOf(event.payload.result) !== event.payload.result_digest) {
+        return {
+          valid: false,
+          refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "run_result_recorded carries an invalid dispatch tuple, result, or digest", { sequence: index })
+        };
+      }
+    }
+    if (Object.hasOwn(INVOCATION_OBSERVATION_PAYLOADS, event.kind) &&
+        !isValidInvocationObservationPayload(event.kind, event.payload)) {
+      return {
+        valid: false,
+        refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, `${event.kind} carries an invalid dispatch tuple, invocation id, or observation`, { sequence: index })
+      };
+    }
 
     if (event.sequence !== index) {
       return {
@@ -462,6 +509,7 @@ const LEGAL_SUCCESSORS = Object.freeze({
 });
 
 export function isLegalSuccessor(fromKind, toKind) {
+  if (ATTEMPT_INFORMATIONAL_EVENT_KINDS.has(toKind)) return fromKind !== null;
   if (fromKind === null) return toKind === ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED;
   const successors = LEGAL_SUCCESSORS[fromKind];
   return successors !== undefined && successors.includes(toKind);
@@ -490,6 +538,7 @@ function projectAttempts(events) {
       order.push(state);
     }
     state.events.push(event);
+    if (ATTEMPT_INFORMATIONAL_EVENT_KINDS.has(event.kind)) continue;
     if (INTEGRATION_EVENT_KINDS.has(event.kind)) state.integration_events.push(event);
     if (event.kind === ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL) state.terminal = event;
     if (event.kind === ATTEMPT_EVENT_KINDS.RESERVATION_RELEASED) state.released = event;
@@ -724,6 +773,57 @@ export function admitAttemptCommand({
   const key = attemptKey(attempt);
   const state = states.find((candidate) => candidate.key === key) ?? null;
   const lastKind = state === null ? null : state.last_kind;
+
+  if (ATTEMPT_INFORMATIONAL_EVENT_KINDS.has(kind)) {
+    if (state === null || !isLegalSuccessor(lastKind, kind)) {
+      return {
+        admitted: false,
+        refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.ILLEGAL_TRANSITION, "informational evidence must bind an existing attempt", { to: kind })
+      };
+    }
+    const dispatchTuple = payload?.dispatch_tuple;
+    const binding = state.events.find((event) => event.kind === ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED)?.payload?.dispatch_tuple ?? null;
+    if (!isValidAttemptTuple(dispatchTuple) || !isValidAttemptTuple(binding) || !sameAttempt(dispatchTuple, binding)) {
+      return {
+        admitted: false,
+        refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "informational evidence does not match the attempt's retained dispatch binding")
+      };
+    }
+    if (kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED &&
+        (!hasExactKeys(payload, ["dispatch_tuple", "result_digest", "result"]) ||
+          !isNonEmptyString(payload.result_digest) || !isPlainObject(payload.result) ||
+          digestOf(payload.result) !== payload.result_digest)) {
+      return { admitted: false, refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "run result payload or digest is invalid") };
+    }
+    if (Object.hasOwn(INVOCATION_OBSERVATION_PAYLOADS, kind) &&
+        !isValidInvocationObservationPayload(kind, payload)) {
+      return { admitted: false, refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, `${kind} payload is invalid`) };
+    }
+    const identityMatches = (event) => event.kind === kind && sameAttempt(event.attempt, attempt) &&
+      (kind === ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED || event.payload.invocation_id === payload.invocation_id);
+    const existing = state.events.find(identityMatches) ?? null;
+    if (existing !== null) {
+      if (canonicalJson(existing.payload) === canonicalJson(payload)) {
+        return { admitted: true, appended: false, event: existing, events: validated.events, refusal: null };
+      }
+      return {
+        admitted: false,
+        refusal: refusal(ATTEMPT_JOURNAL_REFUSALS.BINDING_MISMATCH, "informational evidence conflicts with bytes already recorded for this identity", { kind })
+      };
+    }
+    const event = mintAttemptEvent({
+      repository,
+      subject,
+      attempt,
+      sequence: validated.events.length,
+      priorDigest: validated.terminal_digest,
+      generationDigest: state.generation_digest,
+      wkTip: state.wk_tip,
+      kind,
+      payload
+    });
+    return { admitted: true, appended: true, event, events: Object.freeze([...validated.events, event]), refusal: null };
+  }
 
   if (!isLegalSuccessor(lastKind, kind)) {
     return {

@@ -1,190 +1,97 @@
-import path from "node:path";
-import { createRequire } from "node:module";
-import { readFile } from "node:fs/promises";
-import { createLiveMcpToolUsageRecorder } from "./tool-usage-audit/live-recorder.mjs";
-import { aggregateToolUsageAudit } from "./tool-usage-audit/aggregate.mjs";
+import { types } from "node:util";
+import {
+  buildAnonymousMetric,
+  projectElapsedMicros,
+  projectHourBucket
+} from "./tool-usage-audit/anonymous-metrics.mjs";
+import { measureJsonBytes } from "./tool-usage-audit/json-byte-measurement.mjs";
 
-export const WORKSPACE_TOOL_USAGE_AUDIT_TOOL_NAME = "workspace_tool_usage_audit";
+const NOT_RETURNED = Object.freeze({ status: "not_returned", bytes: null });
 
-const require = createRequire(import.meta.url);
-const WIKI_CORE_PACKAGE_ROOT = path.dirname(require.resolve("@agent-chassis/wiki-core/package.json"));
-const DEFAULT_POLICY_PATH = path.join(WIKI_CORE_PACKAGE_ROOT, "data/tool-use-policy.v1.json");
-
-export function createToolUsageAuditBoundaryRecorder({
-  recorder = createLiveMcpToolUsageRecorder(),
-  origin = null,
-  selected = null,
-  onRecorderError = null
-} = {}) {
-  async function observeToolCall({ toolName, args, response, handler }) {
-    if (typeof handler !== "function") throw new Error("tool-usage audit boundary handler must be a function");
-    if (!recorder || typeof recorder.recordEvent !== "function") {
-      return handler(args);
-    }
-
-    const baseEvent = {
-      toolName,
-      args,
-      response,
-      origin: safeResolveBoundaryValue(origin, { toolName, args }, onRecorderError),
-      selected: safeResolveBoundaryValue(selected, { toolName, args }, onRecorderError)
-    };
-
-    try {
-      const result = await handler(args);
-      safeRecord(recorder, onRecorderError, {
-        ...baseEvent,
-        result,
-        outcome: "returned",
-        response: { ...response, result }
-      });
-      return result;
-    } catch (error) {
-      safeRecord(recorder, onRecorderError, {
-        ...baseEvent,
-        outcome: "threw",
-        error
-      });
-      throw error;
-    }
-  }
-
-  function wrapHandler(toolName, handler) {
-    return async (args) => observeToolCall({ toolName, args, handler });
-  }
-
-  return {
-    recorder,
-    observeToolCall,
-    wrapHandler,
-    getEvents() {
-      return typeof recorder?.getEvents === "function" ? recorder.getEvents() : [];
-    },
-    getDiagnostics() {
-      return typeof recorder?.getDiagnostics === "function" ? recorder.getDiagnostics() : {};
-    },
-    clear() {
-      if (typeof recorder?.clear === "function") recorder.clear();
-    }
-  };
+function defaultMonotonicNs() {
+  return process.hrtime.bigint();
 }
 
-export function registerToolUsageAuditTools({
-  registerTool,
-  z,
-  jsonContent,
-  errorContent,
-  recorder = createLiveMcpToolUsageRecorder(),
-  policy = null,
-  policyPath = DEFAULT_POLICY_PATH
-}) {
-  if (typeof registerTool !== "function") throw new Error("registerTool is required");
-  if (!z) throw new Error("zod instance is required");
-  if (typeof jsonContent !== "function") throw new Error("jsonContent is required");
-  if (typeof errorContent !== "function") throw new Error("errorContent is required");
-
-  registerTool(
-    WORKSPACE_TOOL_USAGE_AUDIT_TOOL_NAME,
-    {
-      description:
-        "Read-only compact aggregate of a NEUTRAL agent MCP tool-use catalog. Returns bounded, redacted descriptive telemetry only: counts by tool/source/confidence, provenance buckets, first-tool-per-bucket, and high-response-size call indicators ranked by size alone. It renders no misuse or adherence verdict: misuse assessment is an OFFLINE, out-of-band activity performed by a human or throwaway script over the exported catalog facts, never by this runtime tool. It does not dispatch, mutate work records, run lint/generate, block calls, or authorize routing.",
-      inputSchema: z
-        .object({
-          max_facts: z.number().int().positive().max(5000).optional(),
-          max_buckets: z.number().int().positive().max(200).optional(),
-          max_top_calls: z.number().int().positive().max(100).optional(),
-          max_guidance: z.number().int().positive().max(100).optional(),
-          filter: z
-            .object({
-              caller_kind: z.string().optional(),
-              session_kind: z.string().optional(),
-              tool_profile: z.string().optional(),
-              source_group: z.string().optional(),
-              tool_name: z.string().optional()
-            })
-            .strict()
-            .optional()
-        })
-        .strict()
-    },
-    async (args) => {
-      try {
-        return jsonContent(
-          await createWorkspaceToolUsageAuditResponse({
-            args,
-            recorder,
-            policy,
-            policyPath
-          })
-        );
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
-
-  return recorder;
-}
-
-export async function createWorkspaceToolUsageAuditResponse({
-  args = {},
-  recorder,
-  policy = null,
-  policyPath = DEFAULT_POLICY_PATH
-} = {}) {
-  const facts = typeof recorder?.getEvents === "function" ? recorder.getEvents() : [];
-  const loadedPolicy = policy ?? await loadToolUsePolicy(policyPath);
-  const aggregate = aggregateToolUsageAudit(facts, {
-    ...args,
-    policy: loadedPolicy
-  });
-  return {
-    tool: WORKSPACE_TOOL_USAGE_AUDIT_TOOL_NAME,
-    mode: "read_only_observational",
-    effects: {
-      dispatches_agents: false,
-      mutates_work_records: false,
-      runs_lint_or_generate: false,
-      blocks_tool_calls: false,
-      authorizes_tool_calls: false,
-      reinterprets_domain_results: false
-    },
-    aggregate,
-    recorder_diagnostics: typeof recorder?.getDiagnostics === "function" ? recorder.getDiagnostics() : {}
-  };
-}
-
-async function loadToolUsePolicy(policyPath) {
-  const text = await readFile(policyPath, "utf8");
-  return JSON.parse(text);
-}
-
-function resolveBoundaryValue(value, context) {
-  return typeof value === "function" ? value(context) : value;
-}
-
-function safeResolveBoundaryValue(value, context, onRecorderError) {
+function readClock(read) {
   try {
-    return resolveBoundaryValue(value, context);
-  } catch (error) {
-    reportRecorderError(onRecorderError, error);
+    return read();
+  } catch {
     return null;
   }
 }
 
-function reportRecorderError(onRecorderError, error) {
-  if (typeof onRecorderError !== "function") return;
-  try {
-    onRecorderError(error);
-  } catch {
-
-  }
+function isReturnedError(result) {
+  if (result === null || typeof result !== "object" || types.isProxy(result)) return false;
+  const descriptor = Object.getOwnPropertyDescriptor(result, "isError");
+  return descriptor !== undefined && "value" in descriptor && descriptor.value === true;
 }
 
-function safeRecord(recorder, onRecorderError, event) {
-  try {
-    recorder.recordEvent(event);
-  } catch (error) {
-    reportRecorderError(onRecorderError, error);
+export function createToolUsageAuditBoundaryRecorder({
+  writer = null,
+  monotonicNs = defaultMonotonicNs,
+  now = () => new Date()
+} = {}) {
+  const registeredToolNames = new Set();
+
+  function record({ toolName, wallClock, startNs, endNs, request, outcome, response }) {
+    try {
+      const metric = buildAnonymousMetric({
+        tool: toolName,
+        registeredToolNames,
+        hour: projectHourBucket(wallClock),
+        outcome,
+        elapsed: projectElapsedMicros(startNs, endNs),
+        request,
+        response
+      });
+      if (metric === null) {
+        writer.countHealth("invalid_record");
+        return;
+      }
+      writer.enqueue(metric);
+    } catch {
+      try {
+        writer.countHealth("measurement_failed");
+      } catch {
+
+      }
+    }
   }
+
+  async function observeToolCall({ toolName, args, handler, extra = undefined }) {
+    if (typeof handler !== "function") throw new Error("tool-usage audit boundary handler must be a function");
+    if (writer === null) {
+      return handler(args, extra);
+    }
+
+    const request = measureJsonBytes(args);
+    const wallClock = readClock(now);
+    const startNs = readClock(monotonicNs);
+    let result;
+    try {
+      result = await handler(args, extra);
+    } catch (error) {
+      const endNs = readClock(monotonicNs);
+      record({ toolName, wallClock, startNs, endNs, request, outcome: "threw", response: NOT_RETURNED });
+      throw error;
+    }
+    const endNs = readClock(monotonicNs);
+    let outcome = "returned";
+    let response;
+    try {
+      outcome = isReturnedError(result) ? "returned_error" : "returned";
+      response = measureJsonBytes(result);
+    } catch {
+      response = { status: "measurement_failed", bytes: null };
+    }
+    record({ toolName, wallClock, startNs, endNs, request, outcome, response });
+    return result;
+  }
+
+  function wrapHandler(toolName, handler) {
+    registeredToolNames.add(toolName);
+    return async (args, extra) => observeToolCall({ toolName, args, extra, handler });
+  }
+
+  return Object.freeze({ observeToolCall, wrapHandler });
 }

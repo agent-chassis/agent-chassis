@@ -41,8 +41,8 @@ function generatedInput(profile, traceFixture) {
     false_refusal_condition: "ref-false-refusal-condition"
   };
   return {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "pre_dispatch",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role,
       reference_ids: projectionRoles.has(role)

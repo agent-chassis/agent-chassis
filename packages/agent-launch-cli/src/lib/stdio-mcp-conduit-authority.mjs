@@ -797,7 +797,7 @@ export function isTrustedStdioMcpConduitAuthority(value) {
 
 const ROLE_CAPABILITIES = Object.freeze({
   orchestrator: Object.freeze(["workspace_agent_dispatch", "workspace_agent_status",
-    "workspace_tools_describe", "workspace_tools_list", "workspace_tools_query"]),
+    "workspace_tools_describe", "workspace_tools_list"]),
   worker: Object.freeze(["workspace_commit_slice"]),
   reviewer: Object.freeze(["workspace_submit_for_review"]),
   redteam: Object.freeze(["workspace_submit_for_review"])

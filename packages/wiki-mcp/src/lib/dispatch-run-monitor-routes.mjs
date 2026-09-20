@@ -1,9 +1,12 @@
 
 
 import path from "node:path";
+import { realpathSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 
 import {
-  ATTEMPT_LINEAGE_CONFLICT_CLASSES
+  ATTEMPT_LINEAGE_CONFLICT_CLASSES,
+  ATTEMPT_LINEAGE_RESOLUTION_STATES
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-run-lifecycle-settlement.mjs";
 import {
   LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS,
@@ -11,28 +14,35 @@ import {
   digestLauncherAgentSessionContract
 } from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-authority.mjs";
 
-import {
-  refuseCallerSuppliedIdentityFields
-} from "@agent-chassis/wiki-core/src/lib/agent-dispatch-identity.mjs";
 import { buildCloseoutWorkflowContinuation } from "./dispatch-closeout-continuation.mjs";
 import {
   buildLifecycleFailure,
   publishableLifecycleFailure,
   RecordedLifecycleFailure
 } from "./dispatch-lifecycle-failure-disclosure.mjs";
+import { captureLifecycleFailureEvidence } from "./dispatch-lifecycle-failure-projection.mjs";
 import {
   BACKEND_SETTLE_GRACE_MS,
   createCallDeadline,
-  MONITOR_CALL_DEFAULT_TIMEOUT_MS,
   retainAbandonedWork,
   RUN_STATUS_CALL_BUDGET_MS,
   RUN_WAIT_TIMEOUT_MS_BOUNDS,
   settleWithinDeadline
 } from "./dispatch-monitor-call-deadline.mjs";
+import { projectRunFinalResultPublication } from "./dispatch-final-result-publication.mjs";
+import { projectPublishedSliceLifecycle } from
+  "./dispatch-run-status-authored-contract-projection.mjs";
+import { projectPublishedIntegrationReceipt } from
+  "./dispatch-run-status-integration-receipt-projection.mjs";
+import { createAuthoredContractRetention } from
+  "./dispatch-run-status-authored-contract-retention.mjs";
+import { observeRunProofVerification, projectRunProofVerificationDetail } from
+  "./dispatch-run-proof-verification.mjs";
 import {
   createLifecycleCheckpoint,
+  LIFECYCLE_RETRY_FACT_KINDS,
+  lifecycleRetryFactsOf,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
-  lifecycleResolutionRequiresExternalAction,
   POST_WORKER_LIFECYCLE_CHECKPOINT,
   POST_WORKER_LIFECYCLE_PHASES,
   projectInFlightLifecycleResolution,
@@ -42,15 +52,11 @@ import {
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
 import {
-  AGENT_RUNS_LIST_SCHEMA_VERSION,
   AGENT_RUN_STATUS_SCHEMA_VERSION,
-  AGENT_RUN_WAIT_SCHEMA_VERSION,
   DISPATCH_BLOCKER_CODES
 } from "./dispatch-tool-constants.mjs";
 import {
-  buildBlockedRunsListResult,
   buildBlockedRunStatusResult,
-  buildBlockedRunWaitResult,
   buildDispatchContinuation,
   buildDispatchMechanicalRefusal,
   withRecordedRequestSchemas,
@@ -60,15 +66,12 @@ import {
   compactRunStatusReviewResult,
   mapBackendRefusalToDispatchCode,
   omitNullFields,
-  resolveMonitorHandleAlwaysUnknown,
-  summarizeRunStatusFinalResult
+  resolveMonitorHandleAlwaysUnknown
 } from "./dispatch-tool-helpers.mjs";
 
 export {
-  LIFECYCLE_EXTERNAL_ACTION_NEXT_ACTIONS,
   LIFECYCLE_FAILURE_HISTORY_LIMIT,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
-  lifecycleResolutionRequiresExternalAction,
   projectLifecycleResolution,
   RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
@@ -79,12 +82,6 @@ export {
   RUN_STATUS_CALL_BUDGET_MS,
   RUN_WAIT_TIMEOUT_MS_BOUNDS
 } from "./dispatch-monitor-call-deadline.mjs";
-
-export {
-  TERMINAL_REVIEW_EVIDENCE_MODES,
-  TERMINAL_REVIEW_EVIDENCE_REFUSAL_CODES,
-  TERMINAL_REVIEW_MATERIALIZER_UNAVAILABLE_CODE
-} from "./dispatch-terminal-review-evidence.mjs";
 
 export { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
 
@@ -138,9 +135,12 @@ const ATTEMPT_LINEAGE_PUBLIC_KEYS = Object.freeze([
   "schema_version", "state", "root_cause", "replacement_run_id", "continuation"
 ]);
 const ATTEMPT_LINEAGE_CONTINUATION_TOOLS = new Set([
-  "workspace_agent_run_status",
-  "workspace_agent_run_wait"
+  "workspace_agent_run_status"
 ]);
+
+const ATTEMPT_LINEAGE_PUBLIC_STATES = new Set(
+  Object.values(ATTEMPT_LINEAGE_RESOLUTION_STATES)
+);
 
 function publishAttemptLineageResolution(status, continuationTool) {
   try {
@@ -150,7 +150,7 @@ function publishAttemptLineageResolution(status, continuationTool) {
         projection?.schema_version !== "workspace-agent-attempt-lineage-resolution.v1" ||
         Reflect.ownKeys(projection).sort().join("\0") !==
           [...ATTEMPT_LINEAGE_PROJECTION_KEYS].sort().join("\0") ||
-        !new Set(["selected", "operator_recovery_needed"]).has(projection.state) ||
+        !ATTEMPT_LINEAGE_PUBLIC_STATES.has(projection.state) ||
         !ATTEMPT_LINEAGE_CONFLICT_CLASS_SET.has(projection.conflict_class) ||
         ((projection.state === "selected") !== (projection.conflict_class === "none")) ||
         projection.replacement_run_id !== status.run_id ||
@@ -164,8 +164,8 @@ function publishAttemptLineageResolution(status, continuationTool) {
       : Object.freeze({
           tool: continuationTool,
           arguments: Object.freeze({
-            monitor_handle: status.monitor_handle,
-            subject: status.subject
+            subject: status.subject,
+            attempt_id: status.run_id
           })
         });
     const publicProjection = Object.freeze({
@@ -200,11 +200,14 @@ export function registerRunMonitorRoutes(ctx) {
     resolveWorkspaceRepo,
     dispatchBackend,
     dispatchSessionIdentity,
+    responseEnv = process.env,
 
     runStatusCallBudgetMs = RUN_STATUS_CALL_BUDGET_MS
   } = ctx;
 
   const registerTool = withRecordedRequestSchemas(registerToolInput);
+
+  const authoredContractRetention = createAuthoredContractRetention({ env: responseEnv });
 
   const monitorRefusal = ({ code, decidingFacts, observedFacts, continuation = null, carried = null, route }) => {
     const common = { code, decidingFacts, observedFacts, route, carried };
@@ -234,20 +237,6 @@ export function registerRunMonitorRoutes(ctx) {
     });
   };
 
-  const enumerateRunsContinuation = () => {
-    const call = buildDispatchContinuation({
-      tool: "workspace_agent_runs_list",
-      arguments: { state: "active" },
-      successPredicate: { fact: "monitor.known_runs_enumerated", operator: "is_true" }
-    });
-    return call === null ? null : {
-      call,
-      prerequisite: "the supplied monitor handle is not one this server minted",
-      successCondition:
-        "workspace_agent_runs_list returns the runs this server minted, from which a recognised monitor_handle can be selected"
-    };
-  };
-
   const unknownHandleRefusal = (code, route) => monitorRefusal({
     code,
     decidingFacts: [
@@ -258,20 +247,20 @@ export function registerRunMonitorRoutes(ctx) {
       "monitor.handle_minted_by_server": false,
       "monitor.known_runs_enumerated": false
     },
-    continuation: enumerateRunsContinuation(),
+    continuation: null,
     route
   });
 
-  const unsettledCallContinuation = (route, monitorHandle) => {
+  const unsettledCallContinuation = (route, subject, attemptId = null) => {
     const call = buildDispatchContinuation({
       tool: route,
-      arguments: { monitor_handle: monitorHandle },
+      arguments: { subject, ...(attemptId === null ? {} : { attempt_id: attemptId }) },
       successPredicate: { fact: "monitor.call_settled_within_bound", operator: "is_true" }
     });
     return call === null ? null : {
       call,
       prerequisite: "this monitor call's server-owned bound elapsed before the backend answered",
-      successCondition: `${route} returns a settled run status for the same monitor_handle`
+      successCondition: `${route} returns a settled run status for the same subject and attempt`
     };
   };
 
@@ -291,7 +280,7 @@ export function registerRunMonitorRoutes(ctx) {
   });
 
   const routeExceptionRefusal = (route) => monitorRefusal({
-    code: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+    code: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
     decidingFacts: [{ field: "monitor.call_completed", value: false }],
     observedFacts: { "monitor.call_completed": false },
     continuation: null,
@@ -309,98 +298,103 @@ export function registerRunMonitorRoutes(ctx) {
 
   const postWorkerLifecycleByRun = new Map();
 
-  registerTool(
-    "workspace_agent_runs_list",
-    {
-      description:
-        "Read-only current-process discovery of runs visible to this server-injected dispatch session. Use after hot context compaction to recover monitor handles, then call workspace_agent_run_status or workspace_agent_run_wait. The list is not durable or historically complete. After a cold restart, already-returned reviewer/redteam advisory text remains usable and needs no re-dispatch, append, or monitor repair.",
-      inputSchema: z.object({
-        subject: z.string().refine(
-          (value) => classifyAgentDispatchSubject(value) !== null,
-          { message: "subject must be a canonical WK, WK slice, or IN address" }
-        ).optional(),
-        state: z.enum(["active", "terminal", "all"]).optional()
-      }).strict()
-    },
-    async (args) => {
-      try {
-        const state = args?.state ?? "active";
-        const subject = args?.subject ?? null;
-        if (typeof dispatchBackend?.listRuns !== "function") {
-          return jsonContent(buildBlockedRunsListResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
-            reason: "run_list_backend_unavailable",
-            detail: { missing_backend: "workspace_agent_dispatch_backend.listRuns" },
-            refusal: backendAbsentRefusal(
-              "workspace_agent_runs_list",
-              "workspace_agent_dispatch_backend.listRuns"
-            )
-          }));
-        }
-
-        const listed = await dispatchBackend.listRuns({
-          caller_session_id: dispatchSessionIdentity,
-          subject,
-          state
+  function attemptSelectionRefusal({ subject, attempts, detail = null, route }) {
+    const candidates = Array.isArray(attempts) ? attempts : [];
+    const nextCalls = candidates
+      .filter((candidate) => typeof candidate?.attempt_id === "string")
+      .map((candidate) => {
+        const call = buildDispatchContinuation({
+          tool: route,
+          arguments: {
+            subject,
+            attempt_id: candidate.attempt_id,
+            ...(detail === null ? {} : { detail })
+          },
+          successPredicate: { fact: "monitor.attempt_selected", operator: "is_true" }
         });
-        if (!listed || listed.accepted !== true) {
-          const refusal = listed?.refusal ?? {};
-          const listCode = mapBackendRefusalToDispatchCode(refusal.code);
-          return jsonContent(buildBlockedRunsListResult({
-            blockerCode: listCode,
-            reason: refusal.reason ?? "run_list_backend_refused",
-            detail: refusal.detail ?? null,
-            refusal: monitorRefusal({
-              code: listCode,
-              decidingFacts: [{ field: "monitor.run_listing_returned", value: false }],
-              observedFacts: { "monitor.run_listing_returned": false },
-
-              carried: { backend_refusal: { code: refusal.code ?? null, reason: refusal.reason ?? null } },
-              continuation: null,
-              route: "workspace_agent_runs_list"
-            })
-          }));
-        }
-
-        const runs = listed.runs;
-        const totalCount = runs.length;
-        return jsonContent({
-          schema_version: AGENT_RUNS_LIST_SCHEMA_VERSION,
-          accepted: true,
-          availability: "current_process",
-          retention_state: "unknown",
-          state,
-          ...(subject === null ? {} : { subject }),
-          total_count: totalCount,
-          returned_count: totalCount,
-          has_more: false,
-          runs
+        return Object.freeze({
+          ...call,
+          prerequisite_predicate: call.success_predicate
         });
-      } catch (error) {
-        return jsonContent(buildBlockedRunsListResult({
-          blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
-          reason: "run_list_tool_exception",
-          detail: buildDispatchToolExceptionDetail("workspace_agent_runs_list", error),
-          refusal: routeExceptionRefusal("workspace_agent_runs_list")
-        }));
-      }
-    }
-  );
+      });
+    return buildDispatchMechanicalRefusal({
+      code: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+      decidingFacts: [
+        { field: "monitor.attempt_selection_ambiguous", value: true },
+        { field: "monitor.attempt_selected", value: false }
+      ],
+      observedFacts: {
+        "monitor.attempt_selection_ambiguous": true,
+        "monitor.attempt_selected": false
+      },
+      nextCalls,
+      recovery: nextCalls.length === 0
+        ? NO_SUPPORTED_ROUTE_RECOVERY
+        : {
+            state: "callable",
+            prerequisite: "select one retained attempt",
+            operation: route,
+            success_condition: "the exact retained attempt is observed",
+            success_predicate: { fact: "monitor.attempt_selected", operator: "is_true" }
+          },
+      route
+    });
+  }
 
   async function attemptUnknownHandleRecovery(workspace, args, refusal) {
     if (mapBackendRefusalToDispatchCode(refusal?.code) !== DISPATCH_BLOCKER_CODES.MONITOR_HANDLE_UNKNOWN ||
         typeof args?.subject !== "string" || !WORKER_SLICE_SUBJECT_RE.test(args.subject)) {
       return null;
     }
-    if (typeof dispatchBackend?.recoverIntegratedWorkerRun !== "function") return null;
-    return dispatchBackend.recoverIntegratedWorkerRun({
+    if (typeof dispatchBackend?.recoverManagedWorkerRun !== "function") return null;
+    return dispatchBackend.recoverManagedWorkerRun({
       workspace,
-      monitor_handle: args.monitor_handle,
-      subject: args.subject
+      subject: args.subject,
+      attempt_id: args.attempt_id ?? null
     });
   }
 
-  function unresponsiveBackendRefusal(reason, budgetMs, { route, monitorHandle } = {}) {
+  const UNOWNED_IDENTITY_PROJECTIONS = new Set([
+    "launcher_transition.backend_refusal_identity_missing.v1",
+    "launcher_transition.backend_refusal_identity_unknown.v1"
+  ]);
+  function projectProofVerificationDetailFailure(error) {
+    if (typeof error?.code !== "string") {
+      return DISPATCH_BLOCKER_CODES.MONITOR_PROOF_VERIFICATION_EVIDENCE_UNAVAILABLE;
+    }
+    const projected = mapBackendRefusalToDispatchCode(error.code);
+    return UNOWNED_IDENTITY_PROJECTIONS.has(projected)
+      ? DISPATCH_BLOCKER_CODES.MONITOR_PROOF_VERIFICATION_EVIDENCE_UNAVAILABLE
+      : projected;
+  }
+
+  function subjectObservationUnavailable(subject, code, route) {
+    return {
+      blockerCode: DISPATCH_BLOCKER_CODES.MONITOR_SUBJECT_OBSERVATION_UNAVAILABLE,
+      reason: code,
+      detail: { code, subject },
+      refusal: monitorRefusal({
+        code: DISPATCH_BLOCKER_CODES.MONITOR_SUBJECT_OBSERVATION_UNAVAILABLE,
+        decidingFacts: [{ field: "monitor.observation_available", value: false }],
+        observedFacts: { "monitor.observation_available": false },
+        carried: { cause: { code } },
+        continuation: null,
+        route
+      })
+    };
+  }
+
+  function unavailableSubjectRecovery(args, refusal, route) {
+    if (refusal?.reason !== "attempt_observation_unavailable") return null;
+    if (WORKER_SLICE_SUBJECT_RE.test(args.subject)) return null;
+    const kind = classifyAgentDispatchSubject(args.subject);
+    const code = kind === "work_record"
+      ? "findings_observation_unavailable"
+      : "recovery_unsupported_for_subject";
+    return subjectObservationUnavailable(args.subject, code, route);
+  }
+
+  function unresponsiveBackendRefusal(reason, budgetMs, { route, subject, attemptId } = {}) {
     return {
       blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
       reason,
@@ -408,8 +402,7 @@ export function registerRunMonitorRoutes(ctx) {
         call_budget_ms: budgetMs,
         message: "the dispatch backend did not answer inside this monitor call's bound; the run is unaffected"
       },
-      nextAction: "retry the same monitor route with the same monitor_handle; do not relaunch",
-
+      nextAction: "retry status for the same subject and attempt; do not relaunch",
       refusal: monitorRefusal({
         code: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
         decidingFacts: [
@@ -420,18 +413,18 @@ export function registerRunMonitorRoutes(ctx) {
           "monitor.call_settled_within_bound": false,
           "monitor.call_budget_ms": budgetMs ?? null
         },
-        continuation: route ? unsettledCallContinuation(route, monitorHandle) : null,
+        continuation: route ? unsettledCallContinuation(route, subject, attemptId) : null,
         route: route ?? null
       })
     };
   }
 
-  function unresponsiveRecoveryRefusal(refusal, budgetMs, { route, monitorHandle } = {}) {
+  function unresponsiveRecoveryRefusal(refusal, budgetMs, { route, subject, attemptId } = {}) {
     return {
-      blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+      blockerCode: DISPATCH_BLOCKER_CODES.POST_WORKER_LIFECYCLE_RECOVERY_UNRESPONSIVE,
       reason: "post_worker_lifecycle_recovery_unresponsive",
       refusal: monitorRefusal({
-        code: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+        code: DISPATCH_BLOCKER_CODES.POST_WORKER_LIFECYCLE_RECOVERY_UNRESPONSIVE,
         decidingFacts: [
           { field: "monitor.recovery_settled_within_bound", value: false },
           { field: "monitor.call_settled_within_bound", value: false }
@@ -441,7 +434,7 @@ export function registerRunMonitorRoutes(ctx) {
           "monitor.call_settled_within_bound": false
         },
         carried: { backend_refusal: { code: refusal?.code ?? null, reason: refusal?.reason ?? null } },
-        continuation: route ? unsettledCallContinuation(route, monitorHandle) : null,
+        continuation: route ? unsettledCallContinuation(route, subject, attemptId) : null,
         route: route ?? null
       }),
       detail: {
@@ -449,7 +442,7 @@ export function registerRunMonitorRoutes(ctx) {
 
         backend_refusal: { code: refusal?.code ?? null, reason: refusal?.reason ?? null }
       },
-      nextAction: "retry the same monitor route with the same monitor_handle; do not relaunch"
+      nextAction: "retry status for the same subject and attempt; do not relaunch"
     };
   }
 
@@ -466,10 +459,10 @@ export function registerRunMonitorRoutes(ctx) {
       };
     }
     return {
-      blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+      blockerCode: DISPATCH_BLOCKER_CODES.POST_WORKER_LIFECYCLE_RECOVERY_FAILED,
 
       refusal: monitorRefusal({
-        code: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+        code: DISPATCH_BLOCKER_CODES.POST_WORKER_LIFECYCLE_RECOVERY_FAILED,
         decidingFacts: [{ field: "monitor.post_worker_lifecycle_recovered", value: false }],
         observedFacts: { "monitor.post_worker_lifecycle_recovered": false },
         carried: { backend_refusal: { code: refusal.code ?? null, reason: refusal.reason ?? null } },
@@ -490,7 +483,21 @@ export function registerRunMonitorRoutes(ctx) {
   const NO_MANAGED_LIFECYCLE = Object.freeze({ lifecycle: null, advance_in_flight: false });
   const settledAdvance = (lifecycle) => ({ lifecycle, advance_in_flight: false });
 
-  async function advanceManagedSliceLifecycle(workspace, status, deadline) {
+  const failedAdvance = (lifecycle) => ({
+    lifecycle, advance_in_flight: false, attempt_failed: true
+  });
+
+  const createMonitorRequest = () => ({ bound: false, attempt: null });
+
+  const RETRY_ASSESSMENT_SCHEMA_VERSION = "workspace-agent-lifecycle-retry-assessment.v1";
+
+  const retryAssessment = (fields) => Object.freeze({
+    schema_version: RETRY_ASSESSMENT_SCHEMA_VERSION,
+    grants_authority: false,
+    ...fields
+  });
+
+  async function advanceManagedSliceLifecycle(workspace, status, deadline, request) {
     if (status?.role !== "worker" || status?.terminal !== true || !WORKER_SLICE_SUBJECT_RE.test(status?.subject ?? "")) {
       return NO_MANAGED_LIFECYCLE;
     }
@@ -498,10 +505,142 @@ export function registerRunMonitorRoutes(ctx) {
       postWorkerLifecycleByRun.set(status.run_id, createLifecycleCheckpoint());
     }
     const checkpoint = postWorkerLifecycleByRun.get(status.run_id);
+
+    const retryPendingFailurePublications = async () => {
+      const pending = Array.isArray(checkpoint.pending_failure_publications)
+        ? checkpoint.pending_failure_publications
+        : [];
+      if (pending.length === 0 ||
+          typeof dispatchBackend?.recordManagedLifecycleFailure !== "function") return;
+      const remaining = [];
+      let failureCode = null;
+      let failureEvidence = null;
+      for (const item of pending) {
+        let publication;
+        try {
+          publication = await dispatchBackend.recordManagedLifecycleFailure(item);
+        } catch (error) {
+          publication = {
+            ok: false,
+            code: typeof error?.code === "string"
+              ? error.code
+              : "lifecycle_failure_publication_failed",
+            evidence: captureLifecycleFailureEvidence(error, {
+              operation: "failure_history_publication"
+            })
+          };
+        }
+        if (publication?.ok !== true) {
+          remaining.push(item);
+          failureCode ??= publication?.code ?? publication?.refusal?.code ??
+            "lifecycle_failure_publication_failed";
+
+          failureEvidence ??= publication ?? null;
+        }
+      }
+      checkpoint.pending_failure_publications = remaining;
+      if (remaining.length > 0) {
+        checkpoint.failure_history_durability = Object.freeze({
+          state: "unavailable",
+          code: failureCode,
+          pending_count: remaining.length,
+          publication_result: failureEvidence
+        });
+        return;
+      }
+      checkpoint.failure_history_durability = Object.freeze({ state: "durable" });
+      const detail = dispatchBackend.readManagedRunObservation?.({
+        subject: status.subject,
+        attemptId: status.run_id,
+        detail: { kind: "failure_history", limit: 1 }
+      });
+      if (detail?.ok === true) checkpoint.failure_attempts = detail.total_count;
+    };
+
+    await retryPendingFailurePublications();
+
+    if (status.final_result_durability === "unavailable") {
+      return settledAdvance({
+        phase: checkpoint.phase,
+        publication_retry_required: true,
+        publication_failure: status.final_result_publication_failure ?? null
+      });
+    }
     if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.FINALIZED) {
       return settledAdvance(checkpoint.finalized);
     }
+
+    const assessRetainedFailure = async () => {
+      const facts = checkpoint.retry_facts ?? null;
+      if (facts === null || facts.kind !== LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC) {
+        checkpoint.retry_decision = Object.freeze({
+          decision: "fresh_authenticated_attempt",
+          reason: "cause_and_correction_condition_unknown"
+        });
+        return true;
+      }
+      if (typeof dispatchBackend?.assessManagedLifecycleRetry !== "function") {
+        checkpoint.retry_decision = Object.freeze({
+          decision: "correction_unknown",
+          reason: "correction_assessment_unavailable"
+        });
+        return true;
+      }
+      let assessed;
+      try {
+        assessed = await dispatchBackend.assessManagedLifecycleRetry({
+          run: Object.freeze({
+            subject: status.subject,
+            monitor_handle: status.monitor_handle,
+            run_id: status.run_id
+          }),
+          facts: facts.producer_facts
+        });
+      } catch (error) {
+        assessed = {
+          decision: "correction_unknown",
+          reason: "correction_assessment_failed",
+          evidence: captureLifecycleFailureEvidence(error, {
+            operation: "lifecycle_retry_correction_assessment"
+          })
+        };
+      }
+      const unchanged = assessed?.decision === "relevant_inputs_unchanged";
+      const decision = Object.freeze({
+        decision: typeof assessed?.decision === "string" ? assessed.decision : "correction_unknown",
+        ...(assessed?.changed_inputs === undefined ? {} : { changed_inputs: assessed.changed_inputs }),
+        ...(assessed?.reason === undefined ? {} : { reason: assessed.reason }),
+        ...(assessed?.evidence === undefined ? {} : { assessment_evidence: assessed.evidence })
+      });
+      if (unchanged) {
+        checkpoint.retry_decision = null;
+        checkpoint.retry_assessment = retryAssessment({
+          failure_class: LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC,
+          correction_condition: facts.producer_facts.correction_condition,
+          ...decision,
+          automatic_retry: "stopped_within_this_request",
+          retained_failure_returned: true,
+          meaning: "the inputs this refusal was decided on are unchanged, so no " +
+            "integration attempt was made and no failure event was recorded"
+        });
+        return false;
+      }
+      checkpoint.retry_decision = decision;
+      return true;
+    };
+
     if (checkpoint.in_flight === null) {
+
+      if (request.bound === true) {
+        return checkpoint.retained_failure === null
+          ? { lifecycle: null, advance_in_flight: false }
+          : failedAdvance(checkpoint.retained_failure);
+      }
+      if (checkpoint.retained_failure !== null && !(await assessRetainedFailure())) {
+        request.bound = true;
+        return failedAdvance(checkpoint.retained_failure);
+      }
+      const invocationId = randomUUID();
       const invoke = dispatchBackend?.runPostWorkerSliceLifecycle ?? runPostWorkerSliceLifecycle;
       const statusWithCheckpoint = { ...status };
       Object.defineProperty(statusWithCheckpoint, POST_WORKER_LIFECYCLE_CHECKPOINT, {
@@ -515,6 +654,9 @@ export function registerRunMonitorRoutes(ctx) {
         .then(() => invoke({ workspace, status: statusWithCheckpoint }))
         .then((result) => {
 
+          checkpoint.retained_failure = null;
+          checkpoint.retry_facts = null;
+
           if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION) {
             checkpoint.integration = result?.integration ?? null;
             checkpoint.finalized = result;
@@ -523,10 +665,57 @@ export function registerRunMonitorRoutes(ctx) {
           return result;
         })
 
-        .catch((error) => {
-          throw new RecordedLifecycleFailure(
-            recordLifecycleFailure(checkpoint, buildLifecycleFailure(checkpoint, error))
+        .catch(async (error) => {
+          const failure = recordLifecycleFailure(
+            checkpoint,
+            buildLifecycleFailure(checkpoint, error)
           );
+          checkpoint.retained_failure = failure;
+
+          const facts = lifecycleRetryFactsOf(error);
+          const tuple = facts?.execution_tuple;
+          checkpoint.retry_facts = tuple?.assigned_unit === status.subject &&
+            tuple?.launch_ref === status.monitor_handle && tuple?.run_id === status.run_id
+            ? facts
+            : null;
+
+          const permitted = checkpoint.retry_decision ?? null;
+          checkpoint.retry_decision = null;
+          checkpoint.retry_assessment = retryAssessment({
+            ...(checkpoint.retry_facts === null
+              ? {
+                  failure_class: LIFECYCLE_RETRY_FACT_KINDS.UNKNOWN,
+                  correction_condition: "unknown",
+                  decision: "fresh_authenticated_attempt_on_a_later_explicit_request",
+                  meaning: "the cause and its correction condition are unknown to this " +
+                    "runtime; automatic retries stop, and a later explicit run_status " +
+                    "request makes one fresh authenticated attempt"
+                }
+              : {
+                  failure_class: LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC,
+                  correction_condition: checkpoint.retry_facts.producer_facts.correction_condition,
+                  decision: "reassessed_on_a_later_explicit_request"
+                }),
+            automatic_retry: "stopped_within_this_request",
+            ...(permitted === null ? {} : { attempt_permitted_by: permitted })
+          });
+          if (typeof dispatchBackend?.recordManagedLifecycleFailure === "function") {
+
+            const pendingPublication = Object.freeze({
+              subject: status.subject,
+              run: Object.freeze({
+                subject: status.subject,
+                monitor_handle: status.monitor_handle,
+                run_id: status.run_id,
+                recovered: status.recovered === true
+              }),
+              invocationId,
+              failure
+            });
+            checkpoint.pending_failure_publications.push(pendingPublication);
+            await retryPendingFailurePublications();
+          }
+          throw new RecordedLifecycleFailure(failure);
         })
 
         .finally(() => {
@@ -535,16 +724,24 @@ export function registerRunMonitorRoutes(ctx) {
       checkpoint.in_flight = attempt;
 
       retainAbandonedWork(attempt);
+    } else if (request.bound === true && request.attempt !== checkpoint.in_flight) {
+
+      return checkpoint.retained_failure === null
+        ? { lifecycle: null, advance_in_flight: false }
+        : failedAdvance(checkpoint.retained_failure);
     }
     const invocation = checkpoint.in_flight;
+
+    request.bound = true;
+    request.attempt = invocation;
     let outcome;
     try {
       outcome = await settleWithinDeadline(invocation, deadline);
     } catch (error) {
 
-      if (error instanceof RecordedLifecycleFailure) return settledAdvance(error.failure);
+      if (error instanceof RecordedLifecycleFailure) return failedAdvance(error.failure);
 
-      return settledAdvance(
+      return failedAdvance(
         recordLifecycleFailure(checkpoint, buildLifecycleFailure(checkpoint, error))
       );
     }
@@ -569,57 +766,159 @@ export function registerRunMonitorRoutes(ctx) {
     };
   }
 
-  function resolveTopLevelNextAction(resolution) {
-    return lifecycleResolutionRequiresExternalAction(resolution)
-      ? resolution.next_action
-      : LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY;
-  }
-
   registerTool(
     "workspace_agent_run_status",
     {
       description:
-        "Query a workspace_agent_dispatch run by monitor_handle. For a managed exact-slice worker this advances the trusted post-worker lifecycle and is not read-only. terminal:true means the complete managed run is finalized; child_terminal means only that the child ended. An unresolved run returns terminal:false plus lifecycle_resolution and an exact next_action. Poll again with the same handle when instructed; never relaunch merely because monitoring is incomplete. The whole call has a server-owned 60000 ms budget, and advance_in_flight:true means its lifecycle attempt continues. Caller identity carriers are refused; handle errors use the monitor_handle_* taxonomy. Reviewer/redteam final_result is text-first advisory evidence. Captured text remains usable despite schema diagnostics; requested formal attestation is settled in that same result and grants no lifecycle authority.",
-      inputSchema: {
+        "Observe one canonical dispatch subject immediately or for a bounded timeout. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result.",
+      inputSchema: z.object({
         repo: z.string().optional(),
-        monitor_handle: z.string(),
-        subject: z.string().optional(),
-        verbose: z.boolean().optional(),
+        subject: z.string().refine(
+          (value) => classifyAgentDispatchSubject(value) !== null,
+          { message: "subject must be a canonical WK, WK slice, or IN address" }
+        ),
+        attempt_id: z.string().min(1).optional(),
+        timeout_ms: z.number().int().min(RUN_WAIT_TIMEOUT_MS_BOUNDS.min)
+          .max(RUN_WAIT_TIMEOUT_MS_BOUNDS.max).optional(),
         include_final_result: z.boolean().optional(),
-        env: z.record(z.unknown()).optional(),
-        request: z.record(z.unknown()).optional(),
-        prompt: z.record(z.unknown()).optional(),
-        argv: z.record(z.unknown()).optional(),
-        claimed_identity: z
-          .object({
-            role: z.string().optional()
-          })
-          .optional()
-      }
+        detail: z.discriminatedUnion("kind", [
+          z.object({ kind: z.literal("failure_history"), cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(100).optional() }).strict(),
+          z.object({ kind: z.literal("attempts"), cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(100).optional() }).strict(),
+          z.object({ kind: z.literal("proof_verification"), cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(100).optional(),
+            invocation_id: z.string().min(1).max(128).optional() }).strict()
+        ]).optional()
+      }).strict()
     },
     async (args) => {
       try {
-        const identityRefusal = refuseCallerSuppliedIdentityFields(args);
-        if (identityRefusal) {
+        if (args.detail !== undefined && args.timeout_ms !== undefined) {
           return jsonContent(
             buildBlockedRunStatusResult({
-              blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
-              reason: "caller_supplied_identity_carrier",
-              detail: identityRefusal,
+              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+              reason: "detail_and_timeout_are_mutually_exclusive",
+              detail: null,
               refusal: invalidArgumentRefusal(
                 "workspace_agent_run_status",
-                "request.caller_supplied_identity_present",
-                true,
-                DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY
+                "request.detail_and_timeout_combined",
+                true
               )
             })
           );
         }
+        if (args.timeout_ms !== undefined &&
+            (!Number.isInteger(args.timeout_ms) ||
+              args.timeout_ms < RUN_WAIT_TIMEOUT_MS_BOUNDS.min ||
+              args.timeout_ms > RUN_WAIT_TIMEOUT_MS_BOUNDS.max)) {
+          return jsonContent(buildBlockedRunStatusResult({
+            blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+            reason: "timeout_ms_out_of_range",
+            detail: {
+              timeout_ms: args.timeout_ms,
+              valid_range: [RUN_WAIT_TIMEOUT_MS_BOUNDS.min, RUN_WAIT_TIMEOUT_MS_BOUNDS.max],
+              message: `timeout_ms must be an integer in [${RUN_WAIT_TIMEOUT_MS_BOUNDS.min}, ${RUN_WAIT_TIMEOUT_MS_BOUNDS.max}]`
+            },
+            refusal: invalidArgumentRefusal(
+              "workspace_agent_run_status",
+              "request.timeout_ms_within_range",
+              false
+            )
+          }));
+        }
 
         const workspace = resolveWorkspaceRepo(workspaceRepos, args?.repo);
 
+        if (args.detail !== undefined) {
+          if (args.detail.invocation_id !== undefined &&
+              (args.detail.cursor !== undefined || args.detail.limit !== undefined)) {
+            return jsonContent(buildBlockedRunStatusResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+              reason: "detail_invocation_and_paging_are_mutually_exclusive",
+              detail: null,
+              refusal: invalidArgumentRefusal(
+                "workspace_agent_run_status",
+                "request.detail_invocation_and_paging_combined",
+                true
+              )
+            }));
+          }
+          if (typeof dispatchBackend?.readManagedRunObservation !== "function") {
+            return jsonContent(buildBlockedRunStatusResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.BACKEND_UNAVAILABLE,
+              reason: "run_detail_backend_unavailable",
+              detail: null,
+              refusal: backendAbsentRefusal("workspace_agent_run_status", "workspace_agent_dispatch_backend.readManagedRunObservation")
+            }));
+          }
+          const detail = await dispatchBackend.readManagedRunObservation({
+            caller_session_id: dispatchSessionIdentity,
+            subject: args.subject,
+            attemptId: args.attempt_id ?? null,
+            detail: args.detail
+          });
+          if (detail?.ok !== true) {
+            const ambiguityAttempts = detail?.candidates ?? detail?.attempts;
+            if (detail?.code === "attempt_selection_ambiguous") {
+              return jsonContent(buildBlockedRunStatusResult({
+                blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+                reason: detail.code,
+                detail: { attempts: ambiguityAttempts ?? [] },
+                refusal: attemptSelectionRefusal({
+                  subject: args.subject,
+                  attempts: ambiguityAttempts,
+                  detail: args.detail,
+                  route: "workspace_agent_run_status"
+                })
+              }));
+            }
+            if (detail?.code === "proof_verification_invocation_unknown" ||
+                detail?.code === "attempt_detail_cursor_invalid") {
+              return jsonContent(buildBlockedRunStatusResult({
+                blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+                reason: detail.code,
+                detail: null,
+                refusal: invalidArgumentRefusal("workspace_agent_run_status", `request.${detail.code}`, true)
+              }));
+            }
+            return jsonContent(buildBlockedRunStatusResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.MONITOR_RUN_DETAIL_UNAVAILABLE,
+              reason: detail?.code ?? detail?.refusal?.reason ?? "run_detail_unavailable",
+              detail: detail?.refusal ?? null,
+              refusal: routeExceptionRefusal("workspace_agent_run_status")
+            }));
+          }
+          let projectedDetail = detail;
+          if (args.detail.kind === "proof_verification") {
+            try {
+              projectedDetail = projectRunProofVerificationDetail({
+                subject: args.subject,
+                detail,
+                workspaceDir: realpathSync(path.resolve(workspace.dir)),
+                responseEnv
+              });
+            } catch (error) {
+
+              return jsonContent(buildBlockedRunStatusResult({
+                blockerCode: projectProofVerificationDetailFailure(error),
+                reason: typeof error?.code === "string" ? error.code : "proof_verification_evidence_unavailable",
+                detail: {
+                  invocation_id: args.detail.invocation_id ?? null,
+                  ...buildDispatchToolExceptionDetail("workspace_agent_run_status", error)
+                },
+                refusal: routeExceptionRefusal("workspace_agent_run_status")
+              }));
+            }
+          }
+          return jsonContent({
+            schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
+            accepted: true,
+            subject: args.subject,
+            attempt_id: projectedDetail.attempt_id ?? null,
+            detail: projectedDetail
+          });
+        }
+
         if (!dispatchBackend) {
-          const lookup = resolveMonitorHandleAlwaysUnknown(args.monitor_handle);
+          const lookup = resolveMonitorHandleAlwaysUnknown(args.attempt_id ?? args.subject);
           return jsonContent(
             buildBlockedRunStatusResult({
               blockerCode: lookup.blocker_code,
@@ -630,33 +929,59 @@ export function registerRunMonitorRoutes(ctx) {
           );
         }
 
-        const deadline = createCallDeadline(runStatusCallBudgetMs);
-
-        const statusOutcome = await settleWithinDeadline(dispatchBackend.getRunStatus({
+        const callBudgetMs = args.timeout_ms ?? runStatusCallBudgetMs;
+        const deadline = createCallDeadline(callBudgetMs);
+        const observe = args.timeout_ms === undefined
+          ? dispatchBackend.getRunStatus.bind(dispatchBackend)
+          : dispatchBackend.waitForRunStatus.bind(dispatchBackend);
+        const statusOutcome = await settleWithinDeadline(observe({
           caller_session_id: dispatchSessionIdentity,
-          monitor_handle: args.monitor_handle,
-          subject: args.subject ?? null
-        }), deadline);
+          subject: args.subject,
+          attempt_id: args.attempt_id ?? null,
+          ...(args.timeout_ms === undefined
+            ? {}
+            : { timeout_ms: args.timeout_ms, poll_interval_ms: Math.min(5000, args.timeout_ms) })
+        }), deadline, args.timeout_ms === undefined ? {} : { graceMs: BACKEND_SETTLE_GRACE_MS });
         if (!statusOutcome.settled) {
           return jsonContent(buildBlockedRunStatusResult(
-            unresponsiveBackendRefusal("run_status_backend_unresponsive", runStatusCallBudgetMs, {
+            unresponsiveBackendRefusal("run_status_backend_unresponsive", callBudgetMs, {
               route: "workspace_agent_run_status",
-              monitorHandle: args.monitor_handle
+              subject: args.subject,
+              attemptId: args.attempt_id ?? null
             })
           ));
         }
         let status = statusOutcome.value;
-        let recoveredLifecycle = null;
+        let recoveredLifecycle;
         if (!status || status.accepted !== true) {
           const refusal = status?.refusal ?? {};
+          if (refusal.reason === "attempt_selection_ambiguous") {
+            return jsonContent(buildBlockedRunStatusResult({
+              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
+              reason: refusal.reason,
+              detail: refusal.detail,
+              refusal: attemptSelectionRefusal({
+                subject: args.subject,
+                attempts: refusal.detail?.attempts,
+                route: "workspace_agent_run_status"
+              })
+            }));
+          }
+          const unavailable = unavailableSubjectRecovery(
+            args, refusal, "workspace_agent_run_status"
+          );
+          if (unavailable !== null) {
+            return jsonContent(buildBlockedRunStatusResult(unavailable));
+          }
           const recoveryOutcome = await settleWithinDeadline(
             attemptUnknownHandleRecovery(workspace, args, refusal), deadline
           );
           if (!recoveryOutcome.settled) {
             return jsonContent(buildBlockedRunStatusResult(
-              unresponsiveRecoveryRefusal(refusal, runStatusCallBudgetMs, {
-              route: "workspace_agent_run_status",
-              monitorHandle: args.monitor_handle
+              unresponsiveRecoveryRefusal(refusal, callBudgetMs, {
+                route: "workspace_agent_run_status",
+                subject: args.subject,
+                attemptId: args.attempt_id ?? null
             })
             ));
           }
@@ -665,6 +990,10 @@ export function registerRunMonitorRoutes(ctx) {
               Object.prototype.hasOwnProperty.call(recovered, "lifecycle")) {
             status = recovered.status;
             recoveredLifecycle = recovered.lifecycle;
+          } else if (recovered?.recovery_failure?.code === "findings_observation_unavailable") {
+            return jsonContent(buildBlockedRunStatusResult(subjectObservationUnavailable(
+              args.subject, recovered.recovery_failure.code, "workspace_agent_run_status"
+            )));
           } else {
             return jsonContent(
               buildBlockedRunStatusResult(
@@ -675,25 +1004,58 @@ export function registerRunMonitorRoutes(ctx) {
             );
           }
         }
-        const advance = recoveredLifecycle === null
-          ? await advanceManagedSliceLifecycle(workspace, status, deadline)
-          : settledAdvance(recoveredLifecycle);
-        const lifecycle = advance.lifecycle;
 
-        const includeFullFinalResult =
-          args?.verbose === true || args?.include_final_result === true;
+        const request = createMonitorRequest();
+        let advance;
+        if (recoveredLifecycle === undefined) {
+          advance = await advanceManagedSliceLifecycle(workspace, status, deadline, request);
+        } else {
+          request.bound = true;
+          advance = settledAdvance(recoveredLifecycle);
+        }
+        let lifecycle = advance.lifecycle;
+
+        const includeFullFinalResult = args?.include_final_result === true;
         const finalResult = status.final_result ?? null;
         const reviewResult = compactRunStatusReviewResult(status.review_result);
-        const terminality = projectManagedTerminality({
+        let terminality = projectManagedTerminality({
           runId: status.run_id,
           lifecycle,
           childTerminal: status.terminal === true,
           advanceInFlight: advance.advance_in_flight
         });
+        let boundedObservationExpired = status.timed_out === true;
+
+        while (args.timeout_ms !== undefined && !boundedObservationExpired &&
+               advance.attempt_failed !== true &&
+               !terminality.terminal && terminality.lifecycle_resolution !== null) {
+          const remainingMs = deadline.remainingMs();
+          if (remainingMs <= 0) {
+            boundedObservationExpired = true;
+            break;
+          }
+          const sleepMs = Math.min(5000, remainingMs);
+          await sleep(sleepMs);
+          if (sleepMs === remainingMs) {
+            boundedObservationExpired = true;
+            break;
+          }
+          advance = await advanceManagedSliceLifecycle(workspace, status, deadline, request);
+          if (advance.lifecycle !== null) lifecycle = advance.lifecycle;
+          terminality = projectManagedTerminality({
+            runId: status.run_id,
+            lifecycle,
+            childTerminal: status.terminal === true,
+            advanceInFlight: advance.advance_in_flight
+          });
+        }
         const accepted = {
           schema_version: AGENT_RUN_STATUS_SCHEMA_VERSION,
           accepted: true,
-          verbose: args?.verbose === true,
+
+          settled: !boundedObservationExpired && advance.advance_in_flight !== true &&
+            !(args.timeout_ms !== undefined && advance.attempt_failed === true),
+          attempt_id: status.run_id,
           run_id: status.run_id,
           monitor_handle: status.monitor_handle,
           app: status.app ?? null,
@@ -709,6 +1071,12 @@ export function registerRunMonitorRoutes(ctx) {
           exit: status.exit ?? null,
           review_result: reviewResult
         };
+        if (status.final_result_durability !== undefined) {
+          accepted.final_result_durability = status.final_result_durability;
+        }
+        if (status.final_result_publication_failure !== undefined) {
+          accepted.final_result_publication_failure = status.final_result_publication_failure;
+        }
         attachSessionContractProjection(accepted, status);
         const attemptLineageResolution = publishAttemptLineageResolution(
           status,
@@ -717,40 +1085,62 @@ export function registerRunMonitorRoutes(ctx) {
         if (attemptLineageResolution !== null) {
           accepted.attempt_lineage_resolution = attemptLineageResolution;
         }
-        if (Array.isArray(status.validation_evidence)) {
-          accepted.validation_evidence = status.validation_evidence;
-        }
         if (terminality.lifecycle_resolution) {
           accepted.lifecycle_resolution = terminality.lifecycle_resolution;
         }
         if (!terminality.terminal) {
-          accepted.next_action = resolveTopLevelNextAction(terminality.lifecycle_resolution);
+          accepted.next_action = LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY;
         }
 
         const closeoutOutcome = await settleWithinDeadline(buildCloseoutWorkflowContinuation({
           dispatchBackend,
-          status,
-          lifecycle
+          status
         }), deadline);
         if (closeoutOutcome.settled && closeoutOutcome.value !== null) {
           accepted.closeout_continuation = closeoutOutcome.value;
         }
 
-        if (lifecycle) accepted.slice_lifecycle = publishableLifecycleFailure(lifecycle);
-        if (finalResult) {
-          if (includeFullFinalResult) {
-            accepted.final_result = finalResult;
-          } else {
-            accepted.final_result_summary = summarizeRunStatusFinalResult(finalResult);
-          }
+        if (status.role === "worker" && WORKER_SLICE_SUBJECT_RE.test(status.subject ?? "")) {
+          const proofOutcome = await settleWithinDeadline(observeRunProofVerification({
+            dispatchBackend,
+            callerSessionId: dispatchSessionIdentity,
+            status
+          }), deadline);
+          accepted.proof_verification = proofOutcome.settled
+            ? proofOutcome.value
+            : Object.freeze({ state: "unavailable", code: "run_status_call_bound_elapsed", grants_authority: false });
         }
+
+        if (lifecycle) {
+          const published = publishableLifecycleFailure(lifecycle);
+
+          const retention = authoredContractRetention.retain({
+            repository: workspace.repo,
+            status,
+            lifecycle: published
+          });
+          accepted.slice_lifecycle = projectPublishedIntegrationReceipt(
+            projectPublishedSliceLifecycle(published, { retention }),
+            { retention }
+          );
+        }
+        Object.assign(accepted, projectRunFinalResultPublication(
+          finalResult,
+          { includeFullFinalResult }
+        ));
         return jsonContent(omitNullFields(accepted));
       } catch (error) {
         return jsonContent(
           buildBlockedRunStatusResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+            blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
             reason: "run_status_tool_exception",
-            detail: buildDispatchToolExceptionDetail("workspace_agent_run_status", error),
+
+            detail: {
+              ...buildDispatchToolExceptionDetail("workspace_agent_run_status", error),
+              evidence: captureLifecycleFailureEvidence(error, {
+                operation: "workspace_agent_run_status"
+              })
+            },
 
             refusal: routeExceptionRefusal("workspace_agent_run_status")
           })
@@ -759,332 +1149,4 @@ export function registerRunMonitorRoutes(ctx) {
     }
   );
 
-  registerTool(
-    "workspace_agent_run_wait",
-    {
-      description:
-        "Wait for a workspace_agent_dispatch run or a bounded window. For a managed exact-slice worker this advances the trusted post-worker lifecycle and is not read-only. terminal:true means the complete managed run is finalized; child_terminal means only that the child ended. Omit timeout_ms for the 60000 ms default. A timed-out call does not fail or cancel the run; retry with the same monitor_handle and never relaunch merely because the wait expired. lifecycle_resolution and next_action identify any caller action. Bounds: timeout_ms [1,300000], poll_interval_ms [500,60000] default 5000; both require integers. Caller identity carriers are refused with the monitor_handle_* taxonomy. Terminal output is compact unless verbose or include_final_result is true. Reviewer/redteam text remains usable despite schema diagnostics; requested formal attestation is settled in the same result.",
-      inputSchema: {
-        repo: z.string().optional(),
-        monitor_handle: z.string(),
-        subject: z.string().optional(),
-        timeout_ms: z.number().optional(),
-        poll_interval_ms: z.number().optional(),
-        verbose: z.boolean().optional(),
-        include_final_result: z.boolean().optional(),
-        env: z.record(z.unknown()).optional(),
-        request: z.record(z.unknown()).optional(),
-        prompt: z.record(z.unknown()).optional(),
-        argv: z.record(z.unknown()).optional(),
-        claimed_identity: z
-          .object({
-            role: z.string().optional()
-          })
-          .optional()
-      }
-    },
-    async (args) => {
-      try {
-        const identityRefusal = refuseCallerSuppliedIdentityFields(args);
-        if (identityRefusal) {
-          return jsonContent(
-            buildBlockedRunWaitResult({
-              blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
-              reason: "caller_supplied_identity_carrier",
-              detail: identityRefusal,
-              refusal: invalidArgumentRefusal(
-                "workspace_agent_run_wait",
-                "request.caller_supplied_identity_present",
-                true,
-                DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY
-              )
-            })
-          );
-        }
-
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args?.repo);
-
-        const timeoutMs = args?.timeout_ms ?? MONITOR_CALL_DEFAULT_TIMEOUT_MS;
-        const pollIntervalMs = args?.poll_interval_ms ?? 5000;
-
-        if (!Number.isInteger(timeoutMs) ||
-            timeoutMs < RUN_WAIT_TIMEOUT_MS_BOUNDS.min ||
-            timeoutMs > RUN_WAIT_TIMEOUT_MS_BOUNDS.max) {
-          return jsonContent(
-            buildBlockedRunWaitResult({
-              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
-              reason: "timeout_ms_out_of_range",
-              refusal: invalidArgumentRefusal(
-                "workspace_agent_run_wait",
-                "request.timeout_ms_within_range",
-                false
-              ),
-              detail: {
-                timeout_ms: timeoutMs,
-                valid_range: [RUN_WAIT_TIMEOUT_MS_BOUNDS.min, RUN_WAIT_TIMEOUT_MS_BOUNDS.max],
-                message: `timeout_ms must be an integer in [${RUN_WAIT_TIMEOUT_MS_BOUNDS.min}, ${RUN_WAIT_TIMEOUT_MS_BOUNDS.max}]`
-              }
-            })
-          );
-        }
-        if (!Number.isInteger(pollIntervalMs) || pollIntervalMs < 500 || pollIntervalMs > 60000) {
-          return jsonContent(
-            buildBlockedRunWaitResult({
-              blockerCode: DISPATCH_BLOCKER_CODES.VALIDATION_FAILURE,
-              reason: "poll_interval_ms_out_of_range",
-              refusal: invalidArgumentRefusal(
-                "workspace_agent_run_wait",
-                "request.poll_interval_ms_within_range",
-                false
-              ),
-              detail: {
-                poll_interval_ms: pollIntervalMs,
-                valid_range: [500, 60000],
-                message: "poll_interval_ms must be an integer in [500, 60000]"
-              }
-            })
-          );
-        }
-
-        if (!dispatchBackend) {
-          const lookup = resolveMonitorHandleAlwaysUnknown(args.monitor_handle);
-          return jsonContent(
-            buildBlockedRunWaitResult({
-              blockerCode: lookup.blocker_code,
-              reason: lookup.reason,
-              detail: null,
-              refusal: unknownHandleRefusal(lookup.blocker_code, "workspace_agent_run_wait")
-            })
-          );
-        }
-
-        const deadline = createCallDeadline(timeoutMs);
-
-        const waitOutcome = await settleWithinDeadline(dispatchBackend.waitForRunStatus({
-          caller_session_id: dispatchSessionIdentity,
-          monitor_handle: args.monitor_handle,
-          subject: args.subject ?? null,
-          timeout_ms: timeoutMs,
-          poll_interval_ms: pollIntervalMs
-        }), deadline, { graceMs: BACKEND_SETTLE_GRACE_MS });
-        if (!waitOutcome.settled) {
-          return jsonContent(buildBlockedRunWaitResult(
-            unresponsiveBackendRefusal("run_wait_backend_unresponsive", timeoutMs, {
-              route: "workspace_agent_run_wait",
-              monitorHandle: args.monitor_handle
-            })
-          ));
-        }
-        let waitResult = waitOutcome.value;
-
-        let recoveredLifecycle = null;
-        if (!waitResult || waitResult.accepted !== true) {
-          const refusal = waitResult?.refusal ?? {};
-          const recoveryOutcome = await settleWithinDeadline(
-            attemptUnknownHandleRecovery(workspace, args, refusal), deadline
-          );
-          if (!recoveryOutcome.settled) {
-            return jsonContent(buildBlockedRunWaitResult(
-              unresponsiveRecoveryRefusal(refusal, timeoutMs, {
-              route: "workspace_agent_run_wait",
-              monitorHandle: args.monitor_handle
-            })
-            ));
-          }
-          const recovered = recoveryOutcome.value;
-          if (recovered?.status?.accepted === true &&
-              Object.prototype.hasOwnProperty.call(recovered, "lifecycle")) {
-            waitResult = recovered.status;
-            recoveredLifecycle = recovered.lifecycle;
-          } else {
-            return jsonContent(
-              buildBlockedRunWaitResult(
-                resolveRecoveryRefusal(recovered, refusal, "run_wait_backend_refused", {
-                  route: "workspace_agent_run_wait"
-                })
-              )
-            );
-          }
-        }
-
-        if (waitResult?.terminal === true &&
-            (waitResult.role === "reviewer" || waitResult.role === "redteam") &&
-            publishAttemptLineageResolution(
-              waitResult,
-              "workspace_agent_run_wait"
-            ) === null) {
-          const lineageOutcome = await settleWithinDeadline(dispatchBackend.getRunStatus({
-            caller_session_id: dispatchSessionIdentity,
-            monitor_handle: args.monitor_handle,
-            subject: args.subject ?? null
-          }), deadline);
-          const lineageStatus = lineageOutcome.settled ? lineageOutcome.value : null;
-          if (lineageStatus?.accepted === true &&
-              lineageStatus.run_id === waitResult.run_id &&
-              lineageStatus.monitor_handle === waitResult.monitor_handle &&
-              lineageStatus.status === waitResult.status &&
-              publishAttemptLineageResolution(
-                lineageStatus,
-                "workspace_agent_run_wait"
-              ) !== null) {
-            waitResult = Object.freeze({
-              ...waitResult,
-              attempt_lineage_resolution: lineageStatus.attempt_lineage_resolution
-            });
-          }
-        }
-
-        const buildWaitTimeout = (source, childTerminal, resolution, lifecycle = null) => {
-          const timeout = {
-            schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
-            accepted: true,
-            timed_out: true,
-            verbose: args?.verbose === true,
-            run_id: source.run_id,
-            monitor_handle: source.monitor_handle,
-            app: source.app ?? null,
-            role: source.role,
-            subject: source.subject,
-            status: source.status,
-            terminal: false,
-            child_terminal: childTerminal === true,
-            started_at: source.started_at,
-            updated_at: source.updated_at,
-            next_action: resolveTopLevelNextAction(resolution)
-          };
-          attachSessionContractProjection(timeout, source);
-          if (Array.isArray(source.validation_evidence)) {
-            timeout.validation_evidence = source.validation_evidence;
-          }
-          if (resolution) timeout.lifecycle_resolution = resolution;
-          const attemptLineageResolution = publishAttemptLineageResolution(
-            source,
-            "workspace_agent_run_wait"
-          );
-          if (attemptLineageResolution !== null) {
-            timeout.attempt_lineage_resolution = attemptLineageResolution;
-          }
-          const publishable = publishableLifecycleFailure(lifecycle);
-          if (publishable) timeout.slice_lifecycle = publishable;
-          return jsonContent(omitNullFields(timeout));
-        };
-
-        if (waitResult.timed_out) {
-
-          return buildWaitTimeout(waitResult, false, null);
-        }
-
-        const childTerminal = waitResult.terminal === true;
-        let advance = recoveredLifecycle === null
-          ? await advanceManagedSliceLifecycle(workspace, waitResult, deadline)
-          : settledAdvance(recoveredLifecycle);
-
-        let lifecycle = advance.lifecycle;
-        let terminality = projectManagedTerminality({
-          runId: waitResult.run_id,
-          lifecycle,
-          childTerminal,
-          advanceInFlight: advance.advance_in_flight
-        });
-
-        while (recoveredLifecycle === null &&
-               !terminality.terminal &&
-               terminality.lifecycle_resolution !== null &&
-               !lifecycleResolutionRequiresExternalAction(terminality.lifecycle_resolution)) {
-          const remainingMs = deadline.remainingMs();
-          if (remainingMs <= 0) {
-
-            return buildWaitTimeout(
-              waitResult, childTerminal, terminality.lifecycle_resolution, lifecycle
-            );
-          }
-          const sleepMs = Math.min(pollIntervalMs, remainingMs);
-          await sleep(sleepMs);
-
-          if (sleepMs === remainingMs) {
-            return buildWaitTimeout(
-              waitResult, childTerminal, terminality.lifecycle_resolution, lifecycle
-            );
-          }
-          advance = await advanceManagedSliceLifecycle(workspace, waitResult, deadline);
-          if (advance.lifecycle !== null) lifecycle = advance.lifecycle;
-          terminality = projectManagedTerminality({
-            runId: waitResult.run_id,
-            lifecycle,
-            childTerminal,
-            advanceInFlight: advance.advance_in_flight
-          });
-        }
-
-        const includeFullFinalResult =
-          args?.verbose === true || args?.include_final_result === true;
-        const finalResult = waitResult.final_result ?? null;
-        const reviewResult = compactRunStatusReviewResult(waitResult.review_result);
-
-        const accepted = {
-          schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
-          accepted: true,
-          timed_out: false,
-          verbose: args?.verbose === true,
-          run_id: waitResult.run_id,
-          monitor_handle: waitResult.monitor_handle,
-          app: waitResult.app ?? null,
-          role: waitResult.role,
-          subject: waitResult.subject,
-          status: waitResult.status,
-          terminal: terminality.terminal,
-          child_terminal: terminality.child_terminal,
-          started_at: waitResult.started_at,
-          updated_at: waitResult.updated_at,
-          exit: waitResult.exit ?? null,
-          review_result: reviewResult
-        };
-        attachSessionContractProjection(accepted, waitResult);
-        const attemptLineageResolution = publishAttemptLineageResolution(
-          waitResult,
-          "workspace_agent_run_wait"
-        );
-        if (attemptLineageResolution !== null) {
-          accepted.attempt_lineage_resolution = attemptLineageResolution;
-        }
-        if (Array.isArray(waitResult.validation_evidence)) {
-          accepted.validation_evidence = waitResult.validation_evidence;
-        }
-        if (terminality.lifecycle_resolution) {
-          accepted.lifecycle_resolution = terminality.lifecycle_resolution;
-        }
-        if (!terminality.terminal) {
-          accepted.next_action = resolveTopLevelNextAction(terminality.lifecycle_resolution);
-        }
-
-        const closeoutOutcome = await settleWithinDeadline(buildCloseoutWorkflowContinuation({
-          dispatchBackend,
-          status: waitResult,
-          lifecycle
-        }), deadline);
-        if (closeoutOutcome.settled && closeoutOutcome.value !== null) {
-          accepted.closeout_continuation = closeoutOutcome.value;
-        }
-
-        if (lifecycle) accepted.slice_lifecycle = publishableLifecycleFailure(lifecycle);
-        if (finalResult) {
-          if (includeFullFinalResult) {
-            accepted.final_result = finalResult;
-          } else {
-            accepted.final_result_summary = summarizeRunStatusFinalResult(finalResult);
-          }
-        }
-        return jsonContent(omitNullFields(accepted));
-      } catch (error) {
-        return jsonContent(
-          buildBlockedRunWaitResult({
-            blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
-            reason: "run_wait_tool_exception",
-            detail: buildDispatchToolExceptionDetail("workspace_agent_run_wait", error),
-            refusal: routeExceptionRefusal("workspace_agent_run_wait")
-          })
-        );
-      }
-    }
-  );
 }

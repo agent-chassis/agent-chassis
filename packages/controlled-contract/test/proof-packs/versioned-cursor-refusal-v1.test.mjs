@@ -12,9 +12,9 @@ import {
 
 const packageRoot = path.resolve(new URL("../../", import.meta.url).pathname);
 const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.pagination.versioned-cursor-refusal/2.0.0");
+  "test/certification/profiles/proof.pagination.versioned-cursor-refusal/3.0.0");
 const runtimeDirectory = path.join(packageRoot,
-  "profiles/proof.pagination.versioned-cursor-refusal/2.0.0");
+  "profiles/proof.pagination.versioned-cursor-refusal/3.0.0");
 
 async function json(directory, name) {
   return JSON.parse(await readFile(path.join(directory, name), "utf8"));
@@ -44,26 +44,6 @@ test("versioned cursor profile refuses the exact stale occurrence", async () => 
   }
 });
 
-test("versioned cursor exact declaration binds derived selections and content", async () => {
-  const declaration = await json(certificationDirectory, "exact-binding.json");
-  assert.deepEqual(declaration.relations.map(
-    ({ relation_id: id, operator }) => [id, operator]
-  ), [
-    ["control-captured-content", "same_content_sha256"],
-    ["derive-mutation-pagination-projection", "deterministic_projection"],
-    ["primary-captured-content", "distinct_content_sha256"]
-  ]);
-  const projectedRoles = declaration.requirements.find(
-    ({ requirement_id: id }) => id === "f-projection"
-  ).role_coverage.map(({ role }) => role);
-  for (const role of [
-    "traversal", "stale_attempt", "stale_cursor", "relevant_mutation",
-    "traversal_source_version", "current_source_version", "refusal",
-    "page_result_artifact", "page_return_event", "cursor_advance_event",
-    "effect_occurrences", "protected_effects", "control_attempt",
-    "unrelated_mutation"
-  ]) assert.ok(projectedRoles.includes(role));
-});
 
 test("versioned cursor pack passes executable adequacy and admission", async () => {
   const result = await runProofPackAdequacy(certificationDirectory, {
@@ -77,7 +57,4 @@ test("versioned cursor pack passes executable adequacy and admission", async () 
   assert.ok(admission.explicit_exclusions.includes(
     "standalone-traversal-completeness"
   ));
-  assert.equal(admission.exact_binding.relation_operators.includes(
-    "distinct_content_sha256"
-  ), true);
 });

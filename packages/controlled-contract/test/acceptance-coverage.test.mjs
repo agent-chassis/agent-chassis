@@ -252,168 +252,27 @@ test("validation messages describe only the accepted input shape", () => {
   );
 });
 
-const obligationDigest = `sha256:${"c".repeat(64)}`;
-const READINESS_PROFILE_ID = "proof.design.implementation-readiness";
-const DORMANCY_PROFILE_ID = "proof.dormancy.nonactivation";
+import { pinProofSelection } from '../lib/proof-authoring-selection.mjs';
+import { resolveProofAuthoring } from '../lib/proof-authoring-resolution.mjs';
+test('real saved selections evaluate as design associations and never prove execution', async () => {
+  const selection = { ...await pinProofSelection('proof.verification.test-validity'), parameters: {} };
+  const resolution = await resolveProofAuthoring({ schema_version: 'controlled-contract-obligation-coverage.v3',
+    wk_id: 'WK-2095', selected_unit: null, focus: null,
+    obligations: [{ obligation_id: 'OBL-ONE', statement: 'Author one association', selection }] },
+  { source_digest: `sha256:${'c'.repeat(64)}` });
+  const evaluation = evaluateAcceptanceCoverage({ obligationCoverage: resolution.mapping });
+  assert.equal(evaluation.complete, false);
+  assert.equal(evaluation.obligation_outcomes[0].outcome, 'design_invalid');
+  assert.deepEqual(evaluation.obligation_outcomes[0].selection, selection);
+  const stale = evaluateAcceptanceCoverage({ obligationCoverage: resolution.mapping, staleObligationIds: ['OBL-ONE'] });
+  assert.equal(stale.obligation_outcomes[0].outcome, 'stale');
+  assert.throws(() => evaluateAcceptanceCoverage({ obligationCoverage: resolution.mapping, staleObligationIds: ['OBL-ABSENT'] }),
+    { code: 'acceptance_coverage_stale_obligation_unknown' });
+  assert.deepEqual(OBLIGATION_COVERAGE_OUTCOMES, ['stale', 'explicit_gap', 'design_invalid', 'selected']);
 
-const readinessSnapshot = await loadAdmittedProofPack(READINESS_PROFILE_ID);
-const dormancySnapshot = await loadAdmittedProofPack(DORMANCY_PROFILE_ID);
-
-function genuineAssessment(snapshot, build) {
-  const fixture = build({ profile: snapshot.profile });
-  return evaluateStableProofPackFixtureV1({
-    contract: fixture.contract, profile: snapshot.profile,
-    evaluation_input: fixture.input
-  });
-}
-
-const readinessAssessment = genuineAssessment(
-  readinessSnapshot, buildImplementationReadinessFixture
-);
-const dormancyAssessment = genuineAssessment(
-  dormancySnapshot, buildDormancyNonactivationFixture
-);
-const READINESS_COMPONENT = "design-names-grounded-loci";
-const READINESS_NODE = "claim-design-names-grounded-loci";
-const DORMANCY_COMPONENT = "activation-population-is-empty";
-const DORMANCY_NODE = "claim-activation-population-is-empty";
-
-function selectorPack(packId, { input = true, evaluated = true,
-  exact = false, profileDiscrimination = "proven" } = {}) {
-  const snapshot = exact ? dormancySnapshot : readinessSnapshot;
-  const assessment = exact ? dormancyAssessment : readinessAssessment;
-  return {
-    pack_id: packId,
-    requested_intents: ["implementation-readiness"],
-    pack_snapshot: snapshot,
-    assessment: evaluated ? assessment : null,
-    evaluation_input_present: input,
-    profile_discrimination: profileDiscrimination,
-    exact_binding: null
-  };
-}
-
-function obligationRow(id, proof, nodeId = `node-${id.toLowerCase()}`) {
-  return {
-    obligation_id: id,
-    source_locator: `/acceptance/criteria/${Number(id.slice(4)) - 1}`,
-    source_locator_digest: obligationDigest,
-    statement: `Implement ${id} exactly.`,
-    controlled_contract_node_ids: [nodeId],
-    mechanism: { owner: "packages/example.mjs", kind: "code_symbol",
-      selector: `owner-${id.toLowerCase()}` },
-    proof
-  };
-}
-
-function obligationMapping(packId, componentId = READINESS_COMPONENT,
-  profileId = READINESS_PROFILE_ID) {
-  const profileVersion = profileId === DORMANCY_PROFILE_ID
-    ? dormancySnapshot.profile.profile_version
-    : readinessSnapshot.profile.profile_version;
-  return { kind: "pack_mapping", pack_id: packId,
-    requested_intent: "implementation-readiness",
-    profile_id: profileId, profile_version: profileVersion,
-    selector: { kind: "claim", component_id: componentId },
-    evaluation_stage: "pre_dispatch" };
-}
-
-test("obligation evaluation exports the eight exclusive outcomes and applies the reachable seven", () => {
-  assert.deepEqual(OBLIGATION_COVERAGE_OUTCOMES, [
-    "stale", "unmapped", "explicit_gap", "guarantee_incompatible",
-    "mapped_input_missing", "mapped_pack_not_evaluated",
-    "profile_proven_exact_binding_missing", "mechanically_proven"
-  ]);
-  const packs = [
-    selectorPack("stale"), selectorPack("unmapped"), selectorPack("incompatible"),
-    selectorPack("missing", { input: false }),
-    selectorPack("unevaluated", { evaluated: false }),
-    selectorPack("exact", { exact: true }), selectorPack("applicability")
-  ];
-  const obligations = [
-    obligationRow("OBL-001", obligationMapping("stale"), READINESS_NODE),
-    obligationRow("OBL-002", obligationMapping("unmapped"), "node-unmapped"),
-    obligationRow("OBL-003", { kind: "explicit_gap", gap_kind: "catalog_gap",
-      reason: "No admitted proof component." }, "node-gap"),
-    obligationRow("OBL-004", obligationMapping("incompatible", "unknown-component"),
-      "node-incompatible"),
-    obligationRow("OBL-005", obligationMapping("missing"), "node-missing"),
-    obligationRow("OBL-006", obligationMapping("unevaluated"), "node-unevaluated"),
-    obligationRow("OBL-007", obligationMapping("exact", DORMANCY_COMPONENT,
-      DORMANCY_PROFILE_ID), DORMANCY_NODE),
-    obligationRow("OBL-008", obligationMapping("applicability"), READINESS_NODE)
-  ];
-  const result = evaluateAcceptanceCoverage({
-    obligationCoverage: { schema_version:
-      "controlled-contract-obligation-coverage.v1", wk_id: "WK-2095", obligations },
-    guaranteeSelectorIndex: buildObligationGuaranteeSelectorIndex({ packs }),
-    selectedPackIds: ["stale", "incompatible", "missing", "unevaluated", "exact",
-      "applicability"],
-    staleObligationIds: ["OBL-001"]
-  });
-
-  assert.deepEqual(result.obligation_outcomes.map(({ outcome }) => outcome), [
-    "stale", "unmapped", "explicit_gap", "guarantee_incompatible",
-    "mapped_input_missing", "mapped_pack_not_evaluated",
-    "profile_proven_exact_binding_missing", "guarantee_incompatible"
-  ]);
-  assert.equal(result.obligation_outcomes[7].reason,
-    "component_applicability_unproven");
-  assert.deepEqual(result.outcome_precedence, OBLIGATION_COVERAGE_OUTCOMES);
-  assert.equal(new Set(result.obligation_outcomes.map(
-    ({ obligation_id: id }) => id)).size, 8);
-  assert.equal(result.obligation_outcomes.filter(
-    ({ outcome }) => outcome === "mechanically_proven").length, 0);
-  assert.equal(result.complete, false);
-});
-
-test("stale wins before proof and profile discrimination alone never proves a row", () => {
-  const packs = [selectorPack("proof")];
-  const carrier = { schema_version: "controlled-contract-obligation-coverage.v1",
-    wk_id: "WK-2095", obligations: [
-      obligationRow("OBL-001", obligationMapping("proof"), READINESS_NODE),
-      obligationRow("OBL-002", obligationMapping("proof", "whole-profile"), "node-other")
-    ] };
-  const result = evaluateAcceptanceCoverage({ obligationCoverage: carrier,
-    guaranteeSelectorIndex: buildObligationGuaranteeSelectorIndex({ packs }),
-    selectedPackIds: ["proof"], staleObligationIds: ["OBL-001"] });
-  assert.equal(result.obligation_outcomes[0].outcome, "stale");
-  assert.equal(result.obligation_outcomes[1].outcome, "guarantee_incompatible");
-  assert.equal(result.obligation_outcomes[1].reason, "unknown_selector");
-});
-
-test("orphan selected packs are blocking diagnostics", () => {
-  const packs = [selectorPack("proof"), selectorPack("orphan")];
-  const result = evaluateAcceptanceCoverage({
-    obligationCoverage: { schema_version:
-      "controlled-contract-obligation-coverage.v1", wk_id: "WK-2095",
-    obligations: [obligationRow("OBL-001", obligationMapping("proof"),
-      READINESS_NODE)] },
-    guaranteeSelectorIndex: buildObligationGuaranteeSelectorIndex({ packs }),
-    selectedPackIds: ["proof", "orphan"]
-  });
-  assert.equal(result.obligation_outcomes[0].outcome, "guarantee_incompatible");
-  assert.deepEqual(result.orphan_selected_pack_ids, ["orphan"]);
-  assert.equal(result.diagnostics[0].severity, "blocking");
-  assert.equal(result.complete, false);
-  assert.equal(isAcceptanceCoverageComplete(result), false);
-});
-
-test("malformed obligation carriers refuse instead of degrading", () => {
-  assert.throws(() => evaluateAcceptanceCoverage({
-    obligationCoverage: { schema_version:
-      "controlled-contract-obligation-coverage.v1", wk_id: "WK-2095",
-    obligations: [], total: 0 },
-    guaranteeSelectorIndex: buildObligationGuaranteeSelectorIndex({ packs: [] }),
-    selectedPackIds: []
-  }), (error) => error instanceof AcceptanceCoverageError &&
-    error.code === "acceptance_coverage_obligation_carrier_invalid");
-});
-
-test("legacy criterion coverage imports and distinctions remain unchanged", () => {
-  const result = evaluateAcceptanceCoverage(base);
-  assert.equal(result.mode, undefined);
-  assert.equal(Array.isArray(result.states), true);
-  assert.equal(Object.hasOwn(result, "obligation_outcomes"), false);
-  assert.equal(result.states[0].state, "covered");
+  const valid = structuredClone(resolution.mapping); valid.obligations[0].diagnostics = [];
+  valid.obligations[0].design_status = 'valid';
+  const selected = evaluateAcceptanceCoverage({ obligationCoverage: valid });
+  assert.equal(selected.obligation_outcomes[0].outcome, 'selected');
+  assert.equal(selected.complete, false);
 });

@@ -27,9 +27,13 @@ import {
   AuthoringErgonomicsConformanceError,
   evaluateAuthoringErgonomicsConformance
 } from "../lib/authoring-ergonomics-conformance.mjs";
+import { loadAuthoringErgonomicsCodeIndexEvidence } from
+  "../lib/authoring-ergonomics-code-index.mjs";
 import { loadToolDiscoveryDescriptor } from "../lib/tool-discovery.mjs";
-import { getSidecarIndexStatus } from "../lib/sidecar-status.mjs";
 import { WORK_RECORD_DIRECTORY_NAME } from "../lib/work-record-store.mjs";
+
+export { loadAuthoringErgonomicsCodeIndexEvidence } from
+  "../lib/authoring-ergonomics-code-index.mjs";
 
 export const AUTHORING_ERGONOMICS_REPORT_OPERATION_SCHEMA_VERSION =
   "authoring-ergonomics-report-operation.v1";
@@ -113,6 +117,7 @@ export const AUTHORING_ERGONOMICS_ROUTING_DEGRADATION_REASONS = Object.freeze([
   "canonical_work_record_search_unavailable",
   "canonical_work_record_search_incomplete",
   "code_index_unavailable",
+  "code_index_rebuild_failed",
   "code_index_stale"
 ]);
 
@@ -532,54 +537,6 @@ export async function loadAuthoringErgonomicsCanonicalEvidence({ dir }) {
     unreadable_record_count: unreadable.length,
     unreadable_records: unreadable,
     records
-  });
-}
-
-const CODE_INDEX_COMPLETE_STALENESS = "fresh";
-const CODE_INDEX_STALE_STALENESS = Object.freeze(["stale", "rebuild_required"]);
-
-export async function loadAuthoringErgonomicsCodeIndexEvidence({ dir }) {
-  let status;
-  try {
-    status = await getSidecarIndexStatus({ dir });
-  } catch (error) {
-    return freezeDeep({
-      route: "code_index",
-      state: "unavailable",
-      required_for_authority: false,
-      degradation_reason: "code_index_unavailable",
-      detail: `the code-index status could not be read: ${faultDetail(error)}`,
-      freshness: "unknown",
-      artifact_exists: null,
-      dirty_state: null
-    });
-  }
-
-  const freshness = typeof status?.staleness === "string" ? status.staleness : "unknown";
-  const stale = CODE_INDEX_STALE_STALENESS.includes(freshness);
-
-  if (freshness !== CODE_INDEX_COMPLETE_STALENESS) {
-    return freezeDeep({
-      route: "code_index",
-      state: stale ? "stale" : "unavailable",
-      required_for_authority: false,
-      degradation_reason: stale ? "code_index_stale" : "code_index_unavailable",
-      detail: `the code index reports staleness ${freshness}; it corroborates no survey of the current code surface`,
-      freshness,
-      artifact_exists: status?.artifact_exists ?? null,
-      dirty_state: status?.dirty_state ?? null
-    });
-  }
-
-  return freezeDeep({
-    route: "code_index",
-    state: "complete",
-    required_for_authority: false,
-    degradation_reason: null,
-    detail: null,
-    freshness,
-    artifact_exists: status?.artifact_exists ?? null,
-    dirty_state: status?.dirty_state ?? null
   });
 }
 

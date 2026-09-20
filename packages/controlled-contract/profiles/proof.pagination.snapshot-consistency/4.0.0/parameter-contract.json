@@ -1,0 +1,1018 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.pagination.snapshot-consistency",
+  "profile_version": "4.0.0",
+  "profile_digest": "73fe9548950e963d20c499b344cd0cb633494afc7285835bcae776295acec01d",
+  "description": "Every page attempt and returned page in the complete declared traversal populations resolves to one immutable snapshot identity and exact captured state; a declared relevant live-source mutation occurs between selected page reads, changes the exact live-source version while the selected snapshot identity and captured state remain unchanged, and the stable and mutation-interleaved ordered member-occurrence sequences are identical.",
+  "parameters": [
+    {
+      "name": "mutation_trace",
+      "purpose": "Declare mutation trace for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "mutation_trace"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "projection_result",
+      "purpose": "Declare projection result for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "projection_result"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "traversal",
+      "purpose": "Declare traversal for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "traversal"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/claim_patterns/6"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "live_source",
+      "purpose": "Declare live source for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "live_source"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/6",
+        "/claim_patterns/7",
+        "/claim_patterns/8"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "snapshot",
+      "purpose": "Declare snapshot for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "snapshot"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/claim_patterns/2",
+        "/claim_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "snapshot_state",
+      "purpose": "Declare snapshot state for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "snapshot_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/2",
+        "/claim_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "initial_source_version",
+      "purpose": "Declare initial source version for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "initial_source_version"
+      ],
+      "refinement_refs": [
+        "/reference_roles/10"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/7"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "later_source_version",
+      "purpose": "Declare later source version for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "later_source_version"
+      ],
+      "refinement_refs": [
+        "/reference_roles/11"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/8"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "page_attempt_population",
+      "purpose": "Declare page attempt population for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "page_attempt_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "page_attempts",
+      "purpose": "Declare page attempts for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "page_attempts"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/11",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "returned_page_population",
+      "purpose": "Declare returned page population for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "returned_page_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "returned_pages",
+      "purpose": "Declare returned pages for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "returned_pages"
+      ],
+      "refinement_refs": [
+        "/reference_roles/15"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "member_occurrence_population",
+      "purpose": "Declare member occurrence population for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "member_occurrence_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/16"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "member_occurrences",
+      "purpose": "Declare member occurrences for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "member_occurrences"
+      ],
+      "refinement_refs": [
+        "/reference_roles/17"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "stable_member_occurrence_population",
+      "purpose": "Declare stable member occurrence population for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "stable_member_occurrence_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/18"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "stable_member_occurrences",
+      "purpose": "Declare stable member occurrences for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "stable_member_occurrences"
+      ],
+      "refinement_refs": [
+        "/reference_roles/19"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "mutation_population",
+      "purpose": "Declare mutation population for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "mutation_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/20"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "mutations",
+      "purpose": "Declare mutations for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "mutations"
+      ],
+      "refinement_refs": [
+        "/reference_roles/21"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "first_page_attempt",
+      "purpose": "Declare first page attempt for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "first_page_attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/22"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/7"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "later_page_attempt",
+      "purpose": "Declare later page attempt for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "later_page_attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/23"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/3",
+        "/claim_patterns/5",
+        "/claim_patterns/8"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "first_returned_page",
+      "purpose": "Declare first returned page for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "first_returned_page"
+      ],
+      "refinement_refs": [
+        "/reference_roles/24"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "relevant_mutation",
+      "purpose": "Declare relevant mutation for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "relevant_mutation"
+      ],
+      "refinement_refs": [
+        "/reference_roles/26"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/claim_patterns/6"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "identical_sequence_state",
+      "purpose": "Declare identical sequence state for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "identical_sequence_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/28"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/29"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/12"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "sequence_failure_condition",
+      "purpose": "Declare sequence failure condition for proof.pagination.snapshot-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "sequence_failure_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/30"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/falsifier_condition_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "mutation_trace",
+      "kind": "semantic_parameter",
+      "parameter": "mutation_trace",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "projection_result",
+      "kind": "semantic_parameter",
+      "parameter": "projection_result",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "primary_before_capture",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire primary_before_capture for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.pagination.snapshot-consistency/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "primary_after_capture",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire primary_after_capture for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.pagination.snapshot-consistency/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "control_before_capture",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire control_before_capture for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.pagination.snapshot-consistency/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "control_after_capture",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire control_after_capture for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.pagination.snapshot-consistency/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "traversal",
+      "kind": "semantic_parameter",
+      "parameter": "traversal",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/claim_patterns/6"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "live_source",
+      "kind": "semantic_parameter",
+      "parameter": "live_source",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/6",
+        "/claim_patterns/7",
+        "/claim_patterns/8"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "snapshot",
+      "kind": "semantic_parameter",
+      "parameter": "snapshot",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/claim_patterns/2",
+        "/claim_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "snapshot_state",
+      "kind": "semantic_parameter",
+      "parameter": "snapshot_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/2",
+        "/claim_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "initial_source_version",
+      "kind": "semantic_parameter",
+      "parameter": "initial_source_version",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/7"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "later_source_version",
+      "kind": "semantic_parameter",
+      "parameter": "later_source_version",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/8"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "page_attempt_population",
+      "kind": "semantic_parameter",
+      "parameter": "page_attempt_population",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "page_attempts",
+      "kind": "semantic_parameter",
+      "parameter": "page_attempts",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/11",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "returned_page_population",
+      "kind": "semantic_parameter",
+      "parameter": "returned_page_population",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "returned_pages",
+      "kind": "semantic_parameter",
+      "parameter": "returned_pages",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "member_occurrence_population",
+      "kind": "semantic_parameter",
+      "parameter": "member_occurrence_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "member_occurrences",
+      "kind": "semantic_parameter",
+      "parameter": "member_occurrences",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "stable_member_occurrence_population",
+      "kind": "semantic_parameter",
+      "parameter": "stable_member_occurrence_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "stable_member_occurrences",
+      "kind": "semantic_parameter",
+      "parameter": "stable_member_occurrences",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "mutation_population",
+      "kind": "semantic_parameter",
+      "parameter": "mutation_population",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "mutations",
+      "kind": "semantic_parameter",
+      "parameter": "mutations",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "first_page_attempt",
+      "kind": "semantic_parameter",
+      "parameter": "first_page_attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/7"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "later_page_attempt",
+      "kind": "semantic_parameter",
+      "parameter": "later_page_attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/3",
+        "/claim_patterns/5",
+        "/claim_patterns/8"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "first_returned_page",
+      "kind": "semantic_parameter",
+      "parameter": "first_returned_page",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "later_returned_page",
+      "kind": "capability_gap",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [],
+      "capability": null,
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Required role later_returned_page has no rule-linked semantic source.",
+        "source": "profiles/proof.pagination.snapshot-consistency/4.0.0/profile.json#/reference_roles/25",
+        "consequence": "The required type/cardinality survives; no new guarantee or input mapping is invented."
+      }
+    },
+    {
+      "role": "relevant_mutation",
+      "kind": "semantic_parameter",
+      "parameter": "relevant_mutation",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/claim_patterns/6"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "sequence_comparison_result",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/9"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire sequence_comparison_result for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.pagination.snapshot-consistency/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "identical_sequence_state",
+      "kind": "semantic_parameter",
+      "parameter": "identical_sequence_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/12"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "sequence_failure_condition",
+      "kind": "semantic_parameter",
+      "parameter": "sequence_failure_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/falsifier_condition_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "mutation_trace",
+      "projection_result",
+      "traversal",
+      "live_source",
+      "snapshot",
+      "snapshot_state",
+      "initial_source_version",
+      "later_source_version",
+      "page_attempt_population",
+      "page_attempts",
+      "returned_page_population",
+      "returned_pages",
+      "member_occurrence_population",
+      "member_occurrences",
+      "stable_member_occurrence_population",
+      "stable_member_occurrences",
+      "mutation_population",
+      "mutations",
+      "first_page_attempt",
+      "later_page_attempt",
+      "first_returned_page",
+      "relevant_mutation",
+      "identical_sequence_state",
+      "verification",
+      "sequence_failure_condition"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [
+      "primary_before_capture",
+      "primary_after_capture",
+      "control_before_capture",
+      "control_after_capture",
+      "sequence_comparison_result"
+    ],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.pagination.snapshot-consistency.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.pagination.snapshot-consistency constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.pagination.snapshot-consistency.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

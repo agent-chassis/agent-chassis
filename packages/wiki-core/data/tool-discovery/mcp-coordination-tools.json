@@ -56,7 +56,7 @@
       "do_not_use_when": [
         "selected_work_record_context after a unit is already chosen for detailed reading",
         "dispatch_readiness for a selected launch unit",
-        "dispatch_role_call after readiness already returned dispatchable",
+        "dispatch_role_call: starting a unit is workspace_agent_dispatch, and this read-only lens grants no launch permission",
         "run_monitoring"
       ],
       "authoritative_for": [
@@ -124,6 +124,7 @@
         "free_local"
       ],
       "docs_refs": [
+        "docs/initiative-status.md",
         "docs/tool-discovery.md",
         "docs/agent-launch-quickstart.md",
         "docs/agent-launch-operator-entrypoints.md",
@@ -136,27 +137,29 @@
         "packages/wiki-mcp/src/lib/integration-status-tools.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Read-only local coordination status for an initiative integration branch. Accepts only server-resolved repo selection plus an initiative id, then reports expected integration/WK ref naming, related WK rows, and explicit unknown/not_available/not_evaluated local fact states. It does not dispatch, mutate records, merge branches, satisfy review policy, authorize promotion, or replace workspace_validate_dispatch or future promote-check tools.",
+      "notes": "Legacy-named read-only local coordination inventory. Accepts only server-resolved repo selection plus an initiative id that resolves to valid canonical initiative JSON. Membership is exactly canonical WK.initiative; related arrays and Markdown projections do not add members. Reports expected short-lived WK ref naming plus explicit unknown/not_available/not_evaluated facts for observations this operation does not implement. It does not restore initiative integration branches, dispatch, mutate records, merge, satisfy review policy, authorize promotion, or replace dispatch-readiness or per-WK promote-check facts.",
       "use_when": [
-        "initiative integration branch coordination",
-        "branch/worktree local fact inventory for a known IN-*",
-        "pre-promote local status inspection before a dedicated promote-check exists"
+        "canonical initiative work-record membership inventory",
+        "expected short-lived WK ref naming for a known IN-*",
+        "truthful local capability-unavailable status inspection"
       ],
       "do_not_use_when": [
         "dispatch_readiness",
         "dispatch_role_call",
         "review-policy satisfaction",
         "merge or promotion decision",
-        "work-record mutation"
+        "work-record mutation",
+        "live Git, forge, mergeability, publication or policy observation"
       ],
       "authoritative_for": [
-        "read-only local integration coordination facts",
+        "canonical initiative JSON and WK.initiative membership",
+        "read-only local coordination inventory",
         "expected integration/WK ref naming",
         "explicit unknown/not_available/not_evaluated fact states"
       ],
       "recommended_first_call": {
         "routing_intents": [
-          "initiative integration branch coordination"
+          "canonical initiative work-record membership inventory"
         ],
         "arguments": {
           "initiative": "$known_IN"

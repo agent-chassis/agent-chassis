@@ -13,7 +13,7 @@ import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pac
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packDirectory = path.join(
-  root, "certification/profiles/proof.ownership.exact-isolation/2.0.0"
+  root, "certification/profiles/proof.ownership.exact-isolation/3.0.0"
 );
 async function readJson(relative) {
   return JSON.parse(await readFile(path.join(packDirectory, relative), "utf8"));

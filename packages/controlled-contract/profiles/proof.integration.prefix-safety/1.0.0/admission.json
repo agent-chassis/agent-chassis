@@ -20,33 +20,5 @@
     "executable_control_count": 18,
     "negative_fixture_count": 44,
     "coverage_witness_count": 44
-  },
-  "exact_binding": {
-    "declaration_digest": "712af9ee4a4e95371c968353d9fe3c6ce00ddd2f82c4062caf1c2b7524148af3",
-    "certification_result_digest": "a284494de8104d268c76898011dd36de73e68a35ea9362acb2532fdfa8989f45",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection"
-    ],
-    "corpus_id": "integration-prefix-safety-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "c3b60a2d9b3a2daa537d6c20e1204ca9cfe776304ef505f028bf048a0375b62c",
-    "passed_control_ids": [
-      "atomic-codeployment-positive",
-      "case-population-duplicate-refused",
-      "case-population-omission-refused",
-      "case-population-substitution-refused",
-      "cross-domain-api-schema-positive",
-      "cross-domain-managed-repository-positive",
-      "cross-domain-message-codec-positive",
-      "missing-dag-source-refused",
-      "missing-path-source-refused",
-      "missing-unit-source-refused",
-      "projection-result-splice-refused",
-      "source-descriptor-splice-refused"
-    ]
   }
 }

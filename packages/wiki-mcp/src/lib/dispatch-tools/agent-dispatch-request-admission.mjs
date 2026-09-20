@@ -22,6 +22,7 @@ import {
   reviewerShaSubjectRefusal,
   subjectRoleMatrixRefusal
 } from "./agent-dispatch-refusal-projection.mjs";
+import { agentDispatchRoutingInput } from "./agent-dispatch-selection-contract.mjs";
 
 export const CALLER_NODE_ENGINE_AUTHORITY_FIELDS = Object.freeze([
   "node_engine",
@@ -54,7 +55,7 @@ export const CALLER_TRANSITION_PLAN_AUTHORITY_FIELDS = Object.freeze([
   "resolveForgeConfirmedLandedPublicationIdentity"
 ]);
 
-function acceptedSubjectKindsForRole(role) {
+export function acceptedSubjectKindsForRole(role) {
   if (role === "worker" || role === "reviewer") {
     return Object.freeze([
       AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD,
@@ -200,15 +201,9 @@ export function admitAgentDispatchRequest({
   const resolveTransitionSelection = () => {
     if (!routingDecisionResolved) {
       routingDecisionResolved = true;
-      routingDecision = dispatchBackend?.resolveBackendRoutingDecision?.({
-        role: args.role,
-        subject: args.subject,
-        target: args.subject,
-        target_role: args.role,
-        workspace_dir: workspace.dir,
-        app: dispatchApp,
-        model: dispatchModel
-      }) ?? resolveDispatchSelection({
+      routingDecision = dispatchBackend?.resolveBackendRoutingDecision?.(
+        agentDispatchRoutingInput(args, workspace)
+      ) ?? resolveDispatchSelection({
         role: args.role,
         subject: args.subject,
         target: args.subject,

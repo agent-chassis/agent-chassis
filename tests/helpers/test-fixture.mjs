@@ -394,3 +394,18 @@ export async function captureExpectedFailure(operation, predicate) {
   }
   return captured;
 }
+
+export const UNSUPPORTED_TEST_ENTRYPOINT_CODE = "test_fixture.unsupported_entrypoint.v1";
+
+export function assertSupportedTestEntrypoint(fixtureName) {
+  if (process.env.PORTFOLIO_WIKI_TOOLS_HERMETIC_TESTS === "1") return;
+  const error = new Error(
+    `${fixtureName} must be run through the supported entrypoint:\n` +
+    "  node tests/run-tests.mjs integration <file>\n" +
+    "A direct `node --test` invocation bypasses the runner's one-file-at-a-time " +
+    "execution, the one-batch-per-checkout lock, the hermetic HOME/TMPDIR clamp and " +
+    "runner-owned temporary-root recovery."
+  );
+  error.code = UNSUPPORTED_TEST_ENTRYPOINT_CODE;
+  throw error;
+}

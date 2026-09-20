@@ -6,11 +6,10 @@ import { profileDigest } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { VOCABULARY_DIGESTS } from "../../vocabulary/controlled-contract-vocabulary.v1.mjs";
 
 const PROFILE_ID = "proof.failure.supplementary-isolation";
-const PROFILE_VERSION = "2.0.0";
+const PROFILE_VERSION = "3.0.0";
 const TRANSFORMER_ID = "supplementary-isolation-attempt-record.v1";
 const GRAPH_PROJECTION_ID = "supplementary-isolation-contract";
 const RESULT_REQUIREMENT_ID = "supplementary-isolation-projection";
-const STAGE = "pre_dispatch";
 const ATTEMPT_SCOPE = Object.freeze({ mode: "during", operand_roles: ["attempt"] });
 const UNCONDITIONAL = Object.freeze({ mode: "unconditional", operand_roles: [] });
 const MEMBER_TYPES = Object.freeze(["cc:artifact", "cc:entity", "cc:resource", "cc:state"]);
@@ -21,7 +20,7 @@ function referenceRole(role, allowedTypeTerms, cardinality) {
 }
 
 function completePopulation(patternId, populationRole, memberRole, scope = ATTEMPT_SCOPE) {
-  return { pattern_id: patternId, required_by_stage: STAGE, comparison: "complete_population",
+  return { pattern_id: patternId, comparison: "complete_population",
     roles: [populationRole, memberRole], applicability_context: scope };
 }
 
@@ -36,7 +35,6 @@ function claim(patternId, subjectRole, operator, operands, {
 } = {}) {
   return {
     pattern_id: patternId,
-    required_by_stage: STAGE,
     claim_kind: kind,
     allowed_modalities: ["MUST"],
     ...(forEach ? { for_each: forEach } : {}),
@@ -253,7 +251,7 @@ function buildSupplementaryIsolationProfile() {
     branch_cardinality: "exactly_one"
   });
   return {
-    schema_version: "controlled-contract-verification-profile.v1",
+    schema_version: "controlled-contract-verification-profile.v2",
     profile_id: PROFILE_ID,
     profile_version: PROFILE_VERSION,
     contract_schema_version: "controlled-acceptance-contract.v1",
@@ -263,7 +261,6 @@ function buildSupplementaryIsolationProfile() {
     vocabulary_definitions_digest: VOCABULARY_DIGESTS.definitions,
     vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
     verification_falsifier_policy: "controlled_complement_per_target",
-    evaluation_stages: [STAGE],
     reference_roles: referenceRoles,
     number_roles: [
       ...countDefinitions.map(([role, , minimum, maximum]) => ({
@@ -285,18 +282,14 @@ function buildSupplementaryIsolationProfile() {
       }))
     ],
     binding_constraint_patterns: [
-      { pattern_id: "present-disclosed-omission-population-forbidden", required_by_stage: STAGE,
-        role_kind: "reference", role: "disclosed_omission_population", minimum: 0, maximum: 0 },
-      { pattern_id: "present-disclosed-omissions-forbidden", required_by_stage: STAGE,
-        role_kind: "reference", role: "disclosed_omissions", minimum: 0, maximum: 0 },
-      { pattern_id: "omitted-disclosed-omission-population-required", required_by_stage: STAGE,
-        role_kind: "reference", role: "disclosed_omission_population", minimum: 1, maximum: 1 },
-      { pattern_id: "omitted-disclosed-omissions-required", required_by_stage: STAGE,
-        role_kind: "reference", role: "disclosed_omissions", minimum: 1, maximum: 1 }
+      { pattern_id: "present-disclosed-omission-population-forbidden", role_kind: "reference", role: "disclosed_omission_population", minimum: 0, maximum: 0 },
+      { pattern_id: "present-disclosed-omissions-forbidden", role_kind: "reference", role: "disclosed_omissions", minimum: 0, maximum: 0 },
+      { pattern_id: "omitted-disclosed-omission-population-required", role_kind: "reference", role: "disclosed_omission_population", minimum: 1, maximum: 1 },
+      { pattern_id: "omitted-disclosed-omissions-required", role_kind: "reference", role: "disclosed_omissions", minimum: 1, maximum: 1 }
     ],
     claim_patterns: claimPatterns,
     relation_patterns: [{
-      pattern_id: "core-members-forward-verifies", required_by_stage: STAGE, role: "verifies",
+      pattern_id: "core-members-forward-verifies", role: "verifies",
       source_claim_pattern_id: "core-members-forward-verification",
       target_claim_pattern_id: "core-members-forward"
     }],
@@ -356,8 +349,7 @@ function buildSupplementaryIsolationEvaluationInput(contract) {
       `prop-sfi-${numberRole.replaceAll("_", "-")}-captured`) : roles[memberRole].length
   ]));
   return {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: STAGE,
+    input_version: "controlled-contract-verification-profile-input.v2",
     reference_bindings: Object.entries(roles).map(([role, reference_ids]) => ({ role, reference_ids })),
     number_bindings: Object.entries(countValues).map(([role, value]) => ({ role, value })),
     claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {}

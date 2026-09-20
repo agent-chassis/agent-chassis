@@ -203,8 +203,15 @@ test("WK-1781 composition incompatibility keeps route registration visible and b
   assert.equal(result.structured_dispatch.available, false);
   assert.equal(result.structured_dispatch.gate_outcome, "incompatible");
   assert.ok(result.available_structured_routes.includes("workspace_agent_dispatch"));
-  const blocker = result.blockers.find((entry) => entry.code === "operator_recovery_needed");
+
+  const blocker = result.blockers.find(
+    (entry) => entry.code === "stdio_mcp_lifecycle_protocol_incompatible"
+  );
   assert.ok(blocker);
+  assert.equal(
+    result.blockers.some((entry) => entry.code === "operator_recovery_needed"),
+    false
+  );
   assert.deepEqual(blocker.evidence, {
     cause: "stdio_mcp_lifecycle_protocol_incompatible",
     recovery: "deploy one coherent build and restart the long-lived backend",

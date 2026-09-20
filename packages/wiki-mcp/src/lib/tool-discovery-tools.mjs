@@ -7,8 +7,10 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { z } from "zod";
 import {
+  compactToolDiscoveryListEntry,
   createBoundedToolDiscoveryListEnvelope,
   createToolDiscoveryEnvelope,
+  digestToolDiscoveryDescriptor,
   loadToolDiscoveryDescriptor,
   projectRuntimeToolDiscoveryDocumentation,
   rankToolDiscoveryTools,
@@ -16,7 +18,36 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
-import { recordOwnerRegisteredRequestSchema } from "./dispatch-tool-helpers.mjs";
+import {
+  buildDispatchContinuation,
+  recordOwnerRegisteredRequestSchema,
+  requestSchemaAuthorityForRegistration
+} from "./dispatch-tool-helpers.mjs";
+
+import {
+  completeToolInputContract,
+  registeredToolInputGuidance
+} from "./compact-tool-declaration-registry.mjs";
+import {
+  deliverToolInputGuidance,
+  inputContractSourceBindingRefusal,
+  inputContractSourceDigest,
+  toolInputGuidanceRequestRefusal,
+  WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
+} from "./tool-discovery-input-guidance-delivery.mjs";
+import {
+  createWorkRecordEditInputRequestFacts,
+  createWorkRecordEditInputSchema
+} from "./work-record-edit-input-contract.mjs";
+import {
+  deliverWorkRecordEditInputGuidance,
+  workRecordEditInputContractRequestRefusal,
+  WORK_RECORD_EDIT_INPUT_CONTRACT_TOOL
+} from "./work-record-edit-input-guidance-delivery.mjs";
+import {
+  MCP_WRITE_SEMANTICS,
+  MCP_WRITE_SEMANTICS_STATEMENTS
+} from "./register-tool.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -31,12 +62,30 @@ const TOOL_DISCOVERY_DESCRIBE_COMPACT_OMITTED_FIELDS = Object.freeze([
   "rank"
 ]);
 
-export const WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA = Object.freeze({
+export { WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA };
+
+export const WORKSPACE_TOOLS_LIST_INPUT_SCHEMA = z.object({
   task_id: z.string().optional(),
   tool_name: z.string().optional(),
   limit: z.number().int().positive().optional(),
-  verbose: z.boolean().optional()
+  offset: z.number().int().nonnegative().optional(),
+  expected_source_digest: z.string().optional()
 });
+
+export const TOOL_DISCOVERY_LIST_SOURCE = "tool_discovery_list";
+export const TOOL_DISCOVERY_LIST_CODES = Object.freeze({
+  SOURCE_DIGEST_REQUIRED: "tool_discovery_list_source_digest_required",
+  SOURCE_CHANGED: "tool_discovery_list_source_changed"
+});
+const LIST_PAGE_RETURNED = "tool_discovery.list_page_returned";
+const DESCRIBE_ENTRY_RETURNED = "tool_discovery.describe_entry_returned";
+
+export function bareDiscoveryToolName(toolName) {
+  if (typeof toolName !== "string" || !toolName.includes("__")) return null;
+  const segments = toolName.split("__");
+  const bare = segments[segments.length - 1];
+  return bare.length > 0 && bare !== toolName ? bare : null;
+}
 
 async function readPackageVersionByPath(packageJsonPath) {
   try {
@@ -63,10 +112,21 @@ async function loadToolDiscoveryPackageVersions() {
   return { wiki_core, wiki_mcp };
 }
 
+function throwInputContractRefusal(refusal) {
+  if (refusal === null) return;
+  const error = new Error(`${refusal.diagnostic.code}: ${refusal.diagnostic.message}`);
+  error.envelope = refusal;
+  throw error;
+}
+
 function resolveToolDiscoveryQuery(options = {}) {
   const taskId = String(options.task_id || "").trim();
   const toolName = String(options.tool_name || "").trim();
+  const inputContract = options.input_contract;
 
+  if (inputContract?.kind === "guidance") {
+    throwInputContractRefusal(toolInputGuidanceRequestRefusal(options));
+  }
   if (taskId && toolName) {
     throw new Error("Use only one of task_id or tool_name");
   }
@@ -84,6 +144,9 @@ function resolveToolDiscoveryQuery(options = {}) {
 
   if (Number.isInteger(options.offset) && options.offset > 0) {
     query.offset = options.offset;
+  }
+  if (inputContract !== undefined) {
+    query.input_contract = inputContract;
   }
   return query;
 }
@@ -152,7 +215,7 @@ export function registerToolDiscoveryTools({
     return response;
   }
 
-  async function loadWorkspaceToolDiscoveryEnvelope(query = {}, { verbose = false } = {}) {
+  async function loadWorkspaceToolDiscoverySource(query = {}, { verbose = false } = {}) {
     const descriptor = await loadToolDiscoveryDescriptor();
     const package_versions = await loadToolDiscoveryPackageVersions();
     const augmentedDescriptor = augmentDescriptor(descriptor);
@@ -173,15 +236,22 @@ export function registerToolDiscoveryTools({
       ),
       { docsCarrier }
     );
-    return createToolDiscoveryEnvelope({
-      interface: "mcp",
-      source_kind: "runtime_snapshot",
-      package_versions,
-      descriptor: augmentedDescriptor,
-      query: tierQuery,
-      verbose,
-      results: roleVisibleResults
-    });
+    return {
+      augmentedDescriptor,
+      envelope: createToolDiscoveryEnvelope({
+        interface: "mcp",
+        source_kind: "runtime_snapshot",
+        package_versions,
+        descriptor: augmentedDescriptor,
+        query: tierQuery,
+        verbose,
+        results: roleVisibleResults
+      })
+    };
+  }
+
+  async function loadWorkspaceToolDiscoveryEnvelope(query = {}, options = {}) {
+    return (await loadWorkspaceToolDiscoverySource(query, options)).envelope;
   }
 
   function measureToolDiscoveryListResultBytes(candidate) {
@@ -195,7 +265,10 @@ export function registerToolDiscoveryTools({
     const filterQuery = { ...query };
     delete filterQuery.limit;
     delete filterQuery.offset;
-    const envelope = await loadWorkspaceToolDiscoveryEnvelope(filterQuery, { verbose: false });
+    const { augmentedDescriptor, envelope } = await loadWorkspaceToolDiscoverySource(
+      filterQuery,
+      { verbose: false }
+    );
     if (Object.keys(query).length > 0) {
       envelope.query = query;
     }
@@ -206,15 +279,63 @@ export function registerToolDiscoveryTools({
 
     const offset = Number.isInteger(query.offset) && query.offset > 0 ? query.offset : 0;
 
-    return createBoundedToolDiscoveryListEnvelope(envelope, roleVisibleResults, {
-      totalCount: roleVisibleResults.length,
-      limit,
-      offset,
-      measureResultBytes: measureToolDiscoveryListResultBytes
+    const sourceDigest = inputContractSourceDigest({
+      source: TOOL_DISCOVERY_LIST_SOURCE,
+      selector: filterQuery,
+      descriptor_digest: digestToolDiscoveryDescriptor(augmentedDescriptor),
+      rows: roleVisibleResults.map((entry) => compactToolDiscoveryListEntry(entry))
     });
+    const pageCall = (pageOffset) => buildDispatchContinuation({
+      tool: "workspace_tools_list",
+      arguments: {
+        ...filterQuery,
+        limit,
+        offset: pageOffset,
+        expected_source_digest: sourceDigest
+      },
+      successPredicate: { fact: LIST_PAGE_RETURNED, operator: "is_true" },
+      requestSchemaAuthority: discoveryRequestSchemaAuthority
+    });
+    const binding = inputContractSourceBindingRefusal({
+      offset,
+      expectedSourceDigest: typeof options.expected_source_digest === "string"
+        ? options.expected_source_digest
+        : undefined,
+      currentSourceDigest: sourceDigest,
+      source: TOOL_DISCOVERY_LIST_SOURCE,
+      details: { query: filterQuery, limit },
+      codes: {
+        required: TOOL_DISCOVERY_LIST_CODES.SOURCE_DIGEST_REQUIRED,
+        stale: TOOL_DISCOVERY_LIST_CODES.SOURCE_CHANGED
+      },
+      messages: {
+        required: "expected_source_digest is required when offset is nonzero; restart the traversal at offset 0",
+        stale: "the role- and tier-visible discovery source changed; restart the traversal at offset 0"
+      },
+      restartCalls: () => [pageCall(0)]
+    });
+    throwInputContractRefusal(binding);
+
+    return createBoundedToolDiscoveryListEnvelope(
+      { ...envelope, source_digest: sourceDigest },
+      roleVisibleResults,
+      {
+        totalCount: roleVisibleResults.length,
+        limit,
+        offset,
+        measureResultBytes: measureToolDiscoveryListResultBytes,
+        createNextCalls(nextOffset) {
+          return Number.isInteger(nextOffset) && nextOffset > offset ? [pageCall(nextOffset)] : [];
+        }
+      }
+    );
   }
 
   async function loadWorkspaceToolDiscoveryDescribeEnvelope(options = {}) {
+
+    throwInputContractRefusal(workRecordEditInputContractRequestRefusal(options, {
+      editorVisible: shouldExposeTool(resolveSessionRole(), WORK_RECORD_EDIT_INPUT_CONTRACT_TOOL)
+    }));
     const query = resolveToolDiscoveryQuery(options);
     const verbose = options.verbose === true;
 
@@ -223,6 +344,7 @@ export function registerToolDiscoveryTools({
     if (rankRecoveryToolName) {
       delete projectionQuery.tool_name;
       delete projectionQuery.limit;
+      delete projectionQuery.input_contract;
     }
     const envelope = await loadWorkspaceToolDiscoveryEnvelope(projectionQuery, { verbose });
     if (rankRecoveryToolName && Array.isArray(envelope.results)) {
@@ -230,6 +352,31 @@ export function registerToolDiscoveryTools({
         (entry) => entry.tool_name === rankRecoveryToolName
       );
       envelope.query = query;
+    }
+    if (query.tool_name && Array.isArray(envelope.results) && envelope.results.length === 0) {
+      delete envelope.query;
+
+      const bare = bareDiscoveryToolName(query.tool_name);
+      const visible = bare === null
+        ? null
+        : await loadWorkspaceToolDiscoveryEnvelope({ tool_name: bare }, { verbose: false });
+      if (Array.isArray(visible?.results) && visible.results.length > 0) {
+        envelope.diagnostics = [{
+          code: "unregistered_tool_name",
+          severity: "error",
+          authority_limb: "mechanical_failure",
+          message: `${query.tool_name} is not a registered tool name. Discovery names tools ` +
+            `bare, without a harness prefix: use ${bare}.`,
+          requested_tool_name: query.tool_name,
+          supported_tool_name: bare
+        }];
+        envelope.next_calls = [buildDispatchContinuation({
+          tool: "workspace_tools_describe",
+          arguments: { tool_name: bare, ...(verbose ? { verbose: true } : {}) },
+          successPredicate: { fact: DESCRIBE_ENTRY_RETURNED, operator: "is_true" },
+          requestSchemaAuthority: discoveryRequestSchemaAuthority
+        })];
+      }
     }
     const totalCount = Array.isArray(envelope.results) ? envelope.results.length : 0;
     const limit = Number.isInteger(query.limit) && query.limit > 0
@@ -249,30 +396,107 @@ export function registerToolDiscoveryTools({
     if (Number.isInteger(limit) && limit > 0 && Array.isArray(envelope.results)) {
       envelope.results = envelope.results.slice(0, limit);
     }
+
+    if (verbose && rankRecoveryToolName && Array.isArray(envelope.results)) {
+      envelope.results = envelope.results.map((entry) => {
+        const inputContract = completeToolInputContract(entry.tool_name);
+        return inputContract === null ? entry : { ...entry, input_contract: inputContract };
+      });
+    }
+
+    if (query.input_contract?.kind === "guidance" &&
+        Array.isArray(envelope.results) && envelope.results.length > 0) {
+      envelope.query = { tool_name: query.tool_name };
+      envelope.results = envelope.results.map((entry) => {
+        if (entry.tool_name !== query.tool_name) return entry;
+        return {
+          tool_name: entry.tool_name,
+          input_guidance: deliverToolInputGuidance({
+            toolName: entry.tool_name,
+            guidance: registeredToolInputGuidance(entry.tool_name),
+            selector: query.input_contract
+          })
+        };
+      });
+    }
+
+    if (query.tool_name === WORK_RECORD_EDIT_INPUT_CONTRACT_TOOL &&
+        query.input_contract?.kind !== "guidance" &&
+        Array.isArray(envelope.results) && envelope.results.length > 0) {
+      const requestFacts = createWorkRecordEditInputRequestFacts(z);
+      const editorSchema = createWorkRecordEditInputSchema(z);
+      const editorDescriptor = (await loadToolDiscoveryDescriptor()).tools.find(
+        (candidate) => candidate.tool_name === WORK_RECORD_EDIT_INPUT_CONTRACT_TOOL
+      );
+
+      envelope.query = query.input_contract === undefined
+        ? query
+        : { tool_name: query.tool_name };
+      envelope.results = envelope.results.map((entry) => {
+        if (entry.tool_name !== WORK_RECORD_EDIT_INPUT_CONTRACT_TOOL) return entry;
+        const guidedEntry = query.input_contract === undefined
+          ? {
+              ...entry,
+              recommended_first_call: JSON.parse(JSON.stringify(
+                editorDescriptor.recommended_first_call
+              ))
+            }
+          : { tool_name: entry.tool_name };
+        return {
+          ...guidedEntry,
+          editor_input_contract: deliverWorkRecordEditInputGuidance({
+            entry: guidedEntry,
+            selector: query.input_contract ?? null,
+            requestFacts,
+            editorSchema,
+            writeSemanticsStatement: MCP_WRITE_SEMANTICS_STATEMENTS[
+              MCP_WRITE_SEMANTICS.ACTION_REPLACE_OR_APPEND
+            ],
+            buildContinuation(argumentsValue, successFact) {
+              return buildDispatchContinuation({
+                tool: "workspace_tools_describe",
+                arguments: argumentsValue,
+                successPredicate: { fact: successFact, operator: "is_true" },
+                requestSchemaAuthority: discoveryRequestSchemaAuthority
+              });
+            },
+            measureResultBytes(candidateContract) {
+              return measureToolDiscoveryListResultBytes({
+                ...envelope,
+                results: [{
+                  ...guidedEntry,
+                  editor_input_contract: candidateContract
+                }],
+                total_count: 1,
+                limit_applied: limit,
+                truncated: false
+              });
+            }
+          })
+        };
+      });
+    }
     return applyToolDiscoveryListPagination(envelope, { totalCount, limit });
   }
 
-  async function loadWorkspaceToolDiscoveryQueryEnvelope(options = {}) {
-    const query = resolveToolDiscoveryQuery(options);
-    const verbose = options.verbose === true;
-    const envelope = await loadWorkspaceToolDiscoveryEnvelope(query, { verbose });
-    if (Number.isInteger(query.limit) && query.limit > 0) {
-      envelope.results = envelope.results.slice(0, query.limit);
-    }
-    return envelope;
-  }
+  recordOwnerRegisteredRequestSchema({
+    registerTool,
+    toolName: "workspace_tools_list",
+    declaredInput: WORKSPACE_TOOLS_LIST_INPUT_SCHEMA
+  });
+  recordOwnerRegisteredRequestSchema({
+    registerTool,
+    toolName: "workspace_tools_describe",
+    declaredInput: WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
+  });
+  const discoveryRequestSchemaAuthority = requestSchemaAuthorityForRegistration(registerTool);
 
   registerTool(
     "workspace_tools_list",
     {
       description:
-        "List a hard-bounded role- and tier-filtered catalog for tool selection. Default rows contain only tool_name and task_ids; total_count is the exact role-visible total and returned_count is what this page carries. The response is a page: while has_more is true, repeat with offset:next_offset, which resumes at the first omitted row after either count or byte truncation. Neither limit nor offset bypasses the byte ceiling. Recover complete detail and global rank for a selected name with workspace_tools_describe({tool_name,verbose:true}).",
-      inputSchema: {
-        task_id: z.string().optional(),
-        tool_name: z.string().optional(),
-        limit: z.number().int().positive().optional(),
-        offset: z.number().int().nonnegative().optional()
-      }
+        "List role/tier-visible tool names and tasks. Follow next_calls while has_more for complete source-bound paging. Use workspace_tools_describe with tool_name and verbose:true for complete detail and rank.",
+      inputSchema: WORKSPACE_TOOLS_LIST_INPUT_SCHEMA
     },
     async (args) => {
       try {
@@ -283,42 +507,16 @@ export function registerToolDiscoveryTools({
     }
   );
 
-  recordOwnerRegisteredRequestSchema({
-    registerTool,
-    toolName: "workspace_tools_describe",
-    declaredInput: WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
-  });
   registerTool(
     "workspace_tools_describe",
     {
       description:
-        "Describe the repository-local discovery envelope for targeted per-tool inspection. Default response returns compact routing and task-contract fields while omitting kind, entrypoint, runtime_posture, priority, and rank, and is bounded to 20 entries unless a different positive limit is provided. Pass task_id, tool_name, or limit to target a narrow set; verbose:true returns the complete entry and losslessly restores every omitted field.",
+        "Inspect tool routing and contracts. verbose:true restores all fields and a named compact tool's enforced schema with a guidance locator. input_contract selects editor field pages, or kind:\"guidance\": no path returns the overview; a literal path returns that complete value.",
       inputSchema: WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
     },
     async (args) => {
       try {
         return jsonToolDiscoveryContent(await loadWorkspaceToolDiscoveryDescribeEnvelope(args));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
-
-  registerTool(
-    "workspace_tools_query",
-    {
-      description:
-        "Query the repository-local discovery envelope by task id or tool name.",
-      inputSchema: {
-        task_id: z.string().optional(),
-        tool_name: z.string().optional(),
-        limit: z.number().int().positive().optional(),
-        verbose: z.boolean().optional()
-      }
-    },
-    async (args) => {
-      try {
-        return jsonToolDiscoveryContent(await loadWorkspaceToolDiscoveryQueryEnvelope(args));
       } catch (error) {
         return errorContent(error);
       }

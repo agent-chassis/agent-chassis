@@ -5,25 +5,25 @@
   "type": "object",
   "required": [
     "schema_version", "assessment_identity", "requested_proof_intents",
-    "selected_pack_count", "evaluated_pack_count", "structure", "profile_discrimination", "exact_binding",
-    "assessment_scope", "authority", "overall_code", "per_pack", "diagnostics",
+    "selected_pack_count", "evaluated_pack_count", "structure", "profile_discrimination",
+    "assessment_scope", "authority", "overall_code", "stage_assessment", "per_pack", "diagnostics",
     "proof_exclusions", "missing_inputs", "digests", "lossless_report"
   ],
   "additionalProperties": false,
   "properties": {
     "schema_version": { "const": "controlled-contract-multi-pack-assessment.v1" },
     "assessment_identity": { "$ref": "#/$defs/sha256" },
+    "stage_assessment": { "$ref": "https://agent-chassis.invalid/controlled-contract-assessment.v1.schema.json#/$defs/stage_assessment" },
     "requested_proof_intents": { "$ref": "#/$defs/string_set" },
     "selected_pack_count": { "type": "integer", "minimum": 0 },
     "evaluated_pack_count": { "type": "integer", "minimum": 0 },
     "structure": { "enum": ["proven", "not_proven", "invalid"] },
     "profile_discrimination": { "$ref": "#/$defs/axis" },
-    "exact_binding": { "$ref": "#/$defs/axis" },
     "assessment_scope": { "const": "planning" },
     "authority": { "const": "non_authoritative" },
     "overall_code": { "type": "string", "minLength": 1 },
     "per_pack": { "type": "array", "items": { "$ref": "#/$defs/pack_result" } },
-    "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/provenanced" } },
+    "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
     "proof_exclusions": { "type": "array", "items": { "$ref": "#/$defs/provenanced" } },
     "missing_inputs": { "type": "array", "items": { "$ref": "#/$defs/provenanced" } },
     "digests": {
@@ -86,11 +86,27 @@
         "detail": {}
       }
     },
+    "diagnostic": {
+      "$ref": "#/$defs/provenanced",
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "object",
+          "required": ["source", "detail", "assessment_stage"],
+          "additionalProperties": false,
+          "properties": {
+            "source": { "enum": ["structural_schema", "structural_validation", "structural_decomposition", "admitted_profile_evaluation", "assessment_binding", "proof_plan_input"] },
+            "detail": { "type": "object" },
+            "assessment_stage": { "$ref": "https://agent-chassis.invalid/controlled-contract-assessment.v1.schema.json#/properties/diagnostics/items/properties/assessment_stage" }
+          }
+        }
+      }
+    },
     "pack_result": {
       "type": "object",
       "required": [
         "profile_id", "profile_version", "requested_intents", "admission_version",
-        "profile_discrimination", "exact_binding", "guarantee", "diagnostic_count",
+        "profile_discrimination", "guarantee", "diagnostic_count",
         "exclusion_count", "missing_input_count", "assessment_identity", "source_digests"
       ],
       "additionalProperties": false,
@@ -100,7 +116,6 @@
         "requested_intents": { "$ref": "#/$defs/string_set" },
         "admission_version": { "enum": [1, 2] },
         "profile_discrimination": { "$ref": "#/$defs/axis" },
-        "exact_binding": { "enum": ["proven", "not_proven", "not_applicable", "not_assessed"] },
         "guarantee": { "type": "string", "minLength": 1 },
         "diagnostic_count": { "type": "integer", "minimum": 0 },
         "exclusion_count": { "type": "integer", "minimum": 0 },

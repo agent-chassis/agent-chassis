@@ -7,6 +7,7 @@ import {
   CALLER_MANAGED_LIFECYCLE_CARRIERS,
   CALLER_SCOPE_CARRIERS,
   CONFIG_ATTEMPT_STATE_CARRIERS,
+  EXACT_IMPLEMENTATION_SLICE_RE,
   WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER
 } from "./backend-constants.mjs";
 import {
@@ -15,6 +16,8 @@ import {
   scopeAuthorityRefusal
 } from "./backend-scope-authority.mjs";
 import { dispatchRefusal } from "./workspace-agent-dispatch-refusal.mjs";
+
+import { deriveCanonicalUnitScope } from "./canonical-unit-scope.mjs";
 
 function selectedCanonicalUnit(mainRepo, subject) {
   const match = typeof subject === "string"
@@ -84,6 +87,22 @@ export function createBackendWorkerRouting(ctx) {
           : "provisioning_config"
       });
     }
+    if (ctx.requireManagedProvisioning === true &&
+        !EXACT_IMPLEMENTATION_SLICE_RE.test(input.subject ?? "")) {
+      return dispatchRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+        "managed_worker_exact_slice_required",
+        {
+          subject: input.subject ?? null,
+          role: input.role,
+          actor_recovery: "coordinator",
+          next_action: "select_or_author_exact_implementation_slice_then_validate_and_dispatch",
+          recovery: { state: "no_supported_route", route: null },
+          explanation:
+            "Structural readiness may be true because it validates the authored contract; it does not establish managed-launch capability. Explicitly select an existing implementation slice, or complete slice authoring through workspace_work_record_ready_slice with the required scope, acceptance, and proof inputs. Then validate and dispatch the exact allocated address. No complete callable continuation exists until the coordinator supplies those selection or authoring inputs; retrying the unchanged bare WK will repeat this refusal."
+        }
+      );
+    }
     let selected;
     try {
       const mainRepo = worktreeProvisioningConfig?.mainRepo ?? input.workspace_dir;
@@ -95,8 +114,18 @@ export function createBackendWorkerRouting(ctx) {
         { subject: input.subject ?? null, cause_code: error?.code ?? null }
       );
     }
-    if (!Array.isArray(selected?.write_scope) || selected.write_scope.length === 0 ||
-        selected.write_scope.some((entry) => typeof entry !== "string" || entry.length === 0)) {
+
+    const recordPath = `wiki/work-records/${String(input.subject).split("#", 1)[0]}.json`;
+    let effectiveWriteScope = null;
+    try {
+      effectiveWriteScope = deriveCanonicalUnitScope(
+        selected?.write_scope, "write_scope", recordPath,
+        { invalid: (message) => { throw new Error(message); } }
+      );
+    } catch {
+      effectiveWriteScope = null;
+    }
+    if (effectiveWriteScope === null || effectiveWriteScope.length === 0) {
       return dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
         "launcher_effective_write_scope_invalid",
@@ -105,7 +134,7 @@ export function createBackendWorkerRouting(ctx) {
     }
     return lifecycle.startLaunch({
       ...input,
-      canonical_unit_write_scope: Object.freeze([...selected.write_scope])
+      canonical_unit_write_scope: effectiveWriteScope
     });
   }
 

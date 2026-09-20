@@ -46,7 +46,8 @@ function deriveLauncherRuntimeHomePaths(launcherOwnedHostHome) {
 
   const paths = {
     hostHome,
-    executable: pathPosix.join(hostHome, '.local', 'bin', 'claude'),
+
+    localRuntimePrefix: pathPosix.join(hostHome, '.local'),
     readOnlyRoot: pathPosix.join(hostHome, '.local', 'share', 'claude'),
     credentialsFile: pathPosix.join(hostHome, '.claude', '.credentials.json'),
     configDirectory: pathPosix.join(hostHome, '.config'),
@@ -65,7 +66,7 @@ export function deriveLauncherRuntimeHomePolicyFacts({
 } = {}) {
   const paths = deriveLauncherRuntimeHomePaths(launcherOwnedHostHome);
 
-  const approvedExecutablePaths = freezeUniqueList([paths.executable]);
+  const approvedExecutablePaths = EMPTY_FROZEN_LIST;
   const approvedReadOnlyRoots = freezeUniqueList([paths.readOnlyRoot]);
   const approvedReadOnlyFiles = freezeUniqueList([paths.credentialsFile]);
 

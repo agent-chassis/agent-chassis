@@ -29,13 +29,13 @@ test("stable profile, input, and result schemas carry exact independent identiti
   assert.deepEqual(buildEvaluationInputSchemaV1(),
     VERIFICATION_PROFILE_EVALUATION_INPUT_SCHEMA_V1);
   assert.deepEqual(buildResultSchemaV1(), VERIFICATION_PROFILE_RESULT_SCHEMA_V1);
-  assert.deepEqual(await tracked("controlled-contract-verification-profile.v1.schema.json"),
+  assert.deepEqual(await tracked("controlled-contract-verification-profile.v2.schema.json"),
     VERIFICATION_PROFILE_SCHEMA_V1);
   assert.deepEqual(await tracked(
-    "controlled-contract-verification-profile-input.v1.schema.json"
+    "controlled-contract-verification-profile-input.v2.schema.json"
   ), VERIFICATION_PROFILE_EVALUATION_INPUT_SCHEMA_V1);
   assert.deepEqual(await tracked(
-    "controlled-contract-verification-profile-result.v1.schema.json"
+    "controlled-contract-verification-profile-result.v2.schema.json"
   ), VERIFICATION_PROFILE_RESULT_SCHEMA_V1);
 });
 

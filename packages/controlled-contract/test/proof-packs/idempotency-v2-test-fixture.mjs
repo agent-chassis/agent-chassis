@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const IDEMPOTENCY_V2_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.idempotency.effect-nonduplication/3.0.0/profile.json",
+  "../certification/profiles/proof.idempotency.effect-nonduplication/4.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -102,7 +102,7 @@ function buildIdempotencyV2Fixture({
 
   const input = {
     input_version: EVALUATION_INPUT_VERSION_V1,
-    evaluation_stage: "pre_dispatch",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role,
       reference_ids: [referenceIdForRole(role)]

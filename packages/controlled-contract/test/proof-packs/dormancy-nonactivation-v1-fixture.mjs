@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 
 const DORMANCY_NONACTIVATION_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.dormancy.nonactivation/2.0.0/profile.json",
+  "../certification/profiles/proof.dormancy.nonactivation/3.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 const INPUT_TEMPLATE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.dormancy.nonactivation/2.0.0/evaluation-input.template.json",
+  "../certification/profiles/proof.dormancy.nonactivation/3.0.0/evaluation-input.template.json",
   import.meta.url
 ), "utf8"));
 

@@ -1,5 +1,28 @@
 import { composeCoverageAuthoringSkeleton }
   from "../../../controlled-contract/current.mjs";
+import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA,
+  CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_ROW_AUTHORING_SCHEMA } from
+  "./controlled-contract-tools.mjs";
+
+export function coverageObligationFieldContracts() {
+  const fields = CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA
+    .properties;
+  return structuredClone(Object.fromEntries(
+    ["expected_content_digest", "obligations"]
+      .map((key) => [key, fields[key]])));
+}
+
+export function coverageAcceptanceFieldContracts() {
+  const fields = CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_ROW_AUTHORING_SCHEMA
+    .properties.rows.items.properties;
+  return structuredClone({ node_ids: fields.node_ids, axes: fields.axes });
+}
+
+export function coverageAdmittedComponentChoices(selectedPacks) {
+  return admittedPackComponents(selectedPacks ?? []).map(
+    ({ kind, requested_intent, selector }) =>
+      ({ kind, requested_intent, selector }));
+}
 
 function deletePath(value, path) {
   const parts = path.split(".");
@@ -24,7 +47,7 @@ function admittedPackComponents(selectedPacks) {
           kind: selector.kind,
           component_id: selector.component_id
         },
-        evaluation_stage: selector.evaluation_stage
+
       }))));
 }
 
@@ -38,6 +61,15 @@ function composeControlledContractCoverageAuthoringSkeleton({
   mutation,
   obligation
 }) {
+  if (surface === "obligation") return Object.freeze({
+    mutation: { operation: "workspace_controlled_contract_obligation_coverage_upsert",
+      fixed_arguments: { unit: unit.address, ...(unit.focus ? { focus: unit.focus } : {}) },
+      request_schema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA },
+    field_contracts: coverageObligationFieldContracts(),
+    source_identity: obligation?.sourceIdentity ?? null,
+    next_calls: [{ tool: "workspace_controlled_contract_obligation_coverage_query",
+      arguments: { unit: unit.address, ...(unit.focus ? { focus: unit.focus } : {}) } }]
+  });
   const stableArguments = structuredClone(mutation.fixedArguments);
   for (const path of mutation.receiptFedDigestFields) {
     deletePath(stableArguments, path);
@@ -70,19 +102,7 @@ function composeControlledContractCoverageAuthoringSkeleton({
       } } : {})
     }
   });
-  return Object.freeze({
-    ...skeleton,
-    execution_handoff: Object.freeze({
-      mode: mutation.receiptFedDigestFields.length === 0
-        ? "complete_population_create" : "sequential_single_row",
-      receipt_source: mutation.receiptFedDigestFields.length === 0
-        ? null : "immediately_prior_mutation_receipt",
-      final_verification_operations: Object.freeze([
-        `workspace_controlled_contract_${surface}_coverage_query`,
-        `workspace_controlled_contract_${surface}_coverage_describe`
-      ])
-    })
-  });
+  return Object.freeze(skeleton);
 }
 
 export { composeControlledContractCoverageAuthoringSkeleton };

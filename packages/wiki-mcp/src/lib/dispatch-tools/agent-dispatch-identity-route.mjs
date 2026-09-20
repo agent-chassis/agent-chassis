@@ -14,12 +14,136 @@ import {
 } from "../dispatch-tool-constants.mjs";
 import {
   buildBlockedDispatchResult,
-  buildDispatchToolExceptionDetail
+  buildDispatchToolExceptionDetail,
+  classifyAgentDispatchSubject,
+  isAcceptedSubjectForRole
 } from "../dispatch-tool-helpers.mjs";
 import { routeExceptionRefusal } from "./agent-dispatch-refusal-projection.mjs";
+import { acceptedSubjectKindsForRole } from "./agent-dispatch-request-admission.mjs";
+import {
+  agentDispatchRoutingInput,
+  agentDispatchSelectionShape
+} from "./agent-dispatch-selection-contract.mjs";
 
 export const AGENT_DISPATCH_IDENTITY_CONTRACT_TOOL_NAME =
   "workspace_agent_dispatch_identity_contract";
+export const AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION = "agent-dispatch-selection-read.v1";
+
+const SELECTION_REFUSAL_DETAIL_FIELDS = Object.freeze([
+  "role", "target", "target_role", "app", "app_token", "derived_app", "supported_apps",
+  "model", "model_source", "known_models", "config_file", "source_code", "authority_limb"
+]);
+
+const SELECTION_PROVENANCE = Object.freeze({
+  owner: "launcher dispatch selection",
+  source: "the bound workspace's agent-launch.toml role configuration and the launcher model registry",
+  authorizes_dispatch: false,
+  cce_evaluated: false
+});
+
+const SELECTION_READ_SENTENCE =
+  "dispatch_selection reads the launcher's current app and model for a proposed repo, role and subject without dispatching.";
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function unavailableSelection(reason, operatorAction) {
+  return {
+    schema_version: AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION,
+    status: "unavailable",
+    reason,
+    operator_action: operatorAction
+  };
+}
+
+function projectSelectionDetail(detail) {
+  if (!isPlainObject(detail)) return null;
+  return Object.fromEntries(SELECTION_REFUSAL_DETAIL_FIELDS
+    .filter((field) => Object.hasOwn(detail, field))
+    .map((field) => [field, structuredClone(detail[field])]));
+}
+
+export function readAgentDispatchSelection({
+  selection,
+  registeredToolNames,
+  dispatchSessionIdentity,
+  dispatchBackend,
+  workspaceRepos,
+  resolveWorkspaceRepo
+}) {
+  if (!(registeredToolNames instanceof Set) || !registeredToolNames.has(AGENT_DISPATCH_TOOL_NAME)) {
+    return unavailableSelection("dispatch_not_registered_for_session",
+      "Read the dispatch selection from a session whose launcher-bound role profile registers workspace_agent_dispatch.");
+  }
+  if (typeof dispatchSessionIdentity !== "string" || dispatchSessionIdentity.length === 0) {
+    return unavailableSelection("dispatch_session_identity_unavailable",
+      "Restart wiki-mcp through its launcher so the server mints a dispatch session identity.");
+  }
+  if (typeof dispatchBackend?.resolveBackendRoutingDecision !== "function") {
+    return unavailableSelection("dispatch_selection_backend_unavailable",
+      "Configure the launcher dispatch backend for this server; no local selection resolver is substituted.");
+  }
+  let workspace;
+  try {
+    workspace = resolveWorkspaceRepo(workspaceRepos, selection.repo);
+  } catch (error) {
+    if (!isPlainObject(error?.envelope)) throw error;
+    return {
+      schema_version: AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION,
+      status: "refused",
+      ok: false,
+      role: selection.role,
+      subject: selection.subject,
+      reason: "workspace_repo_resolution_refused",
+      repo_refusal: structuredClone(error.envelope)
+    };
+  }
+  const requested = { repo: workspace.repo, role: selection.role, subject: selection.subject };
+  const subjectKind = classifyAgentDispatchSubject(selection.subject);
+  if (!isAcceptedSubjectForRole(selection.role, subjectKind)) {
+    return {
+      schema_version: AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION,
+      status: "refused",
+      ok: false,
+      ...requested,
+      reason: "subject_role_matrix_violation",
+      detail: {
+        subject_kind: subjectKind,
+        accepted_subject_kinds: [...acceptedSubjectKindsForRole(selection.role)]
+      }
+    };
+  }
+  const routing = dispatchBackend.resolveBackendRoutingDecision(
+    agentDispatchRoutingInput(selection, workspace)
+  );
+  if (routing?.ok !== true) {
+    const reason = typeof routing?.reason === "string" ? routing.reason : null;
+    return {
+      schema_version: AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION,
+      status: "refused",
+      ok: false,
+      ...requested,
+      reason,
+      ...(reason === null ? { authority_gap: "launcher_selection_declared_no_reason" } : {}),
+      detail: projectSelectionDetail(routing?.detail),
+      provenance: SELECTION_PROVENANCE
+    };
+  }
+  return {
+    schema_version: AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION,
+    status: "resolved",
+    ok: true,
+    ...requested,
+    app: routing.app,
+    model: routing.model,
+    route_kind: routing.routeKind ?? null,
+    executor_available: typeof routing.executor_available === "boolean"
+      ? routing.executor_available : null,
+    ...(isPlainObject(routing.refusal) ? { backend_refusal: structuredClone(routing.refusal) } : {}),
+    provenance: SELECTION_PROVENANCE
+  };
+}
 
 export function registerAgentDispatchIdentityRoute({
   registerTool,
@@ -27,18 +151,24 @@ export function registerAgentDispatchIdentityRoute({
   jsonContent,
   isPaidTier,
   graphImpactPersistenceAvailable,
-  dispatchReviewerAvailable
+  dispatchReviewerAvailable,
+  registeredToolNames,
+  workspaceRepos,
+  resolveWorkspaceRepo,
+  dispatchBackend,
+  dispatchSessionIdentity
 }) {
   registerTool(
     AGENT_DISPATCH_IDENTITY_CONTRACT_TOOL_NAME,
     {
       description: isPaidTier
-        ? "Read the caller/session identity and bootstrap-review contract that workspace_agent_dispatch consumers must enforce. Identity authority must be launcher- or transport-minted; caller-supplied role identity (via request, prompt, env, argv, or claimed_identity.role) is rejected with a refusal envelope. Default output is compact (reviewer/graph-impact availability, bootstrap_review, refusal, next_action); pass verbose:true for the static caller_role_kinds/bootstrap_state_codes/identity_refusal_codes vocabularies. Caveat: graph_impact_required and review_evidence_recorded are caller-asserted introspection knobs that shape only this call's bootstrap evaluation — they are not proof that WK review or graph-impact evidence exists; durable proof lives in the owning WK closure."
-        : "Read the caller/session identity and bootstrap-review contract that workspace_agent_dispatch consumers must enforce. Identity authority must be launcher- or transport-minted; caller-supplied role identity (via request, prompt, env, argv, or claimed_identity.role) is rejected with a refusal envelope. Default output is compact (dispatch reviewer availability, bootstrap_review, refusal, next_action); pass verbose:true for the static caller_role_kinds/bootstrap_state_codes/identity_refusal_codes vocabularies. Caveat: review_evidence_recorded is a caller-asserted introspection knob that shapes only this call's bootstrap evaluation — it is not proof that WK review exists; durable proof lives in the owning WK closure.",
+        ? `Inspect launcher/session identity and bootstrap-review requirements. Caller identity claims refuse. verbose:true adds vocabularies. Introspection flags are caller assertions, not durable review or graph-impact evidence. ${SELECTION_READ_SENTENCE}`
+        : `Read the caller/session identity and bootstrap-review contract that workspace_agent_dispatch consumers must enforce. Identity authority must be launcher- or transport-minted; caller-supplied role identity (via request, prompt, env, argv, or claimed_identity.role) is rejected with a refusal envelope. Default output is compact (dispatch reviewer availability, bootstrap_review, refusal, next_action); pass verbose:true for the static caller_role_kinds/bootstrap_state_codes/identity_refusal_codes vocabularies. Caveat: review_evidence_recorded is a caller-asserted introspection knob that shapes only this call's bootstrap evaluation — it is not proof that WK review exists; durable proof lives in the owning WK closure. ${SELECTION_READ_SENTENCE}`,
       inputSchema: {
         verbose: z.boolean().optional(),
         graph_impact_required: z.boolean().optional(),
         review_evidence_recorded: z.boolean().optional(),
+        dispatch_selection: z.object(agentDispatchSelectionShape(z)).strict().optional(),
         claimed_identity: z.object({ role: z.string().optional() }).optional(),
 
         env: z.record(z.unknown()).optional(),
@@ -77,10 +207,26 @@ export function registerAgentDispatchIdentityRoute({
           contract.bootstrap_state_codes = BOOTSTRAP_STATE_CODES;
           contract.identity_refusal_codes = IDENTITY_REFUSAL_CODES;
         }
+        if (args?.dispatch_selection !== undefined) {
+          contract.dispatch_selection = refusal
+            ? {
+                schema_version: AGENT_DISPATCH_SELECTION_READ_SCHEMA_VERSION,
+                status: "not_evaluated",
+                reason: "caller_supplied_identity"
+              }
+            : readAgentDispatchSelection({
+                selection: args.dispatch_selection,
+                registeredToolNames,
+                dispatchSessionIdentity,
+                dispatchBackend,
+                workspaceRepos,
+                resolveWorkspaceRepo
+              });
+        }
         return jsonContent(contract);
       } catch (error) {
         return jsonContent(buildBlockedDispatchResult({
-          blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+          blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
           reason: "dispatch_tool_exception",
           detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error),
           refusal: routeExceptionRefusal(AGENT_DISPATCH_IDENTITY_CONTRACT_TOOL_NAME)

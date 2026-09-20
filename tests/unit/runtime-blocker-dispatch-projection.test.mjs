@@ -6,18 +6,9 @@ import assert from "node:assert/strict";
 import {
   buildBlockedDispatchResult,
   buildBlockedRunStatusResult,
-  buildBlockedRunWaitResult,
-  buildBlockedRunsListResult,
   buildDispatchToolExceptionDetail,
   compactRuntimeBlockerTaxonomy
 } from "../../packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs";
-import {
-  PUBLIC_REDACTION_REASON_VALUES,
-  projectLauncherRedactionReason
-} from "../../packages/wiki-core/src/lib/refusal-payload.mjs";
-import {
-  captureStructuredDiagnostic
-} from "../../packages/wiki-core/src/lib/diagnostic-projection.mjs";
 import {
   PACKAGE_LOCAL_IDENTITY_NAMESPACE_VALUES,
   isDeclaredPackageLocalIdentity,
@@ -29,6 +20,9 @@ import {
   loadRuntimeBlockerTaxonomy,
   RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES
 } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+import {
+  backendRefusalCarrier
+} from "../../packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-refusal-projection.mjs";
 import {
   LAUNCHER_TRANSITION_ABSENT_BACKEND_CAUSES,
   LAUNCHER_TRANSITION_FAILURES,
@@ -118,17 +112,8 @@ test("WK-2352 preserves the stdio conduit mechanical cause", () => {
 });
 
 const READ_DISCLOSURE_NUDGE_CODES = [
-  "compact_first_required",
-  "compact_read_token_missing",
-  "compact_read_token_malformed",
-  "compact_read_token_wrong_schema",
-  "compact_read_token_wrong_tool_family",
-  "compact_read_token_wrong_scope",
-  "compact_read_token_wrong_selector",
-  "compact_read_token_stale_source_digest",
-  "compact_read_token_expired",
   "selected_slice_compact_detail_required",
-  "compact_read_selected_detail_required"
+  "selected_read_stale_source_digest"
 ];
 
 test("WK-1509 read_disclosure category is NOT in the dispatch-facing allowlist", () => {
@@ -308,9 +293,7 @@ test("WK-2352 stdio_mcp_conduit_input_invalid keeps its registered transport rec
 
 const BUILDERS = [
   ["buildBlockedDispatchResult", buildBlockedDispatchResult],
-  ["buildBlockedRunStatusResult", buildBlockedRunStatusResult],
-  ["buildBlockedRunWaitResult", buildBlockedRunWaitResult],
-  ["buildBlockedRunsListResult", buildBlockedRunsListResult]
+  ["buildBlockedRunStatusResult", buildBlockedRunStatusResult]
 ];
 
 const REGISTERED_CODE = "operator_recovery_needed";
@@ -374,15 +357,6 @@ for (const [name, build] of BUILDERS) {
   });
 }
 
-test("WK-2359: the runs-list envelope carries the same blocker limb as its siblings", () => {
-
-  const runsList = buildBlockedRunsListResult({ blockerCode: REGISTERED_CODE, reason: "r" });
-  const dispatch = buildBlockedDispatchResult({ blockerCode: REGISTERED_CODE, reason: "r" });
-  assert.deepEqual(runsList.blocker, dispatch.blocker);
-  assert.equal(runsList.runs, null);
-  assert.equal(runsList.accepted, false);
-});
-
 test("WK-2359: identical inputs build an identical blocked envelope", () => {
   const input = {
     blockerCode: REGISTERED_CODE,
@@ -393,56 +367,6 @@ test("WK-2359: identical inputs build an identical blocked envelope", () => {
   assert.deepEqual(
     buildBlockedDispatchResult({ ...input }),
     buildBlockedDispatchResult({ ...input })
-  );
-});
-
-test("WK-2359: every launcher-private redaction reason has a public projection", () => {
-
-  const refusal = classifyLauncherTransitionBackendRefusal({
-    schema_version: "workspace-agent-dispatch-backend.v1",
-    accepted: false,
-    refusal: {
-      code: "launch_refused",
-      reason: "managed_worktree_provisioning_unavailable",
-      detail: {
-
-        message: captureStructuredDiagnostic(
-          "failed at /home/user/secret/path using super-secret-token",
-          {
-            sensitiveValues: [{
-              field: "credential",
-              value: "super-secret-token",
-              reason: "secret_material"
-            }]
-          }
-        ),
-        observed_canonical_status: "launcher_internal"
-      }
-    }
-  });
-
-  assert.ok(refusal.redactions.length > 0, "the fixture must actually redact something");
-  for (const signal of refusal.redactions) {
-    const projected = projectLauncherRedactionReason(signal.reason);
-    assert.ok(
-      PUBLIC_REDACTION_REASON_VALUES.includes(projected),
-      `private reason ${signal.reason} must project into the public vocabulary`
-    );
-
-    assert.equal(typeof signal.field, "string");
-    assert.ok(signal.field.length > 0);
-  }
-});
-
-test("WK-2359: an unmapped private redaction reason fails rather than escaping", () => {
-  assert.throws(
-    () => projectLauncherRedactionReason("some_future_private_reason"),
-    /public redaction vocabulary is closed/
-  );
-  const retiredReason = ["sensitive", "error", "text"].join("_");
-  assert.throws(
-    () => projectLauncherRedactionReason(retiredReason),
-    /public redaction vocabulary is closed/
   );
 });
 
@@ -699,4 +623,54 @@ test("WK-2359 dotted: the launcher-transition classifier keeps its dotted cause 
   assert.equal(classification.cause.code, "controlled_contract_repository_unavailable");
 
   assert.equal(isRuntimeBlockerCode(classification.blocker_code), true);
+});
+
+const ADVISORY_REVIEW_OWNER_CODES = Object.freeze([
+  "agent_launch.advisory_review.material_invalid.v1",
+  "agent_launch.advisory_material_resolution.failed.v1",
+  "agent_launch.immutable_candidate.failed.v1"
+]);
+
+test("WK-2655 the registry carries the advisory review owners, not the retired code", () => {
+  const taxonomy = loadRuntimeBlockerTaxonomy();
+  const byCode = new Map(taxonomy.codes.map((entry) => [entry.code, entry]));
+  assert.equal(byCode.has("agent_launch.review_target_resolution.failed.v1"), false,
+    "the retired review-target-resolution code must not be registered");
+  assert.equal(isRuntimeBlockerCode("agent_launch.review_target_resolution.failed.v1"), false);
+  for (const code of ADVISORY_REVIEW_OWNER_CODES) {
+    const entry = byCode.get(code);
+    assert.ok(entry, `${code} must be registered`);
+    assert.equal(entry.category, "review_transport", code);
+    assert.equal(entry.actor_recovery, "caller_retry", code);
+    assert.equal(entry.blocking, true, code);
+  }
+
+  for (const entry of taxonomy.codes) {
+    assert.equal((entry.aliases ?? []).some((alias) =>
+      ADVISORY_REVIEW_OWNER_CODES.includes(alias) ||
+      alias === "agent_launch.review_target_resolution.failed.v1"), false, entry.code);
+  }
+});
+
+test("WK-2655 the launch-path carrier invents no review-target continuation", () => {
+
+  for (const reason of [...ADVISORY_REVIEW_OWNER_CODES,
+    "agent_launch.review_target_resolution.failed.v1"]) {
+    const classification = classifyLauncherTransitionBackendRefusal({
+      schema_version: "workspace-agent-dispatch-backend.v1",
+      accepted: false,
+      refusal: { code: "operator_recovery_needed", reason, detail: null }
+    });
+    assert.equal(classification.cause.code, reason);
+    const carried = backendRefusalCarrier(classification,
+      { role: "reviewer", subject: "WK-2405" });
+    assert.equal(carried.recovery.state, "no_supported_route", reason);
+    assert.equal(carried.no_supported_route, true, reason);
+    assert.equal(carried.next_calls, undefined, reason);
+    assert.deepEqual(carried.deciding_facts, [
+      { field: "dispatch.backend_accepted", value: false },
+      { field: "dispatch.backend_cause", value: reason }
+    ], reason);
+    assert.equal(JSON.stringify(carried).includes("review_target_range_valid"), false, reason);
+  }
 });

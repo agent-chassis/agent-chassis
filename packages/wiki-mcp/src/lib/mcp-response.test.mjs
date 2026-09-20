@@ -7,6 +7,7 @@ import { EventEmitter } from "node:events";
 import { z } from "zod";
 
 import {
+  completeInlineJsonContent,
   createDiagnosticSink,
   createStdioShutdownController,
   errorContent,
@@ -16,6 +17,8 @@ import {
   jsonContent,
   normalizeMcpToolResult,
   persistControlledContractRefactorItemReference,
+  persistVerifyProofEvidenceReference,
+  isVerifyProofEvidenceReference,
   readSpilledMcpContentReference,
   redactAbsolutePaths
 } from "./mcp-response.mjs";
@@ -97,6 +100,55 @@ test("refactor item persistence is plan-or-receipt scoped and range-readable", a
       offset = page.next_offset;
     } while (offset !== null);
     assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString("utf8")), item);
+  }, { WIKI_MCP_RESPONSE_REFERENCE_READ_MAX_BYTES: "1024" });
+});
+
+test("verify-proof evidence persistence mints a digest-bound reference or the typed refusal", async () => {
+  await withSpillEnv(async (env) => {
+    const evidence = { schema_version: "workspace-verify-proof-aggregate.v1", status: "satisfied",
+      proof_results: [{ test_proof_id: "proof", detail: "d".repeat(20_000) }],
+      result_digest: `sha256:${"a".repeat(64)}` };
+    const persisted = persistVerifyProofEvidenceReference(
+      { evidence, evidenceIdentity: evidence.result_digest }, { env });
+    assert.equal(persisted.status, "persisted");
+    assert.equal(isVerifyProofEvidenceReference(persisted.reference), true);
+    assert.equal(persisted.reference.item_identity, evidence.result_digest);
+    assert.equal(persisted.reference.content_reference.read_tool,
+      "workspace_read_mcp_content_reference");
+    const chunks = [];
+    let offset = 0;
+    do {
+      const page = readSpilledMcpContentReference({
+        ref_id: persisted.reference.content_reference.ref_id, offset,
+        length: persisted.reference.content_reference.range.max_length
+      }, { env });
+      chunks.push(Buffer.from(page.data_base64, "base64"));
+      offset = page.next_offset;
+    } while (offset !== null);
+    assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString("utf8")), evidence);
+    for (const request of [
+      { evidence, evidenceIdentity: `sha256:${"b".repeat(64)}` },
+      { evidence: { ...evidence, schema_version: "other.v1" }, evidenceIdentity: evidence.result_digest },
+      { evidence: [], evidenceIdentity: evidence.result_digest }
+    ]) {
+      assert.throws(() => persistVerifyProofEvidenceReference(request, { env }), TypeError);
+    }
+    for (const mutant of [
+      { ...persisted.reference, resource_kind: "plan" },
+      { ...persisted.reference, byte_count: persisted.reference.byte_count + 1 },
+      { ...persisted.reference, extra: true },
+      { ...persisted.reference, item_identity: "digest" }
+    ]) assert.equal(isVerifyProofEvidenceReference(mutant), false);
+    const refused = persistVerifyProofEvidenceReference(
+      { evidence, evidenceIdentity: evidence.result_digest },
+      { env: { ...env, WIKI_MCP_RESPONSE_STATE_DIR: `${import.meta.filename}/not-a-directory` } });
+    assert.equal(refused.status, "refused");
+    assert.equal(refused.result.isError, true);
+    assert.equal(refused.result.structuredContent.code, "mcp_response.spill_persistence_failed.v1");
+    assert.equal(refused.result.structuredContent.core_result.outcome, "succeeded");
+    assert.equal(refused.result.structuredContent.core_result.schema_version,
+      "workspace-verify-proof-aggregate.v1");
+    assert.equal(Object.hasOwn(refused.result.structuredContent, "content_reference"), false);
   }, { WIKI_MCP_RESPONSE_REFERENCE_READ_MAX_BYTES: "1024" });
 });
 
@@ -333,6 +385,22 @@ test("jsonContent returns an inline two-channel envelope for small payloads", ()
   assertTwoChannelEquivalence(result);
   assert.equal(result.isError, undefined);
   assertWithinInlineLimit(result, getResponseSpillConfig().inlineByteLimit);
+});
+
+test("completeInlineJsonContent preserves a deliberately complete response across generic normalization", async () => {
+  await withSpillEnv(async (env) => {
+    const payload = { proofs: Array.from({ length: 300 }, (_, index) => ({
+      proof_name: `proof.fixture.${index}`, assertion: "decision fact ".repeat(40)
+    })) };
+    const complete = completeInlineJsonContent(payload, { env });
+    assert.ok(completeResultBytes(complete) > TWO_CHANNEL_INLINE_LIMIT);
+    assert.deepEqual(normalizeMcpToolResult(complete, { env }), complete);
+    assertTwoChannelEquivalence(complete);
+
+    const ordinary = normalizeMcpToolResult(jsonContent(payload, { env }), { env });
+    assert.equal(ordinary.structuredContent.schema_version,
+      "wiki-mcp-spilled-response.v1");
+  });
 });
 
 test("getResponseSpillConfig honors environment overrides", () => {
@@ -592,8 +660,7 @@ test("registerTool transports its outputSchema declaration into the response gua
       descriptorLoaded: true,
       descriptorToolNames: new Set(["workspace_required_output"]),
       registrationEligibleToolNames: new Set(["workspace_required_output"]),
-      freeLocalToolNames: new Set(["workspace_required_output"]),
-      freeLocalFallbackToolNames: null
+      freeLocalToolNames: new Set(["workspace_required_output"])
     },
     toolUsageAuditBoundary: { wrapHandler(_name, handler) { return handler; } },
     registeredToolNames: new Set(),

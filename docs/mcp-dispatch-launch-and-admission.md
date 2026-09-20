@@ -10,6 +10,39 @@ Sibling pages: [managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md),
 [slice integration](mcp-dispatch-slice-integration.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
 
+## Canonical slice start and existing readiness orchestration
+
+Dispatch is "start this canonical unit". The caller names the unit; everything
+the worker needs is resolved by the system:
+
+- **The agent comes from the unit.** `role` is optional on
+  `workspace_agent_dispatch`. Omitted, the dispatch target is derived from the
+  unit's own `dispatch_intent.intended_agent_role` by the wiki-core dispatch
+  owner, so a caller never restates a fact the canonical record already carries,
+  and can never restate it inconsistently. A unit that declares no agent is
+  refused before launch, with the derived-axis readiness refusal naming what the
+  record is missing and with zero worker spawned. An explicitly named role keeps
+  today's selection exactly, which is what reviewer and redteam dispatch use:
+  an advisory role is the caller's decision, not a property of the reviewed unit.
+- **The assignment comes from the record.** Task, scope, acceptance, validation,
+  selected material and runtime are resolved from the canonical slice and its
+  parent together with authenticated launcher facts. A caller-authored `prompt`,
+  `request`, `argv` or `env` is refused at the boundary rather than accepted and
+  discarded, because accepting it would tell a caller its instructions took
+  effect when the assignment came from the record. No sibling unit's material is
+  injected, and frozen material is never replaced live.
+- **Readiness is internal.** One ordinary start runs
+  `orchestrateAgentDispatchReadiness`, the existing readiness owner, including
+  the currentness and worker revalidation that start needs. There is no second
+  readiness algorithm and no mandatory caller pre-call;
+  `workspace_validate_dispatch` remains available for an explicit "can this
+  start?" question.
+- **Authority is unchanged.** Equivalent admitted inputs preserve the worker's
+  read and write namespace, role and tier, completion transport and
+  launcher-resolved runtime. Review material and reviewer launch identity stay
+  launcher-owned, so a bare caller locator grants no authority. CCE alone decides
+  policy, and mechanical refusals stay distinct from policy decisions.
+
 ## One advisory-review execution pipeline
 
 `workspace_agent_dispatch` selects reviewer and redteam requests by role before
@@ -61,6 +94,116 @@ launcher derives and verifies the exact `wk/IN/WK` and `slice/IN/WK` ref
 namespace an implementation-slice launch commits into from it, so an
 implementation-slice dispatch whose canonical parent declares no initiative, or a
 non-canonical one, cannot name that namespace and is refused with the stable,
+## One frozen worker assignment for every managed family
+
+A managed implementation worker receives its complete assigned task, and both
+supported families receive the same one. The launcher composes it once and hands
+it to whichever family executor follows; neither family reacquires or re-renders
+the canonical task for itself.
+
+The path is:
+
+1. **Capture.** The launcher-frozen worker scope snapshot carries the canonical
+   record, the selected unit contract, and the selected assignment material. The
+   material is resolved beside the scope freeze from the same authenticated
+   canonical inputs, through the shared entry-material resolver, against the
+   repository identity the dispatch route already resolved. Its existing
+   diagnostics — foreign repository, out-of-scope source, malformed reference,
+   missing version, and the reference/byte limits — refuse the freeze, so an
+   unresolvable assignment never reaches a family executor and no worker is
+   spawned.
+2. **Resettlement.** The existing pre-executor WK-tip resettlement may replace
+   that snapshot, which repeats the capture against the newly settled canonical
+   inputs. A superseded snapshot is never prepared or launched: only the final
+   successfully validated snapshot reaches the provisioning wrapper.
+3. **Preparation.** The managed provisioning wrapper prepares the assignment
+   exactly once, after snapshot and provisioning authentication and before the
+   private snapshot is stripped. Preparation is pure: it composes the canonical
+   summary, the agent brief with the captured material, and the launch packet,
+   and performs no record load, reference resolution, or admissibility
+   evaluation. It renders the readiness the launcher already validated and
+   forwarded, normalizing only the structural fields the shared prompt needs
+   from the unit it is preparing; it re-decides nothing and adds no readiness
+   veto, and an explicitly non-dispatchable readiness stays non-dispatchable.
+4. **Authentication.** The prepared presentation is minted into one frozen
+   assignment bound to the exact unit, canonical source digest, run id, monitor
+   handle, and provisioned worktree. Only immutable presentation and identity
+   cross to the adapter: the raw work record, the private controlled-proof
+   carrier, and the provisioning ticket do not. A caller prompt, request field,
+   or environment value can neither create nor replace it. The presentation is
+   immutable all the way down, including the nested launch packet Codex reads
+   its task bytes out of; preparation freezes only what it owns and never
+   freezes or mutates a record, readiness envelope, or material object the
+   caller still owns.
+5. **Delivery.** Both managed adapters authenticate that value before any launch
+   preparation and use its prompt verbatim. A managed launch that arrives
+   without it, with a value it did not mint, or with one bound to another launch
+   refuses before spawning anything.
+
+### Assignment content
+
+The delivered task opens with one shared, family-neutral instruction: implement
+the assigned task, read only the listed readable paths and modify only the
+listed writable paths, use the tools available in the session, run
+`workspace_verify_proof` and report its result before committing, and report a
+blocker when required work falls outside scope. The prompt names no family tool,
+confinement mechanism, or alternative editing or validation route; the
+launcher-granted tools and confinement remain the authority. The existing
+commit-then-result completion protocol follows unchanged.
+
+The instruction is followed by the selected unit's own operative notes and
+tasks, rendered verbatim, its acceptance criteria, and its resolved paths.
+Readable paths are the selected unit's read scope, repository paths and write
+scope in that order without duplicates; writable paths are its write scope. The
+declared validation is presented as acceptance validation outside the
+assignment, together with any full-suite validation named in the authored task
+text, so it is not a separate worker step before commit. The worker prompt does
+not refer to reviewers. The explicitly selected assignment material follows
+in the agent brief. Unselected parent and sibling content
+stays out, exactly as the selected-unit projection already required. Delivery grants no scope and no
+tools: R union W, the mutation targets, the private-family exclusion, and the
+worker MCP tool profile are unchanged by it, and the task text describes exactly
+the admitted scope.
+
+### Assignment transport diagnostics
+
+Four stable mechanical codes describe transport integrity, not local policy.
+They ride the shared refusal envelope and always precede worker spawn:
+
+| code | meaning |
+| --- | --- |
+| `worker_assignment_missing` | a managed launch carried no launcher-minted assignment |
+| `worker_assignment_untrusted` | the value is not the one the launcher minted |
+| `worker_assignment_binding_mismatch` | the assignment binds another unit, run, monitor handle, or worktree |
+| `worker_assignment_projection_invalid` | the admitted inputs could not be projected into an assignment |
+
+### One terminal-result mode
+
+Preparation resolves the terminal-result mode once, from the **provisioned
+worktree** as the tier root, through the existing shared resolver. The same
+resolved value governs both the prompt text and the family's native schema flag,
+so they cannot diverge in source order. Where the main repository and the
+provisioned worktree disagree, the worktree wins. This mode remains the
+decision compliance-assist disposition and is never a launch gate.
+
+### Controls that are not presentation
+
+Two canonical reads remain, and neither can replace the prepared task bytes:
+
+- Claude resolves its launcher-owned canonical write scope from canonical record
+  state, as before.
+- Managed Codex keeps `buildWorkerPlan` -> `resolveRemoteWorkerAdmissionProvenance`
+  -> `evaluateWorkRecordWrapperGate` as the sole admissibility lane, including
+  its fail-closed behavior when Node Engine provenance is unavailable. The gate
+  performs every structural precondition it always did and delegates
+  presentation to the prepared packet instead of composing a second one; a
+  packet that does not bind this unit, role, and source digest is refused as
+  malformed gate input.
+
+Direct supported entrypoints keep their own supported acquisition and share the
+same presentation owner. They are not a fallback for a managed launch that
+arrived without an assignment.
+
 ## Admission refusals carry the canonical mechanical envelope
 
 Every admission refusal on this path — subject/role matrix, readiness, the
@@ -98,6 +241,38 @@ registered identity, owning boundary, and every mechanically supported next
 call. The operator code is break-glass only for an authenticated unexpected
 condition outside the tooling model, and must preserve that exact external
 condition rather than replace a known cause.
+
+The registered identities for the launcher and monitoring families are:
+
+| Failure family | Public identity |
+| --- | --- |
+| The launcher could not start the child agent | `agent_launch.launch_failed_before_start.v1` |
+| A registered handler raised an untyped exception | `mcp_response.handler_exception.v1` |
+| A launcher composition cannot authenticate one lifecycle protocol generation | `stdio_mcp_lifecycle_protocol_incompatible` |
+| The launcher could not observe a monitored subject | `agent_launch.monitor.subject_observation_unavailable.v1` |
+| A run-status detail page could not be produced | `agent_launch.monitor.run_detail_unavailable.v1` |
+| Recorded proof-verification evidence could not be delivered | `agent_launch.monitor.proof_verification_evidence_unavailable.v1` |
+| Post-worker lifecycle recovery outran the monitor call budget | `agent_launch.post_worker_lifecycle.recovery_unresponsive.v1` |
+| Post-worker lifecycle recovery ran and failed | `agent_launch.post_worker_lifecycle.recovery_failed.v1` |
+| A corrective-status recovery awaits launcher retirement | `agent_launch.managed_corrective_status.launcher_retirement_incomplete.v1` |
+| An authenticated CCE decision refused slice integration | `agent_launch.slice_integration.cce_policy_refused.v1` |
+| A slice-integration refusal carried no recognized classification | `agent_launch.slice_integration.classification_unavailable.v1` |
+| Prospective or allocated launcher-transition lifecycle failure | `launcher_transition.prospective_lifecycle_unavailable.v1`, `launcher_transition.lifecycle_allocation_failed.v1` |
+| A backend refusal identity is absent or undeclared | `launcher_transition.backend_refusal_identity_missing.v1`, `launcher_transition.backend_refusal_identity_unknown.v1` |
+
+Each of these preserves the producer's own cause in `reason`, the owning
+boundary, and the supported recovery. Where no callable route exists the refusal
+says so rather than naming a next call, and where one does exist -- the
+corrective-status and unresponsive-budget identities -- the refusal names it
+instead of claiming operator recovery.
+
+Every refusal that carries a thrown or returned failure also publishes the
+complete original diagnostic evidence beside its display projection, under
+`detail.evidence`, using the `agent_launch.diagnostic_evidence.v1` encoder: the
+message, stack, every own property, the whole `cause` chain, and non-`Error`
+thrown values, unredacted, with any cut-off disclosed in `capture_failures`.
+Redaction applies only to the separate display field; it never consumes the
+evidence.
 
 Node Engine and CCE admissibility belong only to implementation-worker
 admission. Reviewer and redteam startup performs read-only readiness and never
@@ -293,9 +468,12 @@ literal parent list, and performs a bounded walk of those literal parent oids.
 Replacement refs, revision expressions, and semantic history output are not
 ancestry authority; graft inputs are irrelevant because Git's semantic parent
 view is never consulted. Malformed objects, missing parents, cycles, bound
-exhaustion, inconsistent output, and Git faults are indeterminate refusals. A
-determinate literal not-ancestor result is the only route to replay-equivalent
-matching.
+exhaustion, inconsistent output, and Git faults are indeterminate refusals. An
+indeterminate diagnostic names the offending `object` and a `detail` that
+separates Git read outcomes (`literal_commit_read_failed`,
+`literal_object_not_commit`) from parsing (`literal_commit_malformed`, with a
+stable `parse_reason`). A determinate literal not-ancestor result is the only
+route to replay-equivalent matching.
 
 **Replay-equivalent marker admission is the one additional implementation path**,
 reached only from that determinate negative and never sufficient by itself. The
@@ -348,9 +526,18 @@ naming another record, or a marker for a different slice, grants nothing however
 reachable it is. Every other outcome of either probe — spawn error, signal,
 unexpected status, malformed output, an absent or malformed marker, a parentless
 or merge-shaped delivery/candidate, or any indeterminate resolver state — refuses
-without another fallback. Literal commit parsing validates every header and
-continuation before using its tree, parents, or message; malformed header lines
-make the object unreadable and grant no authority.
+without another fallback. One shared launcher parser reads every literal
+commit. It validates every structural header and continuation before using the
+tree or parents; a CR, NUL, other control byte, or malformed line in the header
+section makes the object unreadable and grants no authority. The message is
+everything after the first blank line and is returned verbatim: CR, CRLF, NUL,
+and other bytes are ordinary message content, are never normalized, and cannot
+make an ancestor unreadable. Because the Git runner delivers text as UTF-8, a
+header or message containing U+FFFD cannot be proven byte-exact and is
+refused as malformed (`message_bytes_unrepresentable` or
+`header_bytes_unrepresentable`) rather than substituted. Marker and delivery
+message comparisons remain exact byte equality, so a CRLF rendering of a
+server-generated message is not that message.
 
 All implementation Git evidence is bound to the allocated or adopted subject WK
 tip and every exact implementation dependency ref/tip used by either proof.
@@ -387,6 +574,27 @@ The only permitted readiness/accepted-dispatch differences are `phase`
 (`prospective` to `allocated`) and freshness authenticated during launch. Every
 other identity field must remain equal. Callers cannot supply a plan or identity.
 No second transition schema or wrapper-owned semantic envelope is supported.
+
+### Accepted response object placement
+
+An accepted dispatch with a managed allocation and the canonical readiness
+projector publishes the complete allocated launcher transition plan and managed
+allocation exactly once, as `readiness.launcher_transition_plan` and
+`readiness.managed_wk_allocation`. The accepted response does not repeat either
+object at the top level.
+
+An accepted dispatch without a managed allocation preserves two distinct
+phase-bearing objects: `readiness.launcher_transition_plan` is the prospective
+plan supplied to launch, while the top-level `launcher_transition_plan` is the
+allocated continuation accepted from the launcher. No allocation property is
+published in either location in this branch.
+
+The top-level plan is omitted only when
+`readiness.launcher_transition_plan` is the exact same object as the accepted
+launcher plan. If readiness omits the plan or contains a substituted or
+equal-by-value but distinct object, the complete accepted launcher plan remains
+at the top level. This placement rule does not reconstruct readiness or add a
+new validation or refusal decision.
 
 work record composes retained owners; it does not replace them:
 
@@ -441,7 +649,7 @@ admitted object is the exact one it submitted. Refusals carry one stable code,
 message, and structured detail, and select no launcher recovery: recovery, actor,
 and next-action selection belong to the launcher-transition owner.
 
-The exact refusal classification, producer envelopes, public response field
+The exact refusal classification, producer envelopes, refusal response field
 list, and redaction signal vocabulary are specified in
 [MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md#authenticated-backend-refusal-classification).
 
@@ -490,6 +698,128 @@ decision keeps explicit standalone technical redteam distinct from CCE reviewer
 mode. Its work record admission must authenticate the exact canonical unit and launch
 subject. Missing or mismatched admission is a mechanical refusal before technical
 role authority, lifecycle allocation, conduit construction, or spawn.
+
+### Proof-authoring readiness in a dispatch decision
+
+The controlled-acceptance state projection publishes `definition_readiness`
+beside the shared semantic subset. The subset keeps the readiness decision and
+its exact counts; `definition_readiness` is the first-response presentation of
+the same owner facts.
+
+It names how many proof DEFINITIONS are complete, which obligations remain
+unresolved (`unresolved_obligation_ids`, with their count), each authored gap's
+`gap_kind` and the author's reason, the affected obligations behind the
+terminal-gap total, and the one supported correction: the existing coverage
+query followed by `..._obligation_coverage_upsert`, answered with
+caller-authored data. Inline lists are capped and report what they omitted;
+counts stay exact.
+
+The compact `workspace_validate_dispatch` response carries that projection on
+`controlled_acceptance_state`. A required contract's whole readiness rarely fits
+the compact complete-frame class, and the byte budget is unchanged, so when the
+controlled-acceptance member cannot be inlined the selected summary publishes
+the same owner facts in bounded form under `selected_detail.definition_readiness`:
+the complete and incomplete definition counts, the open obligations, each
+authored gap's `gap_kind` and -- while the frame allows -- the author's reason,
+the execution facts, and the correction. Each population reports its exact total
+with an explicit omitted count, and the summary offers the source-bound detail
+call that reads the owner's whole projection losslessly. Nothing in the summary
+is recomputed or reclassified.
+
+The correction's `expected_content_digest` comes from the response of the
+coverage query the correction itself names
+(`expected_content_digest_from: read_tool_response.content_digest`). A digest
+observed anywhere else -- including the `record_source_digest` the same readiness
+publishes -- belongs to a different domain, and the coverage owner refuses it.
+
+A proof definition is derived from the authored case, selector, claim and
+obligation relationship. Execution evidence is separate: it is produced by
+`workspace_verify_proof` against declared tests that implementation has yet to
+write. `definition_readiness.execution` therefore reports
+`required_before_authoring:false` and `creates_definitions:false`. A complete
+definition population whose execution has not started satisfies this authoring
+prerequisite; no verification call creates a missing declaration, and a
+not-started execution is never the reason this stage is open. Every other launch
+prerequisite still applies, and a genuinely absent or unresolved definition
+remains mechanical incompleteness.
+
+Incomplete authored inputs report `controlled_acceptance_authored_inputs_incomplete`
+rather than the aggregate `obligation_coverage_resolution_required`, which
+describes a different cause.
+
+### The selected unit owns its proof obligations
+
+Proof obligations and their proof selections belong to the unit of work. For
+sliced implementation work that unit is the slice, so every controlled-acceptance
+surface -- canonical classification, read-only workbench inspection, ready-slice
+shaping, `workspace_validate_dispatch`, launcher preflight and managed
+provisioning -- classifies the exact selected unit it is about to act on and
+passes its own already-authenticated selection to the one classifier. The
+projection and its shared semantic subset name that unit in `selected_unit`
+(`kind`, `address`, `record_id`, `slice_id`), the evaluated snapshot's source and
+the assessment source carry the same selection, and the workbench reports
+subject, assessment-source and coverage-owner agreement on it as one
+`cross_owner_consistency` identity.
+
+A parent's or a sibling's population is therefore a different unit's fact and can
+never complete a selected slice. A slice with no saved coverage source reports
+`obligation_coverage_source_not_found`, an empty population and
+`controlled_acceptance_incomplete`, and its recovery -- the coverage query and
+its `..._obligation_coverage_upsert` follow-up -- addresses `work record`
+rather than `work record`. This is the same exact unit `workspace_verify_proof`
+already requires when it resolves the saved source it will execute, so a
+dispatch decision and the verifier can no longer disagree about which population
+exists.
+
+Shared definitions are unaffected. Case definitions keep their single canonical
+owner on the parent source, a slice reuses one by reference rather than copying
+it, and a slice source that carries case definitions is refused. Execution
+ownership still follows the declaring unit: shared case visibility grants no
+authority, and a slice that declares no executable target cannot complete a case
+that needs one. Nothing here copies parent obligations into a slice or gives a
+slice a parent fallback.
+
+Two things remain scoped to the record rather than to a slice. The
+controlled-acceptance disposition on `proof_posture` is a record-level fact, and
+whole-contract settlement recomputation stays a whole-contract operation.
+`workspace_work_record_ready_slice` keeps one deliberate exception: a request
+that omits `slice_id` ALLOCATES the next ordinal slice, and that unit does not
+exist yet. Requiring its own coverage there would be a circular requirement that
+an unallocated slice already have a source, leaving it permanently unauthorable,
+so an allocating request asks about the record -- the only unit it has -- and the
+slice's own coverage is assessed from the call that selects it with `slice_id`. A
+`slice_id` naming no existing slice stays the core operation's
+`ready_slice_unknown_slice` refusal, not a coverage question.
+
+### The question `workspace_validate_dispatch` answers
+
+`workspace_validate_dispatch` answers exactly one question, and its contract
+names it: **is the saved unit, and the saved contract it names, internally
+coherent and complete as a document?** That verdict is decided from the
+canonical work record or slice, its authenticated proof posture, and the saved
+controlled-contract carriers that posture names. It is reproducible from those
+bytes alone.
+
+**Can the current world satisfy what the document says?** is a different
+question with a different owner. `workspace_verify_proof` answers it at verify
+time against the installed registry, catalog and runners, and reports an
+incapacity through its own enumerated causes. It is not an input to dispatch
+readiness. A unit whose selected proofs nothing can execute today is a complete,
+well-formed unit, authors normally, and dispatches normally.
+
+The route enforces that boundary rather than trusting it. A proof posture may
+block dispatch only on `controlled_acceptance_disposition_missing`,
+`controlled_acceptance_incomplete` (staged `authored_inputs` or
+`canonical_sources`), or `controlled_acceptance_source_not_current`, and only
+with no unavailable system operations attached. An admission verdict that
+carries any other ground -- a `system_capability` stage, an unavailable
+operation, a capability reason code -- is a fulfillment fact that reached a
+well-formedness boundary. It is refused there as
+`dispatch_readiness_fulfillment_fact_refused`, naming the offending fields and
+`workspace_verify_proof` as the owner that does answer it, instead of being
+reported as this route's structural answer. The complete or opted-out proof
+posture precondition is unchanged: it asks whether the posture is filled in or
+its elements explicitly opted out, which is a property of the document.
 ## Findings-only advisory review
 
 Empty effective mutation scope is the sole findings lifecycle discriminator.
@@ -621,13 +951,60 @@ schema and production classifier semantics; `review_purpose` does not mint a
 separate lifecycle subtype. Effective `write_scope: []` alone selects findings,
 while a nonempty authenticated scope alone selects implementation. Missing,
 malformed, mutable, caller-substituted, or otherwise unauthenticated scope and
-locator facts refuse before effects. In particular, redteam applied to a
-nonempty-scope implementation slice is a
-`technical_role_selected_unit_incompatible` mechanical role-policy violation at
-phase `technical_role_selected_unit_admission`; it is not a review-target or
-frozen-contract failure because neither operation has been attempted.
+locator facts refuse before effects.
+
+Reviewer and redteam are both read-only findings identities, so the material
+target's own declared scope is not a role restriction. A redteam or reviewer
+request whose selected implementation slice declares nonempty effective write
+scope is an ordinary current target: that scope selects the exact
+implementation-slice material, while the findings action's own authenticated
+mutation authority stays empty. A valid `work_kind: "review"` unit is a current
+target for the same reason. Before any selector runs, the route authenticates
+the canonical subject itself — the record is read once through the canonical
+reader, must be a plain object whose `id` is exactly the requested WK, and a
+requested slice must be selected by exactly one well-formed entry of a present
+`slices` array; see [Runtime contract › Immutable advisory-review
+target](mcp-dispatch-runtime-contract.md#immutable-advisory-review-target).
 
 Migration-review acknowledgement does not participate in read-only findings
 admission. Acknowledged and unacknowledged units with otherwise identical
 canonical bytes have identical findings admission. Nonempty-scope
 implementation dispatch retains the existing migration policy.
+
+## Configured readiness and native permission diagnostics
+
+`workspace_coordination_preflight` reports configured capability/readiness.
+Normal Claude launch validates and applies native permission configuration but
+does not empirically certify installed-runtime behavior. It runs no auxiliary
+model-driven permission test and requires no synthetic report, canary or positive
+cache. Genuine settings, executable, confinement and MCP setup failures retain
+their ordinary stage-specific diagnostics. Explicitly opted-in integration tests
+own empirical checks; see [Claude permission configuration and empirical tests](claude-native-permission-probe.md).
+
+## Reading the current dispatch selection
+
+`workspace_agent_dispatch_identity_contract` accepts an optional
+`dispatch_selection` carrying the same `repo`, `role`, `subject`, `app` and
+`model` fields that `workspace_agent_dispatch` registers. `repo` is a configured
+workspace alias, and `app` is only an assertion about the role's configured
+model. `role` names the proposed dispatch target, not the caller. The read never
+dispatches or launches, and it never persists graph evidence, evaluates
+readiness or CCE policy, or writes configuration.
+
+Only a session whose launcher-bound role profile registers
+`workspace_agent_dispatch` can read a selection. Any other session receives
+`status: "unavailable"` with the required operator action and no selection
+facts. A missing launcher dispatch backend or dispatch session identity is also
+reported as unavailable, and no local resolver or configuration root is
+substituted. Caller identity carriers still refuse, and the selection is then
+reported as not evaluated.
+
+The workspace alias resolves through the workspace repository owner, the subject
+and role through the dispatch subject matrix, and the selection through the
+backend's launcher routing decision with the same routing input dispatch
+admission uses. A resolved read returns the canonical repository, role and
+subject, the model and app the launcher selects from the bound workspace's
+`agent-launch.toml` role configuration and model registry, and non-authorizing
+provenance. A refused read returns the launcher's own reason, such as an unset or
+unknown role model or an app that does not match the configured model, with
+bounded owner detail and no configuration text, environment or other roles.

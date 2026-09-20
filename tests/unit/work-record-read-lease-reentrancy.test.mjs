@@ -25,7 +25,7 @@ const CONTRACTS = path.join(REPO, "wiki", "contracts");
 const FIXTURE_WK = "WK-2327";
 const FORBIDDEN_PACK = Object.freeze({
   profileId: "proof.operation.forbidden-noninvocation",
-  profileVersion: "2.0.0"
+  profileVersion: "3.0.0"
 });
 const FORBIDDEN_INTENT = "controlled-proof-intent.forbidden-operation-noninvocation";
 

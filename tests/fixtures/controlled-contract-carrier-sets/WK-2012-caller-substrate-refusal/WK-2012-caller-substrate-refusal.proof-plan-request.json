@@ -1,0 +1,13 @@
+{
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "requested_intents": [
+    "controlled-proof-intent.refusal-before-effects"
+  ],
+  "selected_packs": [
+    {
+      "profile_id": "proof.authorization.refusal-before-effects",
+      "profile_version": "3.0.0",
+      "evaluation_input_path": "WK-2012-caller-substrate-refusal.evaluation-input.json"
+    }
+  ]
+}

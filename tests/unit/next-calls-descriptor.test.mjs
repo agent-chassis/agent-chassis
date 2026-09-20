@@ -76,6 +76,76 @@ const REQUEST_SCHEMAS = Object.freeze({
   [PREFLIGHT]: PREFLIGHT_SCHEMA
 });
 
+test("slice-status literals remain complete in scalar and array continuations", () => {
+  const tool = "workspace_work_record_summary";
+  for (const status of ["todo", ["todo"], ["todo", "done"], " todo "]) {
+    const args = { id: "WK-2566", slice_offset: 0, slice_status: status };
+    assert.deepEqual(unresolvedArgumentNames(args), []);
+    const call = buildNextCall({ tool, arguments: args, recommended: true });
+    assert.deepEqual(call.arguments, args, "literal filters must not be rewritten");
+    assert.equal(validateNextCalls([call]).valid, true);
+  }
+});
+
+test("slice-status recognition does not admit genuinely unresolved arguments", () => {
+  const tool = "workspace_work_record_summary";
+  for (const status of ["TODO", "TODO: choose a status", "TBD", "$status", "<status>", "", null,
+    ["todo", "TBD"], ["todo", null], [["todo"]], { status: "todo" }]) {
+    const args = { id: "WK-2566", slice_status: status };
+    assert.deepEqual(unresolvedArgumentNames(args), ["slice_status"]);
+    assert.throws(() => buildNextCall({ tool, arguments: args }), /unresolved/u);
+    assert.equal(validateNextCalls([{ tool, arguments: args }]).valid, false);
+  }
+  for (const args of [{ unit: "todo", slice_status: "todo" },
+    { nested: { slice_status: "todo" } }, { subject: "<subject>", slice_status: ["todo"] }]) {
+    assert.throws(() => buildNextCall({ tool, arguments: args }), /unresolved/u);
+    assert.equal(validateNextCalls([{ tool, arguments: args }]).valid, false);
+  }
+  assert.equal(isUnresolvedArgumentValue("todo"), true);
+});
+
+test("literal ordinary task text remains complete only in valid text selectors", () => {
+  const tool = "workspace_work_record_summary";
+  const digest = `sha256:${"0".repeat(64)}`;
+  for (const text of ["TODO: prepare the draft", "$5 budget line", "<literal task>",
+    "TBD after review", "FIXME wording", "XXX marker"]) {
+    for (const ordinaryField of [
+      { field: "sections.tasks", text },
+      { field: "sections.tasks", text, member: "text", offset: 0, length: 4 }
+    ]) {
+      const args = { unit: "WK-2566", ordinary_field: ordinaryField,
+        expected_source_digest: digest };
+      assert.deepEqual(unresolvedArgumentNames(args), []);
+      const call = buildNextCall({ tool, arguments: args, recommended: true });
+      assert.deepEqual(call.arguments, args, "authored task text must not be rewritten");
+      assert.equal(validateNextCalls([call]).valid, true);
+    }
+  }
+});
+
+test("ordinary task-text recognition does not relax malformed or unresolved members", () => {
+  const tool = "workspace_work_record_summary";
+  for (const ordinaryField of [
+    { field: "sections.agent_notes", text: "TODO: not a task selector" },
+    { field: "sections.tasks", text: "" },
+    { field: "sections.tasks", text: null },
+    { field: "sections.tasks", text: "TODO: prepare the draft", member: "$member" },
+    { field: "sections.tasks", text: "$5 budget line", offset: -1, member: "text" },
+    { field: "sections.tasks", text: "$5 budget line", length: 0, member: "text" },
+    { field: "sections.tasks", text: "TODO: prepare the draft", extra: "$argument" }
+  ]) {
+    const args = { unit: "WK-2566", ordinary_field: ordinaryField };
+    assert.deepEqual(unresolvedArgumentNames(args), ["ordinary_field"]);
+    assert.throws(() => buildNextCall({ tool, arguments: args }), /unresolved/u);
+    assert.equal(validateNextCalls([{ tool, arguments: args }]).valid, false);
+  }
+  const args = { unit: "WK-2566", ordinary_field: {
+    field: "sections.tasks", text: "TODO: prepare the draft"
+  }, subject: "$subject" };
+  assert.deepEqual(unresolvedArgumentNames(args), ["subject"]);
+  assert.throws(() => buildNextCall({ tool, arguments: args }), /subject is unresolved/u);
+});
+
 test("buildNextCall normalizes tool, arguments, and flags", () => {
   const entry = buildNextCall({
     tool: GET_RECORD,

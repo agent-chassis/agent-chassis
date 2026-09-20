@@ -27,7 +27,8 @@
       ],
       "must_not_include": [
         "candidate_intents"
-      ]
+      ],
+      "server_state_contract": "A missing request field that the route declares in server_state_fields is reported in server_state_fields with the result field of its declared read instead of in required_authored_fields. When that read is visible and its arguments satisfy its registered request contract, next_calls contains that read as the one recommended call; the incomplete operation itself is never emitted."
     },
     "ambiguous": {
       "description": "Two or more intents remain plausible after deterministic overlap handling and available prerequisite state is insufficient to choose.",
@@ -51,7 +52,7 @@
         "max_candidate_intents": 3,
         "ask_for": "the smallest missing identifier, state marker, or user choice needed to distinguish the candidate intents",
         "omission_contract": "When candidate_set_complete is false, candidate_count_total is exact and complete_candidate_set_next_call is an unflagged canonical workspace_tool_router_recommend call with candidate_view=complete. The continuation returns every task-selected candidate without recommending one.",
-        "choice_contract": "Each ranked clarification choice names the missing discriminant and the exact recommended operation plus its known arguments and remaining state required before that operation is callable. When selection alone completes the arguments, if_selected.next_call is an unflagged executable canonical descriptor. No ambiguous next_calls entry is recommended."
+        "choice_contract": "Each ranked clarification choice names the exact operation, its known arguments, and required_authored_fields. A choice whose arguments satisfy the operation's registered request contract also appears in next_calls as an unflagged executable alternative; an incomplete choice is guidance only. No ambiguous next_calls entry is recommended."
       }
     },
     "visibility_withheld": {
@@ -90,7 +91,7 @@
       "bounded_unsupported_intent_guidance": {
         "max_guidance_items": 3,
         "guidance": [
-          "Use workspace_tools_query or workspace_tools_describe only for bounded tool discovery when the task is still a repo-tool question.",
+          "Use workspace_tools_list filtered by a known task_id, or workspace_tools_describe for a known tool_name, only for bounded tool discovery when the task is still a repo-tool question.",
           "Use workspace_search_repo only when the user is asking for docs/wiki lookup or canonical page discovery.",
           "Ask the user for the missing durable identifier or scope when the task cannot be classified from the provided text."
         ]
@@ -104,6 +105,7 @@
       "preserve durable identifiers such as IN-*, WK-*, WK-*#SLICE-*, DEC-*, SRC-*, and docs paths as prerequisite state"
     ],
     "deterministic_overlap_order": [
+      "controlled_contract_input_guidance",
       "controlled_contract_proof_graph_continuation",
       "controlled_contract_authoring_continuation",
       "controlled_contract_obligation_coverage",
@@ -114,6 +116,7 @@
       "controlled_contract_proof_plan",
       "controlled_contract_integration_test_design_assessment",
       "controlled_contract_assessment",
+      "controlled_contract_verify_proof",
       "dispatch_role_call",
       "dispatch_readiness",
       "run_monitoring",
@@ -127,6 +130,16 @@
     ],
     "overlap_rules": [
       {
+        "when": "task explicitly asks for an explanation of obligation-coverage requirement authoring, its example, runtime-test authoring, rebinding, or relation signatures",
+        "choose": "controlled_contract_input_guidance",
+        "instead_of": [
+          "controlled_contract_obligation_coverage",
+          "selected_slice_detail",
+          "docs_lookup"
+        ],
+        "reason": "an explanation request reads the complete registered authoring-guidance selection; it saves nothing"
+      },
+      {
         "when": "task asks to author, inspect, or semantically rebase the upstream canonical obligation source",
         "choose": "controlled_contract_obligation_coverage",
         "instead_of": [
@@ -136,7 +149,7 @@
           "selected_slice_detail",
           "selected_work_record_context"
         ],
-        "reason": "obligation-source authoring uses its bounded describe/create/upsert/remove/query/rebase family; acceptance coverage remains its downstream projection family"
+        "reason": "Read authored obligation inventory directly; use one upsert for authoring and explicit workspace_validate_proof for design feedback"
       },
       {
         "when": "task asks to author, inspect, or semantically rebase acceptance-coverage mappings",
@@ -201,7 +214,7 @@
           "selected_slice_detail",
           "selected_work_record_context"
         ],
-        "reason": "a concrete role call starts with the descriptor-owned dispatch-readiness operation"
+        "reason": "a concrete start or role call goes to the descriptor-owned dispatch operation; readiness assessment is optional and is not a prerequisite call"
       },
       {
         "when": "task asks whether a unit is dispatchable or ready without asking to launch a role",
@@ -228,6 +241,22 @@
           "selected_work_record_context"
         ],
         "reason": "selected-slice reads avoid full tracker payloads"
+      },
+      {
+        "when": "task asks for the initiative or unit status lens rather than the status of a dispatched run",
+        "choose": "initiative_status",
+        "instead_of": [
+          "run_monitoring"
+        ],
+        "reason": "the status lens aggregates initiative and unit state; it is not an agent-run status"
+      },
+      {
+        "when": "task asks to monitor a run and names a slice address as that run's subject",
+        "choose": "run_monitoring",
+        "instead_of": [
+          "selected_slice_detail"
+        ],
+        "reason": "a slice address in a monitoring request is the run subject, not a request for the slice record"
       },
       {
         "when": "task asks what should happen next, next action, frontier action, blocker to clear, or prepare dispatch across an initiative",
@@ -261,103 +290,11 @@
   ],
   "intents": [
     {
-      "intent": "controlled_contract_refactor",
-      "tie_break_rank": 6,
-      "use_when": [
-        "The user asks to rename a stable controlled-contract identity or replace an explicit controlled-contract subgraph.",
-        "The user asks to continue reading or apply a server-issued controlled-contract refactor plan."
-      ],
-      "match_phrases": ["controlled contract refactor", "rename contract identity", "replace contract subgraph", "refactor plan", "refactor receipt"],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_refactor_plan",
-        "required_authored_fields": ["generation", "rename_or_replace_mode"]
-      },
-      "forbidden_first_tools": [
-        {"tool": "workspace_controlled_contract_carrier_patch", "reason": "Refactor requires complete package-owned graph closure and coverage treatment.", "use_instead": "workspace_controlled_contract_refactor_plan"},
-        {"tool": "workspace_controlled_contract_refactor_apply", "reason": "Apply accepts only a continuation released by a complete current plan.", "use_instead": "workspace_controlled_contract_refactor_plan"}
-      ],
-      "allowed_next_call_families": ["controlled_contract_refactor", "controlled_contract_assessment", "controlled_contract_proof_plan"],
-      "prerequisite_state": [
-        {"name": "unit", "required": true, "accepted_sources": ["user-provided WK-*", "prior refactor plan"], "if_missing": "ask for the WK id"},
-        {"name": "mode_or_resource", "required": true, "accepted_sources": ["rename_identity mode", "replace_subgraph mode", "server-issued plan identity", "server-issued receipt identity", "server-issued apply continuation"], "if_missing": "ask whether to plan, query, or apply"}
-      ],
-      "replacement_guidance": [
-        {"replace": "generic carrier patch or artifact query", "with": "workspace_controlled_contract_refactor_plan", "when": "identity graph semantics or refactor resource retrieval is required"}
-      ]
-    },
-    {
-      "intent": "controlled_contract_proof_graph_continuation",
-      "tie_break_rank": 7,
-      "use_when": [
-        "The user asks to publish the server-held controlled-contract proof graph with its continuation identity."
-      ],
-      "match_phrases": [
-        "continue controlled contract proof graph",
-        "publish controlled contract proof graph",
-        "proof graph continuation",
-        "resume proof authoring continuation"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_proof_graph_continue",
-        "required_authored_fields": ["continuation"]
-      },
-      "forbidden_first_tools": [
-        {
-          "tool": "workspace_controlled_contract_carrier_patch",
-          "reason": "The complete proposal and publication authority are server-held behind the continuation.",
-          "use_instead": "workspace_controlled_contract_proof_graph_continue"
-        }
-      ],
-      "allowed_next_call_families": [
-        "controlled_contract_proof_graph_continuation",
-        "controlled_contract_proof_plan"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "unit",
-          "required": true,
-          "accepted_sources": [
-            "user-provided WK-*",
-            "prior authoring state"
-          ],
-          "if_missing": "ask for the WK id"
-        },
-        {
-          "name": "continuation",
-          "required": true,
-          "accepted_sources": [
-            "prior proof_graph_required authoring state"
-          ],
-          "if_missing": "read controlled-contract authoring state"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "caller-supplied proof-graph proposal or carrier patches",
-          "with": "workspace_controlled_contract_proof_graph_continue",
-          "when": "a server-issued proof-graph continuation exists"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_authoring_continuation",
-      "tie_break_rank": 8,
-      "use_when": [
-        "The user asks to continue task-directed controlled-contract authoring with a continuation identity."
-      ],
-      "match_phrases": [
-        "continue controlled contract authoring",
-        "controlled contract continuation"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_authoring_continue",
-        "required_authored_fields": ["continuation"]
-      },
+      "tie_break_rank": 9,
       "forbidden_first_tools": [],
       "allowed_next_call_families": [
-        "controlled_contract_authoring_continuation",
-        "controlled_contract_authoring",
-        "controlled_contract_proof_plan"
+        "controlled_contract_proof_authoring",
+        "controlled_contract_proof_validation"
       ],
       "prerequisite_state": [
         {
@@ -367,55 +304,277 @@
             "user-provided WK-*"
           ],
           "if_missing": "ask for the WK id"
-        },
-        {
-          "name": "continuation",
-          "required": true,
-          "accepted_sources": [
-            "prior task-directed authoring state"
-          ],
-          "if_missing": "read controlled-contract authoring state"
         }
       ],
-      "replacement_guidance": [
+      "replacement_guidance": [],
+      "intent": "controlled_contract_proof_validation",
+      "use_when": [
+        "validate proof design"
+      ],
+      "match_phrases": [
+        "validate proof design",
+        "validate proof parameters",
+        "check proof design"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_validate_proof"
+      }
+    },
+    {
+      "tie_break_rank": 9,
+      "forbidden_first_tools": [],
+      "allowed_next_call_families": [
+        "controlled_contract_proof_authoring",
+        "controlled_contract_proof_validation"
+      ],
+      "prerequisite_state": [
         {
-          "replace": "retransmitted carrier-authoring semantics",
-          "with": "workspace_controlled_contract_authoring_continue",
-          "when": "a server-issued task-directed continuation identity exists"
+          "name": "unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*"
+          ],
+          "if_missing": "ask for the WK id"
         }
-      ]
+      ],
+      "replacement_guidance": [],
+      "intent": "controlled_contract_proof_authoring",
+      "use_when": [
+        "author proof obligation"
+      ],
+      "match_phrases": [
+        "author proof obligation",
+        "save proof selection",
+        "amend proof parameters",
+        "select proof for obligation",
+        "author obligation coverage",
+        "create obligation source"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_controlled_contract_obligation_coverage_upsert",
+        "arguments": {
+          "unit": "$unit_if_known",
+          "focus": "$focus_if_known"
+        },
+        "required_authored_fields": [
+          "unit",
+          "obligations"
+        ],
+        "server_state_fields": [
+          {
+            "field": "expected_content_digest",
+            "result_field": "content_digest",
+            "read": {
+              "name": "workspace_controlled_contract_obligation_coverage_query",
+              "arguments": {
+                "unit": "$unit_if_known",
+                "focus": "$focus_if_known"
+              }
+            }
+          }
+        ],
+        "reason": "Author obligations[] items, each naming its obligation_id; contract_requirements and controlled_acceptance are the other populations and at least one is saved. The query returns content_digest for expected_content_digest and the existing identities."
+      }
+    },
+    {
+      "intent": "controlled_contract_proof_selection_delete",
+      "tie_break_rank": 9,
+      "use_when": [
+        "Remove a saved proof selection while preserving its obligation, or explicitly delete the complete obligation row."
+      ],
+      "match_phrases": [
+        "delete proof selection",
+        "remove proof selection",
+        "unselect proof",
+        "delete obligation row",
+        "remove obligation"
+      ],
+      "recommended_first_tool": {
+        "name": "workspace_controlled_contract_obligation_coverage_remove",
+        "arguments": {
+          "unit": "$unit_if_known",
+          "focus": "$focus_if_known"
+        },
+        "required_authored_fields": [
+          "obligation_id",
+          "removal_scope"
+        ],
+        "server_state_fields": [
+          {
+            "field": "expected_content_digest",
+            "result_field": "content_digest",
+            "read": {
+              "name": "workspace_controlled_contract_obligation_coverage_query",
+              "arguments": {
+                "unit": "$unit_if_known",
+                "focus": "$focus_if_known"
+              }
+            }
+          }
+        ]
+      },
+      "forbidden_first_tools": [],
+      "allowed_next_call_families": [
+        "controlled_contract_obligation_coverage"
+      ],
+      "prerequisite_state": [
+        {
+          "name": "unit",
+          "required": true,
+          "accepted_sources": [
+            "user-provided WK-*"
+          ],
+          "if_missing": "ask for the WK id"
+        }
+      ],
+      "replacement_guidance": []
+    },
+    {
+      "intent": "controlled_contract_input_guidance",
+      "tie_break_rank": 9,
+      "use_when": [
+        "The user explicitly asks for an explanation of obligation-coverage authoring, a behavioral requirement example, runtime-test authoring, requirement rebinding, or requirement relation signatures, with or without a contextual unit.",
+        "A task that uses a write verb without asking for an explanation is a write request and never selects this guidance."
+      ],
+      "match_phrases": [],
+      "when_state_absent": [
+        "write_request"
+      ],
+      "ambiguity_when_state_present": [
+        {
+          "name": "explained_write_request",
+          "reason": "The task asks for an explanation and also asks to write. Reading the guidance alone would drop the requested write, and no save is proposed for it: choose the explanation, or supply the authoring operation's unit, population and content digest."
+        }
+      ],
+      "recommended_first_tool": {
+        "operation_routes": [
+          {
+            "name": "workspace_tools_describe",
+            "operation": "explain obligation coverage authoring",
+            "match_phrases": [
+              "explain obligation coverage authoring",
+              "obligation coverage authoring guidance"
+            ],
+            "arguments": {
+              "tool_name": "workspace_controlled_contract_obligation_coverage_upsert",
+              "input_contract": {
+                "kind": "guidance",
+                "path": [
+                  "overview"
+                ]
+              }
+            }
+          },
+          {
+            "name": "workspace_tools_describe",
+            "operation": "explain behavioral requirement authoring",
+            "match_phrases": [
+              "how to author a behavioral requirement",
+              "behavioral requirement example"
+            ],
+            "arguments": {
+              "tool_name": "workspace_controlled_contract_obligation_coverage_upsert",
+              "input_contract": {
+                "kind": "guidance",
+                "path": [
+                  "behavioral_example"
+                ]
+              }
+            }
+          },
+          {
+            "name": "workspace_tools_describe",
+            "operation": "explain runtime test authoring",
+            "match_phrases": [
+              "explain runtime test authoring",
+              "runtime test authoring guidance"
+            ],
+            "arguments": {
+              "tool_name": "workspace_controlled_contract_obligation_coverage_upsert",
+              "input_contract": {
+                "kind": "guidance",
+                "path": [
+                  "runtime_test_authoring"
+                ]
+              }
+            }
+          },
+          {
+            "name": "workspace_tools_describe",
+            "operation": "explain requirement rebinding",
+            "match_phrases": [
+              "requirement rebinding guidance",
+              "how to retain cases when replacing a requirement"
+            ],
+            "arguments": {
+              "tool_name": "workspace_controlled_contract_obligation_coverage_upsert",
+              "input_contract": {
+                "kind": "guidance",
+                "path": [
+                  "required_object_shapes",
+                  "requirement_rebinding"
+                ]
+              }
+            }
+          },
+          {
+            "name": "workspace_tools_describe",
+            "operation": "explain requirement relation signatures",
+            "match_phrases": [
+              "requirement relation vocabulary",
+              "requirement relation signatures"
+            ],
+            "arguments": {
+              "tool_name": "workspace_controlled_contract_obligation_coverage_upsert",
+              "input_contract": {
+                "kind": "guidance",
+                "path": [
+                  "vocabulary",
+                  "relation_details"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "forbidden_first_tools": [],
+      "allowed_next_call_families": [
+        "controlled_contract_authoring",
+        "controlled_contract_proof_authoring"
+      ],
+      "prerequisite_state": [],
+      "replacement_guidance": []
     },
     {
       "intent": "controlled_contract_obligation_coverage",
       "tie_break_rank": 9,
       "use_when": [
-        "The user asks to describe, create, revise, remove, or query the upstream canonical controlled-contract obligation source."
+        "Read the canonical authored obligation inventory or saved selection.",
+        "Find, list, or read a unit's contract requirements and claims."
       ],
       "match_phrases": [
         "obligation coverage source",
         "canonical obligation source",
-        "author obligation coverage",
-        "create obligation source",
         "query obligation source",
         "obligation inventory",
         "proof and obligation map",
-        "obligation map"
+        "obligation map",
+        "requirements and claims",
+        "claims and requirements",
+        "contract requirements",
+        "requirement claims",
+        "find requirements",
+        "list requirements",
+        "show requirements",
+        "read requirements",
+        "requirements WK-",
+        "WK- requirements",
+        "claims WK-"
       ],
       "recommended_first_tool": {
-        "name": "workspace_controlled_contract_obligation_coverage_describe"
+        "name": "workspace_controlled_contract_obligation_coverage_query"
       },
-      "forbidden_first_tools": [
-        {
-          "tool": "workspace_controlled_contract_acceptance_coverage_describe",
-          "reason": "Acceptance coverage consumes the upstream obligation source and does not author it.",
-          "use_instead": "workspace_controlled_contract_obligation_coverage_describe"
-        },
-        {
-          "tool": "workspace_controlled_contract_assess",
-          "reason": "Assessment does not author canonical obligation rows.",
-          "use_instead": "workspace_controlled_contract_obligation_coverage_describe"
-        }
-      ],
+      "forbidden_first_tools": [],
       "allowed_next_call_families": [
         "controlled_contract_obligation_coverage"
       ],
@@ -433,107 +592,8 @@
       "replacement_guidance": [
         {
           "replace": "caller-authored path, digest, pack, census, or authority identity",
-          "with": "workspace_controlled_contract_obligation_coverage_describe",
+          "with": "workspace_controlled_contract_obligation_coverage_query",
           "when": "starting obligation-source authoring or query"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_acceptance_coverage",
-      "tie_break_rank": 10,
-      "use_when": [
-        "The user asks to describe, create, revise, remove, or query controlled-contract acceptance-coverage mappings."
-      ],
-      "match_phrases": [
-        "acceptance coverage mappings",
-        "controlled contract acceptance coverage",
-        "describe acceptance coverage",
-        "create acceptance coverage",
-        "query acceptance coverage",
-        "acceptance map",
-        "acceptance gap",
-        "mapping repair"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_acceptance_coverage_describe"
-      },
-      "forbidden_first_tools": [
-        {
-          "tool": "workspace_controlled_contract_assess",
-          "reason": "Assessment does not author acceptance-coverage mappings and must remain unchanged.",
-          "use_instead": "workspace_controlled_contract_acceptance_coverage_describe"
-        }
-      ],
-      "allowed_next_call_families": [
-        "controlled_contract_acceptance_coverage"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "unit",
-          "required": true,
-          "accepted_sources": [
-            "user-provided WK-*",
-            "user-provided WK-*#SLICE-*"
-          ],
-          "if_missing": "ask for the WK or WK#SLICE unit; controlled-contract focus remains a separate optional identity"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "caller-authored carrier path or source identity",
-          "with": "workspace_controlled_contract_acceptance_coverage_describe",
-          "when": "starting acceptance-coverage authoring or query"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_proof_skeleton",
-      "tie_break_rank": 9,
-      "use_when": [
-        "The user asks to generate a proof-authoring skeleton from an explicitly selected pack and bindings."
-      ],
-      "match_phrases": [
-        "generate proof skeleton",
-        "proof authoring skeleton",
-        "controlled proof skeleton"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_proof_authoring_skeleton",
-        "required_authored_fields": [
-          "admitted_profile",
-          "requested_intents",
-          "bindings"
-        ]
-      },
-      "forbidden_first_tools": [],
-      "allowed_next_call_families": [
-        "controlled_contract_proof_skeleton",
-        "controlled_contract_proof_graph_continuation"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "selected_pack",
-          "required": true,
-          "accepted_sources": [
-            "explicit user choice",
-            "pack selection"
-          ],
-          "if_missing": "select an exact pack"
-        },
-        {
-          "name": "bindings",
-          "required": true,
-          "accepted_sources": [
-            "explicit user choice"
-          ],
-          "if_missing": "inspect targeted binding roles"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "manual evaluation-input and proof-plan-request boilerplate",
-          "with": "workspace_controlled_proof_authoring_skeleton",
-          "when": "pack, intents, and bindings are explicit"
         }
       ]
     },
@@ -541,19 +601,33 @@
       "intent": "controlled_contract_authoring",
       "tie_break_rank": 10,
       "use_when": [
-        "The user asks to author, inspect, or revise a controlled-contract carrier."
+        "The user asks to record the mandatory proof-posture controlled-acceptance disposition or to author, inspect, or revise a controlled-contract carrier.",
+        "The user asks to reduce scope by retiring stored contract requirements without replacement: query current identities and digest, then retire them through ordinary upsert contract_requirements.retire_claim_ids."
       ],
       "match_phrases": [
         "author controlled contract",
         "edit controlled contract",
         "controlled acceptance contract",
         "controlled contract schema",
-        "controlled contract carrier"
+        "controlled contract carrier",
+        "controlled acceptance disposition",
+        "opt out controlled acceptance",
+        "retire requirement",
+        "requirement retirement",
+        "remove contract requirement",
+        "delete contract requirement",
+        "contract scope reduction"
       ],
       "recommended_first_tool": {
-        "name": "workspace_controlled_contract_authoring_state"
+        "name": "workspace_controlled_contract_obligation_coverage_query"
       },
-      "forbidden_first_tools": [],
+      "forbidden_first_tools": [
+        {
+          "tool": "workspace_controlled_contract_obligation_coverage_remove",
+          "reason": "Obligation removal deletes a proof selection or obligation row and preserves contract requirements; it does not retire requirements or their dependent uses.",
+          "use_instead": "workspace_controlled_contract_obligation_coverage_query"
+        }
+      ],
       "allowed_next_call_families": [
         "controlled_contract_authoring",
         "controlled_contract_proof_selection",
@@ -572,8 +646,13 @@
       "replacement_guidance": [
         {
           "replace": "complete carrier read",
-          "with": "workspace_controlled_contract_authoring_state",
-          "when": "starting bounded controlled-contract authoring"
+          "with": "workspace_controlled_contract_obligation_coverage_query followed by workspace_controlled_contract_obligation_coverage_upsert",
+          "when": "reading the combined revision before ordinary controlled-contract authoring"
+        },
+        {
+          "replace": "workspace_controlled_contract_obligation_coverage_remove",
+          "with": "workspace_controlled_contract_obligation_coverage_upsert with contract_requirements.retire_claim_ids after workspace_controlled_contract_obligation_coverage_query",
+          "when": "retiring requirements for scope reduction; upsert derives dependent obligation, case and test-target retirement"
         }
       ]
     },
@@ -593,12 +672,10 @@
       "recommended_first_tool": {
         "operation_routes": [
           {
-            "name": "workspace_controlled_proof_packs_select",
-            "when_state_present": ["requested_intents"]
-          },
-          {
             "name": "workspace_controlled_proof_intents_discover",
-            "when_state_absent": ["requested_intents"]
+            "when_state_absent": [
+              "requested_intents"
+            ]
           }
         ]
       },
@@ -627,237 +704,49 @@
       ]
     },
     {
-      "intent": "controlled_contract_proof_plan",
-      "tie_break_rank": 12,
-      "use_when": [
-        "The user asks to recover proof-plan metadata or rebuild a controlled proof plan."
-      ],
-      "match_phrases": [
-        "rebuild controlled proof plan",
-        "controlled contract proof plan",
-        "recover proof plan digest",
-        "controlled proof plan metadata"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_carrier_query"
-      },
-      "forbidden_first_tools": [],
-      "allowed_next_call_families": [
-        "controlled_contract_proof_plan",
-        "controlled_contract_assessment"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "unit",
-          "required": true,
-          "accepted_sources": [
-            "user-provided WK-*"
-          ],
-          "if_missing": "ask for the WK id"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "stale-CAS probe",
-          "with": "workspace_controlled_contract_carrier_query",
-          "when": "recovering the current proof-plan digest"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_integration_test_design_assessment",
-      "tie_break_rank": 13,
-      "use_when": [
-        "The user asks to assess declared integration-test design adequacy or sufficiency against canonical controlled-contract populations."
-      ],
-      "match_phrases": [
-        "integration test design adequacy",
-        "integration test design sufficiency",
-        "assess integration test design",
-        "experimental proof adequacy assessor"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_integration_test_design_assess",
-        "required_authored_fields": [
-          "inline_axis_decisions",
-          "declared_integration_tests",
-          "integration_scenarios",
-          "interaction_requirements",
-          "review_questions"
-        ]
-      },
-      "forbidden_first_tools": [
-        {
-          "tool": "workspace_controlled_contract_assess",
-          "reason": "The existing assessment operation retains proof-plan assessment meaning.",
-          "use_instead": "workspace_controlled_contract_integration_test_design_assess"
-        },
-        {
-          "tool": "workspace_controlled_contract_runtime_prove",
-          "reason": "Runtime proof executes an integrated test-proof contract; this request concerns declared design sufficiency only.",
-          "use_instead": "workspace_controlled_contract_integration_test_design_assess"
-        }
-      ],
-      "allowed_next_call_families": [
-        "controlled_contract_integration_test_design_assessment",
-        "controlled_contract_obligation_coverage",
-        "controlled_contract_acceptance_coverage"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "unit",
-          "required": true,
-          "accepted_sources": [
-            "user-provided WK-*",
-            "user-provided WK-*#SLICE-*"
-          ],
-          "if_missing": "ask for the canonical WK or WK#SLICE unit"
-        },
-        {
-          "name": "authored_design_declarations",
-          "required": true,
-          "accepted_sources": [
-            "inline axis applicability decisions, declared integration tests, scenarios, interactions, and review questions"
-          ],
-          "if_missing": "ask for the authored design declaration input"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "caller-supplied digests, obligations, census populations, counts, provider identities, outcomes, or authority claims",
-          "with": "server-resolved canonical composition behind workspace_controlled_contract_integration_test_design_assess",
-          "when": "assessing declared integration-test design"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_assessment",
-      "tie_break_rank": 14,
-      "use_when": [
-        "The user asks to assess a controlled contract or query bounded semantic assessment detail."
-      ],
-      "match_phrases": [
-        "assess controlled contract",
-        "assess the controlled contract",
-        "controlled contract assessment",
-        "query controlled assessment detail"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_assess"
-      },
-      "forbidden_first_tools": [
-        {
-          "tool": "workspace_search_repo",
-          "reason": "Repository search does not produce or recover package assessment results.",
-          "use_instead": "workspace_controlled_contract_assess"
-        }
-      ],
-      "allowed_next_call_families": [
-        "controlled_contract_assessment",
-        "controlled_contract_proof_plan"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "unit",
-          "required": true,
-          "accepted_sources": [
-            "user-provided WK-*"
-          ],
-          "if_missing": "ask for the WK id"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "repository search",
-          "with": "workspace_controlled_contract_assess",
-          "when": "running or recovering a controlled-contract assessment"
-        },
-        {
-          "replace": "workspace_controlled_contract_assess",
-          "with": "workspace_controlled_contract_runtime_prove",
-          "when": "the implementation is already integrated and the question is whether it actually runs"
-        },
-        {
-          "replace": "unbounded assessment detail retrieval",
-          "with": "workspace_controlled_contract_assessment_query",
-          "when": "bounded semantic detail is required"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_runtime_proof",
-      "tie_break_rank": 14,
-      "use_when": [
-        "The user asks to prove, execute, or re-establish runtime truth for an already-integrated implementation slice."
-      ],
-      "match_phrases": [
-        "prove controlled contract runtime",
-        "post-integration runtime proof",
-        "runtime truth for the integrated slice",
-        "execute test proof for the integrated slice",
-        "controlled contract runtime prove"
-      ],
-      "recommended_first_tool": {
-        "name": "workspace_controlled_contract_runtime_prove"
-      },
-      "forbidden_first_tools": [
-        {
-          "tool": "workspace_controlled_contract_assess",
-          "reason": "Assessment is planning-only: it re-reads authored carriers and can never establish runtime truth for a delivered implementation.",
-          "use_instead": "workspace_controlled_contract_runtime_prove"
-        },
-        {
-          "tool": "workspace_run_validation",
-          "reason": "A declared node_test run produces no authenticated test-proof receipt population or runtime-scoped assessment.",
-          "use_instead": "workspace_controlled_contract_runtime_prove"
-        }
-      ],
-      "allowed_next_call_families": [
-        "controlled_contract_runtime_proof",
-        "controlled_contract_assessment"
-      ],
-      "prerequisite_state": [
-        {
-          "name": "unit",
-          "required": true,
-          "accepted_sources": [
-            "user-provided WK-*#SLICE-*"
-          ],
-          "if_missing": "ask for the exact integrated slice; a whole-WK subject is refused"
-        }
-      ],
-      "replacement_guidance": [
-        {
-          "replace": "repeat planning assessment",
-          "with": "workspace_controlled_contract_runtime_prove",
-          "when": "an implementation slice has already been integrated"
-        }
-      ]
-    },
-    {
-      "intent": "controlled_contract_private_scope_census",
+      "intent": "controlled_contract_verify_proof",
       "tie_break_rank": 15,
       "use_when": [
-        "The user asks for a deterministic census of canonical WK or slice scopes intersecting the private controlled-contract path."
+        "The user asks to verify the complete declared proof population selected by one canonical WK, slice, test-proof, or obligation subject."
       ],
       "match_phrases": [
-        "controlled contract private scope census",
-        "private path scope census",
-        "WK scope intersections"
+        "verify declared proof population",
+        "verify proof subject",
+        "workspace verify proof",
+        "verify proof obligation"
       ],
       "recommended_first_tool": {
-        "name": "workspace_controlled_contract_private_scope_census"
+        "name": "workspace_verify_proof",
+        "required_authored_fields": [
+          {
+            "name": "subject",
+            "any_of": [
+              "proof_subject"
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [],
       "allowed_next_call_families": [
-        "controlled_contract_private_scope_census"
+        "controlled_contract_authoring",
+        "controlled_contract_verify_proof"
       ],
-      "prerequisite_state": [],
+      "prerequisite_state": [
+        {
+          "name": "subject",
+          "required": true,
+          "accepted_sources": [
+            "user-provided canonical WK, WK#SLICE, test-proof, or obligation identity",
+            "prior workspace_verify_proof result"
+          ],
+          "if_missing": "ask for the canonical proof subject; do not ask for a path, carrier, owner, test command, provider, or mutation tool"
+        }
+      ],
       "replacement_guidance": [
         {
-          "replace": "repository search or raw carrier inspection",
-          "with": "workspace_controlled_contract_private_scope_census",
-          "when": "enumerating private-path scope intersections"
+          "replace": "caller-selected carrier, authoring owner, or mutation route",
+          "with": "the exact workspace_controlled_contract_obligation_coverage_query recovery_call returned by workspace_verify_proof, followed by ordinary upsert correction",
+          "when": "runtime inventory or runtime-test selection is missing or invalid"
         }
       ]
     },
@@ -866,7 +755,9 @@
       "tie_break_rank": 80,
       "use_when": [
         "The user asks for the current state, status, frontier, counts, or blockers for an initiative or selected unit.",
-        "The user asks where an initiative stands without requesting a specific next action or role launch."
+        "The user asks where an initiative stands without requesting a specific next action or role launch.",
+        "The user asks for the status lens of an initiative or unit, which is not an agent-run status.",
+        "The user asks to read everything relevant to an initiative or unit; the bounded status lens is offered as the explicit clarification and no record sampling is inferred."
       ],
       "match_phrases": [
         "initiative status",
@@ -874,10 +765,43 @@
         "frontier status",
         "what is blocked",
         "current state",
-        "status for IN-"
+        "status for IN-",
+        "status lens",
+        "where stands",
+        "where stand",
+        "how are we doing",
+        "status of initiative",
+        "status of IN-",
+        "state of initiative",
+        "current status",
+        "read everything",
+        "everything relevant",
+        "everything about",
+        "everything you can",
+        "show me everything",
+        "tell me everything",
+        "load everything",
+        "all the records",
+        "all the work records",
+        "full context"
+      ],
+      "ambiguity_when_state_present": [
+        {
+          "name": "broad_read_request",
+          "reason": "The task asks for an unbounded read. No bulk record, slice, or page sampling is inferred: take the bounded initiative/unit status lens offered here, or name the exact record, slice, entry, or page to read."
+        }
       ],
       "recommended_first_tool": {
-        "name": "workspace_initiative_status"
+        "name": "workspace_initiative_status",
+        "required_authored_fields": [
+          {
+            "name": "initiative_or_unit",
+            "any_of": [
+              "initiative",
+              "unit"
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [
         {
@@ -912,7 +836,7 @@
             "user-provided WK-* or WK-*#SLICE-*",
             "prior selected unit"
           ],
-          "if_missing": "return ambiguous if the task could apply to several initiatives or units; otherwise ask for the initiative or unit id"
+          "if_missing": "return ambiguous if the task could apply to several initiatives or units, or if it asks for an unbounded read; otherwise ask for the initiative or unit id"
         }
       ],
       "replacement_guidance": [
@@ -936,10 +860,26 @@
         "what do we do next",
         "prepare dispatch",
         "next coordinator action",
-        "frontier action"
+        "frontier action",
+        "do next",
+        "whats next",
+        "next step",
+        "next steps",
+        "what should we do",
+        "where should we go next",
+        "what comes next"
       ],
       "recommended_first_tool": {
-        "name": "workspace_initiative_status"
+        "name": "workspace_initiative_status",
+        "required_authored_fields": [
+          {
+            "name": "initiative_or_unit",
+            "any_of": [
+              "initiative",
+              "unit"
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [
         {
@@ -954,7 +894,7 @@
         },
         {
           "tool": "workspace_agent_dispatch",
-          "reason": "Dispatch requires a selected ready unit and readiness validation first.",
+          "reason": "Asking what should happen next is not a start request; dispatch would launch a unit instead of answering.",
           "use_instead": "workspace_validate_dispatch"
         }
       ],
@@ -987,7 +927,7 @@
         {
           "replace": "workspace_agent_dispatch",
           "with": "workspace_validate_dispatch",
-          "when": "the next action may be dispatch but readiness has not been validated"
+          "when": "the task asks what should happen next rather than asking to start the unit"
         }
       ]
     },
@@ -996,7 +936,8 @@
       "tie_break_rank": 60,
       "use_when": [
         "The user asks for the contract, acceptance criteria, dependencies, blockers, closure, write scope, or selected context for a known WK record.",
-        "The task starts from a known WK-* and needs compact work-record details before implementation, review, or coordination."
+        "The task starts from a known WK-* and needs compact work-record details before implementation, review, or coordination.",
+        "The user asks to read one known durable entry of a WK, or to list its entries."
       ],
       "match_phrases": [
         "read WK-",
@@ -1007,7 +948,70 @@
         "load the work record"
       ],
       "recommended_first_tool": {
-        "name": "workspace_work_record_summary"
+        "operation_routes": [
+          {
+            "operation": "selected entry body",
+            "name": "workspace_work_record_entry_read",
+            "match_phrases": [
+              "read entry",
+              "show entry",
+              "open entry",
+              "get entry",
+              "fetch entry",
+              "view entry",
+              "display entry",
+              "what does entry",
+              "entry body",
+              "entry text",
+              "entry content"
+            ],
+            "when_state_present": [
+              "entry_id"
+            ],
+            "when_state_absent": [
+              "write_request"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "entry_id": "$entry_id_if_known",
+              "include_body": true
+            },
+            "required_authored_fields": [
+              "unit"
+            ]
+          },
+          {
+            "operation": "entry inventory",
+            "name": "workspace_work_record_entry_read",
+            "match_phrases": [
+              "list entries",
+              "show entries",
+              "read entries",
+              "entry inventory",
+              "entries WK-",
+              "WK- entries"
+            ],
+            "when_state_absent": [
+              "entry_id",
+              "write_request"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known"
+            },
+            "required_authored_fields": [
+              "unit"
+            ]
+          },
+          {
+            "name": "workspace_work_record_summary",
+            "when_state_absent": [
+              "entry_id"
+            ],
+            "required_authored_fields": [
+              "unit"
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [
         {
@@ -1068,7 +1072,10 @@
         "slice notes"
       ],
       "recommended_first_tool": {
-        "name": "workspace_work_record_summary"
+        "name": "workspace_work_record_summary",
+        "required_authored_fields": [
+          "unit"
+        ]
       },
       "forbidden_first_tools": [
         {
@@ -1117,24 +1124,124 @@
       "tie_break_rank": 20,
       "use_when": [
         "The user asks whether a WK or slice is dispatchable, ready, blocked, or valid for a role.",
-        "The task needs the structured dispatch-readiness decision before a role call."
+        "The task asks the prospective question of whether a unit could start, rather than asking to start it."
       ],
       "match_phrases": [
         "dispatch readiness",
         "is it ready to dispatch",
         "validate dispatch",
         "dispatchable",
+        "can this unit start",
+        "can this slice start",
         "ready for worker",
         "ready for reviewer",
-        "ready for redteam"
+        "ready for redteam",
+        "can we send",
+        "could we send",
+        "should we send",
+        "can we hand",
+        "is this ready",
+        "is it ready",
+        "are we ready",
+        "ready to dispatch",
+        "ready to start",
+        "ready to send",
+        "safe to dispatch",
+        "ok to dispatch",
+        "can we start",
+        "could we start",
+        "should we start",
+        "can we dispatch",
+        "could we dispatch",
+        "should we dispatch",
+        "can we launch",
+        "can we run"
       ],
       "recommended_first_tool": {
-        "name": "workspace_validate_dispatch"
+        "operation_routes": [
+          {
+            "operation": "worker readiness",
+            "name": "workspace_validate_dispatch",
+            "when_state_equals": {
+              "role": "worker"
+            },
+            "arguments": {
+              "unit": "$unit_if_known",
+              "dispatch_role": "implementation"
+            },
+            "required_authored_fields": [
+              "unit"
+            ]
+          },
+          {
+            "operation": "implementation readiness",
+            "name": "workspace_validate_dispatch",
+            "when_state_equals": {
+              "role": "implementation"
+            },
+            "arguments": {
+              "unit": "$unit_if_known",
+              "dispatch_role": "implementation"
+            },
+            "required_authored_fields": [
+              "unit"
+            ]
+          },
+          {
+            "operation": "read-only readiness",
+            "name": "workspace_validate_dispatch",
+            "when_state_equals": {
+              "role": "read_only"
+            },
+            "arguments": {
+              "unit": "$unit_if_known",
+              "dispatch_role": "read_only"
+            },
+            "required_authored_fields": [
+              "unit"
+            ]
+          },
+          {
+            "operation": "reviewer launch readiness",
+            "name": "workspace_tools_describe",
+            "when_state_equals": {
+              "role": "reviewer"
+            },
+            "arguments": {
+              "tool_name": "workspace_agent_dispatch"
+            },
+            "reason": "Reviewer dispatch does not enter worker readiness; workspace_agent_dispatch assesses its review material when called."
+          },
+          {
+            "operation": "redteam launch readiness",
+            "name": "workspace_tools_describe",
+            "when_state_equals": {
+              "role": "redteam"
+            },
+            "arguments": {
+              "tool_name": "workspace_agent_dispatch"
+            },
+            "reason": "Redteam dispatch does not enter worker readiness; workspace_agent_dispatch assesses its review material when called."
+          },
+          {
+            "operation": "role-agnostic readiness",
+            "name": "workspace_validate_dispatch",
+            "when_state_absent": [
+              "role"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known"
+            },
+            "required_authored_fields": [
+              "unit"
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [
         {
           "tool": "workspace_agent_dispatch",
-          "reason": "Role launch must not start before readiness validation.",
+          "reason": "This task asks whether the unit could start, not to start it; dispatch would launch instead of answering.",
           "use_instead": "workspace_validate_dispatch"
         },
         {
@@ -1170,18 +1277,19 @@
           "required": false,
           "accepted_sources": [
             "worker",
+            "implementation",
             "reviewer",
             "redteam",
             "read_only"
           ],
-          "if_missing": "omit dispatch_role when the readiness question is role-agnostic"
+          "if_missing": "omit dispatch_role when the readiness question is role-agnostic; worker readiness uses dispatch_role implementation, and reviewer or redteam readiness is assessed by workspace_agent_dispatch"
         }
       ],
       "replacement_guidance": [
         {
           "replace": "workspace_agent_dispatch",
           "with": "workspace_validate_dispatch",
-          "when": "the user asks whether launch is allowed or readiness is unknown"
+          "when": "the user asks the prospective question rather than asking to start the unit"
         }
       ]
     },
@@ -1190,7 +1298,9 @@
       "tie_break_rank": 10,
       "use_when": [
         "The user asks to start, launch, dispatch, assign, or run a worker, reviewer, or redteam role for a WK, slice, or initiative.",
-        "The user names a wrapper command but the intended action is a role dispatch."
+        "The user asks to start a known canonical unit without naming a role.",
+        "The user names a wrapper command but the intended action is a role dispatch.",
+        "A deliberative question about whether a unit could or should start is not a start request; it stays with dispatch readiness."
       ],
       "match_phrases": [
         "dispatch worker",
@@ -1202,20 +1312,107 @@
         "assign worker",
         "requested wrapper role"
       ],
+      "when_state_absent": [
+        "prospective_request"
+      ],
       "recommended_first_tool": {
-        "name": "workspace_validate_dispatch",
-        "required_authored_fields": ["role", "unit"]
+        "operation_routes": [
+          {
+            "operation": "worker dispatch",
+            "name": "workspace_agent_dispatch",
+            "when_state_equals": {
+              "role": "worker"
+            },
+            "arguments": {
+              "role": "worker",
+              "subject": "$unit_if_known"
+            },
+            "required_authored_fields": [
+              "unit"
+            ],
+            "reason": "Starting a canonical unit goes to workspace_agent_dispatch, which performs readiness through its existing owner; workspace_validate_dispatch is an optional prospective assessment, not a pre-call."
+          },
+          {
+            "operation": "canonical unit start",
+            "name": "workspace_agent_dispatch",
+            "match_phrases": [
+              "start this unit",
+              "start this slice",
+              "start the unit",
+              "start this wk",
+              "start wk",
+              "start slice",
+              "start the record",
+              "kick off",
+              "get started on",
+              "begin work on",
+              "start work on"
+            ],
+            "when_state_absent": [
+              "role"
+            ],
+            "arguments": {
+              "subject": "$unit_if_known"
+            },
+            "required_authored_fields": [
+              "unit"
+            ],
+            "reason": "A start request that names no role omits role; the canonical dispatch owner derives it from the unit's dispatch_intent."
+          },
+          {
+            "operation": "reviewer dispatch",
+            "name": "workspace_agent_dispatch",
+            "when_state_equals": {
+              "role": "reviewer"
+            },
+            "arguments": {
+              "role": "reviewer",
+              "subject": "$reviewer_subject_if_known",
+              "diff_base_sha": "$diff_base_sha_if_known",
+              "reviewed_sha": "$reviewed_sha_if_known"
+            },
+            "required_authored_fields": [
+              {
+                "name": "subject",
+                "any_of": [
+                  "reviewer_subject"
+                ]
+              }
+            ]
+          },
+          {
+            "operation": "redteam dispatch",
+            "name": "workspace_agent_dispatch",
+            "when_state_equals": {
+              "role": "redteam"
+            },
+            "arguments": {
+              "role": "redteam",
+              "subject": "$redteam_subject_if_known",
+              "diff_base_sha": "$diff_base_sha_if_known",
+              "reviewed_sha": "$reviewed_sha_if_known"
+            },
+            "required_authored_fields": [
+              {
+                "name": "subject",
+                "any_of": [
+                  "redteam_subject"
+                ]
+              }
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [
         {
           "tool": "workspace_search_repo",
           "reason": "Search is not role-call admission.",
-          "use_instead": "workspace_validate_dispatch"
+          "use_instead": "workspace_agent_dispatch"
         },
         {
           "tool": "workspace_get_record",
-          "reason": "Manual record reads do not replace dispatch readiness.",
-          "use_instead": "workspace_validate_dispatch"
+          "reason": "Manual record reads are not the dispatch owner.",
+          "use_instead": "workspace_agent_dispatch"
         }
       ],
       "allowed_next_call_families": [
@@ -1237,25 +1434,25 @@
         },
         {
           "name": "role",
-          "required": true,
+          "required": false,
           "accepted_sources": [
             "worker",
             "reviewer",
             "redteam"
           ],
-          "if_missing": "ask which role to dispatch"
+          "if_missing": "omit role when starting a canonical unit; the dispatch owner derives it from the unit's dispatch_intent. An unsupported role is not mapped to worker or read_only"
         }
       ],
       "replacement_guidance": [
         {
           "replace": "operator shell wrapper",
-          "with": "workspace_validate_dispatch",
+          "with": "workspace_agent_dispatch",
           "when": "an agent is asked to start a role call from inside an agent session"
         },
         {
-          "replace": "workspace_agent_dispatch",
-          "with": "workspace_validate_dispatch",
-          "when": "dispatch readiness has not already returned dispatchable"
+          "replace": "workspace_validate_dispatch",
+          "with": "workspace_agent_dispatch",
+          "when": "the request is to start the unit rather than to ask whether it could start"
         }
       ]
     },
@@ -1273,10 +1470,26 @@
         "wait for run",
         "what happened in this run",
         "is the worker done",
-        "wkmh_"
+        "wkmh_",
+        "monitor run",
+        "watch run",
+        "check run",
+        "follow run",
+        "status of run"
       ],
       "recommended_first_tool": {
-        "name": "workspace_agent_run_status"
+        "name": "workspace_agent_run_status",
+        "arguments": {
+          "subject": "$run_subject_if_known"
+        },
+        "required_authored_fields": [
+          {
+            "name": "subject",
+            "any_of": [
+              "run_subject"
+            ]
+          }
+        ]
       },
       "forbidden_first_tools": [
         {
@@ -1303,13 +1516,13 @@
       ],
       "prerequisite_state": [
         {
-          "name": "monitor_handle",
+          "name": "subject",
           "required": true,
           "accepted_sources": [
-            "server-minted monitor handle",
-            "prior workspace_agent_dispatch response"
+            "user-provided canonical WK-*, WK-*#SLICE-*, or IN-* dispatch subject",
+            "prior workspace_agent_dispatch subject"
           ],
-          "if_missing": "ask for the monitor handle; do not infer from a run id alone unless the monitoring tool supports that field"
+          "if_missing": "ask for the canonical dispatch subject; a monitor handle is not a status argument and a proof identity is not an agent-run subject"
         }
       ],
       "replacement_guidance": [
@@ -1454,12 +1667,13 @@
       "intent": "work_record_mutation",
       "tie_break_rank": 40,
       "use_when": [
-        "The user asks to create, update, close, reopen, status-change, add closure, edit acceptance, edit list fields, or shape a review unit for a work record.",
+        "The user asks to create, update, close, reopen, status-change, add closure, edit acceptance, edit list fields, add or update a durable entry, or shape a review unit for a work record.",
         "The task requires schema-backed persistence to a canonical WK, issue, initiative, decision, source, or area record."
       ],
       "match_phrases": [
         "update WK-",
         "close WK-",
+        "complete WK-",
         "set status",
         "add closure",
         "edit acceptance",
@@ -1473,53 +1687,235 @@
           {
             "operation": "create",
             "name": "workspace_create_record",
-            "match_task_ids": ["create-work-record"],
-            "match_phrases": ["create work record", "create WK", "allocate a WK", "allocate WK"],
-            "required_authored_fields": ["title"]
+            "match_task_ids": [
+              "create-work-record"
+            ],
+            "match_phrases": [
+              "create work record",
+              "create WK",
+              "allocate a WK",
+              "allocate WK"
+            ],
+            "required_authored_fields": [
+              "title"
+            ]
+          },
+          {
+            "operation": "entry creation",
+            "name": "workspace_work_record_entry_upsert",
+            "match_phrases": [
+              "add entry",
+              "append entry",
+              "create entry",
+              "author entry",
+              "insert entry",
+              "add new entry",
+              "append new entry",
+              "create new entry"
+            ],
+            "when_state_present": [
+              "write_request"
+            ],
+            "when_state_absent": [
+              "entry_id"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "title": "$title_if_known"
+            },
+            "required_authored_fields": [
+              "unit",
+              "kind",
+              "title",
+              "content"
+            ],
+            "server_state_fields": [
+              {
+                "field": "expected_source_digest",
+                "result_field": "source_digest",
+                "read": {
+                  "name": "workspace_work_record_entry_read",
+                  "arguments": {
+                    "unit": "$unit_if_known"
+                  }
+                }
+              }
+            ],
+            "reason": "Omitting entry_id creates a new entry. Author kind, title and content; the entry reader returns source_digest for expected_source_digest."
+          },
+          {
+            "operation": "entry update",
+            "name": "workspace_work_record_entry_upsert",
+            "match_phrases": [
+              "update entry",
+              "edit entry",
+              "amend entry",
+              "rewrite entry",
+              "replace entry",
+              "add version",
+              "append version"
+            ],
+            "when_state_present": [
+              "entry_id",
+              "write_request"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "entry_id": "$entry_id_if_known"
+            },
+            "required_authored_fields": [
+              "unit",
+              "content"
+            ],
+            "server_state_fields": [
+              {
+                "field": "expected_source_digest",
+                "result_field": "source_digest",
+                "read": {
+                  "name": "workspace_work_record_entry_read",
+                  "arguments": {
+                    "unit": "$unit_if_known",
+                    "entry_id": "$entry_id_if_known"
+                  }
+                }
+              }
+            ],
+            "reason": "The selected entry_id publishes a new immutable version of that entry. Author its content; the entry reader returns source_digest for expected_source_digest."
           },
           {
             "operation": "acceptance",
-            "name": "workspace_work_record_set_acceptance",
-            "match_phrases": ["edit acceptance", "set acceptance"],
+            "name": "workspace_work_record_edit",
+            "match_phrases": [
+              "edit acceptance",
+              "set acceptance"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "kind": "list"
+            },
             "required_authored_fields": [
-              {"name": "criteria_or_validation", "any_of": ["criteria", "validation"]}
+              "unit",
+              "field",
+              "action",
+              "value"
+            ]
+          },
+          {
+            "operation": "summary replacement",
+            "name": "workspace_work_record_edit",
+            "match_phrases": [
+              "replace summary",
+              "update summary",
+              "rewrite summary",
+              "edit summary",
+              "revise summary",
+              "set summary"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "kind": "scalar",
+              "field": "sections.summary",
+              "action": "replace"
+            },
+            "required_authored_fields": [
+              "unit",
+              "value"
+            ]
+          },
+          {
+            "operation": "completion",
+            "name": "workspace_work_record_set_closure",
+            "match_phrases": [
+              "close WK-",
+              "close out WK-",
+              "complete WK-",
+              "mark WK- done"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "status": "done"
+            },
+            "required_authored_fields": [
+              "closure"
             ]
           },
           {
             "operation": "closure",
             "name": "workspace_work_record_set_closure",
-            "match_phrases": ["add closure", "close WK-"],
-            "required_authored_fields": ["closure"]
+            "match_phrases": [
+              "add closure",
+              "record closure",
+              "update closure"
+            ],
+            "required_authored_fields": [
+              "closure"
+            ]
           },
           {
             "operation": "status",
             "name": "workspace_work_record_set_status",
-            "match_phrases": ["set status"]
+            "match_phrases": [
+              "set status"
+            ]
           },
           {
             "operation": "task",
-            "name": "workspace_work_record_set_task",
-            "match_phrases": ["set task"]
+            "name": "workspace_work_record_edit",
+            "match_phrases": [
+              "set task"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "kind": "task",
+              "field": "sections.tasks",
+              "action": "mark_done"
+            },
+            "required_authored_fields": [
+              "unit",
+              "task_selector"
+            ]
           },
           {
             "operation": "list field",
-            "name": "workspace_work_record_set_list_field",
-            "match_phrases": ["set list field", "edit list field"]
+            "name": "workspace_work_record_edit",
+            "match_phrases": [
+              "set list field",
+              "edit list field"
+            ],
+            "arguments": {
+              "unit": "$unit_if_known",
+              "kind": "list"
+            },
+            "required_authored_fields": [
+              "unit",
+              "field",
+              "action",
+              "value"
+            ]
           },
           {
             "operation": "slice upsert",
             "name": "workspace_work_record_upsert_slice",
-            "match_phrases": ["upsert slice", "slice upsert"]
+            "match_phrases": [
+              "upsert slice",
+              "slice upsert"
+            ]
           },
           {
             "operation": "slice delete",
             "name": "workspace_work_record_delete_slice",
-            "match_phrases": ["delete slice", "slice delete"]
+            "match_phrases": [
+              "delete slice",
+              "slice delete"
+            ]
           },
           {
             "operation": "review unit shaping",
             "name": "workspace_work_record_shape_review_unit",
-            "match_phrases": ["shape review unit", "review unit"]
+            "match_phrases": [
+              "shape review unit",
+              "review unit"
+            ]
           }
         ]
       },
@@ -1566,6 +1962,7 @@
             "closure",
             "list field",
             "acceptance",
+            "entry create/update",
             "slice upsert/delete",
             "review unit shaping",
             "create"
@@ -1587,7 +1984,7 @@
         {
           "replace": "workspace_work_record_summary",
           "with": "validated work-record setter route",
-          "when": "the task is already a specific create, status, task, closure, list-field, acceptance, slice, or review-unit mutation"
+          "when": "the task is already a specific create, status, task, closure, list-field, acceptance, entry, slice, or review-unit mutation"
         }
       ]
     }

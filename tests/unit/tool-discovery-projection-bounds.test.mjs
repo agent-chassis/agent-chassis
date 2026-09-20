@@ -24,7 +24,12 @@ import {
   jsonContent
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { registerToolDiscoveryTools } from "../../packages/wiki-mcp/src/lib/tool-discovery-tools.mjs";
+import { shouldExposeTool } from "../../packages/wiki-mcp/src/lib/tool-profile.mjs";
 import { makeTool } from "../tool-discovery-helpers.mjs";
+
+function listNextCalls(nextOffset) {
+  return nextOffset === null ? [] : [{ tool: "workspace_tools_list", arguments: { offset: nextOffset } }];
+}
 
 function assertNoDuplicateSummaryField(row, context) {
   assert.ok(
@@ -73,7 +78,7 @@ test("WK-1041#SLICE-001 compact projection keeps summary and drops the duplicate
   assertNoDuplicateSummaryField(compacted, "compactToolDiscoveryEntry(notes-only)");
 
   const descriptor = await loadToolDiscoveryDescriptor();
-  const listed = listToolDiscoveryTools(descriptor);
+  const listed = listToolDiscoveryTools(descriptor, {}, { createNextCalls: listNextCalls });
   assert.ok(listed.tools.length > 0, "expected at least one compact list row");
   for (const row of listed.tools) {
     assertNoDuplicateSummaryField(row, `listToolDiscoveryTools ${row.tool_name}`);
@@ -97,7 +102,7 @@ test("WK-1041#SLICE-001 compact projection keeps summary and drops the duplicate
 
 test("default list rows keep only selection-critical fields with exact count metadata", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
-  const listed = listToolDiscoveryTools(descriptor);
+  const listed = listToolDiscoveryTools(descriptor, {}, { createNextCalls: listNextCalls });
   const expectedFields = ["task_ids", "tool_name"];
 
   assert.deepEqual([...TOOL_DISCOVERY_LIST_ENTRY_FIELDS].sort(), expectedFields);
@@ -112,8 +117,7 @@ test("default list rows keep only selection-critical fields with exact count met
   assert.equal(listed.truncated, listed.truncated_count > 0);
   assert.equal(listed.byte_limit, TOOL_DISCOVERY_LIST_MAX_BYTES);
   assert.ok(Buffer.byteLength(JSON.stringify(listed, null, 2), "utf8") <= listed.byte_limit);
-  assert.equal(listed.next_calls[0].tool, "workspace_tools_query");
-  assert.deepEqual(listed.next_calls[0].target_by, ["task_id", "tool_name"]);
+  assert.deepEqual(listed.next_calls, listNextCalls(listed.next_offset));
 });
 
 test("large catalogs enforce count and byte bounds independently", () => {
@@ -129,14 +133,14 @@ test("large catalogs enforce count and byte bounds independently", () => {
     )
   );
 
-  const countBounded = listToolDiscoveryTools(tools, {}, { defaultLimit: 3 });
+  const countBounded = listToolDiscoveryTools(tools, {}, { defaultLimit: 3, createNextCalls: listNextCalls });
   assert.equal(countBounded.total_count, tools.length);
   assert.equal(countBounded.returned_count, 3);
   assert.equal(countBounded.truncated_count, tools.length - 3);
   assert.equal(countBounded.count_truncated, true);
   assert.equal(countBounded.byte_truncated, false);
 
-  const byteBounded = listToolDiscoveryTools(tools, { limit: 10_000 });
+  const byteBounded = listToolDiscoveryTools(tools, { limit: 10_000 }, { createNextCalls: listNextCalls });
   assert.equal(byteBounded.total_count, tools.length);
   assert.equal(byteBounded.limit_applied, 10_000);
   assert.equal(byteBounded.count_truncated, false);
@@ -171,11 +175,11 @@ function makeLargeSyntheticCatalog(count) {
 test("the complete-result ceiling bounds the list independently of the structured payload", () => {
   const tools = makeLargeSyntheticCatalog(400);
 
-  const structuredOnly = listToolDiscoveryTools(tools, { limit: 10_000 });
+  const structuredOnly = listToolDiscoveryTools(tools, { limit: 10_000 }, { createNextCalls: listNextCalls });
   const dualBounded = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { measureResultBytes: measureTwoChannelResultBytes }
+    { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
 
   for (const envelope of [structuredOnly, dualBounded]) {
@@ -202,15 +206,12 @@ test("the complete-result ceiling bounds the list independently of the structure
   assert.equal(dualBounded.count_truncated, false);
   assert.equal(dualBounded.byte_truncated, true);
   assert.equal(dualBounded.truncated, true);
-  assert.deepEqual(
-    dualBounded.next_calls.map((entry) => entry.tool),
-    ["workspace_tools_query", "workspace_tools_describe"]
-  );
+  assert.deepEqual(dualBounded.next_calls, listNextCalls(dualBounded.next_offset));
 
   const raised = listToolDiscoveryTools(
     tools,
     { limit: 1_000_000 },
-    { measureResultBytes: measureTwoChannelResultBytes }
+    { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(raised.returned_count, dualBounded.returned_count);
   assert.ok(measureTwoChannelResultBytes(raised) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
@@ -228,7 +229,7 @@ test("a larger synthetic catalog stays bounded at every count limit", () => {
     const bounded = listToolDiscoveryTools(
       tools,
       { limit },
-      { measureResultBytes: measureTwoChannelResultBytes }
+      { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
     );
     const label = `limit=${limit}`;
     assert.ok(
@@ -241,7 +242,7 @@ test("a larger synthetic catalog stays bounded at every count limit", () => {
     assert.equal(bounded.truncated_count, tools.length - bounded.returned_count, label);
     assert.equal(bounded.count_truncated, tools.length > limit, label);
     assert.equal(bounded.truncated, true, label);
-    assert.ok(bounded.next_calls.length === 2, label);
+    assert.deepEqual(bounded.next_calls, listNextCalls(bounded.next_offset), label);
     for (const row of bounded.tools) {
       assert.deepEqual(Object.keys(row).sort(), ["task_ids", "tool_name"], label);
     }
@@ -266,7 +267,7 @@ test("oversized carried-over diagnostics are shed rather than crowding out the c
   const healthy = createBoundedToolDiscoveryListEnvelope(
     { schema_version: TOOL_DISCOVERY_SCHEMA_VERSION, diagnostics: [] },
     tools,
-    { totalCount: tools.length, limit: 5, resultField: "tools" }
+    { totalCount: tools.length, limit: 5, resultField: "tools", createNextCalls: listNextCalls }
   );
   assert.deepEqual(healthy.diagnostics, [], "a healthy envelope keeps its diagnostics verbatim");
   assert.equal(healthy.diagnostics_omitted, undefined);
@@ -279,7 +280,8 @@ test("oversized carried-over diagnostics are shed rather than crowding out the c
       totalCount: tools.length,
       limit: 20,
       resultField: "tools",
-      measureResultBytes: measureTwoChannelResultBytes
+      measureResultBytes: measureTwoChannelResultBytes,
+      createNextCalls: listNextCalls
     }
   );
   assert.equal(degraded.diagnostics, undefined, "diagnostics detail is shed, not truncated in place");
@@ -306,7 +308,7 @@ test("WK-2172: following next_offset enumerates the complete catalog exactly onc
     page = listToolDiscoveryTools(
       tools,
       { limit: 10_000 },
-      { offset, measureResultBytes: measureTwoChannelResultBytes }
+      { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
     );
     pages += 1;
     const label = `offset=${offset}`;
@@ -349,7 +351,7 @@ test("WK-2172: a page bounded by bytes rather than count resumes at the first ro
   const first = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { measureResultBytes: measureTwoChannelResultBytes }
+    { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
 
   assert.equal(first.count_truncated, false);
@@ -362,7 +364,7 @@ test("WK-2172: a page bounded by bytes rather than count resumes at the first ro
   const second = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { offset: first.next_offset, measureResultBytes: measureTwoChannelResultBytes }
+    { offset: first.next_offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(second.offset, first.next_offset);
   assert.ok(second.returned_count > 0);
@@ -393,12 +395,12 @@ test("WK-2172: neither a caller limit nor an offset can buy rows past the byte c
   const bounded = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { offset, measureResultBytes: measureTwoChannelResultBytes }
+    { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
   const raised = listToolDiscoveryTools(
     tools,
     { limit: 1_000_000 },
-    { offset, measureResultBytes: measureTwoChannelResultBytes }
+    { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(raised.returned_count, bounded.returned_count);
 
@@ -415,7 +417,7 @@ test("WK-2172: neither a caller limit nor an offset can buy rows past the byte c
     assert.equal(page.next_offset, offset + page.returned_count, label);
   }
 
-  const structuredOnly = listToolDiscoveryTools(tools, { limit: 1_000_000 }, { offset });
+  const structuredOnly = listToolDiscoveryTools(tools, { limit: 1_000_000 }, { offset, createNextCalls: listNextCalls });
   assert.ok(
     Buffer.byteLength(JSON.stringify(structuredOnly, null, 2), "utf8") <=
       TOOL_DISCOVERY_LIST_MAX_BYTES
@@ -425,7 +427,7 @@ test("WK-2172: neither a caller limit nor an offset can buy rows past the byte c
   const past = listToolDiscoveryTools(
     tools,
     { limit: 20 },
-    { offset: tools.length + 10, measureResultBytes: measureTwoChannelResultBytes }
+    { offset: tools.length + 10, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(past.returned_count, 0);
   assert.equal(past.has_more, false);
@@ -450,17 +452,12 @@ function registerShapedDiscoveryHandlers({ augmentDescriptor, sessionRole = "ope
 
 test("WK-2172: the registered workspace_tools_list route pages on a non-zero offset", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
-  const template = (descriptor.tools || []).find((tool) => Array.isArray(tool.task_ids));
-  assert.ok(template, "the descriptor must carry at least one entry with task ids");
 
   const CATALOG_SIZE = 12;
-  const catalog = Array.from({ length: CATALOG_SIZE }, (_, index) => ({
-    ...template,
-    tool_name: `paged_tool_${String(index).padStart(2, "0")}`,
-    display_name: `Paged ${index}`,
-    entrypoint: `paged_tool_${String(index).padStart(2, "0")}`,
-    task_ids: [...template.task_ids]
-  }));
+  const catalog = descriptor.tools
+    .filter((tool) => shouldExposeTool("operator", tool.tool_name))
+    .slice(0, CATALOG_SIZE);
+  assert.equal(catalog.length, CATALOG_SIZE);
   const handlers = registerShapedDiscoveryHandlers({
     augmentDescriptor: (loaded) => ({ ...loaded, tools: catalog })
   });
@@ -472,7 +469,7 @@ test("WK-2172: the registered workspace_tools_list route pages on a non-zero off
   assert.equal(unpaged.truncated, false);
   const fullRanking = unpaged.results.map((row) => row.tool_name);
 
-  const middle = (await list({ limit: 4, offset: 6 })).structuredContent;
+  const middle = (await list({ limit: 4, offset: 6, expected_source_digest: unpaged.source_digest })).structuredContent;
   assert.equal(middle.offset, 6);
   assert.equal(middle.returned_count, 4);
   assert.deepEqual(middle.results.map((row) => row.tool_name), fullRanking.slice(6, 10));
@@ -484,7 +481,7 @@ test("WK-2172: the registered workspace_tools_list route pages on a non-zero off
 
   assert.equal(middle.truncated_count, CATALOG_SIZE - (6 + 4));
 
-  const last = (await list({ limit: 4, offset: 8 })).structuredContent;
+  const last = (await list({ limit: 4, offset: 8, expected_source_digest: unpaged.source_digest })).structuredContent;
   assert.equal(last.offset, 8);
   assert.deepEqual(last.results.map((row) => row.tool_name), fullRanking.slice(8, CATALOG_SIZE));
   assert.equal(last.count_truncated, false);
@@ -494,8 +491,85 @@ test("WK-2172: the registered workspace_tools_list route pages on a non-zero off
   assert.equal(last.next_offset, null);
   assert.equal(last.truncated_count, 0);
 
-  const past = (await list({ limit: 4, offset: 1_000 })).structuredContent;
+  const past = (await list({ limit: 4, offset: 1_000, expected_source_digest: unpaged.source_digest })).structuredContent;
   assert.equal(past.returned_count, 0);
   assert.equal(past.truncated_count, 0);
   assert.equal(past.has_more, false);
+});
+
+test("editor inventory projection retains typed rows and emits its exact continuation", () => {
+  const rows = Array.from({ length: 5 }, (_, index) => ({
+    field: `field-${index}`,
+    nested: { index }
+  }));
+  const result = createBoundedToolDiscoveryListEnvelope({}, rows, {
+    limit: 2,
+    resultField: "fields",
+    projectEntry: (entry) => structuredClone(entry),
+    createNextCalls: (nextOffset) => [{
+      tool: "workspace_tools_describe",
+      arguments: { input_contract: { kind: "fields", offset: nextOffset } }
+    }]
+  });
+  assert.deepEqual(result.fields, rows.slice(0, 2));
+  assert.equal(result.next_offset, 2);
+  assert.deepEqual(result.next_calls[0].arguments,
+    { input_contract: { kind: "fields", offset: 2 } });
+});
+
+test("WK-2603 list delivery preserves exact bounds and rows", () => {
+  const tools = makeLargeSyntheticCatalog(300);
+  const expectedOrder = rankToolDiscoveryTools(tools, {}, { verbose: false }).map((row) => row.tool_name);
+  const prettyBytes = (value) => Buffer.byteLength(JSON.stringify(value, null, 2), "utf8");
+
+  assert.throws(
+    () => listToolDiscoveryTools(tools, { limit: 10_000 }, { measureResultBytes: measureTwoChannelResultBytes }),
+    /requires a createNextCalls\(nextOffset\) continuation producer/u
+  );
+  assert.throws(() => createBoundedToolDiscoveryListEnvelope({}, tools, {}), TypeError);
+
+  const seen = [];
+  let offset = 0;
+  for (let pages = 1; ; pages += 1) {
+    const label = `offset=${offset}`;
+    const page = listToolDiscoveryTools(tools, { limit: 10_000 },
+      { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls });
+    const raised = listToolDiscoveryTools(tools, { limit: 1_000_000 },
+      { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls });
+    assert.equal(raised.returned_count, page.returned_count, `${label}: a larger limit relaxes neither ceiling`);
+    assert.equal(page.byte_limit, 3840, label);
+    assert.equal(page.result_byte_limit, 4096, label);
+    assert.ok(prettyBytes(page) <= 3840, label);
+    assert.ok(measureTwoChannelResultBytes(page) <= 4096, label);
+    assert.equal(page.total_count, tools.length, label);
+    assert.equal(page.returned_count, page.tools.length, label);
+    assert.equal(page.truncated_count, tools.length - (offset + page.returned_count), label);
+    assert.ok(page.returned_count > 0, label);
+    for (const row of page.tools) {
+      assert.deepEqual(Object.keys(row).sort(), ["task_ids", "tool_name"], `${label}: no rank or heavy field`);
+    }
+    seen.push(...page.tools.map((row) => row.tool_name));
+    if (!page.has_more) {
+      assert.equal(page.next_offset, null, label);
+      break;
+    }
+    assert.equal(page.next_offset, offset + page.returned_count, label);
+    assert.deepEqual(page.next_calls, listNextCalls(page.next_offset), `${label}: exactly the producer's call`);
+    offset = page.next_offset;
+    assert.ok(pages < tools.length, "paging terminates");
+  }
+  assert.deepEqual(seen, expectedOrder, "every row is reachable once, in order");
+
+  const payloadOnly = listToolDiscoveryTools(tools, { limit: 10_000 }, { createNextCalls: listNextCalls });
+  assert.equal(payloadOnly.result_byte_limit, undefined);
+  assert.ok(prettyBytes(payloadOnly) <= 3840);
+  assert.ok(measureTwoChannelResultBytes(payloadOnly) > 4096);
+  const tightResult = listToolDiscoveryTools(tools, { limit: 10_000 },
+    { resultByteLimit: 2048, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls });
+  assert.ok(measureTwoChannelResultBytes(tightResult) <= 2048);
+  assert.ok(prettyBytes(tightResult) <= 3840);
+  const tightPayload = listToolDiscoveryTools(tools, { limit: 10_000 },
+    { byteLimit: 1024, createNextCalls: listNextCalls });
+  assert.ok(prettyBytes(tightPayload) <= 1024);
+  assert.ok(tightPayload.returned_count < payloadOnly.returned_count);
 });

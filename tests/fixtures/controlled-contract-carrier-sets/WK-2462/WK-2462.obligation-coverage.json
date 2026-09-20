@@ -1,0 +1,245 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2462",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK2462-01",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 01: PURPOSE. Restore on-demand @agent-chassis/core package documentation in launcher-managed sessions started through packages/core/bin/agent-launch by binding the core forwarding wiki-MCP entrypoint into the launcher-owned host-server composition. This WK owns only that launcher bridge and its proof.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-01",
+        "claim-wk-2462-verify-01"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-02",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 02: SUPPORTED POPULATION. The supported core-document launcher population is packages/core/bin/agent-launch and the core forwarding wiki-MCP entrypoint it selects. The standalone @agent-chassis/agent-launch-cli bin is not a supported core-document session because that package neither owns nor depends on the core bundle; it must retain a typed package-carrier-unavailable result rather than infer or search for core.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-02",
+        "claim-wk-2462-verify-02"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-03",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 03: PRIVATE CORE OWNER. Add one private core-owned carrier constructor derived solely from the installed core package's own module location, package.json, docs directory, and public-docs-manifest.v1. Both packages/core/bin/wiki-mcp and the core launcher composition consume it; no public core export or duplicated carrier object is introduced.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-03",
+        "claim-wk-2462-verify-03"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-04",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 04: EXECUTABLE HANDOFF. packages/core/bin/agent-launch supplies the exact sibling core forwarding wiki-MCP entrypoint to the existing agent-launch-cli host-server composition through a process-local, validated, first-bind-only composition seam. No environment, argv, prompt, request, workspace path, ancestor search, or hoisting assumption selects the entrypoint or carrier.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-04",
+        "claim-wk-2462-verify-04"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-05",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 05: COHERENT PRE-SPAWN CHECK. Extend the existing trusted host-server binding and pre-spawn compatibility probe so the exact forwarding entrypoint, server generation, core package identity/version, manifest schema/digest, and carrier availability are checked before server spawn. Do not add a parallel readiness object or add documentation facts to launcher-agent-session-contract.v1.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-05",
+        "claim-wk-2462-verify-05"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-06",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 06: WK-2139 CONSUMPTION. WK-2139 remains sole owner of the 57-entry manifest inventory, descriptor projection, workspace_read_tool_doc semantics, negative diagnostics, traversal/shadow rules, direct wiki-mcp behavior, and package-document protocol. WK-2462 may replace only the duplicated carrier-construction block in packages/core/bin/wiki-mcp so that entrypoint consumes the shared private core constructor; it must not otherwise change WK-2139-owned implementation, tests, tool-discovery schema, or package-document semantics.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-06",
+        "claim-wk-2462-verify-06"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-07",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 07: MANAGED EXPERIENCE. A real core-launched managed session advertises executable scope-qualified doc_references for the existing manifest-backed descriptor population and completes at least one discovery-to-workspace_read_tool_doc workflow with exact bundled bytes when AGENTS.md is present, empty, or absent.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-07",
+        "claim-wk-2462-verify-07"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-08",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 08: FAILURE ERGONOMICS. An absent, malformed, stale, or package-version-mismatched core carrier refuses the launcher composition before spawn with one stable launcher-owned diagnostic. The standalone CLI's intentional unbound posture and WK-2139's operation-level typed diagnostics remain distinct.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-08",
+        "claim-wk-2462-verify-08"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-09",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 09: COMPATIBILITY. Preserve role/tier exposure, MCP schemas, conduit confinement, server-generation checking, completion transport, direct core wiki-mcp behavior, nested/non-hoisted installs, and lower-level standalone CLI behavior.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-09",
+        "claim-wk-2462-verify-09"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "WK-2462",
+        "selector": "tests for core launcher package-document composition"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-10",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 10: NO SECURITY POSTURE. The closed carrier and trusted composition seam protect correctness and package identity only. This WK introduces no confidentiality, secrecy, redaction, policy, or admission authority.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-10"
+      ],
+      "mechanism": {
+        "kind": "durable_record",
+        "owner": "WK-2462",
+        "selector": "wiki/work-records/WK-2462.json#acceptance.criteria[9]"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Absence of newly introduced confidentiality, secrecy, redaction, policy, or admission semantics is established by scope inspection and implementation review; the selected test-validity pack does not certify semantic nonintroduction."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-11",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 11: OWNERSHIP. WK-2462 owns the core-launcher composition regression and the narrow deduplication of carrier construction in packages/core/bin/wiki-mcp. WK-2139 retains package-document semantics; WK-2446 retains session authority; WK-2448 consumes the resulting evidence.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-11"
+      ],
+      "mechanism": {
+        "kind": "durable_record",
+        "owner": "WK-2462",
+        "selector": "wiki/work-records/WK-2462.json#acceptance.criteria[10]"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "The owner partition is a canonical coordination fact consumed from WK-2462 and related WK records, not an implementation proof obligation."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2462-12",
+      "statement": "Satisfy and verify WK-2462 acceptance criterion 12: DRY DISPOSITION. The sole DRY review WK-2462#SLICE-001 produced two high and one medium finding. All three are accepted once: supported entrypoints and the private core seam are explicit; coherence stays in the existing pre-spawn composition binding; WK-2139-owned protocol, docs, and tests are removed from mutation scope except for replacing the duplicated packages/core/bin/wiki-mcp carrier-construction block with shared-constructor consumption.",
+      "controlled_contract_node_ids": [
+        "claim-wk-2462-requirement-12"
+      ],
+      "mechanism": {
+        "kind": "durable_record",
+        "owner": "WK-2462",
+        "selector": "wiki/work-records/WK-2462.json#acceptance.criteria[11]"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The completed DRY review and coordinator disposition are canonical lifecycle evidence; they are not re-executed by an implementation proof pack."
+      }
+    }
+  ]
+}

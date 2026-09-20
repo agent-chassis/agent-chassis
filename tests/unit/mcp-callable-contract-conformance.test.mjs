@@ -8,13 +8,13 @@ import {
 } from "../../packages/wiki-core/src/lib/mcp-callable-contract-conformance.mjs";
 
 const READ_MEMBER = "worker:free_local:workspace_read_page";
-const QUERY_MEMBER = "worker:free_local:workspace_tools_query";
+const LIST_MEMBER = "worker:free_local:workspace_tools_list";
 const correctedCall = {
   tool_name: "workspace_read_page",
   arguments: { path: "wiki/work-records/WK-2410.json" }
 };
-const queryCall = {
-  tool_name: "workspace_tools_query",
+const listCall = {
+  tool_name: "workspace_tools_list",
   arguments: { task_id: "controlled-contract-authoring" }
 };
 
@@ -48,13 +48,13 @@ function fixture() {
       ["public_result"], ["claim-recovery"], "WK-1842#item-1"),
     fact("refusal-classification", "failure_classification", "internal_failure",
       ["public_result"], ["claim-integrity"], "WK-2388"),
-    fact("bounded-result", "bounded_retrieval", { complete_count: 157, next_call: queryCall },
+    fact("bounded-result", "bounded_retrieval", { complete_count: 157, next_call: listCall },
       ["discovery", "public_result"], ["claim-retrieval"], "DEC-0118"),
     fact("public-next-call", "next_call", correctedCall,
       ["public_result"], ["claim-recovery"], "WK-1509"),
     fact("identical-retry", "recovery_fact", { retry: "identical", condition: "facts_changed" },
       ["public_result"], ["claim-recovery"], "WK-1948"),
-    fact("durable-prose-call", "prose_call", queryCall,
+    fact("durable-prose-call", "prose_call", listCall,
       ["discovery"], ["claim-representations"]),
     fact("owner-integrity", "owner_fact", { typed: true, owner_id: "WK-2361" },
       MCP_CALLABLE_REPRESENTATION_IDS, ["claim-integrity", "claim-ownership"], "WK-2361")
@@ -62,7 +62,7 @@ function fixture() {
   const population = [
     { member_id: READ_MEMBER, tool_name: "workspace_read_page", role: "worker",
       tier: "free_local", visibility: "included" },
-    { member_id: QUERY_MEMBER, tool_name: "workspace_tools_query", role: "worker",
+    { member_id: LIST_MEMBER, tool_name: "workspace_tools_list", role: "worker",
       tier: "free_local", visibility: "included" },
     { member_id: "reviewer:free_local:workspace_agent_dispatch", tool_name: "workspace_agent_dispatch",
       role: "reviewer", tier: "free_local", visibility: "excluded",
@@ -76,7 +76,7 @@ function fixture() {
         reason_code: "runtime_not_supported" } }
   ];
   const representations = Object.fromEntries(MCP_CALLABLE_REPRESENTATION_IDS.map(
-    (representationId) => [representationId, [READ_MEMBER, QUERY_MEMBER].map((memberId) => ({
+    (representationId) => [representationId, [READ_MEMBER, LIST_MEMBER].map((memberId) => ({
       member_id: memberId,
       facts: ownerFacts.filter((entry) => entry.member_id === memberId &&
         entry.required_representations.includes(representationId)).map((entry) => ({
@@ -95,7 +95,7 @@ function fixture() {
     },
     population,
     owner_facts: ownerFacts,
-    supported_calls: [correctedCall, queryCall],
+    supported_calls: [correctedCall, listCall],
     representations
   };
 }

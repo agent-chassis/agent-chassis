@@ -1,0 +1,226 @@
+#!/bin/sh
+# Launcher-owned Git wrapper installed on the confined child's PATH.
+#
+# WHY THIS EXISTS. An enforced bwrap plan overlays the controlled-contract
+# private family (`wiki/contracts`) with an EMPTY read-only mount after every
+# ordinary read/write mount. Real Git still reads the repository index, which
+# lists those tracked paths, so an ordinary `git status` inside the namespace
+# reports every hidden contract as ` D` / `deleted:`. Those rows are an artifact
+# of the overlay, not of the working tree.
+#
+# WHAT THIS DOES. For an ordinary `git status` that targets the launcher-
+# designated repository, it adds the root-anchored exclusion pathspec the
+# launcher minted (`:(top,exclude)wiki/contracts`) and execs the launcher-
+# resolved real Git. Every other invocation -- a different subcommand, a
+# different repository, an unparseable argv -- is exec'd through byte-for-byte.
+#
+# WHAT THIS IS NOT. It is an OUTPUT/ERGONOMICS adaptation, not a confidentiality
+# boundary: the empty read-only overlay is the boundary and is unchanged. Because
+# interception is PATH-based, a direct absolute-path call (`/usr/bin/git status`)
+# and an in-process Git library are NOT intercepted and still see the overlay
+# rows. The wrapper never reads a private file, never inspects repository
+# objects, and never mutates Git configuration or the index.
+#
+# ARGV, NOT COMMAND STRINGS. The subcommand is identified by walking argv past
+# Git's global options (including the ones that consume a separate value), so a
+# pathspec, a commit message, or a shell string that happens to contain the word
+# "status" is never mistaken for the subcommand.
+#
+# TWO SHAPES, ONE MEANING. In Git's ordinary pathspec mode the exclusion is
+# simply APPENDED: it is a pathspec and does not start with `-`, so no `--`
+# separator has to be inserted and no caller option, pathspec, or `--` position
+# is rewritten. In LITERAL pathspec mode (`--literal-pathspecs`, or a true
+# `GIT_LITERAL_PATHSPECS`) an appended `:(...)` element would be read as a
+# filename and would silently hide the caller's own rows, so the invocation is
+# NORMALIZED instead: global literal mode is turned off for this one real-Git
+# call, every caller pathspec is re-expressed with explicit `:(literal)` magic --
+# which is exactly what global literal mode gave it, wildcards, brackets and
+# leading colons included -- and the launcher's exclusion keeps its magic. Caller
+# paths therefore mean the same thing in both shapes.
+#
+# `git status` has no option that consumes a separate following value, so
+# everything after the subcommand that does not start with `-` (and everything
+# after a `--`) is a caller pathspec, and a trailing pathspec can never be
+# swallowed as an option argument. An invalid invocation stays invalid: an empty
+# pathspec, and literal mode combined with another global pathspec mode, are
+# refused by real Git itself and are passed through untouched rather than
+# normalized into something that succeeds.
+#
+# The launcher mints AGENT_LAUNCH_GIT_REAL, AGENT_LAUNCH_GIT_STATUS_FILTER_REPO
+# and AGENT_LAUNCH_GIT_STATUS_FILTER_PATHSPEC together. A missing or unusable
+# real-Git identity is an EXPLICIT failure here, never a silent unfiltered
+# status.
+
+set -u
+
+wrapper_fail() {
+	printf 'agent-launch git wrapper: %s\n' "$1" >&2
+	exit 127
+}
+
+# Git's own environment-boolean spelling for the pathspec-mode variables.
+git_env_true() {
+	case $1 in
+		'' | 0 | false | FALSE | False | no | NO | No | off | OFF | Off) return 1 ;;
+	esac
+	return 0
+}
+
+real_git=${AGENT_LAUNCH_GIT_REAL-}
+case $real_git in
+	/*) ;;
+	*) wrapper_fail "AGENT_LAUNCH_GIT_REAL must be the absolute launcher-resolved Git executable" ;;
+esac
+[ -x "$real_git" ] || wrapper_fail "launcher-resolved Git executable is not executable: $real_git"
+[ "$real_git" != "$0" ] || wrapper_fail "launcher-resolved Git executable resolves back to this wrapper: $real_git"
+
+filter_repo=${AGENT_LAUNCH_GIT_STATUS_FILTER_REPO-}
+filter_pathspec=${AGENT_LAUNCH_GIT_STATUS_FILTER_PATHSPEC-}
+if [ -z "$filter_repo" ] || [ -z "$filter_pathspec" ]; then
+	wrapper_fail "status filter is not configured (AGENT_LAUNCH_GIT_STATUS_FILTER_REPO/PATHSPEC)"
+fi
+
+# Starting pathspec modes come from the environment; the global options walked
+# below then override them exactly as Git's own option handling does (each flag
+# sets its variable, so the last occurrence wins). Only literal mode has a
+# `--no-` spelling in Git.
+literal_mode=0
+other_modes=0
+git_env_true "${GIT_LITERAL_PATHSPECS-}" && literal_mode=1
+git_env_true "${GIT_GLOB_PATHSPECS-}" && other_modes=1
+git_env_true "${GIT_NOGLOB_PATHSPECS-}" && other_modes=1
+git_env_true "${GIT_ICASE_PATHSPECS-}" && other_modes=1
+
+# Walk argv past Git's global options to the actual subcommand. The options
+# listed first consume a separate following value in the form matched here; the
+# `--opt=value` spellings fall through to the generic `-*` arm.
+argc=$#
+index=1
+subcommand=
+literal_flags=" "
+while [ "$index" -le "$argc" ]; do
+	eval "arg=\${$index}"
+	case $arg in
+		--) exec "$real_git" "$@" ;;
+		--literal-pathspecs)
+			literal_mode=1
+			literal_flags="$literal_flags$index "
+			;;
+		--no-literal-pathspecs)
+			literal_mode=0
+			literal_flags="$literal_flags$index "
+			;;
+		--glob-pathspecs | --noglob-pathspecs | --icase-pathspecs)
+			other_modes=1
+			;;
+		-C | -c | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --config-env)
+			index=$((index + 2))
+			continue
+			;;
+		-*)
+			index=$((index + 1))
+			continue
+			;;
+		*)
+			subcommand=$arg
+			break
+			;;
+	esac
+	index=$((index + 1))
+done
+
+[ "$subcommand" = status ] || exec "$real_git" "$@"
+
+# Scope to the launcher-designated repository. The caller's own global options
+# (-C, --git-dir, --work-tree, ...) decide which repository `status` would act
+# on, so the same prefix resolves the worktree root. Anything else -- an
+# unrelated repository, no repository at all, a bare repository -- passes
+# through unchanged.
+toplevel=$(
+	keep=$((index - 1))
+	remaining=$#
+	taken=0
+	while [ "$taken" -lt "$remaining" ]; do
+		head=$1
+		shift
+		if [ "$taken" -lt "$keep" ]; then
+			set -- "$@" "$head"
+		fi
+		taken=$((taken + 1))
+	done
+	"$real_git" "$@" rev-parse --show-toplevel 2>/dev/null
+)
+
+[ -n "$toplevel" ] || exec "$real_git" "$@"
+[ "$toplevel" = "$filter_repo" ] || exec "$real_git" "$@"
+
+# Ordinary pathspec mode: append and be done. Nothing about the caller's argv is
+# rewritten.
+if [ "$literal_mode" -eq 0 ]; then
+	exec "$real_git" "$@" "$filter_pathspec"
+fi
+
+# Literal mode. Survey the caller's own pathspecs first, so the two invocations
+# real Git itself rejects are handed to it untouched instead of being normalized
+# into a success: an empty pathspec (`:(literal)` with an empty path would match
+# everything), and literal mode combined with another global pathspec mode, which
+# Git refuses as soon as any pathspec is present.
+caller_pathspecs=0
+separator=0
+survey=$((index + 1))
+while [ "$survey" -le "$argc" ]; do
+	eval "arg=\${$survey}"
+	pathspec=$separator
+	if [ "$separator" -eq 0 ]; then
+		case $arg in
+			--) separator=1 ;;
+			-*) ;;
+			*) pathspec=1 ;;
+		esac
+	fi
+	if [ "$pathspec" -eq 1 ]; then
+		caller_pathspecs=$((caller_pathspecs + 1))
+		[ -n "$arg" ] || exec "$real_git" "$@"
+	fi
+	survey=$((survey + 1))
+done
+if [ "$other_modes" -eq 1 ] && [ "$caller_pathspecs" -gt 0 ]; then
+	exec "$real_git" "$@"
+fi
+
+# Rebuild: drop the global literal flags, re-express every caller pathspec with
+# explicit `:(literal)` magic, and keep every option, value and `--` exactly
+# where the caller put it. `GIT_LITERAL_PATHSPECS` is neutralized for this call
+# because the dropped flag would otherwise still be in effect through the
+# environment.
+count=$#
+position=1
+separator=0
+while [ "$position" -le "$count" ]; do
+	arg=$1
+	shift
+	if [ "$position" -lt "$index" ]; then
+		case $literal_flags in
+			*" $position "*) : ;;
+			*) set -- "$@" "$arg" ;;
+		esac
+	elif [ "$position" -eq "$index" ]; then
+		set -- "$@" "$arg"
+	elif [ "$separator" -eq 1 ]; then
+		set -- "$@" ":(literal)$arg"
+	else
+		case $arg in
+			--)
+				separator=1
+				set -- "$@" "$arg"
+				;;
+			-*) set -- "$@" "$arg" ;;
+			*) set -- "$@" ":(literal)$arg" ;;
+		esac
+	fi
+	position=$((position + 1))
+done
+
+GIT_LITERAL_PATHSPECS=0
+export GIT_LITERAL_PATHSPECS
+exec "$real_git" "$@" "$filter_pathspec"

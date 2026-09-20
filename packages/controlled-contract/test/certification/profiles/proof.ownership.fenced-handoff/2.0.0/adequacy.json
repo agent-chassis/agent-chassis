@@ -44,7 +44,11 @@
   "executable_dependency_digests": [
     {
       "path": "packages/controlled-contract/lib/bounded-diagnostic-projection.mjs",
-      "sha256": "97ebe02ca4b7fbac890a19ec04211918734cd449f2c656065ee09ffdc5cbb067"
+      "sha256": "1ff4164683c3ed82cc184033d29bd437f9c349aab63036a8a0e6ac5241301e35"
+    },
+    {
+      "path": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+      "sha256": "4615c3745a066497f67eb36b84228d3995250f354911c8f070aa7ef24224a4e4"
     },
     {
       "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
@@ -59,16 +63,12 @@
       "sha256": "eb2848ae678a33272b331bb7a741b46bdcff2a10882530172e3eabfa3d32dd1a"
     },
     {
-      "path": "packages/controlled-contract/lib/equality-normalization.mjs",
-      "sha256": "cc3d82139e6a1c2d2bcd35aeedc31861403864d0df0dab293530f5b23e457535"
-    },
-    {
       "path": "packages/controlled-contract/lib/exact-binding-runtime-registry.mjs",
-      "sha256": "4a5b4685384e5f15665d721a442031f7ad22d6388ca0e6eb17ea7d59bad7d584"
+      "sha256": "c0aa33a3c1c0ec7977ca6f1df7f607d658fff52c3a33ca482d0d8fbec475b55a"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-carrier-v1.mjs",
-      "sha256": "ea22b65e829a2c79dba91b1d387e4d59a77c7d077e8aac101bdf6724c9d3a316"
+      "sha256": "c4cc2f8b24938471d0dc1f28005b119b6fcec40c207dca5115fc7c6a1e5f34ac"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
@@ -76,7 +76,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
-      "sha256": "154ee7614793ae6da2851834532f63d0bea91fc1c6b310d5ca35258d80eeadad"
+      "sha256": "a72d06fb070544f9d70a558d0dcecb9e9e35ebaca804bbf4914417d7af89fd5f"
     },
     {
       "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
@@ -91,16 +91,16 @@
       "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
     },
     {
-      "path": "packages/controlled-contract/lib/projected-evaluation-binding.mjs",
-      "sha256": "0297b7f7dac21725c0446d1aa6728bc6f2c24972ba9d25d435b98cdb42cc67c1"
-    },
-    {
       "path": "packages/controlled-contract/lib/resource-policy.mjs",
       "sha256": "0d7e7370a5745f4215ac69260fb6cfefeb048778cec1e4fd43c5da6c71448505"
     },
     {
       "path": "packages/controlled-contract/lib/stable-association-semantics.mjs",
       "sha256": "45df90f5d90670fbd22908302fa0d17884faf392f17c02d2368b338906e4aee7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-contract-schema-v1.mjs",
+      "sha256": "d6bb7568dc4bc223dddf24a92ae4cceaa9430a677c25c69d9984da3dcd5e6511"
     },
     {
       "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
@@ -120,7 +120,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
-      "sha256": "8b0eaa6b19178e1edcddf03a79ce269e4d5b825a36574e088e2963a496a7787a"
+      "sha256": "f7d2e9bf4e1fc57e8259b37f4e7af4600c34a47f153a33a46f738c576e1789e0"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-expanded-semantics.mjs",
@@ -132,7 +132,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-schema-v1.mjs",
-      "sha256": "2ea7520026444bf376575897a14e2c915f5127e27c77efc8b141ed7a959e3138"
+      "sha256": "ab405a66129332ef99241174ba088c2377f2ac251bc63515ff4845cdc27af227"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-semantics.mjs",
@@ -140,7 +140,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
-      "sha256": "c2d5ae1d9f1806fe8e1aace14e0822a8e9ddbe97e7226d454732c9ee5b26729c"
+      "sha256": "512fe162febb3e2685812be2aedc576d952558b92d0120e66d74f4d806f04a21"
     },
     {
       "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
@@ -148,11 +148,15 @@
     },
     {
       "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
-      "sha256": "a2eea7c7cc0ffab8dc2f931ae147587ce5a350afeb7c8cde6e973e1ac6168d80"
+      "sha256": "ef4c49974e8169d82db660c1b779e03c0950459f37553ea17d3ee7db07b69caf"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
+      "sha256": "2a23773f0c36f70993b35d3f5dc5bd61de193ddae26c495671ec787d2915aab9"
     },
     {
       "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-input.v1.schema.json",
-      "sha256": "38bd0b388ba2c5a4bb108749e1ffd50bdb8147ae5521f1d9d1eaf04126ef0b72"
+      "sha256": "c5b4bead4886e96e5bbc661818cf4f5bf39596304d24a4d987ffb57f6717dfdc"
     },
     {
       "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-result.v1.schema.json",
@@ -168,7 +172,7 @@
     },
     {
       "path": "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs",
-      "sha256": "2695fc8d1e55558adf91846f142afbf0223dabe128a970ddfe38f327e258db86"
+      "sha256": "0ce9cd57dc3343339cbdfe28f15517754b99e813d1730dec104a2f64661b48fe"
     },
     {
       "path": "packages/controlled-contract/vocabulary/controlled-contract-vocabulary.v1.mjs",

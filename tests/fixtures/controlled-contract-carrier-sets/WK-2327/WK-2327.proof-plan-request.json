@@ -1,0 +1,19 @@
+{
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "requested_intents": [
+    "controlled-proof-intent.test-verification-validity",
+    "controlled-proof-intent.forbidden-operation-noninvocation"
+  ],
+  "selected_packs": [
+    {
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "8.0.0",
+      "evaluation_input_path": "WK-2327.pack-sha256-2e51045951ac5093c562a3b4f31a53353259af2a21a8a3469df9c85d8a07bf1c.evaluation-input.json"
+    },
+    {
+      "profile_id": "proof.operation.forbidden-noninvocation",
+      "profile_version": "4.0.0",
+      "evaluation_input_path": "WK-2327.pack-sha256-07bb8ef8757a3179c3d876aa343bc0b081ad6cc666ba8d477cb5ec265b9dd98a.evaluation-input.json"
+    }
+  ]
+}

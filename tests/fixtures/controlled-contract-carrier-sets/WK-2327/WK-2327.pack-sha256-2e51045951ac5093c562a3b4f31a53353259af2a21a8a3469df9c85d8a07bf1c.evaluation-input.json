@@ -1,0 +1,30 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "component",
+      "reference_ids": [
+        "ref-wk2327-validity-component"
+      ]
+    },
+    {
+      "role": "suite",
+      "reference_ids": [
+        "ref-wk2327-validity-suite"
+      ]
+    }
+  ],
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "component-exists",
+      "claim_id": "claim-behavior-wk2327-validity-component"
+    },
+    {
+      "pattern_id": "suite-covers-component",
+      "claim_id": "claim-verify-wk2327-test-validity"
+    }
+  ],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

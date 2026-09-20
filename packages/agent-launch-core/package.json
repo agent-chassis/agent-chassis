@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-core",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -30,6 +30,7 @@
     "./src/lib/config.mjs": "./src/lib/config.mjs",
     "./src/lib/durable-runtime-state.mjs": "./src/lib/durable-runtime-state.mjs",
     "./src/lib/filesystem.mjs": "./src/lib/filesystem.mjs",
+    "./src/lib/junit-test-result-parser.mjs": "./src/lib/junit-test-result-parser.mjs",
     "./src/lib/launcher-context-mint.mjs": "./src/lib/launcher-context-mint.mjs",
     "./src/lib/launcher-owned-worktree-root.mjs": "./src/lib/launcher-owned-worktree-root.mjs",
     "./src/lib/launcher-transition-plan.mjs": "./src/lib/launcher-transition-plan.mjs",
@@ -41,9 +42,10 @@
     "./src/lib/work-record-launch-prompt.mjs": "./src/lib/work-record-launch-prompt.mjs"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.20.0"
   },
   "dependencies": {
-    "@agent-chassis/wiki-core": "^0.7.0"
+    "@agent-chassis/wiki-core": "^0.8.0",
+    "xml2js": "0.6.2"
   }
 }

@@ -1,0 +1,1130 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-authority-boundary",
+      "kind": "rationale",
+      "text": "WK-1782 is the single owner of construction, recheck, and compare-and-swap behavior; WK-1783 is the single owner of public failure projection. WK-2225 changes only the mutant test module."
+    },
+    {
+      "annotation_id": "ann-disposition-evidence",
+      "kind": "note",
+      "text": "Worker-returned witness evidence is completion evidence, not a repository write or authority to modify owner surfaces. Durable routing and successor allocation remain coordinator actions."
+    },
+    {
+      "annotation_id": "ann-execution-generation",
+      "kind": "provenance",
+      "text": "Every execution and review binds to the exact current canonical contract generation and accumulated WK tip selected by launcher authority under DEC-0154 and DEC-0179."
+    },
+    {
+      "annotation_id": "ann-validation-boundary",
+      "kind": "rationale",
+      "text": "Acceptance validation is coordinator-owned after delivery under DEC-0158; a worker may run an advisory declared test only through launcher-owned capability."
+    },
+    {
+      "annotation_id": "ann-review-boundary",
+      "kind": "rationale",
+      "text": "The exact committed implementation slice receives findings-only review before trusted integration under DEC-0164."
+    },
+    {
+      "annotation_id": "ann-design-review-disposition",
+      "kind": "provenance",
+      "text": "DRY run wkdb_a39bad2d5c048774 produced DRY-001 through DRY-010 and DEC run wkdb_e0a6e7c11051719f produced four DEC findings, numbered 001 through 004; the coordinator accepted and dispositioned every finding once before authoring this contract."
+    },
+    {
+      "annotation_id": "ann-review-remediation-proof-rebind",
+      "kind": "provenance",
+      "text": "After the first exact-slice review and its single blueteam challenge, the accepted remediation deletes duplicate candidate-module mutant plumbing and retains the unique durable-ref authority witness. The retain-unique verification therefore traverses the runtime module boundary exercised by that surviving witness; its historical stable verification identity is preserved while its proposition and falsifier bindings are corrected."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-construction-owner",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-construction-owner"
+    },
+    {
+      "claim_id": "claim-projection-owner",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-projection-owner"
+    },
+    {
+      "claim_id": "claim-mutant-suite-in-scope",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-mutant-suite-in-scope"
+    },
+    {
+      "claim_id": "claim-retain-unique",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-retain-unique"
+    },
+    {
+      "claim_id": "claim-delete-duplicates",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-delete-duplicates"
+    },
+    {
+      "claim_id": "claim-worker-returns-delivery-evidence",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-worker-returns-delivery-evidence"
+    },
+    {
+      "claim_id": "claim-worker-returns-out-of-scope-evidence",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-worker-returns-out-of-scope-evidence"
+    },
+    {
+      "claim_id": "claim-no-owner-surface-modification",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-worker-modifies-owner-surfaces"
+    },
+    {
+      "claim_id": "claim-coordinator-validation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-coordinator-performs-validation"
+    },
+    {
+      "claim_id": "claim-review-before-integration",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-review-precedes-integration"
+    },
+    {
+      "claim_id": "claim-verify-mutant-candidate",
+      "falsifying_proposition_id": "prop-runtime-missing",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-mutant-covers-runtime",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-mutant-runtime",
+      "falsifying_proposition_id": "prop-runtime-missing",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-mutant-covers-runtime",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-reconstruction-owner",
+      "falsifying_proposition_id": "prop-candidate-missing",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-reconstruction-covers-candidate",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-atomicity-owner",
+      "falsifying_proposition_id": "prop-runtime-missing",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-atomicity-covers-runtime",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-recovery-owner",
+      "falsifying_proposition_id": "prop-runtime-missing",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-recovery-covers-runtime",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-scope",
+      "falsifying_proposition_id": "prop-worker-modifies-owner-surfaces",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-mutant-suite-in-scope",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-delivery-evidence",
+      "falsifying_proposition_id": "prop-worker-omits-delivery-evidence",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-worker-returns-delivery-evidence",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-out-of-scope-evidence",
+      "falsifying_proposition_id": "prop-worker-omits-out-of-scope-evidence",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-worker-returns-out-of-scope-evidence",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-coordinator-validation",
+      "falsifying_proposition_id": "prop-coordinator-omits-validation",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-coordinator-performs-validation",
+      "verification_method": "audit"
+    },
+    {
+      "claim_id": "claim-verify-review-boundary",
+      "falsifying_proposition_id": "prop-integration-precedes-review",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-review-precedes-integration",
+      "verification_method": "audit"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-implementation-obligations",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-construction-owner",
+        "claim-projection-owner",
+        "claim-mutant-suite-in-scope",
+        "claim-retain-unique",
+        "claim-delete-duplicates",
+        "claim-worker-returns-delivery-evidence",
+        "claim-worker-returns-out-of-scope-evidence",
+        "claim-no-owner-surface-modification"
+      ],
+      "purpose": "implementation_obligations"
+    },
+    {
+      "collection_id": "set-coordinator-obligations",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-coordinator-validation",
+        "claim-review-before-integration"
+      ],
+      "purpose": "coordinator_obligations"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-candidate-module"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-runtime-module"
+        }
+      ],
+      "operator": "reference:authoritative_for",
+      "proposition_id": "prop-construction-owner",
+      "subject_reference_id": "ref-construction-owner"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-runtime-module"
+        }
+      ],
+      "operator": "reference:authoritative_for",
+      "proposition_id": "prop-projection-owner",
+      "subject_reference_id": "ref-projection-owner"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-write-scope"
+        }
+      ],
+      "operator": "reference:writable_in_scope",
+      "proposition_id": "prop-mutant-suite-in-scope",
+      "subject_reference_id": "ref-mutant-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-unique-witnesses"
+        }
+      ],
+      "operator": "reference:retains",
+      "proposition_id": "prop-retain-unique",
+      "subject_reference_id": "ref-mutant-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-duplicate-witnesses"
+        }
+      ],
+      "operator": "reference:deletes",
+      "proposition_id": "prop-delete-duplicates",
+      "subject_reference_id": "ref-mutant-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-mutant-suite"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-delivery-evidence"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-worker-returns-delivery-evidence",
+      "subject_reference_id": "ref-worker"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-mutant-suite"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-delivery-evidence"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-worker-omits-delivery-evidence",
+      "subject_reference_id": "ref-worker"
+    },
+    {
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-candidate-module",
+          "ref-runtime-module"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-out-of-scope-evidence"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-worker-returns-out-of-scope-evidence",
+      "subject_reference_id": "ref-worker"
+    },
+    {
+      "applicability_context": {
+        "mode": "if",
+        "operand_reference_ids": [
+          "ref-candidate-module",
+          "ref-runtime-module"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-out-of-scope-evidence"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-worker-omits-out-of-scope-evidence",
+      "subject_reference_id": "ref-worker"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-mutant-suite"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-candidate-module"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-runtime-module"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-reconstruction-suite"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomicity-suite"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-recovery-suite"
+        }
+      ],
+      "operator": "reference:modifies",
+      "proposition_id": "prop-worker-modifies-owner-surfaces",
+      "subject_reference_id": "ref-worker"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-delivery-evidence"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-baseline-validation"
+        }
+      ],
+      "operator": "reference:performs",
+      "proposition_id": "prop-coordinator-performs-validation",
+      "subject_reference_id": "ref-coordinator"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-delivery-evidence"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-baseline-validation"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-coordinator-omits-validation",
+      "subject_reference_id": "ref-coordinator"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration"
+        }
+      ],
+      "operator": "reference:precedes",
+      "proposition_id": "prop-review-precedes-integration",
+      "subject_reference_id": "ref-slice-review"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-slice-review"
+        }
+      ],
+      "operator": "reference:precedes",
+      "proposition_id": "prop-integration-precedes-review",
+      "subject_reference_id": "ref-integration"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-candidate-module"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-mutant-covers-candidate",
+      "subject_reference_id": "ref-mutant-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-runtime-module"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-mutant-covers-runtime",
+      "subject_reference_id": "ref-mutant-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-candidate-module"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-reconstruction-covers-candidate",
+      "subject_reference_id": "ref-reconstruction-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-runtime-module"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-atomicity-covers-runtime",
+      "subject_reference_id": "ref-atomicity-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-runtime-module"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-recovery-covers-runtime",
+      "subject_reference_id": "ref-recovery-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-candidate-missing",
+      "subject_reference_id": "ref-candidate-module"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-runtime-missing",
+      "subject_reference_id": "ref-runtime-module"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/terminal-wk-candidate-reconstruction-mutants.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-mutant-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/terminal-wk-candidate-reconstruction.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-reconstruction-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/terminal-wk-candidate-reconstruction-atomicity.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-atomicity-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/terminal-candidate-recovery-error-projection.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-recovery-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-candidate-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-runtime-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis",
+        "kind": "durable_id",
+        "value": "WK-1782"
+      },
+      "reference_id": "ref-construction-owner",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis",
+        "kind": "durable_id",
+        "value": "WK-1783"
+      },
+      "reference_id": "ref-projection-owner",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "write_scope"
+      },
+      "reference_id": "ref-write-scope",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "selected-accumulated-wk-tip"
+      },
+      "reference_id": "ref-accumulated-wk-tip",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "managed-implementation-worker"
+      },
+      "reference_id": "ref-worker",
+      "type_term": "cc:actor"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "orchestrator"
+      },
+      "reference_id": "ref-coordinator",
+      "type_term": "cc:actor"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "worker-delivery-evidence"
+      },
+      "reference_id": "ref-delivery-evidence",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "out-of-scope-evidence"
+      },
+      "reference_id": "ref-out-of-scope-evidence",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "unique-discriminating-witnesses"
+      },
+      "reference_id": "ref-unique-witnesses",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "duplicate-obsolete-invalid-witnesses"
+      },
+      "reference_id": "ref-duplicate-witnesses",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "coordinator-acceptance-validation"
+      },
+      "reference_id": "ref-baseline-validation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "findings-only-slice-review"
+      },
+      "reference_id": "ref-slice-review",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "WK-2225",
+        "kind": "durable_id",
+        "value": "trusted-slice-integration"
+      },
+      "reference_id": "ref-integration",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "terminal-candidate-reconstruction-mutant-boundary"
+      },
+      "reference_id": "ref-mutant-component-profile",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "terminal-candidate-reconstruction-mutant-suite"
+      },
+      "reference_id": "ref-mutant-suite-profile",
+      "type_term": "cc:test"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-mutant-candidate",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mutant-candidate",
+      "target_claim_id": "claim-retain-unique"
+    },
+    {
+      "relation_id": "rel-verify-mutant-runtime",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mutant-runtime",
+      "target_claim_id": "claim-delete-duplicates"
+    },
+    {
+      "relation_id": "rel-verify-reconstruction-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-reconstruction-owner",
+      "target_claim_id": "claim-construction-owner"
+    },
+    {
+      "relation_id": "rel-verify-atomicity-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-atomicity-owner",
+      "target_claim_id": "claim-construction-owner"
+    },
+    {
+      "relation_id": "rel-verify-recovery-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-recovery-owner",
+      "target_claim_id": "claim-projection-owner"
+    },
+    {
+      "relation_id": "rel-verify-scope-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-scope",
+      "target_claim_id": "claim-no-owner-surface-modification"
+    },
+    {
+      "relation_id": "rel-verify-scope-target",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-scope",
+      "target_claim_id": "claim-mutant-suite-in-scope"
+    },
+    {
+      "relation_id": "rel-verify-delivery-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-delivery-evidence",
+      "target_claim_id": "claim-worker-returns-delivery-evidence"
+    },
+    {
+      "relation_id": "rel-verify-out-of-scope-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-out-of-scope-evidence",
+      "target_claim_id": "claim-worker-returns-out-of-scope-evidence"
+    },
+    {
+      "relation_id": "rel-verify-coordinator-validation",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-coordinator-validation",
+      "target_claim_id": "claim-coordinator-validation"
+    },
+    {
+      "relation_id": "rel-verify-review-boundary",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-review-boundary",
+      "target_claim_id": "claim-review-before-integration"
+    }
+  ],
+  "residue": [
+    {
+      "candidate_concept": "wk_1782_race_suite",
+      "reason": "unresolved_identity",
+      "residue_id": "res-owner-race-suite-absent",
+      "text": "WK-1782 declares tests/terminal-wk-candidate-reconstruction-races.test.mjs, but that path is absent from the coordinator checkout and must be reassessed against the selected execution generation."
+    },
+    {
+      "candidate_concept": "current_mutant_population_outcomes",
+      "reason": "unresolved_context",
+      "residue_id": "res-current-witness-outcomes",
+      "text": "No coordinator acceptance validation has executed the mutant population or owner suites against the future selected accumulated WK tip; present witness outcomes and any live defect remain unresolved evidence until after delivery."
+    }
+  ],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-atomicity-owner-module-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+            "mutation_id": "mutation-atomicity-owner-module-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-runtime-missing",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-atomicity-owner",
+        "proposition_id": "prop-atomicity-covers-runtime"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-atomicity-owner",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "subject_reference_ids": [
+          "ref-runtime-module"
+        ]
+      },
+      "test_proof_id": "test-proof-atomicity-owner",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-atomicity-owner",
+      "test_selector": {
+        "name": "terminal wk candidate reconstruction atomicity",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-mutant-candidate-runtime-module-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+            "mutation_id": "mutation-mutant-candidate-runtime-module-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-runtime-missing",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-mutant-candidate",
+        "proposition_id": "prop-mutant-covers-runtime"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-mutant-candidate-runtime",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "subject_reference_ids": [
+          "ref-runtime-module"
+        ]
+      },
+      "test_proof_id": "test-proof-mutant-candidate",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-mutant-candidate",
+      "test_selector": {
+        "name": "terminal wk candidate reconstruction mutants",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-mutant-runtime-module-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+            "mutation_id": "mutation-mutant-runtime-module-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-runtime-missing",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-mutant-runtime",
+        "proposition_id": "prop-mutant-covers-runtime"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-mutant-runtime",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "subject_reference_ids": [
+          "ref-runtime-module"
+        ]
+      },
+      "test_proof_id": "test-proof-mutant-runtime",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-mutant-runtime",
+      "test_selector": {
+        "name": "terminal wk candidate reconstruction mutants",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-reconstruction-owner-module-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs",
+            "mutation_id": "mutation-reconstruction-owner-module-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-candidate-missing",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-reconstruction-owner",
+        "proposition_id": "prop-reconstruction-covers-candidate"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-reconstruction-owner",
+        "kind": "module",
+        "runtime_module_path": "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs",
+        "subject_reference_ids": [
+          "ref-candidate-module"
+        ]
+      },
+      "test_proof_id": "test-proof-reconstruction-owner",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-reconstruction-owner",
+      "test_selector": {
+        "name": "terminal wk candidate reconstruction",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-recovery-owner-module-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+            "mutation_id": "mutation-recovery-owner-module-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-runtime-missing",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-recovery-owner",
+        "proposition_id": "prop-recovery-covers-runtime"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-recovery-owner",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "subject_reference_ids": [
+          "ref-runtime-module"
+        ]
+      },
+      "test_proof_id": "test-proof-recovery-owner",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-recovery-owner",
+      "test_selector": {
+        "name": "terminal candidate recovery error projection",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

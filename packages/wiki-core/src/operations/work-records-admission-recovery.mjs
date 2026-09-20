@@ -20,7 +20,9 @@ import {
 } from "../lib/work-record-admission.mjs";
 import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
 import {
-  readPersistedWorkerAdmissionEvidenceSidecarEntry
+  captureWorkRecordAdmissionEvidence,
+  isAdmissionEvidenceSnapshotChangedError,
+  readCapturedWorkRecordAdmissionEvidence
 } from "../lib/work-record-admission-evidence-sidecar.mjs";
 import { WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES } from "../lib/work-record-target-metrics.mjs";
 
@@ -352,13 +354,18 @@ export async function classifyWorkRecordAdmissionRecovery({
   const entry = matchingEntries[0];
   let evaluatedEvidence;
   try {
-    evaluatedEvidence =
-      (await readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry })) ?? entry;
+    evaluatedEvidence = readCapturedWorkRecordAdmissionEvidence(
+      await captureWorkRecordAdmissionEvidence({ dir, entry })
+    ) ?? entry;
     if (classifyTargetResolutionRecovery(evaluatedEvidence) === "nonrecoverable_malformed") {
       throw new TypeError("malformed target-resolution evidence");
     }
     evaluateWorkRecordAdmissionDerivedEvidence(evaluatedEvidence);
   } catch (error) {
+
+    if (isAdmissionEvidenceSnapshotChangedError(error)) {
+      return admissionRecoveryResult("recoverable_stale", "recoverable_stale", { code: error.code });
+    }
     const integrityFailure = typeof error?.code === "string" && error.code.startsWith("sidecar_");
     return admissionRecoveryResult(
       integrityFailure ? "nonrecoverable_integrity_failure" : "nonrecoverable_malformed",

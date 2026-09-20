@@ -7,10 +7,6 @@ import {
 } from "./work-records-shared.mjs";
 import { persistWorkRecordGraphImpactByUnit } from "./work-records-graph-impact.mjs";
 import { getCommittedHeadGraphImpactPaths } from "../lib/sidecar-graph-impact.mjs";
-import {
-  rebuildGraphIndexAtHead,
-  SidecarGraphIndexUnbuildableError
-} from "../lib/sidecar-graph-impact-artifact.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "../lib/sidecar-graph-schema.mjs";
 import { validateImpactPath } from "../lib/sidecar-graph-impact-shared.mjs";
 import { loadWorkRecordById } from "../lib/work-record-store.mjs";
@@ -177,29 +173,10 @@ export async function generateAndPersistWorkRecordGraphImpactByUnit({
     });
   }
 
-  let queryEnvelope = {
+  const queryEnvelope = {
     ...(await getCommittedHeadGraphImpactPaths({ dir, selectedUnit: unit, subject, cacheDir })),
     source_record_digest: initialReviewedUnitDigest
   };
-  if (
-    !queryEnvelope.available &&
-    [
-      "base_artifact_unavailable",
-      "base_artifact_corrupt",
-      "base_artifact_incompatible"
-    ].includes(queryEnvelope.outcome)
-  ) {
-    try {
-      await rebuildGraphIndexAtHead({ targetDir: dir, cacheDir });
-      queryEnvelope = {
-        ...(await getCommittedHeadGraphImpactPaths({ dir, selectedUnit: unit, subject, cacheDir })),
-        source_record_digest: initialReviewedUnitDigest
-      };
-    } catch (error) {
-      if (!(error instanceof SidecarGraphIndexUnbuildableError)) throw error;
-      queryEnvelope = { ...queryEnvelope, outcome: error.code };
-    }
-  }
   const subjectPaths = queryEnvelope.projection?.subject_paths ?? [];
   const graphBearingPaths = queryEnvelope.projection?.graph_bearing_paths ?? [];
   if (queryEnvelope.available && graphBearingPaths.length === 0) {

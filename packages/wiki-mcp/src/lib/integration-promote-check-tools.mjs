@@ -166,7 +166,7 @@ export function registerIntegrationPromoteCheckTools({
     "workspace_integration_promote_check",
     {
       description:
-        "Read-only local WK trunk-readiness check under the legacy route name. Accepts only server-resolved repo selection plus a canonical WK/unit id; reports local facts and fail-closed blockers without branch, policy, review, merge, rebase, cleanup, or promotion authority.",
+        "Read local WK trunk readiness and fail-closed blockers. Server resolves repo/unit. No branch, policy, review, merge, rebase, cleanup or promotion authority.",
       inputSchema: { repo: z.string().optional(), unit: z.string().optional(), work_record: z.string().optional() }
     },
     async (args) => {

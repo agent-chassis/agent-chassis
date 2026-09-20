@@ -12,17 +12,12 @@ import {
 import {
   LAUNCHER_READINESS_PRODUCER_DESCRIPTOR
 } from "@agent-chassis/wiki-mcp/src/lib/launcher-readiness-observer.mjs";
-import {
-  WIKI_MCP_COMMON_PROOF_RESOLVER_CAPABILITY_VERSION
-} from "./wiki-mcp-common-proof-resolver-capability.mjs";
 
 export const WIKI_MCP_HOST_SERVER_PACKAGE_SUBPATH =
   "@agent-chassis/wiki-mcp/src/server.mjs";
 
 export const WIKI_MCP_READINESS_OBSERVER_PACKAGE_SUBPATH =
   "@agent-chassis/wiki-mcp/src/lib/launcher-readiness-observer.mjs";
-export const WIKI_MCP_COMMON_PROOF_RESOLVER_CONSUMER_PACKAGE_SUBPATH =
-  "@agent-chassis/wiki-mcp/src/lib/launcher-common-proof-resolver-capability.mjs";
 
 const requireFromLauncher = createRequire(import.meta.url);
 const TRUSTED_HOST_SERVER_BINDINGS = new WeakSet();
@@ -296,14 +291,6 @@ export function resolveWikiMcpReadinessObserverPath() {
   }
 }
 
-export function resolveWikiMcpCommonProofResolverConsumerPath() {
-  try {
-    return requireFromLauncher.resolve(WIKI_MCP_COMMON_PROOF_RESOLVER_CONSUMER_PACKAGE_SUBPATH);
-  } catch {
-    return null;
-  }
-}
-
 export const WIKI_MCP_PRODUCER_GENERATION_PROBE_TIMEOUT_MS = 10_000;
 
 const PRODUCER_GENERATION_TOKEN_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/u;
@@ -312,12 +299,10 @@ const PRODUCER_PROBE_MARKER = "WIKI_MCP_CAPABILITY_PROBE:";
 export async function probeSpawnedWikiMcpProducerGeneration({
   execPath = process.execPath,
   observerPath = resolveWikiMcpReadinessObserverPath(),
-  capabilityPath = resolveWikiMcpCommonProofResolverConsumerPath(),
   binding = resolveWikiMcpHostServerBinding(),
   timeoutMs = WIKI_MCP_PRODUCER_GENERATION_PROBE_TIMEOUT_MS
 } = {}) {
-  if (typeof observerPath !== "string" || observerPath.length === 0 ||
-      typeof capabilityPath !== "string" || capabilityPath.length === 0) {
+  if (typeof observerPath !== "string" || observerPath.length === 0) {
     return Object.freeze({ ok: false, generation: null, reason: "producer_module_unresolved" });
   }
   let currentPackageDocsGeneration = null;
@@ -355,11 +340,9 @@ export async function probeSpawnedWikiMcpProducerGeneration({
   const source =
     `import { LAUNCHER_READINESS_PROTOCOL_GENERATION } from ` +
     `${JSON.stringify(pathToFileURL(observerPath).href)};\n` +
-    `import { LAUNCHER_COMMON_PROOF_RESOLVER_CAPABILITY_VERSION } from ` +
-    `${JSON.stringify(pathToFileURL(capabilityPath).href)};\n` +
     packageDocsProbeSource +
     `process.stdout.write(${JSON.stringify(PRODUCER_PROBE_MARKER)} + JSON.stringify({generation: LAUNCHER_READINESS_PROTOCOL_GENERATION,` +
-    ` capability_version: LAUNCHER_COMMON_PROOF_RESOLVER_CAPABILITY_VERSION,package_docs}));\n`;
+    ` package_docs}));\n`;
   const probed = await new Promise((resolve) => {
     execFile(execPath, ["--input-type=module", "-e", source], {
 
@@ -388,16 +371,11 @@ export async function probeSpawnedWikiMcpProducerGeneration({
   if (!PRODUCER_GENERATION_TOKEN_RE.test(generation)) {
     return Object.freeze({ ok: false, generation: null, reason: "producer_generation_malformed" });
   }
-  if (payload.capability_version !== WIKI_MCP_COMMON_PROOF_RESOLVER_CAPABILITY_VERSION) {
-    return Object.freeze({ ok: false, generation,
-      reason: "common_proof_resolver_capability_version_mismatch" });
-  }
   if (!samePackageDocsGeneration(payload.package_docs, currentPackageDocsGeneration)) {
     return Object.freeze({ ok: false, generation, reason: "probe_mismatch",
       package_docs_diagnostic: compositionDiagnostic("probe_mismatch") });
   }
   return Object.freeze({ ok: true, generation, reason: null,
-    common_proof_resolver_capability_version: payload.capability_version,
     package_docs_generation: currentPackageDocsGeneration });
 }
 

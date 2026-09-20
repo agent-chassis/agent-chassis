@@ -8,6 +8,8 @@ export {
   validateAndResolveNativeContractV1
 } from "./lib/native-contract-carrier-v1.mjs";
 
+export { DEFAULT_MANDATORY_MODALITIES } from "./lib/native-contract-dag.mjs";
+
 export {
   STABLE_RESOURCE_LIMITS,
   StableVerificationError,
@@ -28,7 +30,6 @@ export {
 
 export {
   assessContractFiles,
-  assessExactBoundContractFiles,
   assessStructuralContractFile,
   compactAssessmentOutput
 } from "./lib/contract-assessment.mjs";
@@ -75,16 +76,26 @@ export {
   PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
   ProofIntentDiscoveryError,
   canonicalProofIntentDiscoveryJson,
+  discoverCompleteProofIntents,
   discoverProofIntents
 } from "./lib/proof-intent-discovery.mjs";
 
 export {
+  CLAIM_PATTERN_BINDING_ADMISSION_CODES,
   MAX_BINDING_ASSISTANCE_BYTES,
   ProofPackBindingAssistanceError,
   canonicalProofPackBindingAssistanceJson,
   inspectProofPackBindings,
-  inspectProofPackBindingsPage
+  inspectProofPackBindingsPage,
+  validateSuppliedClaimPatternBindings
 } from "./lib/proof-pack-binding-assistance.mjs";
+
+export {
+  SelectedPackClaimParticipationError,
+  evaluateSelectedPackClaimParticipation,
+  matchedProfileCoveredClaimIds,
+  matchedProfileCoveredClaims
+} from "./lib/selected-pack-claim-participation.mjs";
 
 export {
   MAX_PROOF_PLAN_BYTES,
@@ -93,6 +104,21 @@ export {
   buildProofPlanFiles,
   canonicalProofPlanJson
 } from "./lib/proof-plan-compiler.mjs";
+
+export {
+  ProspectiveProofPlanError,
+  buildProspectiveProofPlan
+} from "./lib/prospective-proof-plan.mjs";
+
+export {
+  AUTHORED_EXECUTION_OBSERVATION_POINTER,
+  AUTHORED_EXECUTION_OBSERVATION_REFUSAL_CODE,
+  AuthoredExecutionObservationError,
+  EXECUTION_OBSERVATION_OWNER,
+  assertAuthoredEvaluationInputExecutionFree,
+  authoredEvaluationInputDiagnostics,
+  validateAuthoredEvaluationInput
+} from "./lib/authored-evaluation-input.mjs";
 
 export {
   INTEGRATION_PREFIX_INTENT,
@@ -123,13 +149,6 @@ export {
   readProofPackCatalog
 } from "./lib/admitted-proof-packs.mjs";
 
-export {
-  ARTIFACTS,
-  IntegrationPrefixCompatibilityError,
-  compareIntegrationPrefixCaptureCompatibility,
-  compareIntegrationPrefixCompatibility
-} from "./lib/integration-prefix-capture-compatibility.mjs";
-
 export { deriveDeterministicLexicographicConformance }
   from "./lib/deterministic-lexicographic-ordering.mjs";
 export {
@@ -148,20 +167,22 @@ export { deriveDeclaredLimitGuidancePropagation }
   from "./lib/declared-limit-guidance-propagation.mjs";
 
 export {
+  CURRENT_DEFINITION_REAUTHORING_SCHEMA,
+  RETIRED_CURRENT_DEFINITION_FIELDS,
   STABLE_TEST_PROOF_AUTHORING_LIMITS,
-  STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS,
-  STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION,
   StableTestProofContractError,
   VERIFICATION_BUNDLE_FIELDS,
   VERIFICATION_BUNDLE_SCHEMA_VERSION,
   VERIFICATION_BUNDLE_VOCABULARY,
   buildStableTestProofBindingTemplate,
+  buildStableTestProofRecoveryCall,
   buildVerificationBundleTemplate,
   canonicalStableTestProofContractJson,
-  classifyStableTestProofRuntimeReadiness,
   describeStableTestProofAuthoring,
   queryStableTestProofBindings,
-  projectStableTestProofCurrentPopulation,
+  projectStableTestProofSelector,
+  qualifyStableCurrentDefinitionReauthoring,
+  reauthorStableCurrentDefinitionBindings,
   replaceStableTestProofBindings,
   resolveStableTestProofBindingPopulation,
   resolveStableTestProofProviderBindings,
@@ -227,7 +248,9 @@ export {
   OBLIGATION_COVERAGE_MECHANISM_KINDS,
   OBLIGATION_COVERAGE_SCHEMA,
   OBLIGATION_COVERAGE_SCHEMA_VERSION,
-  validateObligationCoverageCarrier
+  validateObligationCoverageCarrier, validateObligationCoverageDraft,
+  OBLIGATION_DRAFT_SCHEMA, OBLIGATION_DRAFT_SCHEMA_VERSION,
+  OBLIGATION_COVERAGE_MAX_ROWS, OBLIGATION_COVERAGE_MAX_BYTES
 } from "./lib/obligation-coverage-carrier.mjs";
 export {
   CARRIER_PATCH_LIMITS as CONTROLLED_CONTRACT_CARRIER_PATCH_LIMITS,
@@ -250,7 +273,9 @@ export {
 export {
   FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS as
     PROOF_GRAPH_FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS,
+  PERMITTED_CLAIM_PATTERN_JOIN as PROOF_GRAPH_PERMITTED_CLAIM_PATTERN_JOIN,
   PERMITTED_CROSS_CARRIER_JOIN as PROOF_GRAPH_PERMITTED_CROSS_CARRIER_JOIN,
+  PERMITTED_CROSS_CARRIER_JOINS as PROOF_GRAPH_PERMITTED_CROSS_CARRIER_JOINS,
   PROOF_GRAPH_CARRIER_ORDER,
   PROOF_GRAPH_COMPOSITION_SCHEMA_VERSION,
   ProofGraphCompositionError,
@@ -262,6 +287,7 @@ export {
   REFACTOR_GRAPH_SCHEMA_VERSION,
   REFACTOR_MODES,
   buildControlledContractRefactorClosure,
+  inspectControlledContractRefactorIdentityPopulation,
   planControlledContractRefactor
 } from "./lib/refactor-graph-v1.mjs";
 
@@ -275,52 +301,35 @@ export {
 } from "./lib/obligation-coverage-guarantee-selectors.mjs";
 
 export {
-  ARTIFACT_SET_IDENTITY_DOMAIN,
-  ARTIFACT_SET_PROVENANCE_REFUSAL_CODES,
-  ARTIFACT_SET_PROVENANCE_SCHEMA,
-  ARTIFACT_SET_PROVENANCE_SCHEMA_VERSION,
-  ArtifactSetProvenanceError,
-  PACKAGE_POPULATION_ID as ARTIFACT_SET_PACKAGE_POPULATION_ID,
-  PACKED_ARTIFACT_POPULATION_ID as ARTIFACT_SET_PACKED_ARTIFACT_POPULATION_ID,
-  buildArtifactSetProvenance,
-  validateArtifactSetProvenance,
-  verifyArtifactSetProvenance
-} from "./lib/artifact-set-provenance.mjs";
-
-export {
-  BEHAVIORAL_PRESERVATION_CAPTURE_INPUT_SCHEMA_VERSION,
-  BEHAVIORAL_PRESERVATION_CAPTURE_REFUSAL_CODES,
-  BEHAVIORAL_PRESERVATION_CAPTURE_SCHEMA_VERSION,
   BEHAVIORAL_PRESERVATION_PROFILE_ID,
   BEHAVIORAL_PRESERVATION_PROFILE_VERSION,
   BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION,
   BEHAVIORAL_PRESERVATION_SIDES,
-  canonicalBehavioralPreservationEvaluationInputJson,
-  mapBehavioralPreservationCapture
-} from "./lib/behavioral-preservation-capture.mjs";
+  BEHAVIORAL_PRESERVATION_VERIFICATION_REFUSAL_CODES,
+  BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION,
+  verifyBehavioralPreservationReports
+} from "./lib/behavioral-preservation-verification.mjs";
 
 export {
-  DECLARED_BOUNDARY_CAPTURE_INPUT_SCHEMA_VERSION,
-  DECLARED_BOUNDARY_CAPTURE_REFUSAL_CODES,
-  DECLARED_BOUNDARY_CAPTURE_SCHEMA_VERSION,
   DECLARED_BOUNDARY_NOT_ESTABLISHED,
   DECLARED_BOUNDARY_OBSERVATION_PROVENANCE,
   DECLARED_BOUNDARY_PROFILE_ID,
   DECLARED_BOUNDARY_PROFILE_VERSION,
-  canonicalDeclaredBoundaryEvaluationInputJson,
+  DECLARED_BOUNDARY_VERIFICATION_REFUSAL_CODES,
+  DECLARED_BOUNDARY_VERIFICATION_SCHEMA_VERSION,
   canonicalDeclaredBoundaryReportJson,
-  mapDeclaredBoundaryCapture
-} from "./lib/declared-boundary-capture.mjs";
+  verifyDeclaredBoundaryRecordConsistency
+} from "./lib/declared-boundary-verification.mjs";
 
 export {
-  WRITE_CONFINEMENT_CAPTURE_REFUSAL_CODES,
-  WRITE_CONFINEMENT_CAPTURE_SCHEMA_VERSION,
   WRITE_CONFINEMENT_EVIDENCE_SCHEMA_VERSION,
   WRITE_CONFINEMENT_PROFILE_ID,
   WRITE_CONFINEMENT_PROFILE_VERSION,
-  canonicalWriteConfinementEvaluationInputJson,
-  mapWriteConfinementCapture
-} from "./lib/write-confinement-capture.mjs";
+  WRITE_CONFINEMENT_VERIFICATION_REFUSAL_CODES,
+  WRITE_CONFINEMENT_VERIFICATION_SCHEMA_VERSION,
+  verifyWriteConfinementEvidence,
+  verifyWriteConfinementProjection
+} from "./lib/write-confinement-verification.mjs";
 
 export {
   CACHE_FORMAT_VERSION as COMPILED_VALIDATOR_CACHE_FORMAT_VERSION,
@@ -330,3 +339,26 @@ export {
   loadCompiledValidatorCache,
   prepareCompiledValidatorCache
 } from "./lib/compiled-validator-cache.mjs";
+
+export { ProofAuthoringError, PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS,
+  assertProofAuthoringDraft, pinProofSelection, loadPinnedProofSelection,
+  upsertProofAuthoringSelection, removeProofAuthoringSelection
+} from "./lib/proof-authoring-selection.mjs";
+
+export {
+  PROOF_AUTHORING_SEMANTIC_ASSESSMENT_VERSION,
+  assessProofAuthoringRowSemantics,
+  assessProofAuthoringSemantics,
+  proofDiagnostic,
+  proofOwnerDiagnostic,
+  proofProblem,
+  selectProofAuthoringRows
+} from "./lib/proof-contract.mjs";
+export { loadAdmittedProofPackMeaning, loadExactAdmittedProofPackMeaning }
+  from "./lib/admitted-proof-packs.mjs";
+export { PROOF_AUTHORING_DIAGNOSTIC_GROUPS_VERSION, PROOF_AUTHORING_SHARED_CONSTRAINTS_VERSION,
+  groupProofAuthoringDiagnostics, shareRepeatedProofConstraints }
+  from "./lib/proof-authoring-diagnostic-groups.mjs";
+
+export { NATIVE_TEST_CASE_SCHEMA, NATIVE_TEST_CASE_AMENDMENT_SCHEMA, NATIVE_TEST_CASE_AUTHORING_GUIDANCE, applyNativeTestProofCase, projectAuthoredTestCase, authoredCaseRevision, authoredCaseVerificationId, deriveAuthoredTestCases, emptyCaseContract, linkedNativeTestProofs } from "./lib/native-test-proof-authoring.mjs";
+export { validateNativeTestProofAuthoringContract } from "./lib/test-proof-contract-v1.mjs";

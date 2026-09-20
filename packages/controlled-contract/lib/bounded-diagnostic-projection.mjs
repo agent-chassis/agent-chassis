@@ -3,13 +3,81 @@ import { createHash } from "node:crypto";
 import { canonicalJsonBytes } from "./deterministic-projection-primitives.mjs";
 
 const DIAGNOSTIC_PROJECTION_VERSION =
-  "controlled-contract.bounded-diagnostic-projection.v1";
+  "controlled-contract.bounded-diagnostic-projection.v2";
 const MAX_DIAGNOSTIC_COUNT = 64;
 const MAX_PROJECTION_BYTES = 65536;
 const MAX_DIAGNOSTIC_FIELD_BYTES = 4096;
 
 const text = (value) => value === undefined || value === null ? "" : String(value);
 const compare = (left, right) => left < right ? -1 : left > right ? 1 : 0;
+
+function escapeJsonPointerSegment(segment) {
+  return String(segment).replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+function appendPointer(pointer, property) {
+  const root = typeof pointer === "string" && pointer.length > 0 ? pointer : "";
+  return `${root}/${escapeJsonPointerSegment(property)}`;
+}
+
+function prefixedPointer(basePointer, pointer) {
+  const base = typeof basePointer === "string" && basePointer !== "/"
+    ? basePointer.replace(/\/$/u, "") : "";
+  const suffix = typeof pointer === "string" && pointer.length > 0 ? pointer : "";
+  return `${base}${suffix}` || "/";
+}
+
+function testProofDefinitionContext(document, pointer) {
+  const matched = /^\/test_proofs\/([0-9]+)(?:\/|$)/u.exec(pointer);
+  if (matched === null || !Array.isArray(document?.test_proofs)) return {};
+  const index = Number(matched[1]);
+  const definition = document.test_proofs[index];
+  if (!definition || typeof definition !== "object" || Array.isArray(definition)) return {
+    definition_pointer: `/test_proofs/${index}`
+  };
+  return {
+    definition_pointer: `/test_proofs/${index}`,
+    test_proof_id: typeof definition.test_proof_id === "string"
+      ? definition.test_proof_id : null,
+    verification_claim_id: typeof definition.verification_claim_id === "string"
+      ? definition.verification_claim_id : null
+  };
+}
+
+function adaptRawSchemaDiagnostic(error, {
+  code = "stable_validation_error",
+  reasonCode = "",
+  message = "schema validation failed",
+  document = null,
+  basePointer = ""
+} = {}) {
+  if (!error || typeof error !== "object" || Array.isArray(error)) {
+    throw new TypeError("raw schema error must be an object");
+  }
+  const rawPointer = typeof error.instancePath === "string" ? error.instancePath : "";
+  const pointer = prefixedPointer(basePointer, rawPointer);
+  const propertyName = error.keyword === "additionalProperties"
+    ? error.params?.additionalProperty
+    : error.keyword === "required" ? error.params?.missingProperty : undefined;
+  const fieldPointer = propertyName === undefined ? pointer
+    : prefixedPointer(basePointer, appendPointer(rawPointer, propertyName));
+  return Object.freeze({
+    code,
+    pointer,
+    field_pointer: fieldPointer,
+    property_name: propertyName === undefined ? null : String(propertyName),
+    property_kind: error.keyword === "additionalProperties" ? "unexpected"
+      : error.keyword === "required" ? "missing" : null,
+    keyword: text(error.keyword),
+    reason_code: reasonCode,
+    expected_identity: error.params?.allowedValue ??
+      (error.keyword === "required" ? String(propertyName) : null),
+    actual_identity: error.keyword === "additionalProperties"
+      ? String(propertyName) : null,
+    message: error.message ?? message,
+    ...testProofDefinitionContext(document, rawPointer)
+  });
+}
 
 function encodedStringBytes(value) {
   return Buffer.byteLength(JSON.stringify(text(value)), "utf8");
@@ -72,6 +140,44 @@ function diagnosticFieldText(value) {
   return JSON.stringify(value) ?? "";
 }
 
+const REPRESENTED_SOURCE_KEYS = Object.freeze(new Set([
+  "code", "reason_code", "pointer", "instancePath", "field_pointer",
+  "property_name", "property_kind", "definition_pointer", "test_proof_id",
+  "verification_claim_id", "claim_id", "keyword", "reason", "reasons", "message",
+  "expected_identity", "expected", "actual_identity", "actual"
+]));
+
+const OPTIONAL_ROW_SLOTS = Object.freeze([
+  Object.freeze(["property_name", null]),
+  Object.freeze(["property_kind", null]),
+  Object.freeze(["definition_pointer", null]),
+  Object.freeze(["test_proof_id", null]),
+  Object.freeze(["verification_claim_id", null]),
+  Object.freeze(["claim_id", null]),
+  Object.freeze(["keyword", ""]),
+  Object.freeze(["reason_code", ""]),
+  Object.freeze(["reason", ""])
+]);
+const TRAILING_OPTIONAL_ROW_SLOTS = Object.freeze([
+  Object.freeze(["expected_identity", null]),
+  Object.freeze(["actual_identity", null]),
+  Object.freeze(["message", ""])
+]);
+
+function ownerFactsOf(diagnostic) {
+  const carried = Object.entries(diagnostic).filter(
+    ([key, value]) => !REPRESENTED_SOURCE_KEYS.has(key) && value !== undefined
+  );
+  if (carried.length === 0) return null;
+  const facts = Object.fromEntries(carried.map(([key, value]) => [key, structuredClone(value)]));
+  const encoded = JSON.stringify(facts) ?? "";
+
+  if (Buffer.byteLength(encoded, "utf8") <= MAX_DIAGNOSTIC_FIELD_BYTES) {
+    return Object.freeze({ facts: Object.freeze(facts), truncated: false });
+  }
+  return Object.freeze({ facts: boundedText(encoded), truncated: true });
+}
+
 function normalizeDiagnostic(diagnostic) {
   if (!diagnostic || typeof diagnostic !== "object" || Array.isArray(diagnostic)) {
     throw new TypeError("each diagnostic must be an object");
@@ -81,7 +187,10 @@ function normalizeDiagnostic(diagnostic) {
   }
   const rawFields = [diagnostic.code || diagnostic.reason_code ||
     "stable_validation_error", diagnostic.pointer || diagnostic.instancePath || "/",
-  diagnostic.claim_id, diagnostic.keyword, diagnostic.reason_code, diagnostic.reason, diagnostic.message,
+  diagnostic.field_pointer, diagnostic.property_name, diagnostic.property_kind,
+  diagnostic.definition_pointer, diagnostic.test_proof_id,
+  diagnostic.verification_claim_id, diagnostic.claim_id, diagnostic.keyword,
+  diagnostic.reason_code, diagnostic.reason, diagnostic.message,
   diagnostic.expected_identity ?? diagnostic.expected ?? null,
   diagnostic.actual_identity ?? diagnostic.actual ?? null];
   const singularReason = boundedTextProjection(diagnostic.reason);
@@ -90,11 +199,23 @@ function normalizeDiagnostic(diagnostic) {
   ).sort((left, right) =>
     compare(left.value, right.value) || Number(left.truncated) - Number(right.truncated)
   );
+  const ownerFacts = ownerFactsOf(diagnostic);
   return Object.freeze({
     diagnostic: Object.freeze({
+      owner_facts: ownerFacts,
       code: boundedText(diagnostic.code || diagnostic.reason_code ||
         "stable_validation_error"),
       pointer: boundedText(diagnostic.pointer || diagnostic.instancePath || "/") || "/",
+      field_pointer: boundedText(diagnostic.field_pointer ??
+        diagnostic.pointer ?? diagnostic.instancePath ?? "/") || "/",
+      property_name: diagnostic.property_name === undefined ||
+        diagnostic.property_name === null ? null : boundedText(diagnostic.property_name),
+      property_kind: diagnostic.property_kind === undefined ||
+        diagnostic.property_kind === null ? null : boundedText(diagnostic.property_kind),
+      definition_pointer: diagnostic.definition_pointer === undefined ||
+        diagnostic.definition_pointer === null ? null : boundedText(diagnostic.definition_pointer),
+      test_proof_id: boundedIdentity(diagnostic.test_proof_id),
+      verification_claim_id: boundedIdentity(diagnostic.verification_claim_id),
       claim_id: boundedClaimIdentity(diagnostic.claim_id),
       keyword: boundedText(diagnostic.keyword),
       reason_code: boundedText(diagnostic.reason_code),
@@ -118,7 +239,9 @@ function compareDiagnostics(left, right) {
   const leftDiagnostic = left.diagnostic ?? left;
   const rightDiagnostic = right.diagnostic ?? right;
   for (const field of [
-    "pointer", "claim_id", "keyword", "reason_code", "reason", "expected_identity",
+    "pointer", "field_pointer", "property_name", "property_kind",
+    "definition_pointer", "test_proof_id", "verification_claim_id", "claim_id",
+    "keyword", "reason_code", "reason", "expected_identity",
     "actual_identity", "code", "message"
   ]) {
     const order = compare(text(leftDiagnostic[field]), text(rightDiagnostic[field]));
@@ -138,24 +261,35 @@ function materializeDiagnostic(normalized, returnedReasonCount) {
   const reasonsTruncated = omittedReasonCount > 0 || selectedReasons.some(
     ({ truncated }) => truncated
   );
-  return Object.freeze({
+  const contentTruncated = diagnostic.base_content_truncated || reasonsTruncated;
+  const row = {
     code: diagnostic.code,
     pointer: diagnostic.pointer,
-    claim_id: diagnostic.claim_id,
-    keyword: diagnostic.keyword,
-    reason_code: diagnostic.reason_code,
-    reason: diagnostic.reason,
-    reason_truncated: diagnostic.reason_truncated,
-    reasons: Object.freeze(selectedReasons.map(({ value }) => value)),
-    total_reason_count: reasonCandidates.length,
-    returned_reason_count: selectedReasons.length,
-    omitted_reason_count: omittedReasonCount,
-    reasons_truncated: reasonsTruncated,
-    expected_identity: diagnostic.expected_identity,
-    actual_identity: diagnostic.actual_identity,
-    message: diagnostic.message,
-    content_truncated: diagnostic.base_content_truncated || reasonsTruncated
-  });
+
+    ...(diagnostic.field_pointer === diagnostic.pointer
+      ? {} : { field_pointer: diagnostic.field_pointer })
+  };
+  for (const [slot, absent] of OPTIONAL_ROW_SLOTS) {
+    if (diagnostic[slot] !== absent) row[slot] = diagnostic[slot];
+  }
+  if (diagnostic.reason_truncated) row.reason_truncated = true;
+  if (reasonCandidates.length > 0) {
+    row.reasons = Object.freeze(selectedReasons.map(({ value }) => value));
+    row.total_reason_count = reasonCandidates.length;
+    row.returned_reason_count = selectedReasons.length;
+    row.omitted_reason_count = omittedReasonCount;
+    row.reasons_truncated = reasonsTruncated;
+  }
+  for (const [slot, absent] of TRAILING_OPTIONAL_ROW_SLOTS) {
+    if (diagnostic[slot] !== absent) row[slot] = diagnostic[slot];
+  }
+
+  if (diagnostic.owner_facts !== null) {
+    row.owner_facts = diagnostic.owner_facts.facts;
+    if (diagnostic.owner_facts.truncated) row.owner_facts_truncated = true;
+  }
+  if (contentTruncated) row.content_truncated = true;
+  return Object.freeze(row);
 }
 
 function projectionEnvelope(states, totalCount) {
@@ -167,7 +301,8 @@ function projectionEnvelope(states, totalCount) {
     returned_count: projected.length,
     omitted_count: totalCount - projected.length,
     truncated: projected.length < totalCount ||
-      projected.some(({ content_truncated: truncated }) => truncated),
+      projected.some(({ content_truncated: truncated }) => truncated === true) ||
+      projected.some(({ owner_facts_truncated: truncated }) => truncated === true),
     diagnostics: projected
   };
 }
@@ -403,7 +538,9 @@ export {
   MAX_DIAGNOSTIC_COUNT,
   MAX_DIAGNOSTIC_FIELD_BYTES,
   MAX_PROJECTION_BYTES,
+  adaptRawSchemaDiagnostic,
   compareDiagnostics,
+  escapeJsonPointerSegment,
   projectBoundedDiagnostics,
   selectCausalSchemaDiagnostics
 };

@@ -1,0 +1,2990 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-f1316a7a329f02a4fde4cc23d2d7a8e691aa0f25",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/0: Admission target: production workspace_agent_dispatch registration and admitAgentDispatchRequest accept the exact legitimate request at admission only; the real env.PATH dictionary value ../opaque-control.txt is schema-admitted, preserved and opaque to protected authority coordinates. Demonstrate this; do not add a field, change parser behavior, invoke its lazy continuation, or substitute a mock parser/resolver. If the control is not actually accepted, return the precise blocker."
+    },
+    {
+      "annotation_id": "ann-5e329696c71cf1940ed6b371f5b06bf9e37c9163",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/1: Refusal cut: the corresponding actual request plus registered authority:true returns caller_supplied_cce_policy_authority with the caller-supplied-identity blocker and authority in refused_fields before resolveWorkspaceRepo or any protected downstream continuation. Cover every incumbent forbidden-field family and precedence as regressions without extending this claim to WK-2510 policy selection, no-gate settlement or automatic review."
+    },
+    {
+      "annotation_id": "ann-22b3a0209e514ff4dc5968057f20459ddce7e992",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/2: Complete observation: derive the exact loaded admission dependency/callsite census and nine source channels (resolver, loader, filesystem, environment, module, catalog, subprocess, return, success), with actual source-specific start/end state/version and monotone refusal cut. Prove a real injected prohibited occurrence in each channel invalidates absence; missing hooks, missing/extra/duplicate source, endpoints, dropped/late/misordered events and stale module/schema generations must never produce success. Refusal output is not protected successful dispatch return."
+    },
+    {
+      "annotation_id": "ann-646bcc219278fe3236594fd08be3443752ca9b88",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/3: Production provenance: only live host-private acquisition objects yield exact request/outcome bytes and actual signed source assignment, target, source, attempt and authentication witnesses. Use randomly generated per-acquisition/source Ed25519 keys and successful signature verification over actual retained bytes; reject forged/mismatched keys, altered evidence, fixture-only synthetic witnesses and foreign source/attempt. No private keys persisted/exposed; no CCE, admission, launcher identity or general trust authority conferred."
+    },
+    {
+      "annotation_id": "ann-6fb6cb0e27a067d51911de69b326b6af11c62ee0",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/4: Existing pack composition: proof.input.caller-authority-confinement@2.0.0 consumes the five actual input artifacts and its incumbent caller-input-surface-capture.v1 alone creates caller-input-projection. Derive concrete-member input policy from the shared real schema/refusal owner; preserve open dictionary semantics, actual decoding/aliases and exact protected coordinate associations. Pure mapper reuses capture-mapping and owned vocabularies, never acts as acquisition or policy owner."
+    },
+    {
+      "annotation_id": "ann-e2c9d3bcd7e5afe8594f248ea24d96a3f1e17f13",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/13: Design/execution distinction: bind meaningful stable runtime test proofs with declared actual boundaries, observables and falsifiers. New tests have honest no_executed_coverage and no invented runtime identities until workers implement and execute them through launcher-supported validation. Review prose, local signatures, metadata completeness and pack stage never assert implementation readiness, CCE admissibility or completion."
+    },
+    {
+      "annotation_id": "ann-8e462dbf33b18deb3482750e7369f9d9e545351e",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/5: Single ownership: one package artifact naming/declaration owner replaces duplicate suffix/formula definitions; common-proof-capture-tools retains sole family/store/currentness/persistence dispatch and carrier-set-publication retains staging/exclusion/complete-generation publication. Existing other-family contracts remain correct without compatibility shims or independent file writes. Use actual structured size/attestation/refactor policy results, not the 1200-LOC retrieval threshold."
+    },
+    {
+      "annotation_id": "ann-06301a63526730a6a96944d65e92bc5eeffa76ea",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/6: Exact source selection: six artifacts plus public producer metadata are complete WK contract-generation constituents. Manifest owns shared locations/digests/lengths; private producer join additionally matches exact pack/profile, WK/focus, schema/parser/observer generation, acquisition/attempt/cut, requirement and intended artifact. Reject missing/duplicate/ambiguous/foreign/stale/tampered sources or wrong requirement-to-artifact association; filename, digest match or signature alone cannot confer intended identity."
+    },
+    {
+      "annotation_id": "ann-967764f750b890e8e980008e220fcbcbe404c83f",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/7: Atomicity and currentness: publish the complete constituent census under one incumbent source lease/CAS/generation/manifest switch; source movement or pre-switch failure preserves the canonical generation, while post-switch/indeterminate failures report truthful effects and supported recovery. Test same/conflicting replay, concurrent acquisition/publication and restart; never reconstruct unfinished observations or silently reuse stale captures."
+    },
+    {
+      "annotation_id": "ann-8df3b6f7177c920eff5753bf93714de000b16193",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/8: Private exact-capture handoff: absent-input authoring and applicable reauthoring/reference preparation receive only server-resolved authenticated source locations through the existing package constructor and incumbent applicability reassessment. Changed intent requires explicit current owner rebinding. Preserve unrelated carriers and compiler refusal for missing/stale exact_capture; no null-plan success, guessed path, generic lookup, pack substitution or auto-acquisition from refresh/post_delivery."
+    },
+    {
+      "annotation_id": "ann-948b3a9afbeb2205effdddc97fd4512d35b8b2b5",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/9: Exact verifier consumption: real capture-generated declarations reach the unchanged exact-binding compiler/capture/verification owners with descriptor-pinned no-symlink regular-file containment and before/after identity checks. Missing sixth projection, invalid signatures, traversal, symlink/nonregular/replaced descriptor and change-during-read fail; a complete projected artifact alone is not proof of runtime truth or lifecycle completion."
+    },
+    {
+      "annotation_id": "ann-9ff78478f3b1542bfe0bf3fa843b18f599ff866b",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/10: Bounded resources: before allocation/I/O enforce exactly two attempts/nine sources/six artifacts, 64 KiB per request, depth 16, 256 concrete declarations, 4096 events, 8 MiB per artifact and aggregate 48 MiB subject to stricter carrier-owner caps including witness overhead. At most one in-flight acquisition per WK/focus; discard incomplete process state at request end. Overflow/depth/size/count failures report unavailability rather than dropping data or proving absence."
+    },
+    {
+      "annotation_id": "ann-3e53896bef57c0662327ba0dc8b5b5f688ee82c4",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/11: Public authority and effects: extend only coordinator/operator workspace_controlled_common_proof_capture with the exact caller-authority family and fixed server-side admission target. Server resolves/checks repo/WK/focus/profile/verification/role/write scope. Reject caller roots/paths/keys/evidence/policy/source assignments/requests/executors/environment before acquisition or writes; expose actual attempt/publication effects and bounded closed-code/redaction projections; do not give workers inherited execution capability."
+    },
+    {
+      "annotation_id": "ann-ba1321e819bfca0d0eb511014b430ed74daf1a7a",
+      "kind": "rationale",
+      "text": "Acceptance /acceptance/criteria/12: End-to-end integration and discovery: real registered capture to complete canonical generation to semantic absent-input authoring to reassessed reauthoring to exact verification succeeds in isolated integration tests, with exact expected negative cases and unchanged unrelated packs. Always-on discovery and owning docs disclose the only supported target, source caps/currentness, effects, refusal causes and next call; explicitly keep later WK-2510 policy/no-gate/automatic-review proofs separate."
+    },
+    {
+      "annotation_id": "ann-6b110b21cc378f3d6d26d796368aff2d2c63686f",
+      "kind": "rationale",
+      "text": "The selected test-validity pack concerns WK-2518's implementation test population. It is not a substitute for the existing caller-authority-confinement consumer pack. Every stable-v1 runtime verification requires actual candidate/falsifier/traversal/inventory evidence after implementation; no runtime identities or results are invented."
+    },
+    {
+      "annotation_id": "ann-9749740df1e46371891a9a7d2a755f6ccb2e10c1",
+      "kind": "rationale",
+      "text": "Substantive pre_dispatch noninvocation model for AC2/AC3: the real authority:true admission request must not call resolveWorkspaceRepo or the returned lazy transition-selection continuation before its actual refusal. These two operations define this selected downstream barrier only; they are not a substitute for the complete nine-channel observation census, actual accepted control or production provenance. Population and verification bindings are declared design facts, not captured runtime evidence. All existing detailed criteria remain mandatory."
+    },
+    {
+      "annotation_id": "ann-883db1f66df79ed0d7d65261ceb09b9ecb0f5c05",
+      "kind": "rationale",
+      "text": "AC8 pre-switch failure sub-obligation only. Resolve the incumbent visible manifest and its complete immutable selected generation from the real server-owned source lease at test entry. Inject at the incumbent before_manifest_switch boundary (after generation and temporary-manifest validation), then observe the publisher's settled refusal and cleanup. The two protected resources are the exact visible manifest and entire incumbent selected generation tree; new staging, temporary manifest and unselected candidate generation are outside that protected population and have separate cleanup obligations. Same-actor write/mutation detection must cover the bounded interval, including mutate-then-restore, not merely equal endpoint bytes. All declarations here specify the future integration test; they are not observations or evidence of an executed capture. Post-switch/indeterminate effects, replay, restart, concurrency and orphan cleanup remain separate AC8 obligations."
+    },
+    {
+      "annotation_id": "ann-6745a7cb50edd346e284b9fb7fc9398249ef820d",
+      "kind": "rationale",
+      "text": "AC6 structural sub-obligation: the planned package-owned artifact descriptor component exists as the usable naming/declaration provider exercised by the mapping test. This binds test-validity to the actual planned module and actual unit-test locus, replacing the unused generic profile-term scaffold binding; it is not AC14's coordinator inspection. The behavioral naming formulas, atomic migration of both consumers, all capture semantics and all other criteria retain separate obligations. A component-existence match alone earns no coverage for those requirements. The falsifier must remove the exercised descriptor capability at this actual module boundary and discriminate in the worker's declared test; file-text inspection and a fabricated runtime witness are forbidden."
+    },
+    {
+      "annotation_id": "ann-b22d6ae1178576d411ea179c969a2d4e39d6c139",
+      "kind": "rationale",
+      "text": "The admitted test-validity@2.0.0 component/suite roles require profile_term identities; repository_path role bindings were diagnosed incompatible by bindings_inspect. These exact capability terms denote the planned package artifact descriptor and its mapping-test capability check, while the stable runtime proof remains bound to the actual capture-artifact-descriptor.mjs module. They are logical proof referents, not runtime identities, input fields or compatibility aliases. Retire the preceding unmatched repository-path existence/verification pair through semantic refactor after this replacement is authored. This only supplies AC6's descriptor-capability existence sub-obligation and test-validity's structural prerequisite; it does not discharge AC6's ownership/migration behavior or any other acceptance criterion."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-5645935490402421f28745ecb2ad192f056d108f",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-22d963502ac7d7374fc3c7c13f799b5baf6848b1"
+    },
+    {
+      "claim_id": "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+      "falsifying_proposition_id": "prop-d63a0b97152d565fd0252b564cd37657467533f8",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-f60bf30a78a1c493f6b9435e95398a22a83396ea",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-521edcb0d6cad753258f2bbdc500901333792ec9",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-c08859b6f2b26ca91fb5db5c79b7072a9af34f3b"
+    },
+    {
+      "claim_id": "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+      "falsifying_proposition_id": "prop-c99e073a9f6c2044f63522fef95b5bfd5fb9651b",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-8fde54c581a3088f6ccf243d3bb1ad2e64bfba9c",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-20e68e8aa5f9150e48721ec99a80ca383365954a",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-c7e9b708ec8ed835ed7d1e555c1c88b2f9a73580"
+    },
+    {
+      "claim_id": "claim-a27848c794c4007f8fd768547d433bb82a99c763",
+      "falsifying_proposition_id": "prop-260fedf1bdaeb7ecec20c7c98ad90c89341cff86",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-2a1b458d7518d2543f6090bf431d11c899969f15",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-d6636eb5982798f80320b6d6083e0af7314eb93d",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-eaf9394a8496e74ca7d478a79b4ff5351f69ae74"
+    },
+    {
+      "claim_id": "claim-0f542f718035b2052c9708e0e46b769a5205d49b",
+      "falsifying_proposition_id": "prop-20803d68b0153548b64944201e8d8abcb21ce8c5",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-ed4ab8b14cfe2c158a75eb08ed3afeb50d66e672",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-73e86024142c81ea07a9e9be085f2ebe6bb037fd",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-ab2cc49b655708b47bef1373da96545ecc2c3847"
+    },
+    {
+      "claim_id": "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+      "falsifying_proposition_id": "prop-9a40218e90c9afe087edbca1eabe21ac81d94517",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-f5b5b8301795d8ba741c08aa2ec8a96678f14476",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-af53f0115bb68fc821752f63a7c011acddb9c734",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-1006e1968643ef591999f62cb581b1414d182512"
+    },
+    {
+      "claim_id": "claim-0ed6cfa68425bb663653c376a599f3d14c300b66",
+      "falsifying_proposition_id": "prop-92183354ac75246f05c371ff4366946c0941dc8b",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-081d76201188bb9bb111374592c443bc014cec0d",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-26bd913ec4aad739c26fb166eb586d53b6dae6cc",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-cec2cbf09c79a93003df2535c6184ac9c867c014"
+    },
+    {
+      "claim_id": "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+      "falsifying_proposition_id": "prop-bcab1e2996616a5a0e8f7f1cb412f73aa87090b9",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-401d022b013b54748ef3371d848fb917c72061d8",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-369c14d3296d2d561c15f2d2d427577c2ed581d2",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-f1b4295827258de1db0fab4f2853566d6b4877e5"
+    },
+    {
+      "claim_id": "claim-0615617ec0933a20eee608730ee6add45b143562",
+      "falsifying_proposition_id": "prop-ac9895696b375254632ba10975d22d7f23c71fe2",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-5189fcd82cd3cbc6791fd53dedd4e62a8a9a3aeb",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-7e0b41a0a569e9aae24d8f158460d246b8141d88",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-808029d0d887b202aefd422c83a1cdadc0b78219"
+    },
+    {
+      "claim_id": "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+      "falsifying_proposition_id": "prop-75315d12936ee0a57dca8732a588281118eb0555",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-5116744e6a616a4ca20a54231989677d029343c1",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-d8467a27e47164900125daa9c0e495504365ab49",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-870594d1d45337c8cfa4f23229f14a6dd884d6aa"
+    },
+    {
+      "claim_id": "claim-8be96edd2c15a7b2f1522b07694efb22395109fb",
+      "falsifying_proposition_id": "prop-b50986adef89c90fa3294a89a2a1c27a51d57c32",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-03a38b10c38de9b08a19dbf8a2b71644b0ae9cf6",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-f525acaa9eb9d2ab8a83e139bb28fa20ccca43d4",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-87979d4fc580a789e48eb026baa894266f216745"
+    },
+    {
+      "claim_id": "claim-402acecc547eab6f802b67fa2c73a48923f8966f",
+      "falsifying_proposition_id": "prop-020bf088d0b128a67f3768295614548794d71a25",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-e5bad0e35c1ddaa7103c1c697b0e278108cb5267",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-0e3da540f2dcc07e239539335b5944ab0fc5709d",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-721c2701acb4061058c1ac4031f1766bef3f5970"
+    },
+    {
+      "claim_id": "claim-27fdd09710619ebff3e2773766827c25fe1c5a52",
+      "falsifying_proposition_id": "prop-7857d6408f5a08cd9c42dabd7a8eece871e5c739",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-61bb9f7d3e44b1ca91579e79b6917d5cd8329342",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-d913246fe8da2d11933f59276aad0e91cba261ba",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-63c14a2064ce12b2bb124ebcac044c796b5014ab"
+    },
+    {
+      "claim_id": "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+      "falsifying_proposition_id": "prop-0ff37e839063f13d0dd8440a78473cc41c913f26",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-e116ec0db9e2c430a3037e38f335569e55c9b36b",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-1d60d40476808b917d90ff0d10022718d1b34333",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-9a69151c23ecf7797125935dea7fb934d912f0a6"
+    },
+    {
+      "claim_id": "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+      "falsifying_proposition_id": "prop-faca2581e17d8cd9b668ae86a3847cd590ceb523",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-34c2e6918f096147bcf6be085f40b1a32c34846d",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-1ca90111bf541c36ac0040125e2382645790359c",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-5dffa86d2e4d34260583c5be3f2e0c198b48c1db"
+    },
+    {
+      "claim_id": "claim-0c6a632ac02141d5f0b45d6284aa166ee354e43e",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-0ade1004460c17f45c85c4a3b31c7232e048cecd"
+    },
+    {
+      "claim_id": "claim-a7bfe30c72bd0d7ac021dd1f9bbe80e8f9fdeb28",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-53f5a4d24d49affa29583383ddd202db8507ec9a"
+    },
+    {
+      "claim_id": "claim-4ea6ca62a8f355e1b3f3058ea076d6e583ff4907",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-0f5ac932efe7b2b4c4b2c720330b6e2aa74c39a2"
+    },
+    {
+      "claim_id": "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+      "falsifying_proposition_id": "prop-0f5ac932efe7b2b4c4b2c720330b6e2aa74c39a2",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-7b5e0bf3f1a849701e2d1b64356425a8d5bec2fa",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-cd313f9586834b22cb355f9879d083a9015e025d",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-231e02295ce328edce531bcf679fbb411a18b7ff"
+    },
+    {
+      "claim_id": "claim-9193a3333fb25803266d1822b8d0fb60a9b75d54",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-1fec5456f2304919d7f51db4af9463d487d5d53c"
+    },
+    {
+      "claim_id": "claim-bdb55886a6837a8b7088d732597493342a75d2e6",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-fb2fcd21ef8367b32a1f42fb2889c185382b2f11"
+    },
+    {
+      "claim_id": "claim-697c4c42fe02f5467a29d748256e910c206a7233",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-e59c8a557448b033415a170fa7926a4f2368ff61"
+    },
+    {
+      "claim_id": "claim-0be0557fcc5f81da5e6af0a542c32c83e69a2071",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-9670138d57c4f46ba59e47752c04f09d56cd9e6e"
+    },
+    {
+      "claim_id": "claim-722e9dcc65954d94f347c4e55dc8bf222e85c67e",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-5826d6d9bd11aaed8de80ebc6bf4108ba6199c20"
+    },
+    {
+      "claim_id": "claim-7e099dbe6c05289be0638815949467fec24863a5",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-c7d93f235eb2dd654a7b5915a68ca25663b88319"
+    },
+    {
+      "claim_id": "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+      "falsifying_proposition_id": "prop-c7d93f235eb2dd654a7b5915a68ca25663b88319",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-f6c7128ed9b04fc16b0814dafd225c4e712b5b7f",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-3abbd9bccb198348641ca1a792b068cceb58c122",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-c2908471ddbbca7e5587e99696f285c0353aff7e"
+    },
+    {
+      "claim_id": "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+      "falsifying_proposition_id": "prop-c2908471ddbbca7e5587e99696f285c0353aff7e",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-47ff83c7b79302799d86de50b80bc1d176861f04",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-cf0f6b3437d5cba329ad5d9b29a375c736f22ef0",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-e2240d0af33b3f3c5061261b8056f4660360cf4b"
+    },
+    {
+      "claim_id": "claim-dfbf6f81335180b04893667287799c1be5b4cf42",
+      "falsifying_proposition_id": "prop-5fb53bad8ff5f2eb9c8f7ea03232c5e08a799d43",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-ed66c0f17bb8e1859891ed23d579cb311e2065e8",
+      "verification_method": "test_execution"
+    }
+  ],
+  "collections": [],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-c43f3c0ed6910efbb43aabe36e82b33cd01c0beb"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-22d963502ac7d7374fc3c7c13f799b5baf6848b1",
+      "subject_reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-c43f3c0ed6910efbb43aabe36e82b33cd01c0beb"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-f60bf30a78a1c493f6b9435e95398a22a83396ea",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-c43f3c0ed6910efbb43aabe36e82b33cd01c0beb"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-d63a0b97152d565fd0252b564cd37657467533f8",
+      "subject_reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-8b2466f584c72348695a2ab732a85d23180a3830"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-c08859b6f2b26ca91fb5db5c79b7072a9af34f3b",
+      "subject_reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-8b2466f584c72348695a2ab732a85d23180a3830"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-8fde54c581a3088f6ccf243d3bb1ad2e64bfba9c",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-8b2466f584c72348695a2ab732a85d23180a3830"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-c99e073a9f6c2044f63522fef95b5bfd5fb9651b",
+      "subject_reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-55fd570d485273663e52055df1c7eaecc6add755"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-c7e9b708ec8ed835ed7d1e555c1c88b2f9a73580",
+      "subject_reference_id": "ref-6acc62bdf502543e303982d446ab7463137e4e1c"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-55fd570d485273663e52055df1c7eaecc6add755"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-2a1b458d7518d2543f6090bf431d11c899969f15",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-55fd570d485273663e52055df1c7eaecc6add755"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-260fedf1bdaeb7ecec20c7c98ad90c89341cff86",
+      "subject_reference_id": "ref-6acc62bdf502543e303982d446ab7463137e4e1c"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0a8e643784762b19e07e045f6315a1c606f083ce"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-eaf9394a8496e74ca7d478a79b4ff5351f69ae74",
+      "subject_reference_id": "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0a8e643784762b19e07e045f6315a1c606f083ce"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-ed4ab8b14cfe2c158a75eb08ed3afeb50d66e672",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0a8e643784762b19e07e045f6315a1c606f083ce"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-20803d68b0153548b64944201e8d8abcb21ce8c5",
+      "subject_reference_id": "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-92a802adb5b4b1969478cbaaea74e17c47b0f47f"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-ab2cc49b655708b47bef1373da96545ecc2c3847",
+      "subject_reference_id": "ref-dc9b64d73b6675be5879c55bacb9c8660ccf76de"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-92a802adb5b4b1969478cbaaea74e17c47b0f47f"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-f5b5b8301795d8ba741c08aa2ec8a96678f14476",
+      "subject_reference_id": "ref-dd8e1ca11d7c3d15f2decff6f2fa447a28056cfb"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-92a802adb5b4b1969478cbaaea74e17c47b0f47f"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-9a40218e90c9afe087edbca1eabe21ac81d94517",
+      "subject_reference_id": "ref-dc9b64d73b6675be5879c55bacb9c8660ccf76de"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-3ccfa1ced847a22eaa5a4d65d71be7b59c4c5d73"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-1006e1968643ef591999f62cb581b1414d182512",
+      "subject_reference_id": "ref-b53cd51d7a4405098858c59b72fcbf745612384b"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-3ccfa1ced847a22eaa5a4d65d71be7b59c4c5d73"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-081d76201188bb9bb111374592c443bc014cec0d",
+      "subject_reference_id": "ref-b53cd51d7a4405098858c59b72fcbf745612384b"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-3ccfa1ced847a22eaa5a4d65d71be7b59c4c5d73"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-92183354ac75246f05c371ff4366946c0941dc8b",
+      "subject_reference_id": "ref-b53cd51d7a4405098858c59b72fcbf745612384b"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-a16b1b21d9fb31092e0814565b1676ee1afc3808"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-cec2cbf09c79a93003df2535c6184ac9c867c014",
+      "subject_reference_id": "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-a16b1b21d9fb31092e0814565b1676ee1afc3808"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-401d022b013b54748ef3371d848fb917c72061d8",
+      "subject_reference_id": "ref-dd8e1ca11d7c3d15f2decff6f2fa447a28056cfb"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-a16b1b21d9fb31092e0814565b1676ee1afc3808"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-bcab1e2996616a5a0e8f7f1cb412f73aa87090b9",
+      "subject_reference_id": "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-e0b5090f31584c8d4de491bb9c5cd9d7a5877b8e"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-f1b4295827258de1db0fab4f2853566d6b4877e5",
+      "subject_reference_id": "ref-a2401cb36b4e63643cf42243439b60e0100a0e61"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-e0b5090f31584c8d4de491bb9c5cd9d7a5877b8e"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-5189fcd82cd3cbc6791fd53dedd4e62a8a9a3aeb",
+      "subject_reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-e0b5090f31584c8d4de491bb9c5cd9d7a5877b8e"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-ac9895696b375254632ba10975d22d7f23c71fe2",
+      "subject_reference_id": "ref-a2401cb36b4e63643cf42243439b60e0100a0e61"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-1850f356b304e6717d1b38d62fa0d7568f817c8c"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-808029d0d887b202aefd422c83a1cdadc0b78219",
+      "subject_reference_id": "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-1850f356b304e6717d1b38d62fa0d7568f817c8c"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-5116744e6a616a4ca20a54231989677d029343c1",
+      "subject_reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-1850f356b304e6717d1b38d62fa0d7568f817c8c"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-75315d12936ee0a57dca8732a588281118eb0555",
+      "subject_reference_id": "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-08cf0f5c20672c5917807551743443f4a583e0ed"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-870594d1d45337c8cfa4f23229f14a6dd884d6aa",
+      "subject_reference_id": "ref-99e912bf58a69c7245338c3a04d8b5803db4ca38"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-08cf0f5c20672c5917807551743443f4a583e0ed"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-03a38b10c38de9b08a19dbf8a2b71644b0ae9cf6",
+      "subject_reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-08cf0f5c20672c5917807551743443f4a583e0ed"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-b50986adef89c90fa3294a89a2a1c27a51d57c32",
+      "subject_reference_id": "ref-99e912bf58a69c7245338c3a04d8b5803db4ca38"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0345d4af3fb9882779e6fe0b347f121135330be7"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-87979d4fc580a789e48eb026baa894266f216745",
+      "subject_reference_id": "ref-f748e5e96e4838334c0b827c336f25e3a83a3ed4"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0345d4af3fb9882779e6fe0b347f121135330be7"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-e5bad0e35c1ddaa7103c1c697b0e278108cb5267",
+      "subject_reference_id": "ref-3656f4183fee3b1bb21765de0ef261e245a56176"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0345d4af3fb9882779e6fe0b347f121135330be7"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-020bf088d0b128a67f3768295614548794d71a25",
+      "subject_reference_id": "ref-f748e5e96e4838334c0b827c336f25e3a83a3ed4"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-e57fdbadc05b76578fb99850f6555002f1ccae4c"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-721c2701acb4061058c1ac4031f1766bef3f5970",
+      "subject_reference_id": "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-e57fdbadc05b76578fb99850f6555002f1ccae4c"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-61bb9f7d3e44b1ca91579e79b6917d5cd8329342",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-e57fdbadc05b76578fb99850f6555002f1ccae4c"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-7857d6408f5a08cd9c42dabd7a8eece871e5c739",
+      "subject_reference_id": "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-4998bd578724f229809fd5aaa49483bff39bf263"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-63c14a2064ce12b2bb124ebcac044c796b5014ab",
+      "subject_reference_id": "ref-7b5b98644fae4004e8f053a10c48f0a7e8f1f168"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-4998bd578724f229809fd5aaa49483bff39bf263"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-e116ec0db9e2c430a3037e38f335569e55c9b36b",
+      "subject_reference_id": "ref-3656f4183fee3b1bb21765de0ef261e245a56176"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-4998bd578724f229809fd5aaa49483bff39bf263"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-0ff37e839063f13d0dd8440a78473cc41c913f26",
+      "subject_reference_id": "ref-7b5b98644fae4004e8f053a10c48f0a7e8f1f168"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-27abdd2e39ae84733bee9ea33498e10e85c446e4"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-9a69151c23ecf7797125935dea7fb934d912f0a6",
+      "subject_reference_id": "ref-687fd7c50983be96c239139aba8cd7bb7c3a89ba"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-27abdd2e39ae84733bee9ea33498e10e85c446e4"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-34c2e6918f096147bcf6be085f40b1a32c34846d",
+      "subject_reference_id": "ref-3656f4183fee3b1bb21765de0ef261e245a56176"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-27abdd2e39ae84733bee9ea33498e10e85c446e4"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-faca2581e17d8cd9b668ae86a3847cd590ceb523",
+      "subject_reference_id": "ref-687fd7c50983be96c239139aba8cd7bb7c3a89ba"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-d456f2c20d9318b8110452cb650ce7bcc07545d5",
+      "subject_reference_id": "ref-8a7ac2fd46270f9454c7bc616a438ede802e0719"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-8a7ac2fd46270f9454c7bc616a438ede802e0719"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-0a4f91e149c426d996cd73914a49760330597fa8",
+      "subject_reference_id": "ref-636c9c585faf0b1647e9fba56d6bdd4004452665"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-68bb71821040a25063e815319a1f2174a3074bcb",
+      "subject_reference_id": "ref-8a7ac2fd46270f9454c7bc616a438ede802e0719"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-f9aae661485e215724baa2a0984577385353076f"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3fb7914c19085de8008b386812f86dd7ca0f46cb"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-5dffa86d2e4d34260583c5be3f2e0c198b48c1db",
+      "subject_reference_id": "ref-6a3a89c0ab1b29fbda3798338d596f6c2d3d15d7"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-0ade1004460c17f45c85c4a3b31c7232e048cecd",
+      "subject_reference_id": "ref-6a3a89c0ab1b29fbda3798338d596f6c2d3d15d7"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-beb0ef7f72c8535d012844df881e6807e3204064"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-6a3a89c0ab1b29fbda3798338d596f6c2d3d15d7"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-f9aae661485e215724baa2a0984577385353076f"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3fb7914c19085de8008b386812f86dd7ca0f46cb"
+        }
+      ],
+      "operator": "reference:reads",
+      "proposition_id": "prop-53f5a4d24d49affa29583383ddd202db8507ec9a",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-beb0ef7f72c8535d012844df881e6807e3204064"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-f9aae661485e215724baa2a0984577385353076f"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3fb7914c19085de8008b386812f86dd7ca0f46cb"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-0f5ac932efe7b2b4c4b2c720330b6e2aa74c39a2",
+      "subject_reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-beb0ef7f72c8535d012844df881e6807e3204064"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-6a3a89c0ab1b29fbda3798338d596f6c2d3d15d7"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-7b5e0bf3f1a849701e2d1b64356425a8d5bec2fa",
+      "subject_reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-0d831d98015132170a864cb82474c96505688ee9"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-afc37a308c31d18e7461d44d4ed2b8e504df7a4b"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3b1a064bc26cbe174abc51b2ddbfa13d32d4f436"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-231e02295ce328edce531bcf679fbb411a18b7ff",
+      "subject_reference_id": "ref-23d3838f2fb40c8fa62d61c7eaabdc92bebc0c80"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-0d831d98015132170a864cb82474c96505688ee9"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-1fec5456f2304919d7f51db4af9463d487d5d53c",
+      "subject_reference_id": "ref-23d3838f2fb40c8fa62d61c7eaabdc92bebc0c80"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0d831d98015132170a864cb82474c96505688ee9"
+        }
+      ],
+      "operator": "reference:starts",
+      "proposition_id": "prop-fb2fcd21ef8367b32a1f42fb2889c185382b2f11",
+      "subject_reference_id": "ref-f6b8dbd5abfc7e750089c75a5fe377846caa99aa"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0d831d98015132170a864cb82474c96505688ee9"
+        }
+      ],
+      "operator": "reference:completes",
+      "proposition_id": "prop-e59c8a557448b033415a170fa7926a4f2368ff61",
+      "subject_reference_id": "ref-9181d370b50b471b1e806f3e537e80c1ad91e5d0"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-9181d370b50b471b1e806f3e537e80c1ad91e5d0"
+        }
+      ],
+      "operator": "reference:precedes",
+      "proposition_id": "prop-9670138d57c4f46ba59e47752c04f09d56cd9e6e",
+      "subject_reference_id": "ref-f6b8dbd5abfc7e750089c75a5fe377846caa99aa"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-f6b8dbd5abfc7e750089c75a5fe377846caa99aa"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-9181d370b50b471b1e806f3e537e80c1ad91e5d0"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-0d831d98015132170a864cb82474c96505688ee9"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-afc37a308c31d18e7461d44d4ed2b8e504df7a4b"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3b1a064bc26cbe174abc51b2ddbfa13d32d4f436"
+        }
+      ],
+      "operator": "reference:reads",
+      "proposition_id": "prop-5826d6d9bd11aaed8de80ebc6bf4108ba6199c20",
+      "subject_reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-0d831d98015132170a864cb82474c96505688ee9"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-afc37a308c31d18e7461d44d4ed2b8e504df7a4b"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3b1a064bc26cbe174abc51b2ddbfa13d32d4f436"
+        }
+      ],
+      "operator": "reference:writes",
+      "proposition_id": "prop-c7d93f235eb2dd654a7b5915a68ca25663b88319",
+      "subject_reference_id": "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-23d3838f2fb40c8fa62d61c7eaabdc92bebc0c80"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-f6c7128ed9b04fc16b0814dafd225c4e712b5b7f",
+      "subject_reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-0d831d98015132170a864cb82474c96505688ee9"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-afc37a308c31d18e7461d44d4ed2b8e504df7a4b"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-3b1a064bc26cbe174abc51b2ddbfa13d32d4f436"
+        }
+      ],
+      "operator": "reference:mutates",
+      "proposition_id": "prop-c2908471ddbbca7e5587e99696f285c0353aff7e",
+      "subject_reference_id": "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-0d831d98015132170a864cb82474c96505688ee9"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-47ff83c7b79302799d86de50b80bc1d176861f04",
+      "subject_reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-23ad5a6ec0af0f77c622ab5bffa2ff76f1be2602",
+      "subject_reference_id": "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-cf367b7d4813e178ec5f655f9ddc7c1ea5c7c513",
+      "subject_reference_id": "ref-dd8e1ca11d7c3d15f2decff6f2fa447a28056cfb"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-c28085267d1e95328a2d24787c8b66b0a3acf1d1",
+      "subject_reference_id": "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-e2240d0af33b3f3c5061261b8056f4660360cf4b",
+      "subject_reference_id": "ref-3ad65a5181a4a5e1c4e78a655809441290a45320"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-3ad65a5181a4a5e1c4e78a655809441290a45320"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-ed66c0f17bb8e1859891ed23d579cb311e2065e8",
+      "subject_reference_id": "ref-fb0e8dcfebac297802f90db0216106ed34a36013"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-5fb53bad8ff5f2eb9c8f7ea03232c5e08a799d43",
+      "subject_reference_id": "ref-3ad65a5181a4a5e1c4e78a655809441290a45320"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/0"
+      },
+      "reference_id": "ref-c43f3c0ed6910efbb43aabe36e82b33cd01c0beb",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/1"
+      },
+      "reference_id": "ref-8b2466f584c72348695a2ab732a85d23180a3830",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-observation.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-6acc62bdf502543e303982d446ab7463137e4e1c",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/2"
+      },
+      "reference_id": "ref-55fd570d485273663e52055df1c7eaecc6add755",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-capture.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/3"
+      },
+      "reference_id": "ref-0a8e643784762b19e07e045f6315a1c606f083ce",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/controlled-contract/lib/caller-authority-capture.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-dc9b64d73b6675be5879c55bacb9c8660ccf76de",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/4"
+      },
+      "reference_id": "ref-92a802adb5b4b1969478cbaaea74e17c47b0f47f",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/controlled-caller-authority-mapping.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-dd8e1ca11d7c3d15f2decff6f2fa447a28056cfb",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "WK-2518 caller-authority capture integration"
+      },
+      "reference_id": "ref-8a7ac2fd46270f9454c7bc616a438ede802e0719",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "WK-2518 caller-authority capture integration test suite"
+      },
+      "reference_id": "ref-636c9c585faf0b1647e9fba56d6bdd4004452665",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "wiki/work-records/WK-2518.json",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-b53cd51d7a4405098858c59b72fcbf745612384b",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/13"
+      },
+      "reference_id": "ref-3ccfa1ced847a22eaa5a4d65d71be7b59c4c5d73",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/controlled-contract/lib/capture-artifact-descriptor.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-5ee0e54768e2a831624470c43dba60a854c00b7f",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/5"
+      },
+      "reference_id": "ref-a16b1b21d9fb31092e0814565b1676ee1afc3808",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/lib/common-proof-capture-repository-artifacts.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-a2401cb36b4e63643cf42243439b60e0100a0e61",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/6"
+      },
+      "reference_id": "ref-e0b5090f31584c8d4de491bb9c5cd9d7a5877b8e",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/integration/controlled-caller-authority-publication.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/7"
+      },
+      "reference_id": "ref-1850f356b304e6717d1b38d62fa0d7568f817c8c",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/lib/controlled-contract-proof-authoring-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-99e912bf58a69c7245338c3a04d8b5803db4ca38",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/8"
+      },
+      "reference_id": "ref-08cf0f5c20672c5917807551743443f4a583e0ed",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/controlled-contract/lib/exact-binding-capture.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-f748e5e96e4838334c0b827c336f25e3a83a3ed4",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/9"
+      },
+      "reference_id": "ref-0345d4af3fb9882779e6fe0b347f121135330be7",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/integration/controlled-caller-authority-authoring.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-3656f4183fee3b1bb21765de0ef261e245a56176",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/10"
+      },
+      "reference_id": "ref-e57fdbadc05b76578fb99850f6555002f1ccae4c",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/common-proof-capture-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-7b5b98644fae4004e8f053a10c48f0a7e8f1f168",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/11"
+      },
+      "reference_id": "ref-4998bd578724f229809fd5aaa49483bff39bf263",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-687fd7c50983be96c239139aba8cd7bb7c3a89ba",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:acceptance",
+        "kind": "durable_id",
+        "value": "/acceptance/criteria/12"
+      },
+      "reference_id": "ref-27abdd2e39ae84733bee9ea33498e10e85c446e4",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:admission-contract",
+        "kind": "durable_id",
+        "value": "protected-downstream-operation-population"
+      },
+      "reference_id": "ref-6a3a89c0ab1b29fbda3798338d596f6c2d3d15d7",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/workspace-repo-resolution.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "resolveWorkspaceRepo"
+      },
+      "reference_id": "ref-f9aae661485e215724baa2a0984577385353076f",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "resolveTransitionSelection"
+      },
+      "reference_id": "ref-3fb7914c19085de8008b386812f86dd7ca0f46cb",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:admission-contract",
+        "kind": "durable_id",
+        "value": "authority-true-request-entry-through-refusal"
+      },
+      "reference_id": "ref-beb0ef7f72c8535d012844df881e6807e3204064",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:pre-switch-failure",
+        "kind": "durable_id",
+        "value": "complete-incumbent-manifest-and-selected-generation-population"
+      },
+      "reference_id": "ref-23d3838f2fb40c8fa62d61c7eaabdc92bebc0c80",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:pre-switch-failure",
+        "kind": "durable_id",
+        "value": "publisher-entry-through-pre-switch-failure-settlement"
+      },
+      "reference_id": "ref-0d831d98015132170a864cb82474c96505688ee9",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:pre-switch-failure",
+        "kind": "durable_id",
+        "value": "exact-incumbent-visible-carrier-set-manifest"
+      },
+      "reference_id": "ref-afc37a308c31d18e7461d44d4ed2b8e504df7a4b",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:pre-switch-failure",
+        "kind": "durable_id",
+        "value": "exact-incumbent-selected-immutable-generation-tree"
+      },
+      "reference_id": "ref-3b1a064bc26cbe174abc51b2ddbfa13d32d4f436",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:pre-switch-failure",
+        "kind": "durable_id",
+        "value": "publication-entry-with-incumbent-source-lease"
+      },
+      "reference_id": "ref-f6b8dbd5abfc7e750089c75a5fe377846caa99aa",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/agent-chassis:WK-2518:pre-switch-failure",
+        "kind": "durable_id",
+        "value": "pre-manifest-switch-failure-settlement-after-cleanup"
+      },
+      "reference_id": "ref-9181d370b50b471b1e806f3e537e80c1ad91e5d0",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "WK-2518 package artifact naming and declaration descriptor capability"
+      },
+      "reference_id": "ref-3ad65a5181a4a5e1c4e78a655809441290a45320",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "WK-2518 controlled caller-authority mapping descriptor-capability verification"
+      },
+      "reference_id": "ref-fb0e8dcfebac297802f90db0216106ed34a36013",
+      "type_term": "cc:test"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-d926e5489eb4596cd74c293e4a58ee9585ccf41c",
+      "role": "verifies",
+      "source_claim_id": "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+      "target_claim_id": "claim-5645935490402421f28745ecb2ad192f056d108f"
+    },
+    {
+      "relation_id": "rel-5782b7b983bea4c65034543c3482733d85ae025a",
+      "role": "verifies",
+      "source_claim_id": "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+      "target_claim_id": "claim-521edcb0d6cad753258f2bbdc500901333792ec9"
+    },
+    {
+      "relation_id": "rel-01a1946bae3b463fa4de6c7272f629adf239d801",
+      "role": "verifies",
+      "source_claim_id": "claim-a27848c794c4007f8fd768547d433bb82a99c763",
+      "target_claim_id": "claim-20e68e8aa5f9150e48721ec99a80ca383365954a"
+    },
+    {
+      "relation_id": "rel-93e8b2de9698b5c81d68c31296e001623eb9822d",
+      "role": "verifies",
+      "source_claim_id": "claim-0f542f718035b2052c9708e0e46b769a5205d49b",
+      "target_claim_id": "claim-d6636eb5982798f80320b6d6083e0af7314eb93d"
+    },
+    {
+      "relation_id": "rel-aeaead53fa87829b8e3594c467ce7ec3457e8adc",
+      "role": "verifies",
+      "source_claim_id": "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+      "target_claim_id": "claim-73e86024142c81ea07a9e9be085f2ebe6bb037fd"
+    },
+    {
+      "relation_id": "rel-33ac5b18a30714b8a1c8e614d3be516d91a0c62e",
+      "role": "verifies",
+      "source_claim_id": "claim-0ed6cfa68425bb663653c376a599f3d14c300b66",
+      "target_claim_id": "claim-af53f0115bb68fc821752f63a7c011acddb9c734"
+    },
+    {
+      "relation_id": "rel-8def813856dfb751df3923e312f60aaaa971493a",
+      "role": "verifies",
+      "source_claim_id": "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+      "target_claim_id": "claim-26bd913ec4aad739c26fb166eb586d53b6dae6cc"
+    },
+    {
+      "relation_id": "rel-48d4b6c4ce65885ff7a781ac97eb66a3deff830f",
+      "role": "verifies",
+      "source_claim_id": "claim-0615617ec0933a20eee608730ee6add45b143562",
+      "target_claim_id": "claim-369c14d3296d2d561c15f2d2d427577c2ed581d2"
+    },
+    {
+      "relation_id": "rel-228e1cb611cf3c9fc46154be2628057e775c95d5",
+      "role": "verifies",
+      "source_claim_id": "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+      "target_claim_id": "claim-7e0b41a0a569e9aae24d8f158460d246b8141d88"
+    },
+    {
+      "relation_id": "rel-8e914665e72540c1edb81c500df6e337ac340e73",
+      "role": "verifies",
+      "source_claim_id": "claim-8be96edd2c15a7b2f1522b07694efb22395109fb",
+      "target_claim_id": "claim-d8467a27e47164900125daa9c0e495504365ab49"
+    },
+    {
+      "relation_id": "rel-e507ef0eb586051c8728b02ca7438e084023348c",
+      "role": "verifies",
+      "source_claim_id": "claim-402acecc547eab6f802b67fa2c73a48923f8966f",
+      "target_claim_id": "claim-f525acaa9eb9d2ab8a83e139bb28fa20ccca43d4"
+    },
+    {
+      "relation_id": "rel-d14bc16b2edcaa1ef42e4fac7e94751565f36745",
+      "role": "verifies",
+      "source_claim_id": "claim-27fdd09710619ebff3e2773766827c25fe1c5a52",
+      "target_claim_id": "claim-0e3da540f2dcc07e239539335b5944ab0fc5709d"
+    },
+    {
+      "relation_id": "rel-b0613ac6f407f5449bdde4874755d11dab8b0b4d",
+      "role": "verifies",
+      "source_claim_id": "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+      "target_claim_id": "claim-d913246fe8da2d11933f59276aad0e91cba261ba"
+    },
+    {
+      "relation_id": "rel-c3e81c1708c422d4239fd3d24f025c82fcf928ab",
+      "role": "verifies",
+      "source_claim_id": "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+      "target_claim_id": "claim-1d60d40476808b917d90ff0d10022718d1b34333"
+    },
+    {
+      "relation_id": "rel-ea92afb58b79cef434714aae7a2148908d1a0921",
+      "role": "verifies",
+      "source_claim_id": "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+      "target_claim_id": "claim-4ea6ca62a8f355e1b3f3058ea076d6e583ff4907"
+    },
+    {
+      "relation_id": "rel-85b491eef924cb80eba9464d58164726c080db26",
+      "role": "verifies",
+      "source_claim_id": "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+      "target_claim_id": "claim-7e099dbe6c05289be0638815949467fec24863a5"
+    },
+    {
+      "relation_id": "rel-b17459cf861615e29525983df0066292c1f853a3",
+      "role": "verifies",
+      "source_claim_id": "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+      "target_claim_id": "claim-3abbd9bccb198348641ca1a792b068cceb58c122"
+    },
+    {
+      "relation_id": "rel-20466c47755e1aa0e5f4eaba12ca68108d28b8a1",
+      "role": "verifies",
+      "source_claim_id": "claim-dfbf6f81335180b04893667287799c1be5b4cf42",
+      "target_claim_id": "claim-cf0f6b3437d5cba329ad5d9b29a375c736f22ef0"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-0615617ec0933a20eee608730ee6add45b143562",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-0615617ec0933a20eee608730ee6add45b143562",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/common-proof-capture-repository-artifacts.mjs",
+            "mutation_id": "mutation-0615617ec0933a20eee608730ee6add45b143562",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-ac9895696b375254632ba10975d22d7f23c71fe2",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-0615617ec0933a20eee608730ee6add45b143562",
+        "proposition_id": "prop-5189fcd82cd3cbc6791fd53dedd4e62a8a9a3aeb"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-0615617ec0933a20eee608730ee6add45b143562",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/common-proof-capture-repository-artifacts.mjs",
+        "subject_reference_ids": [
+          "ref-a2401cb36b4e63643cf42243439b60e0100a0e61"
+        ]
+      },
+      "test_proof_id": "test-proof-0615617ec0933a20eee608730ee6add45b143562",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-0615617ec0933a20eee608730ee6add45b143562"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-0f542f718035b2052c9708e0e46b769a5205d49b",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-0f542f718035b2052c9708e0e46b769a5205d49b",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-capture.mjs",
+            "mutation_id": "mutation-0f542f718035b2052c9708e0e46b769a5205d49b",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-20803d68b0153548b64944201e8d8abcb21ce8c5",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-0f542f718035b2052c9708e0e46b769a5205d49b",
+        "proposition_id": "prop-ed4ab8b14cfe2c158a75eb08ed3afeb50d66e672"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-0f542f718035b2052c9708e0e46b769a5205d49b",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-capture.mjs",
+        "subject_reference_ids": [
+          "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5"
+        ]
+      },
+      "test_proof_id": "test-proof-0f542f718035b2052c9708e0e46b769a5205d49b",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-0f542f718035b2052c9708e0e46b769a5205d49b"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-27fdd09710619ebff3e2773766827c25fe1c5a52",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-27fdd09710619ebff3e2773766827c25fe1c5a52",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-capture.mjs",
+            "mutation_id": "mutation-27fdd09710619ebff3e2773766827c25fe1c5a52",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-7857d6408f5a08cd9c42dabd7a8eece871e5c739",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-27fdd09710619ebff3e2773766827c25fe1c5a52",
+        "proposition_id": "prop-61bb9f7d3e44b1ca91579e79b6917d5cd8329342"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-27fdd09710619ebff3e2773766827c25fe1c5a52",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-capture.mjs",
+        "subject_reference_ids": [
+          "ref-4d18535ccc452f7ef6af253fd81879ca220ec4a5"
+        ]
+      },
+      "test_proof_id": "test-proof-27fdd09710619ebff3e2773766827c25fe1c5a52",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-27fdd09710619ebff3e2773766827c25fe1c5a52"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+            "mutation_id": "mutation-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-c2908471ddbbca7e5587e99696f285c0353aff7e",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "persisted_artifact",
+        "observable_id": "observable-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+        "proposition_id": "prop-47ff83c7b79302799d86de50b80bc1d176861f04"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+        "subject_reference_ids": [
+          "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+        ]
+      },
+      "test_proof_id": "test-proof-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-402acecc547eab6f802b67fa2c73a48923f8966f",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-402acecc547eab6f802b67fa2c73a48923f8966f",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/exact-binding-capture.mjs",
+            "mutation_id": "mutation-402acecc547eab6f802b67fa2c73a48923f8966f",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-020bf088d0b128a67f3768295614548794d71a25",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-402acecc547eab6f802b67fa2c73a48923f8966f",
+        "proposition_id": "prop-e5bad0e35c1ddaa7103c1c697b0e278108cb5267"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-402acecc547eab6f802b67fa2c73a48923f8966f",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/exact-binding-capture.mjs",
+        "subject_reference_ids": [
+          "ref-f748e5e96e4838334c0b827c336f25e3a83a3ed4"
+        ]
+      },
+      "test_proof_id": "test-proof-402acecc547eab6f802b67fa2c73a48923f8966f",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-402acecc547eab6f802b67fa2c73a48923f8966f"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/caller-authority-capture.mjs",
+            "mutation_id": "mutation-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-9a40218e90c9afe087edbca1eabe21ac81d94517",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+        "proposition_id": "prop-f5b5b8301795d8ba741c08aa2ec8a96678f14476"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/caller-authority-capture.mjs",
+        "subject_reference_ids": [
+          "ref-dc9b64d73b6675be5879c55bacb9c8660ccf76de"
+        ]
+      },
+      "test_proof_id": "test-proof-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-faca2581e17d8cd9b668ae86a3847cd590ceb523",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+        "proposition_id": "prop-34c2e6918f096147bcf6be085f40b1a32c34846d"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-687fd7c50983be96c239139aba8cd7bb7c3a89ba"
+        ]
+      },
+      "test_proof_id": "test-proof-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+            "mutation_id": "mutation-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-c99e073a9f6c2044f63522fef95b5bfd5fb9651b",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+        "proposition_id": "prop-8fde54c581a3088f6ccf243d3bb1ad2e64bfba9c"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+        "subject_reference_ids": [
+          "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+        ]
+      },
+      "test_proof_id": "test-proof-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+            "mutation_id": "mutation-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-d63a0b97152d565fd0252b564cd37657467533f8",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+        "proposition_id": "prop-f60bf30a78a1c493f6b9435e95398a22a83396ea"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+        "subject_reference_ids": [
+          "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+        ]
+      },
+      "test_proof_id": "test-proof-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/capture-artifact-descriptor.mjs",
+            "mutation_id": "mutation-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-bcab1e2996616a5a0e8f7f1cb412f73aa87090b9",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+        "proposition_id": "prop-401d022b013b54748ef3371d848fb917c72061d8"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/capture-artifact-descriptor.mjs",
+        "subject_reference_ids": [
+          "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+        ]
+      },
+      "test_proof_id": "test-proof-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-8be96edd2c15a7b2f1522b07694efb22395109fb",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-8be96edd2c15a7b2f1522b07694efb22395109fb",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-proof-authoring-tools.mjs",
+            "mutation_id": "mutation-8be96edd2c15a7b2f1522b07694efb22395109fb",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-b50986adef89c90fa3294a89a2a1c27a51d57c32",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-8be96edd2c15a7b2f1522b07694efb22395109fb",
+        "proposition_id": "prop-03a38b10c38de9b08a19dbf8a2b71644b0ae9cf6"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-8be96edd2c15a7b2f1522b07694efb22395109fb",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/controlled-contract-proof-authoring-tools.mjs",
+        "subject_reference_ids": [
+          "ref-99e912bf58a69c7245338c3a04d8b5803db4ca38"
+        ]
+      },
+      "test_proof_id": "test-proof-8be96edd2c15a7b2f1522b07694efb22395109fb",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-8be96edd2c15a7b2f1522b07694efb22395109fb"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-a27848c794c4007f8fd768547d433bb82a99c763",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-a27848c794c4007f8fd768547d433bb82a99c763",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-observation.mjs",
+            "mutation_id": "mutation-a27848c794c4007f8fd768547d433bb82a99c763",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-260fedf1bdaeb7ecec20c7c98ad90c89341cff86",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-a27848c794c4007f8fd768547d433bb82a99c763",
+        "proposition_id": "prop-2a1b458d7518d2543f6090bf431d11c899969f15"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-a27848c794c4007f8fd768547d433bb82a99c763",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-tools/caller-authority-observation.mjs",
+        "subject_reference_ids": [
+          "ref-6acc62bdf502543e303982d446ab7463137e4e1c"
+        ]
+      },
+      "test_proof_id": "test-proof-a27848c794c4007f8fd768547d433bb82a99c763",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-a27848c794c4007f8fd768547d433bb82a99c763"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+            "mutation_id": "mutation-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-0f5ac932efe7b2b4c4b2c720330b6e2aa74c39a2",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+        "proposition_id": "prop-7b5e0bf3f1a849701e2d1b64356425a8d5bec2fa"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-request-admission.mjs",
+        "subject_reference_ids": [
+          "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+        ]
+      },
+      "test_proof_id": "test-proof-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+            "mutation_id": "mutation-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-c7d93f235eb2dd654a7b5915a68ca25663b88319",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "persisted_artifact",
+        "observable_id": "observable-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+        "proposition_id": "prop-f6c7128ed9b04fc16b0814dafd225c4e712b5b7f"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+        "subject_reference_ids": [
+          "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+        ]
+      },
+      "test_proof_id": "test-proof-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/common-proof-capture-tools.mjs",
+            "mutation_id": "mutation-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-0ff37e839063f13d0dd8440a78473cc41c913f26",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+        "proposition_id": "prop-e116ec0db9e2c430a3037e38f335569e55c9b36b"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/common-proof-capture-tools.mjs",
+        "subject_reference_ids": [
+          "ref-7b5b98644fae4004e8f053a10c48f0a7e8f1f168"
+        ]
+      },
+      "test_proof_id": "test-proof-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-dfbf6f81335180b04893667287799c1be5b4cf42",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-dfbf6f81335180b04893667287799c1be5b4cf42",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/capture-artifact-descriptor.mjs",
+            "mutation_id": "mutation-dfbf6f81335180b04893667287799c1be5b4cf42",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-5fb53bad8ff5f2eb9c8f7ea03232c5e08a799d43",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-dfbf6f81335180b04893667287799c1be5b4cf42",
+        "proposition_id": "prop-ed66c0f17bb8e1859891ed23d579cb311e2065e8"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-dfbf6f81335180b04893667287799c1be5b4cf42",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/capture-artifact-descriptor.mjs",
+        "subject_reference_ids": [
+          "ref-5ee0e54768e2a831624470c43dba60a854c00b7f"
+        ]
+      },
+      "test_proof_id": "test-proof-dfbf6f81335180b04893667287799c1be5b4cf42",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-dfbf6f81335180b04893667287799c1be5b4cf42"
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+        "baseline_state": "no_executed_coverage",
+        "items": []
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+            "mutation_id": "mutation-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-75315d12936ee0a57dca8732a588281118eb0555",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "persisted_artifact",
+        "observable_id": "observable-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+        "proposition_id": "prop-5116744e6a616a4ca20a54231989677d029343c1"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+        "subject_reference_ids": [
+          "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+        ]
+      },
+      "test_proof_id": "test-proof-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812"
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

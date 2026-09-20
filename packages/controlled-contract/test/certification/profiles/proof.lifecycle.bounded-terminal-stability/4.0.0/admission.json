@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "3fabdc9f96a31999d759c43359b0448d81b445f01c82770b12ce4cedfd110d74",
+  "profile_id": "proof.lifecycle.bounded-terminal-stability",
+  "profile_version": "4.0.0",
+  "profile_digest": "70ca1add63597016b58367ac8f033c0ede96262036d77914c3cdf6f4427974a2",
+  "guarantee": "For one declared lifecycle entity, terminal event, terminal state, and explicit bounded horizon, one complete nonempty horizon-scoped observation population records the terminal state for every observation after the terminal event and before the horizon; complete singleton observed-state and terminal-state populations are equal; and one complete in-horizon reactivation-event population has exact cardinality zero.",
+  "guarantee_digest": "b5addc399e9e17e3fb2d0445d1e8411655e85dc8c2736fda9e0817b2ec0d8394",
+  "explicit_exclusions": [
+    "delivered-evidence-authenticity-or-plan-implementation",
+    "dishonest-identity-population-state-event-observation-and-horizon-grounding",
+    "forever-after-stability",
+    "observations-events-actors-and-resources-outside-declared-populations",
+    "post-horizon-behavior",
+    "real-time-truth-or-clock-accuracy",
+    "transient-state-changes-between-elected-observations"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "9631012ff935ffa389255157edc6639c732ccff1bc771afc19287210a5686a9f",
+    "adequacy_result_digest": "1728b6178a5c3b50ac19686505c5eb4c619274f9c7a8d504b316ae0d344d8ccb",
+    "executable_control_count": 25,
+    "negative_fixture_count": 71,
+    "coverage_witness_count": 71
+  }
+}

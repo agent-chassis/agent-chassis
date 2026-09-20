@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { compiledValidators } from "./compiled-validator-cache.mjs";
-import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
+import { ProofPlanCompilerError, packKey, packIdentity, loadSelectedPacks,
+  assignIntents } from "./proof-plan-intent-assignment.mjs";
 import {
   canonicalDigest,
   normalizeContractForIdentity
@@ -13,13 +13,11 @@ import {
   compareCodeUnits,
   deepFreeze
 } from "./deterministic-projection-primitives.mjs";
-import { assertSchema } from "./exact-binding-common.mjs";
 import {
   expectedPackSourceDigests,
   validateProofPlan
 } from "./multi-pack-assessment.mjs";
 import {
-  PROOF_INTENT_ARTIFACT,
   PROOF_INTENT_DIGESTS,
   ProofIntentSelectionError,
   selectProofPacks
@@ -28,24 +26,8 @@ import { validateSuppliedProofPackBindings } from
   "./proof-pack-binding-assistance.mjs";
 import { validateStableTestProofContract } from "./test-proof-contract-v1.mjs";
 
-const packageRoot = new URL("../", import.meta.url);
-const requestSchema = await readJson(new URL(
-  "schema/controlled-contract-proof-plan-request.v1.schema.json", packageRoot
-));
-const { validateProofPlanRequest } = await compiledValidators(
-  "controlled-contract.proof-plan-request.v1",
-  { validators: { validateProofPlanRequest: requestSchema } }
-);
+import { validateProofPlanRequest } from "./proof-authoring-schemas.mjs";
 const MAX_PROOF_PLAN_BYTES = 131_072;
-
-class ProofPlanCompilerError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
-    this.name = "ProofPlanCompilerError";
-    this.code = code;
-    this.details = structuredClone(details);
-  }
-}
 
 async function readJson(url) {
   return JSON.parse(await readFile(url, "utf8"));
@@ -53,14 +35,6 @@ async function readJson(url) {
 
 function sortedUnique(values) {
   return [...new Set(values)].sort(compareCodeUnits);
-}
-
-function packKey(value) {
-  return `${value.profile_id}@${value.profile_version}`;
-}
-
-function packIdentity(value) {
-  return { profile_id: value.profile_id, profile_version: value.profile_version };
 }
 
 function validateCompilerInput(input, unexpectedArguments) {
@@ -92,7 +66,9 @@ function validateCompilerInput(input, unexpectedArguments) {
     {
       contract_family: resolved.family,
       facts: structuredClone(resolved.facts),
-      diagnostics: structuredClone(resolved.diagnostics)
+      diagnostics: structuredClone(resolved.diagnostics),
+      diagnostic_details: structuredClone(resolved.diagnostic_details ??
+        resolved.diagnostics?.diagnostics ?? [])
     }
   );
   if (!validateProofPlanRequest(input.request)) throw new ProofPlanCompilerError(
@@ -112,96 +88,9 @@ function validateCompilerInput(input, unexpectedArguments) {
   return { contract: input.contract, request: input.request, evaluationInputs };
 }
 
-function assertSafeExactRelativePath(value, field, pack) {
-  if (typeof value !== "string") return;
-  const segments = value.split("/");
-  if (path.posix.isAbsolute(value) || value.includes("\\") ||
-      segments.some((segment) => segment.length === 0 || segment === "." ||
-        segment === "..") || path.posix.normalize(value) !== value) {
-    throw new ProofPlanCompilerError(
-      "proof_plan_request_exact_path_invalid",
-      "exact-binding contract and evaluation paths must be normalized relative paths confined beneath the declared capture root",
-      { pack, field, value }
-    );
-  }
-}
-
-async function loadSelectedPacks(selectedPacks) {
-  const keys = selectedPacks.map(packKey);
-  if (new Set(keys).size !== keys.length) throw new ProofPlanCompilerError(
-    "proof_plan_request_duplicate_pack",
-    "the proof-plan request selects the same exact pack more than once"
-  );
-  const loaded = [];
-  for (const selected of [...selectedPacks].sort((left, right) =>
-    compareCodeUnits(packKey(left), packKey(right)))) {
-    let pack;
-    try {
-      pack = await loadAdmittedProofPack(selected.profile_id);
-    } catch (error) {
-      throw new ProofPlanCompilerError(
-        "proof_plan_request_pack_unadmitted",
-        "a selected proof pack is not admitted by this package",
-        { pack: packIdentity(selected), cause_code: error.code ?? null }
-      );
-    }
-    if (pack.profile.profile_version !== selected.profile_version) {
-      throw new ProofPlanCompilerError(
-        "proof_plan_request_pack_version_stale",
-        "a selected proof-pack version is not the admitted package-owned version",
-        {
-          pack: packIdentity(selected),
-          admitted_version: pack.profile.profile_version
-        }
-      );
-    }
-    loaded.push({ selected, pack });
-  }
-  return loaded;
-}
-
-function assignIntents(requestedIntents, loaded) {
-  const intentById = new Map(PROOF_INTENT_ARTIFACT.intents.map((intent) => [
-    intent.intent_id, intent
-  ]));
-  const assignments = new Map(loaded.map(({ selected }) => [packKey(selected), []]));
-  const diagnostics = [];
-  for (const intentId of requestedIntents) {
-    const capable = intentById.get(intentId)?.capable_packs ?? [];
-    const selected = loaded.filter(({ selected: candidate }) =>
-      capable.some((identity) => packKey(identity) === packKey(candidate))
-    );
-    if (selected.length === 0) diagnostics.push({
-      code: "proof_plan_request_intent_unassigned",
-      intent_id: intentId,
-      selected_candidate_count: 0
-    });
-    else if (selected.length > 1) diagnostics.push({
-      code: "proof_plan_request_intent_ambiguous",
-      intent_id: intentId,
-      selected_candidate_count: selected.length,
-      selected_packs: selected.map(({ selected: value }) => packIdentity(value))
-        .sort((left, right) => compareCodeUnits(packKey(left), packKey(right)))
-    });
-    else assignments.get(packKey(selected[0].selected)).push(intentId);
-  }
-  for (const { selected } of loaded) if (assignments.get(packKey(selected)).length === 0) {
-    diagnostics.push({
-      code: "proof_plan_request_pack_unassigned",
-      pack: packIdentity(selected)
-    });
-  }
-  if (diagnostics.length > 0) throw new ProofPlanCompilerError(
-    "proof_plan_request_selection_incomplete",
-    "the exact selected packs do not provide one unambiguous assignment for every requested controlled intent",
-    { diagnostics: canonicalValue(diagnostics) }
-  );
-  return assignments;
-}
-
 function missingInputs(loaded, evaluationInputs) {
   const diagnostics = [];
-  for (const { selected, pack } of loaded) {
+  for (const { selected } of loaded) {
     const identity = packIdentity(selected);
     if (!Object.hasOwn(selected, "evaluation_input_path")) diagnostics.push({
       code: "proof_plan_request_evaluation_input_path_missing", pack: identity
@@ -213,25 +102,6 @@ function missingInputs(loaded, evaluationInputs) {
         evaluation_input_path: selected.evaluation_input_path
       });
     }
-    if (pack.admission_version === 2) {
-      if (!Object.hasOwn(selected, "exact_capture") || selected.exact_capture === null) {
-        diagnostics.push({
-          code: "proof_plan_request_exact_capture_missing", pack: identity
-        });
-        for (const field of [
-          "capture_root", "contract_path", "evaluation_input_path", "sources"
-        ]) diagnostics.push({
-          code: `proof_plan_request_exact_${field}_missing`, pack: identity
-        });
-      } else for (const field of [
-        "capture_root", "contract_path", "evaluation_input_path", "sources"
-      ]) if (!Object.hasOwn(selected.exact_capture, field)) diagnostics.push({
-        code: `proof_plan_request_exact_${field}_missing`, pack: identity
-      });
-    } else if (Object.hasOwn(selected, "exact_capture") &&
-        selected.exact_capture !== null) diagnostics.push({
-      code: "proof_plan_request_exact_capture_unexpected", pack: identity
-    });
   }
   return diagnostics.sort((left, right) => compareCodeUnits(
     JSON.stringify(canonicalValue(left)), JSON.stringify(canonicalValue(right))
@@ -274,44 +144,12 @@ async function buildPackEntry({ selected, pack }, assignments, contract,
       }
     );
   }
-  let exactBinding = null;
-  let exactSources = null;
-  if (pack.admission_version === 2) {
-    assertSafeExactRelativePath(
-      selected.exact_capture.contract_path, "contract_path", identity
-    );
-    assertSafeExactRelativePath(
-      selected.exact_capture.evaluation_input_path,
-      "evaluation_input_path", identity
-    );
-    try {
-      assertSchema(
-        "controlled-contract-exact-binding-sources.v1.schema.json",
-        selected.exact_capture.sources,
-        "proof_plan_request_exact_sources_invalid"
-      );
-    } catch (error) {
-      throw new ProofPlanCompilerError(
-        "proof_plan_request_exact_sources_invalid",
-        "the selected pack exact-binding sources are schema-invalid",
-        { pack: identity, diagnostics: error.details?.diagnostics ?? [] }
-      );
-    }
-    exactSources = selected.exact_capture.sources;
-    exactBinding = {
-      capture_root: selected.exact_capture.capture_root,
-      contract_path: selected.exact_capture.contract_path,
-      evaluation_input_path: selected.exact_capture.evaluation_input_path,
-      sources: structuredClone(exactSources)
-    };
-  }
   return {
     profile_id: selected.profile_id,
     profile_version: selected.profile_version,
     requested_intents: [...assignments.get(packKey(selected))],
     evaluation_input: { path: selected.evaluation_input_path },
-    exact_binding: exactBinding,
-    source_digests: expectedPackSourceDigests(pack, evaluationInput, exactSources)
+    source_digests: expectedPackSourceDigests(pack, evaluationInput)
   };
 }
 
@@ -388,7 +226,7 @@ async function buildProofPlan(input, ...unexpectedArguments) {
   return deepFreeze(structuredClone(plan));
 }
 
-function normalizeFileRequest(request, requestDirectory, inputPath) {
+function normalizeFileRequest(request, requestDirectory) {
   const normalized = structuredClone(request);
   normalized.selected_packs = normalized.selected_packs.map((selected) => {
     const result = structuredClone(selected);
@@ -396,36 +234,6 @@ function normalizeFileRequest(request, requestDirectory, inputPath) {
       result.evaluation_input_path = path.resolve(
         requestDirectory, result.evaluation_input_path
       );
-    }
-    if (result.exact_capture &&
-        typeof result.exact_capture.capture_root === "string") {
-      result.exact_capture.capture_root = path.resolve(
-        requestDirectory, result.exact_capture.capture_root
-      );
-      const identity = packIdentity(result);
-      for (const field of ["contract_path", "evaluation_input_path"]) {
-        assertSafeExactRelativePath(result.exact_capture[field], field, identity);
-      }
-      if (typeof result.exact_capture.contract_path === "string" &&
-          path.resolve(result.exact_capture.capture_root,
-            result.exact_capture.contract_path) !== inputPath) {
-        throw new ProofPlanCompilerError(
-          "proof_plan_request_exact_contract_path_conflict",
-          "the exact capture contract path does not identify --input",
-          { pack: identity }
-        );
-      }
-      if (typeof result.exact_capture.evaluation_input_path === "string" &&
-          typeof result.evaluation_input_path === "string" &&
-          path.resolve(result.exact_capture.capture_root,
-            result.exact_capture.evaluation_input_path) !==
-              result.evaluation_input_path) {
-        throw new ProofPlanCompilerError(
-          "proof_plan_request_exact_evaluation_path_conflict",
-          "the exact capture evaluation path does not identify this pack's evaluation input",
-          { pack: identity }
-        );
-      }
     }
     return result;
   });
@@ -479,9 +287,7 @@ async function buildProofPlanFiles(input, ...unexpectedArguments) {
     "the proof-plan request is schema-invalid",
     { diagnostics: structuredClone(validateProofPlanRequest.errors) }
   );
-  const request = normalizeFileRequest(
-    rawRequest, path.dirname(resolvedRequest), resolvedInput
-  );
+  const request = normalizeFileRequest(rawRequest, path.dirname(resolvedRequest));
   const evaluationInputs = {};
   for (const selected of request.selected_packs) {
     if (typeof selected.evaluation_input_path !== "string" ||

@@ -5,11 +5,9 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import { compiledValidators } from "./compiled-validator-cache.mjs";
 import {
   ARTIFACT_RELATIVE_ROOT,
   AssessmentArtifactError,
-  assessExactBoundContractFiles,
   canonicalDigest,
   canonicalJson,
   normalizeContractForIdentity,
@@ -21,9 +19,6 @@ import {
   assertAdmittedProofPackSnapshot,
   loadAdmittedProofPack
 } from "./admitted-proof-packs.mjs";
-import { canonicalDigest as exactCanonicalDigest } from "./exact-binding-common.mjs";
-import { assessmentSupplementContextFor } from
-  "./lossless-supplement-context.mjs";
 import { evaluateVerificationProfileV1 } from "./verification-profile-v1.mjs";
 import {
   PROOF_INTENT_ARTIFACT,
@@ -32,21 +27,7 @@ import {
   selectProofPacks
 } from "./proof-intent-selection.mjs";
 
-const packageRoot = new URL("../", import.meta.url);
-const [proofPlanSchema, assessmentSchema] = await Promise.all([
-  readJson(new URL("schema/controlled-contract-proof-plan.v1.schema.json", packageRoot)),
-  readJson(new URL(
-    "schema/controlled-contract-multi-pack-assessment.v1.schema.json", packageRoot
-  ))
-]);
-const { validateProofPlan, validateMultiPackAssessment } = await compiledValidators(
-  "controlled-contract.multi-pack-assessment.v1", {
-    validators: {
-      validateProofPlan: proofPlanSchema,
-      validateMultiPackAssessment: assessmentSchema
-    }
-  }
-);
+import { validateProofPlan, validateMultiPackAssessment } from "./proof-authoring-schemas.mjs";
 const PUBLISHABLE_MULTI_ASSESSMENTS = new WeakSet();
 const OBLIGATION_SELECTOR_PACKS = new WeakMap();
 const MULTI_LOSSLESS_FILES = Object.freeze([
@@ -114,16 +95,12 @@ function normalizedProofPlanForIdentity(plan) {
           ? null
           : `controlled-contract-evaluation-input://sha256/${entry.source_digests.evaluation_input}`
       },
-      exact_binding: entry.exact_binding === null ? null : {
-        sources: clone(entry.exact_binding.sources)
-      },
       source_digests: clone(entry.source_digests)
     })).sort((left, right) => compareCodeUnits(packKey(left), packKey(right)))
   };
 }
 
-function expectedPackSourceDigests(pack, evaluationInput = null,
-  exactBindingSources = null) {
+function expectedPackSourceDigests(pack, evaluationInput = null) {
   return {
     profile: pack.profile_digest,
     admission: pack.admission_digest,
@@ -131,13 +108,7 @@ function expectedPackSourceDigests(pack, evaluationInput = null,
     adequacy_declaration: pack.admission.certification.adequacy_declaration_digest,
     adequacy_result: pack.admission.certification.adequacy_result_digest,
     evaluation_input: evaluationInput === null ? null
-      : canonicalDigest(normalizeEvaluationInputForIdentity(evaluationInput)),
-    ...(pack.admission_version === 2 ? {
-      exact_binding_sources: exactBindingSources === null ? null
-        : exactCanonicalDigest(exactBindingSources),
-      exact_binding_declaration: pack.exact_binding_declaration_digest,
-      exact_binding_certification: pack.exact_binding_certification_digest
-    } : {})
+      : canonicalDigest(normalizeEvaluationInputForIdentity(evaluationInput))
   };
 }
 
@@ -280,7 +251,6 @@ function missingPackProjection(entry, pack, missingInputs) {
     projected: null,
     admitted_evaluation: null,
     selector_assessment: null,
-    selector_exact_binding: null,
     evaluation_input: null,
     missing_inputs: missingInputs.map((inputId) => ({
       input_id: inputId,
@@ -291,7 +261,6 @@ function missingPackProjection(entry, pack, missingInputs) {
 }
 
 async function assessPackEntry(entry, {
-  inputPath,
   planDirectory,
   contract,
   structuralResult,
@@ -305,100 +274,28 @@ async function assessPackEntry(entry, {
   );
   const evaluation = await readOptionalEvaluation(entry, planDirectory);
   if (evaluation.missing) {
-    const expected = expectedPackSourceDigests(
-      pack, null, entry.exact_binding?.sources ?? null
-    );
-    assertDigestBindings(entry, expected);
-    const missing = ["evaluation_input"];
-    if (pack.admission_version === 2 && entry.exact_binding === null) {
-      missing.push("exact_capture_root", "exact_binding_sources");
-    }
-    return missingPackProjection(entry, pack, missing);
+    assertDigestBindings(entry, expectedPackSourceDigests(pack, null));
+    return missingPackProjection(entry, pack, ["evaluation_input"]);
   }
-  const expected = expectedPackSourceDigests(
-    pack, evaluation.value, entry.exact_binding?.sources ?? null
-  );
-  assertDigestBindings(entry, expected);
+  assertDigestBindings(entry, expectedPackSourceDigests(pack, evaluation.value));
   const selectorAssessment = evaluateVerificationProfileV1({
     contract: clone(contract),
     profile: clone(pack.profile),
     evaluation_input: clone(evaluation.value)
   });
-  if (pack.admission_version === 1) {
-    if (entry.exact_binding !== null) throw new ProofPlanError(
-      "proof_plan_exact_binding_unexpected", "a v1 pack rejects exact-binding inputs",
-      { pack: packProvenance(entry) }
-    );
-    return {
-      entry,
-      pack,
-      projected: projectContractAssessment({
-        mode: "admitted_profile",
-        contract: clone(contract),
-        structuralResult: clone(structuralResult),
-        structuralInputSource,
-        evaluationInput: clone(evaluation.value),
-        proofPack: pack
-      }),
-      admitted_evaluation: null,
-      selector_assessment: selectorAssessment,
-      selector_exact_binding: null,
-      evaluation_input: clone(evaluation.value),
-      missing_inputs: []
-    };
-  }
-  if (entry.exact_binding === null) return {
-    ...missingPackProjection(
-      entry, pack, ["exact_capture_root", "exact_binding_sources"]
-    ),
-    admitted_evaluation: selectorAssessment,
-    selector_assessment: selectorAssessment,
-    evaluation_input: clone(evaluation.value)
-  };
-  const captureRoot = path.resolve(planDirectory, entry.exact_binding.capture_root);
-  const expectedContract = path.resolve(captureRoot, entry.exact_binding.contract_path);
-  const expectedEvaluation = path.resolve(
-    captureRoot, entry.exact_binding.evaluation_input_path
-  );
-  if (expectedContract !== path.resolve(inputPath) ||
-      expectedEvaluation !== path.resolve(evaluation.inputPath)) {
-    throw new ProofPlanError(
-      "proof_plan_exact_capture_path_conflict",
-      "exact capture paths must identify this plan's contract and pack evaluation input",
-      { pack: packProvenance(entry) }
-    );
-  }
-  const projected = await assessExactBoundContractFiles({
-    captureRoot,
-    contractPath: entry.exact_binding.contract_path,
-    profileId: entry.profile_id,
-    evaluationInputPath: entry.exact_binding.evaluation_input_path,
-    exactBindingSources: entry.exact_binding.sources
-  });
-  const capturedContractDigest = projected.assessment.digests.source.contract;
-  const capturedEvaluationDigest =
-    projected.assessment.digests.source.evaluation_input;
-  if (capturedContractDigest !== canonicalDigest(
-    normalizeContractForIdentity(contract)
-  ) || capturedEvaluationDigest !== expected.evaluation_input) {
-    throw new ProofPlanError(
-      "proof_plan_captured_input_changed",
-      "exact capture evaluated contract or evaluation bytes different from the plan-bound snapshots",
-      {
-        pack: packProvenance(entry),
-        captured_contract_digest: capturedContractDigest,
-        captured_evaluation_input_digest: capturedEvaluationDigest
-      }
-    );
-  }
   return {
     entry,
     pack,
-    projected,
+    projected: projectContractAssessment({
+      mode: "admitted_profile",
+      contract: clone(contract),
+      structuralResult: clone(structuralResult),
+      structuralInputSource,
+      evaluationInput: clone(evaluation.value),
+      proofPack: pack
+    }),
     admitted_evaluation: null,
     selector_assessment: selectorAssessment,
-    selector_exact_binding:
-      assessmentSupplementContextFor(projected)?.exact_binding_result ?? null,
     evaluation_input: clone(evaluation.value),
     missing_inputs: []
   };
@@ -415,8 +312,6 @@ function aggregatePackResult(observation) {
     admission_version: pack.admission_version,
     profile_discrimination: assessment?.profile_discrimination ??
       (admittedEvaluation === null ? "not_assessed" : "not_proven"),
-    exact_binding: pack.admission_version === 1
-      ? "not_applicable" : assessment?.exact_binding ?? "not_assessed",
     guarantee: pack.admission.guarantee,
     diagnostic_count: assessment?.diagnostics.length ??
       admittedEvaluation?.diagnostics.length ?? 0,
@@ -463,7 +358,7 @@ function authenticatedApplicabilityProjection(observation, cycleDigest) {
   if (pack.component_exclusion_applicability === null) return null;
   return {
     projection_version:
-      "controlled-contract-assessment-component-exclusion-applicability.v1",
+      "controlled-contract-assessment-component-exclusion-applicability.v2",
     assessment_cycle_digest: cycleDigest,
     profile_id: pack.profile.profile_id,
     profile_version: pack.profile.profile_version,
@@ -485,9 +380,6 @@ function buildAggregateAssessment({ plan, contract, structural, observations }) 
     compareCodeUnits(packKey(left), packKey(right))
   );
   const profileDiscrimination = aggregateAxis(packResults, "profile_discrimination");
-  const exactBinding = aggregateAxis(
-    packResults, "exact_binding", ({ admission_version: version }) => version === 2
-  );
   const diagnostics = [
     ...structural.assessment.diagnostics.map((detail) => ({
       pack: null,
@@ -502,14 +394,23 @@ function buildAggregateAssessment({ plan, contract, structural, observations }) 
     ),
     ...(observation.admitted_evaluation?.diagnostics ?? []).map((detail) =>
       provenanceDetail(observation, {
-        source: "admitted_profile_evaluation", detail
+        source: "admitted_profile_evaluation", detail, assessment_stage: "authoring"
       })
     ),
     ...observation.missing_inputs.map((detail) => provenanceDetail(observation, {
-      source: "proof_plan_input", detail
+      source: "proof_plan_input", detail, assessment_stage: "authoring"
     }))
     ])
   ].sort((left, right) => compareCodeUnits(canonicalJson(left), canonicalJson(right)));
+  const stages = observations.map(({ projected }) => projected?.assessment.stage_assessment);
+  const stageAssessment = {
+    authoring_state: structural.assessment.structure === "proven" &&
+      stages.length > 0 && stages.every((stage) => stage?.authoring_state === "complete")
+      ? "complete" : "incomplete",
+    ...Object.fromEntries(["execution_gap_count", "expected_witness_count",
+      "supplied_witness_count", "missing_witness_count"].map((key) => [key,
+      stages.reduce((total, stage) => total + (stage?.[key] ?? 0), 0)]))
+  };
   const proofExclusions = observations.flatMap((observation) =>
     observation.pack.admission.explicit_exclusions.map((exclusionId) =>
       provenanceDetail(observation, {
@@ -556,17 +457,17 @@ function buildAggregateAssessment({ plan, contract, structural, observations }) 
     proof_packs_result: canonicalDigest(proofPacksFull)
   };
   const identity = canonicalDigest({
-    schema_version: "controlled-contract-multi-pack-assessment.v1",
+    schema_version: "controlled-contract-multi-pack-assessment.v2",
     tool_version: "controlled-contract-assess-multi.v1",
     axes: {
+      stage_assessment: stageAssessment,
       structure: structural.assessment.structure,
-      profile_discrimination: profileDiscrimination,
-      exact_binding: exactBinding
+      profile_discrimination: profileDiscrimination
     },
     digests: baseDigests
   });
   const assessment = {
-    schema_version: "controlled-contract-multi-pack-assessment.v1",
+    schema_version: "controlled-contract-multi-pack-assessment.v2",
     assessment_identity: identity,
     requested_proof_intents: sortedUnique(plan.requested_intents),
     selected_pack_count: plan.packs.length,
@@ -574,14 +475,13 @@ function buildAggregateAssessment({ plan, contract, structural, observations }) 
       projected !== null || admitted !== null
     ).length,
     structure: structural.assessment.structure,
+    stage_assessment: stageAssessment,
     profile_discrimination: profileDiscrimination,
-    exact_binding: exactBinding,
     assessment_scope: "planning",
     authority: "non_authoritative",
     overall_code: [
       `structure_${structural.assessment.structure}`,
-      `profile_${profileDiscrimination}`,
-      `exact_binding_${exactBinding}`
+      `profile_${profileDiscrimination}`
     ].join("__"),
     per_pack: packResults,
     diagnostics,
@@ -627,8 +527,7 @@ function obligationSelectorPacks(projected, observations) {
       authenticated_component_exclusion_applicability:
         clone(full.authenticated_component_exclusion_applicability),
       evaluation_input_present: observation.evaluation_input !== null,
-      profile_discrimination: aggregate.profile_discrimination,
-      exact_binding: observation.selector_exact_binding
+      profile_discrimination: aggregate.profile_discrimination
     };
   }));
 }
@@ -640,56 +539,6 @@ function recognizedObligationGuaranteeSelectorPacks(projected) {
     "obligation selectors require this module's exact assessment projection"
   );
   return packs;
-}
-
-function verifiedCanonicalSupplementInputs({ ordinal, packInstanceId, plan, contract,
-  projected, manifest, observation, pack, context, perPackAssessment, cycle }) {
-  const selection = context?.projected_evaluation?.selection ?? null;
-  return {
-    ordinal,
-    pack_instance_id: packInstanceId,
-    assessment_pack_cycle_digest: cycle.digest,
-    contract: normalizeContractForIdentity(contract),
-    compiled_proof_plan: normalizedProofPlanForIdentity(plan),
-    assessment_identity: projected.assessment.assessment_identity,
-    assessment_manifest: manifest,
-    assessment_manifest_census: {
-      entry_count: manifest.files.length,
-      entries: manifest.files
-    },
-    per_pack_assessment: perPackAssessment,
-    pack_identity: {
-      admission_version: pack.admission_version,
-      profile: pack.profile,
-      admission: pack.admission,
-      declaration: pack.declaration ?? null,
-      certification: pack.certification ?? null
-    },
-    profile_identity: pack.profile,
-    guarantee_identity: pack.admission.guarantee,
-    admission_identity: pack.admission,
-    adequacy_declaration_digest:
-      pack.admission.certification.adequacy_declaration_digest,
-    adequacy_result_digest: pack.admission.certification.adequacy_result_digest,
-    evaluation_input: observation.evaluation_input === null ? null
-      : normalizeEvaluationInputForIdentity(observation.evaluation_input),
-    profile_result: observation.projected?.reports.admittedProof === undefined
-      ? null : observation.projected.assessment.digests.results.admitted_profile,
-    exact_binding_declaration: context?.exact_binding_declaration ?? null,
-    exact_binding_certification: pack.certification ?? null,
-    exact_binding_result: context?.exact_binding_result ?? null,
-    exact_capture_source_set: context?.exact_binding_sources ?? null,
-    projected_graph: selection?.graph ?? context?.projected_envelope?.graph ?? null,
-    selected_node_result: selection === null ? null : {
-      pattern_selections: selection.pattern_selections,
-      universal_iterations: selection.universal_iterations,
-      association_selections: selection.association_selections
-    },
-    binding_set_digest: context?.exact_binding_result?.binding_set_sha256 ?? null,
-    exact_context_digest: context === null ? null : exactCanonicalDigest(
-      context.exact_binding_result.context
-    )
-  };
 }
 
 async function assessProofPlan({ inputPath, proofPlan, planDirectory = process.cwd() }) {
@@ -761,7 +610,6 @@ function markdownMultiPackAssessment(assessment) {
     "# Controlled Contract Multi-Pack Assessment", "",
     `## STRUCTURE: ${assessment.structure.toUpperCase()}`, "",
     `## PROFILE DISCRIMINATION: ${assessment.profile_discrimination.toUpperCase().replaceAll("_", " ")}`, "",
-    `## EXACT BINDING: ${assessment.exact_binding.toUpperCase().replaceAll("_", " ")}`, "",
     "## ASSESSMENT SCOPE: PLANNING", "",
     "This assessment evaluates authored contract structure and proof-plan discrimination. Delivered runtime behavior is outside its scope.", "",
     "## AUTHORITY: NON-AUTHORITATIVE", "",
@@ -772,7 +620,7 @@ function markdownMultiPackAssessment(assessment) {
   ];
   if (assessment.per_pack.length === 0) lines.push("No proof packs were selected.");
   for (const pack of assessment.per_pack) lines.push(
-    `- \`${pack.profile_id}@${pack.profile_version}\`: profile ${pack.profile_discrimination}; exact binding ${pack.exact_binding}; intents ${pack.requested_intents.map((id) => `\`${id}\``).join(", ")}`
+    `- \`${pack.profile_id}@${pack.profile_version}\`: profile ${pack.profile_discrimination}; intents ${pack.requested_intents.map((id) => `\`${id}\``).join(", ")}`
   );
   lines.push(
     "", `Diagnostics: ${assessment.diagnostics.length}`,
@@ -925,14 +773,12 @@ function compactMultiPackAssessment(assessment) {
     overall_code: assessment.overall_code,
     structure: assessment.structure,
     profile_discrimination: assessment.profile_discrimination,
-    exact_binding: assessment.exact_binding,
     assessment_scope: "planning",
     authority: "non_authoritative",
     per_pack: assessment.per_pack.map((pack) => ({
       profile_id: pack.profile_id,
       profile_version: pack.profile_version,
-      profile_discrimination: pack.profile_discrimination,
-      exact_binding: pack.exact_binding
+      profile_discrimination: pack.profile_discrimination
     })),
     diagnostic_count: assessment.diagnostics.length,
     exclusion_count: assessment.proof_exclusions.length,

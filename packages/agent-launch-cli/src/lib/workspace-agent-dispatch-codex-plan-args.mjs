@@ -32,7 +32,10 @@ export function buildCodexDispatchWorkerPlanArgs({
   provisioned_worktree_git_binding = null,
   worker_scope_authority = null,
   worktree_provisioning = null,
-  advisoryReviewInput = null
+  dispatchWorkspaceBinding = null,
+  advisoryReviewInput = null,
+
+  workerAssignment = null
 }) {
   const planArgs = {
     role,
@@ -54,6 +57,12 @@ export function buildCodexDispatchWorkerPlanArgs({
   }
   if (worktree_provisioning !== null) {
     planArgs.worktree_provisioning = worktree_provisioning;
+  }
+  if (dispatchWorkspaceBinding !== null) {
+    planArgs.dispatchWorkspaceBinding = dispatchWorkspaceBinding;
+  }
+  if (workerAssignment !== null) {
+    planArgs.worker_assignment = workerAssignment;
   }
   const serverProvisionedWorktreeGitBinding = resolveProvisionedWorktreeGitBinding({
     provisionedWorktreeGitBinding,

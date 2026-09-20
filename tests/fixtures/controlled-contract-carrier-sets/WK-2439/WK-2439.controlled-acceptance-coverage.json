@@ -1,0 +1,340 @@
+{
+  "schema_version": "wiki-core-controlled-contract-acceptance-coverage.v1",
+  "wk_id": "WK-2439",
+  "selected_unit": null,
+  "source_identity": {
+    "source_kind": "obligation-coverage",
+    "content_digest": "sha256:4a97fb4719524c1f83fc67549f8808b107e9db01ebe21e464e7f0ed56a9fd4bd"
+  },
+  "source_bindings": {
+    "workRecordLocatorDigest": "sha256:48d005fccdc921a8ac8a513f01aa27a916879a392b588e8474107dbf92a4f02d",
+    "contractDigest": "sha256:9d062683ebd095368b6fd23d7878eb44bc9dbcc56aa928e35c100fe236320021",
+    "contractNodeDigest": "sha256:a4114b959642059595d546d2f40a09053aa3762494b827cb302b3765e8a8bfb4",
+    "proofPlanDigest": "sha256:8b0a06375a86ac5157969dcf591cc7d0ec6cca3c5a4a35b093eb7122589d8605",
+    "selectedPackDigest": "sha256:383d085945e15a136414df07175dcc7f915ec59b22b4d9bafdd6cf52e19bcbfc",
+    "assessmentDigest": null,
+    "proofAssessmentDigest": null,
+    "profileVersionDigest": "sha256:8d3dcc41c8f20bdd076f69fc33a608194471f12071e3443b1692e2eee68c582c",
+    "selectorArtifactDigest": "sha256:b68be2e80b21be0b41fe5093c5648fe132186d968ae23ac6abe1dbe4ffcfe1e5",
+    "ownershipDigest": "sha256:956fcc35f8872672abc0eb7c5bd99ea8ac95e71375f76e62cec3c01c7c5d814b",
+    "verificationDigest": "sha256:0bb234ca5b512dfbd0bf2bdaa7ffab887db08aea88a4e53f35104f8b4dd6b94f",
+    "optionalScopeDigest": null,
+    "sourceDigest": "sha256:4a97fb4719524c1f83fc67549f8808b107e9db01ebe21e464e7f0ed56a9fd4bd",
+    "sourceKind": "obligation-coverage",
+    "mappingDigest": "sha256:bcfadc3cf24b4aaf8ce0c56b54d0c6c33ecebdeaeec648dab4b6edcd461a2f58"
+  },
+  "criterion_identities": {
+    "version": "acceptance-coverage-criterion-identity.v1",
+    "identities": [
+      {
+        "position": 0,
+        "text": "PURPOSE. Add one shared server-side semantic skeleton composer consumed by the existing WK-2419 obligation-source describe and WK-2417 acceptance-mapping describe operations, so an agent starts from authenticated current criteria, contract nodes, admitted pack components and mutation arguments instead of manually reconstructing rows. Do not add a preparation route or another public authoring bootstrap.",
+        "identity": "derived:13befeb806b1453ddb33743bf0d4eb20840d7a44796ab8028fd292e9c9f784ca",
+        "source": "derived"
+      },
+      {
+        "position": 1,
+        "text": "SEMANTIC AUTHORITY STAYS WITH THE CALLER. A skeleton may enumerate current identities, allowed typed alternatives, required authored fields and unresolved slots; it must not invent an obligation statement, choose a mechanism, claim proof adequacy, select a gap disposition, assign coverage axes, or confer lifecycle authority.",
+        "identity": "derived:cc2300d3e41aa10f7bc47784d742fdc98bfea8269fa79b9a765e651c2aad8ea0",
+        "source": "derived"
+      },
+      {
+        "position": 2,
+        "text": "CLOSED 39-ENTRY VOCABULARY. The controlled contract's ordered ref-skeleton-entry-01 through ref-skeleton-entry-39 population is exhaustive. It fixes common server/evolving/projection/transport/metric entries, nine obligation-row and mutation entries, and three acceptance-row entries. Implementations consume those stable identities and their encoded server-versus-authored categories and type alternatives; workers do not create, remove, merge, reorder or reinterpret an entry.",
+        "identity": "derived:cb07a2fbe934731e5a7655d41cdf6646897925cc079b08afb46e13ede4dc53b9",
+        "source": "derived"
+      },
+      {
+        "position": 3,
+        "text": "SERVER COMPOSITION. The shared composer receives only server-resolved WK/unit/focus, criteria, controlled-contract nodes, proof plan/selected pack, source/carrier state, bounds and existing create/upsert identities from the owning describe operations. Public schemas accept no paths, raw carriers, caller pack identities, canonical digests beyond mutation CAS inputs, or authority claims.",
+        "identity": "derived:e30a884d5130db10d4a59fd552db45dd99e463f4507d7380a96791399b488712",
+        "source": "derived"
+      },
+      {
+        "position": 4,
+        "text": "LOSSLESS BOUNDED PROJECTION. The complete deterministic 39-entry population remains available through the server/MCP transport boundary. Each existing describe operation exposes an inline gap-first skeleton projection of at most 16,384 canonical UTF-8 bytes with exact total/returned/omitted counts; when omitted is nonzero, the existing integrity-bound content-reference transport binds the complete population so all 39 identities are reconstructible. WK-2439 defines no parallel cursor, continuation, state machine, route, spill format or repeat-describe recovery.",
+        "identity": "derived:76db427b3e09405b868f580237161a13918f22182d474914d8198030f857ddda",
+        "source": "derived"
+      },
+      {
+        "position": 5,
+        "text": "EXECUTABLE HANDOFF. For absent carriers, completed authored decisions compose directly into the existing WK-2419 or WK-2417 create request. For current carriers, stable tool identity and non-CAS fixed arguments are emitted once, while expected_content_digest and every digest-bearing carrier identity are evolving state owned by existing mutation receipts: each single-row call consumes the prior receipt digest, emits the next, and final query/describe verifies the complete carrier. WK-2438 batch is used only when canonically available.",
+        "identity": "derived:e4fb5a26a3570156aaa417d368a288a1f5f33a57d5fbf0b7248d54a3821acd2c",
+        "source": "derived"
+      },
+      {
+        "position": 6,
+        "text": "FRESH-SESSION COMPLETENESS. A restarted orchestrator discovers and calls the existing obligation or acceptance describe operation, fills only the semantic decisions exposed by its skeleton projection, submits through the advertised existing mutations with receipt-fed CAS state, reconstructs any omitted entries through the existing content reference, and verifies canonical final state without source inspection, raw JSON editing or hidden retained context.",
+        "identity": "derived:107d0639050f43b44a5f37f0e2ccbab42ba4f85b39ac3f47db26785fbfcedb60",
+        "source": "derived"
+      },
+      {
+        "position": 7,
+        "text": "LOCAL FAILURE DATA ONLY. The composer deterministically reports missing local inputs, invalid authored decisions, unresolved slots and bound overflow to the owning describe operation. WK-2437 exclusively owns public state classification, recovery-call selection, next_calls, blind-retry prevention and dependency recovery; WK-2439 must not synthesize an independent recovery workflow.",
+        "identity": "derived:24144c151b44aaec531a976b1991007329e6fa143d67ed270fabac3492da54ae",
+        "source": "derived"
+      },
+      {
+        "position": 8,
+        "text": "MEASUREMENT HANDOFF. The existing MCP fresh-session proof captures fixed-fixture raw call count, request/result UTF-8 bytes, unresolved-slot count, retry count, source-inspection-escape count and exact final-carrier-equivalence boolean, and compares the persisted carrier byte-for-byte with the intended complete authored state. WK-2055 exclusively owns composed-versus-manual reporting, denominators, conclusions and publication of conformance claims.",
+        "identity": "derived:bae3c9de7f38f45cad872d009020922ac227a896ff6314e49322757fd01c1a7c",
+        "source": "derived"
+      },
+      {
+        "position": 9,
+        "text": "ROLE AND AUTHORITY. Skeleton composition is read-only and non-authoritative; writes occur only through the existing authenticated WK-2417/WK-2419 mutation operations. Role visibility remains that of the owning describe operation and never widens mutation permissions.",
+        "identity": "derived:d8168a23d25effd48985cb7488fe8a0abf0c5b73cec72ae1d8e5eeba2882dc3c",
+        "source": "derived"
+      },
+      {
+        "position": 10,
+        "text": "SCOPE EXCLUSIONS. Do not add a public preparation family; own task-directed state or recovery (WK-2437); own atomic mutation (WK-2438); own workflow reporting (WK-2055); alter proof-pack semantics; infer proof applicability; add policy/admission authority; implement stale rebase (WK-2427); change query cursor semantics (WK-2436); or duplicate generic proof-plan skeleton work delivered by WK-2024.",
+        "identity": "derived:5485728656f73a37a61bb6c7571385a87bc8b450d20e5aa01415e6915ea91bbc",
+        "source": "derived"
+      }
+    ],
+    "bindings": {
+      "contractDigest": "sha256:9d062683ebd095368b6fd23d7878eb44bc9dbcc56aa928e35c100fe236320021",
+      "proofPlanDigest": "sha256:8b0a06375a86ac5157969dcf591cc7d0ec6cca3c5a4a35b093eb7122589d8605",
+      "selectedPackDigest": "sha256:383d085945e15a136414df07175dcc7f915ec59b22b4d9bafdd6cf52e19bcbfc",
+      "mappingDigest": "sha256:bcfadc3cf24b4aaf8ce0c56b54d0c6c33ecebdeaeec648dab4b6edcd461a2f58"
+    },
+    "provenance": {
+      "selectedUnitDigest": "sha256:2ba7dbf462295d2d6fc2575c6785aa47eb45008f84b302a8bdef893fb52c886d"
+    },
+    "digest": "93d665c0c8029b4d38c181eafe9a90b30487fff7630597b28a9affcfb4fa8c48"
+  },
+  "rows": [
+    {
+      "criterion_identity": "derived:13befeb806b1453ddb33743bf0d4eb20840d7a44796ab8028fd292e9c9f784ca",
+      "node_ids": [
+        "claim-obligation-describe-reuses-composer",
+        "ref-obligation-describe",
+        "claim-acceptance-describe-reuses-composer",
+        "ref-acceptance-describe",
+        "claim-package-component-exists",
+        "ref-shared-skeleton-composer",
+        "claim-verify-package-composer",
+        "ref-package-suite"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:cc2300d3e41aa10f7bc47784d742fdc98bfea8269fa79b9a765e651c2aad8ea0",
+      "node_ids": [
+        "claim-caller-retains-semantic-authority",
+        "ref-caller-semantic-decisions"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:cb07a2fbe934731e5a7655d41cdf6646897925cc079b08afb46e13ede4dc53b9",
+      "node_ids": [
+        "claim-skeleton-entry-count-is-exact",
+        "ref-skeleton-entry-count",
+        "claim-skeleton-vocabulary-is-closed",
+        "ref-skeleton-entry-population",
+        "ref-skeleton-entry-01",
+        "ref-skeleton-entry-02",
+        "ref-skeleton-entry-03",
+        "ref-skeleton-entry-04",
+        "ref-skeleton-entry-05",
+        "ref-skeleton-entry-06",
+        "ref-skeleton-entry-07",
+        "ref-skeleton-entry-08",
+        "ref-skeleton-entry-09",
+        "ref-skeleton-entry-10",
+        "ref-skeleton-entry-11",
+        "ref-skeleton-entry-12",
+        "ref-skeleton-entry-13",
+        "ref-skeleton-entry-14",
+        "ref-skeleton-entry-15",
+        "ref-skeleton-entry-16",
+        "ref-skeleton-entry-17",
+        "ref-skeleton-entry-18",
+        "ref-skeleton-entry-19",
+        "ref-skeleton-entry-20",
+        "ref-skeleton-entry-21",
+        "ref-skeleton-entry-22",
+        "ref-skeleton-entry-23",
+        "ref-skeleton-entry-24",
+        "ref-skeleton-entry-25",
+        "ref-skeleton-entry-26",
+        "ref-skeleton-entry-27",
+        "ref-skeleton-entry-28",
+        "ref-skeleton-entry-29",
+        "ref-skeleton-entry-30",
+        "ref-skeleton-entry-31",
+        "ref-skeleton-entry-32",
+        "ref-skeleton-entry-33",
+        "ref-skeleton-entry-34",
+        "ref-skeleton-entry-35",
+        "ref-skeleton-entry-36",
+        "ref-skeleton-entry-37",
+        "ref-skeleton-entry-38",
+        "ref-skeleton-entry-39"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:e30a884d5130db10d4a59fd552db45dd99e463f4507d7380a96791399b488712",
+      "node_ids": [
+        "claim-server-resolves-composer-inputs",
+        "ref-server-resolved-state"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:76db427b3e09405b868f580237161a13918f22182d474914d8198030f857ddda",
+      "node_ids": [
+        "claim-projection-bound-is-exact",
+        "ref-skeleton-projection",
+        "ref-projection-byte-bound",
+        "claim-omitted-entries-remain-reachable",
+        "ref-omitted-skeleton-population",
+        "ref-existing-transport",
+        "claim-verify-core-projection",
+        "ref-core-suite",
+        "ref-core-module"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:e4fb5a26a3570156aaa417d368a288a1f5f33a57d5fbf0b7248d54a3821acd2c",
+      "node_ids": [
+        "claim-handoff-uses-existing-mutations",
+        "ref-existing-mutations",
+        "claim-stable-mutation-arguments-emitted",
+        "claim-cas-state-chains-mutation-receipts"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:107d0639050f43b44a5f37f0e2ccbab42ba4f85b39ac3f47db26785fbfcedb60",
+      "node_ids": [
+        "claim-obligation-fresh-session-completes",
+        "claim-acceptance-fresh-session-completes",
+        "claim-verify-mcp-fresh-session",
+        "ref-mcp-suite",
+        "ref-mcp-module"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:24144c151b44aaec531a976b1991007329e6fa143d67ed270fabac3492da54ae",
+      "node_ids": [
+        "claim-recovery-ownership-remains-wk2437",
+        "ref-recovery-owner"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:bae3c9de7f38f45cad872d009020922ac227a896ff6314e49322757fd01c1a7c",
+      "node_ids": [
+        "claim-final-carrier-equivalence-required",
+        "claim-raw-metrics-complete",
+        "ref-raw-metrics",
+        "claim-raw-metrics-handed-to-report-owner",
+        "ref-report-owner"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:d8168a23d25effd48985cb7488fe8a0abf0c5b73cec72ae1d8e5eeba2882dc3c",
+      "node_ids": [
+        "claim-composer-remains-nonauthoritative"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:5485728656f73a37a61bb6c7571385a87bc8b450d20e5aa01415e6915ea91bbc",
+      "node_ids": [
+        "claim-no-new-public-preparation-route",
+        "ref-public-route-population",
+        "ref-batch-owner",
+        "ref-proof-skeleton-owner",
+        "claim-verify-owner-boundaries",
+        "ref-registry-suite",
+        "ref-registration-module"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    }
+  ]
+}

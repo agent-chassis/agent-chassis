@@ -258,6 +258,7 @@ function resolveSelectedUnitContext(canonicalSummary) {
       validation_commands: canonicalSummary.validation_commands
     };
   }
+
   const sliceDocs = stringArray(selectedUnit.docs);
   const sliceRepoPaths = stringArray(selectedUnit.repo_paths);
   return {
@@ -269,6 +270,42 @@ function resolveSelectedUnitContext(canonicalSummary) {
       : [],
     validation_commands: stringArray(selectedUnit.acceptance?.validation)
   };
+}
+
+function renderOperativeInstructions(canonicalSummary) {
+  const lines = [];
+  if (isNonEmptyString(canonicalSummary.operative_notes)) {
+    lines.push("### Operative Notes", "", canonicalSummary.operative_notes.trim(), "");
+  }
+  const tasks = Array.isArray(canonicalSummary.operative_tasks)
+    ? canonicalSummary.operative_tasks.filter((task) => isNonEmptyString(task?.text))
+    : [];
+  if (tasks.length > 0) {
+    lines.push(
+      "### Operative Tasks",
+      "",
+      tasks
+        .map((task) => `- ${task.text}${isNonEmptyString(task.status) ? ` [status=${task.status}]` : ""}`)
+        .join("\n"),
+      ""
+    );
+  }
+  return lines;
+}
+
+export const IMPLEMENTATION_WORKER_INSTRUCTION =
+  "Implement the assigned task. Read only the listed readable paths and modify only the listed writable paths. Use the tools available in this session. Run workspace_verify_proof, report the result, then commit. If required implementation work falls outside scope, report the blocker.";
+
+export const DECLARED_VALIDATION_NOTE =
+  "The declared validation below and any full-suite validation named in the task text are acceptance validation outside this assignment; they are not a separate worker step before commit.";
+
+function readablePaths(selectedUnitContext) {
+  const paths = [
+    ...selectedUnitContext.docs,
+    ...selectedUnitContext.repo_paths,
+    ...selectedUnitContext.write_scope
+  ].filter(isNonEmptyString);
+  return [...new Set(paths)];
 }
 
 export function buildLaunchPrompt({
@@ -283,16 +320,12 @@ export function buildLaunchPrompt({
 }) {
   const selectedUnitContext = resolveSelectedUnitContext(canonicalSummary);
   const lines = [
-    `Suggested Codex rename command: /rename ${unit.address} worker`,
-    "",
+
     `Requested wrapper role: ${role}.`,
     `Role: implementation worker for ${unit.address}.`,
     `Launch timestamp: ${launchTimestamp}`,
-    "Implementation workers may use the launcher-provided native command surface inside the bwrap namespace: Codex may invoke its actual exec_command tool and Claude may invoke Bash without interactive approval.",
-    "You read your assigned read_scope, repo_paths, and write_scope through the launcher-granted native repository namespace for this session. Bubblewrap exposes exactly the frozen assigned paths; no child filesystem service or fallback can widen them.",
-    "Shell commands may inspect assigned R union W and may generate, format, or mutate only assigned W. The bwrap mounts, not command parsing or an allowlist, enforce the filesystem boundary.",
-    "For Codex, apply_patch remains available as one editing option; it is not required and does not replace exec_command. For Claude, Bash is an explicitly granted native tool.",
-    "The declared validation below is reviewer-owned. You may run checks already usable inside the frozen namespace, but complete-test infrastructure is not added to worker R, test availability or success is not a commit prerequisite, and inability to reach undeclared validation dependencies is not a worker blocker.",
+    "",
+    IMPLEMENTATION_WORKER_INSTRUCTION,
     "",
     "Use the canonical JSON record and generated agent brief below. Do not rely on hidden coordinator chat context.",
     "",
@@ -304,23 +337,22 @@ export function buildLaunchPrompt({
       ["title", canonicalSummary.title]
     ]),
     "",
-    "### Canonical Docs",
-    "",
-    formatInlineList(selectedUnitContext.docs),
-    "",
-    "### Repo Paths",
-    "",
-    formatInlineList(selectedUnitContext.repo_paths),
-    "",
-    "### Write Scope",
-    "",
-    formatInlineList(selectedUnitContext.write_scope),
-    "",
+    ...renderOperativeInstructions(canonicalSummary),
     "### Acceptance Criteria",
     "",
     formatAcceptanceCriteriaList(selectedUnitContext.acceptance_criteria),
     "",
-    "### Validation",
+    "### Readable Paths",
+    "",
+    formatInlineList(readablePaths(selectedUnitContext)),
+    "",
+    "### Writable Paths",
+    "",
+    formatInlineList(selectedUnitContext.write_scope),
+    "",
+    "### Declared Validation",
+    "",
+    DECLARED_VALIDATION_NOTE,
     "",
     formatInlineList(selectedUnitContext.validation_commands),
     "",

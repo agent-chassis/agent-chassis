@@ -1,0 +1,1976 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-supersession",
+      "kind": "rationale",
+      "text": "Supersedes only WK-2054's unfinished remediation and exposure tail; preserves delivered generic owners."
+    },
+    {
+      "annotation_id": "ann-direct-main",
+      "kind": "rationale",
+      "text": "Operator-authorized direct-main delivery requires exact-landed-change review and no forge handoff."
+    },
+    {
+      "annotation_id": "ann-proof-rigor",
+      "kind": "rationale",
+      "text": "Hand-authored integration proof rigor decisions: supersession=critical_semantic; currentness=critical_semantic; precreate-describe=critical_semantic; mcp-family=critical_semantic; authoring-semantics=critical_semantic; bounds=critical_semantic; role-policy=critical_semantic; discovery-parity=critical_semantic; nonauthority=critical_semantic; regressions=standard; documentation=standard; wk2415-unblock=standard; direct-main=standard."
+    },
+    {
+      "annotation_id": "ann-adequacy-axes",
+      "kind": "rationale",
+      "text": "All ten adequacy axes are applicable to WK-2417: registered routes, selector partitions, authority producer/consumer edges, exact role-tool profiles, failure phases, result-schema population, persistent refs/state, concurrency/interleavings, declared mutants, and prohibited stubs. Unsupported provider-backed censuses must remain explicit incomplete evidence and cannot be inferred as pass."
+    },
+    {
+      "annotation_id": "ann-hand-proof-result",
+      "kind": "rationale",
+      "text": "Hand-authored design-time adequacy assessment over the criterion-bound contract: pass; 10/10 axes decided, 13/13 requirements joined, 13/13 integration-required obligations have concrete scenarios, 71/71 applicable complete census members have scenarios, and fail/incomplete/unevaluable/review_only diagnostics are all zero. This is design sufficiency only and grants no runtime or implementation correctness guarantee."
+    },
+    {
+      "annotation_id": "ann-axis-routes",
+      "kind": "rationale",
+      "text": "Registered-route census (5): workspace_controlled_contract_acceptance_coverage_describe, _create, _upsert, _remove, and _query. Every credited scenario action begins at the exact public route boundary."
+    },
+    {
+      "annotation_id": "ann-axis-selectors",
+      "kind": "rationale",
+      "text": "Selector-partition census (7): root WK subject, slice subject, valid criterion index, invalid criterion index, carrier absent, carrier present-current, and carrier present-stale. Each partition has an exact declared input."
+    },
+    {
+      "annotation_id": "ann-axis-authority",
+      "kind": "rationale",
+      "text": "Authority-edge census (6): canonical resolver to describe/create/upsert/remove, role policy to MCP registration, and registered provider to currentness check. Scenarios observe production producers and never replace authority results."
+    },
+    {
+      "annotation_id": "ann-axis-roles",
+      "kind": "rationale",
+      "text": "Exact role-profile census (5): orchestrator, operator, reviewer, redteam, and worker. Each profile proves equality across registered, returned, invoked, and completed tool sets."
+    },
+    {
+      "annotation_id": "ann-axis-failures",
+      "kind": "rationale",
+      "text": "Failure-phase census (8): missing source, missing carrier, invalid selector, stale currentness, duplicate credit, oversize, busy, and final compare. Each phase has an injected failure identity and exact typed expected result."
+    },
+    {
+      "annotation_id": "ann-axis-state",
+      "kind": "rationale",
+      "text": "Persistent-state census (5): describe preserves absence, create absent-to-present, upsert present-to-present, remove present-to-present-or-empty, and refusal preserves before-state. Fixtures observe required absence and never pre-create it."
+    },
+    {
+      "annotation_id": "ann-axis-concurrency",
+      "kind": "rationale",
+      "text": "Concurrency/interleaving census (5): simultaneous create, stale upsert after winner, stale remove after winner, busy lock contention, and final-compare race. Each case has an explicit concurrency constraint and proves loser/refusal no-state-change."
+    },
+    {
+      "annotation_id": "ann-scenario-proof-shape",
+      "kind": "rationale",
+      "text": "Each of the 13 criterion-bound scenarios declares a canonical input, exact public action, typed expected result, ordinary node:test discovery binding for its mutant, kill oracle, public observations, forbidden side effects, follow-up set, falsifiers, and closed writable roots. Source inspection, test-count-only, unexecuted assertions, and mock-only authority substitution are prohibited."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-behavior-supersession",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-supersession"
+    },
+    {
+      "claim_id": "claim-verify-supersession",
+      "falsifying_proposition_id": "prop-falsify-supersession",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-supersession",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-currentness",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-currentness"
+    },
+    {
+      "claim_id": "claim-verify-currentness",
+      "falsifying_proposition_id": "prop-falsify-currentness",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-currentness",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-precreate-describe",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-precreate-describe"
+    },
+    {
+      "claim_id": "claim-verify-precreate-describe",
+      "falsifying_proposition_id": "prop-falsify-precreate-describe",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-precreate-describe",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-mcp-family",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-mcp-family"
+    },
+    {
+      "claim_id": "claim-verify-mcp-family",
+      "falsifying_proposition_id": "prop-falsify-mcp-family",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-mcp-family",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-authoring-semantics",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-authoring-semantics"
+    },
+    {
+      "claim_id": "claim-verify-authoring-semantics",
+      "falsifying_proposition_id": "prop-falsify-authoring-semantics",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-authoring-semantics",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-bounds",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-bounds"
+    },
+    {
+      "claim_id": "claim-verify-bounds",
+      "falsifying_proposition_id": "prop-falsify-bounds",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-bounds",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-role-policy",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-role-policy"
+    },
+    {
+      "claim_id": "claim-verify-role-policy",
+      "falsifying_proposition_id": "prop-falsify-role-policy",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-role-policy",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-discovery-parity",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-discovery-parity"
+    },
+    {
+      "claim_id": "claim-verify-discovery-parity",
+      "falsifying_proposition_id": "prop-falsify-discovery-parity",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-discovery-parity",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-nonauthority",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-nonauthority"
+    },
+    {
+      "claim_id": "claim-verify-nonauthority",
+      "falsifying_proposition_id": "prop-falsify-nonauthority",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-nonauthority",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-regressions",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-regressions"
+    },
+    {
+      "claim_id": "claim-verify-regressions",
+      "falsifying_proposition_id": "prop-falsify-regressions",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-regressions",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-documentation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-documentation"
+    },
+    {
+      "claim_id": "claim-verify-documentation",
+      "falsifying_proposition_id": "prop-falsify-documentation",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-documentation",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-wk2415-unblock",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-wk2415-unblock"
+    },
+    {
+      "claim_id": "claim-verify-wk2415-unblock",
+      "falsifying_proposition_id": "prop-falsify-wk2415-unblock",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-wk2415-unblock",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-direct-main",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-direct-main"
+    },
+    {
+      "claim_id": "claim-verify-direct-main",
+      "falsifying_proposition_id": "prop-falsify-direct-main",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-direct-main",
+      "verification_method": "test_execution"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-implementation-obligations",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-behavior-supersession",
+        "claim-behavior-currentness",
+        "claim-behavior-precreate-describe",
+        "claim-behavior-mcp-family",
+        "claim-behavior-authoring-semantics",
+        "claim-behavior-bounds",
+        "claim-behavior-role-policy",
+        "claim-behavior-discovery-parity",
+        "claim-behavior-nonauthority",
+        "claim-behavior-regressions",
+        "claim-behavior-documentation",
+        "claim-behavior-wk2415-unblock",
+        "claim-behavior-direct-main"
+      ],
+      "purpose": "implementation_obligations"
+    },
+    {
+      "collection_id": "set-verification-obligations",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-verify-supersession",
+        "claim-verify-currentness",
+        "claim-verify-precreate-describe",
+        "claim-verify-mcp-family",
+        "claim-verify-authoring-semantics",
+        "claim-verify-bounds",
+        "claim-verify-role-policy",
+        "claim-verify-discovery-parity",
+        "claim-verify-nonauthority",
+        "claim-verify-regressions",
+        "claim-verify-documentation",
+        "claim-verify-wk2415-unblock",
+        "claim-verify-direct-main"
+      ],
+      "purpose": "verification_obligations"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-supersession"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-supersession",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-supersession"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-supersession",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-supersession",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-currentness"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-currentness",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-currentness"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-currentness",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-currentness",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-precreate-describe"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-precreate-describe",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-precreate-describe"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-precreate-describe",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-precreate-describe",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-mcp-family"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-mcp-family",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-mcp-family"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-mcp-family",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-mcp-family",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-authoring-semantics"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-authoring-semantics",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-authoring-semantics"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-authoring-semantics",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-authoring-semantics",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-bounds"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-bounds",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-bounds"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-bounds",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-bounds",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-role-policy"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-role-policy",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-role-policy"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-role-policy",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-role-policy",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-discovery-parity"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-discovery-parity",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-discovery-parity"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-discovery-parity",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-discovery-parity",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-nonauthority"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-nonauthority",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-nonauthority"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-nonauthority",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-nonauthority",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-regressions"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-regressions",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-regressions"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-regressions",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-regressions",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-documentation"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-documentation",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-documentation"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-documentation",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-documentation",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-wk2415-unblock"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-wk2415-unblock",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-wk2415-unblock"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-wk2415-unblock",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-wk2415-unblock",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-direct-main"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-direct-main",
+      "subject_reference_id": "ref-family"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-family"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-criterion-direct-main"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-direct-main",
+      "subject_reference_id": "ref-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-direct-main",
+      "subject_reference_id": "ref-family"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "registerControlledContractTools"
+      },
+      "reference_id": "ref-family",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "server-authenticated-acceptance-coverage-describe-create-upsert-remove-query-family"
+      },
+      "reference_id": "ref-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "acceptance-coverage-authoring-mcp-family"
+      },
+      "reference_id": "ref-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2417-ordinary-node-test-validation-suite"
+      },
+      "reference_id": "ref-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "SUPERSESSION. Replace only WK-2054's unfinished current-main remediation and MCP/discovery exposure tail. Reuse its delivered obligation carrier, evaluator, canonical resolver/currentness owner, mutation/query operations, cursor, state vocabulary, and controlled-contract registration family; create no parallel owner."
+      },
+      "reference_id": "ref-criterion-supersession",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "CORE CURRENTNESS. Repair only defects preventing existing acceptance-coverage operations from consuming complete server-authenticated facts and returning typed valid-empty, invalid-selector, stale, missing-source, and missing-carrier outcomes without fabricated empty populations."
+      },
+      "reference_id": "ref-criterion-currentness",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "PRE-CREATE DESCRIBE. Add a read-only server-resolved describe operation that works while the derived carrier is absent and returns exact obligation-source, WK/unit, criterion, digest, expected-absence, prospective-carrier, bound, and supported-next-call facts for legitimate create."
+      },
+      "reference_id": "ref-criterion-precreate-describe",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "MCP FAMILY. Register describe/create/upsert/remove/query through registerControlledContractTools with closed schemas and byte-preserving refusals. Accept no caller repository/source path, digest, generation, count, completeness, currentness, outcome, or provider authority."
+      },
+      "reference_id": "ref-criterion-mcp-family",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "AUTHORING SEMANTICS. Create requires server-proven absence and exact described identity; upsert/remove require digest CAS and typed criterion selectors. Missing, stale, duplicate, invalid, oversize, busy, and final-compare failures change no state and preserve distinct codes."
+      },
+      "reference_id": "ref-criterion-authoring-semantics",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "BOUNDS. Preserve the 4,096-row and 1,048,576-byte create bounds and shared bounded gap-first response, content-reference, and digest-bound continuation owners without silent truncation."
+      },
+      "reference_id": "ref-criterion-bounds",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "ROLE POLICY. Describe/query are visible to orchestrator, reviewer, redteam, operator; create/upsert/remove only to orchestrator/operator; worker receives none."
+      },
+      "reference_id": "ref-criterion-role-policy",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "DISCOVERY PARITY. Registration, schema, descriptor, role policy, discovery, routing, invocation, and completion populations are exact; every advertised next call is callable."
+      },
+      "reference_id": "ref-criterion-discovery-parity",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "NON-AUTHORITY. Reads are non-authoritative; mutations author only mappings and confer no proof, admission, CCE, dispatch, review, integration, publication, completion, or runtime-proof authority."
+      },
+      "reference_id": "ref-criterion-nonauthority",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "REGRESSIONS. Cover describe/create/upsert/remove/query, request self-authentication, currentness/CAS, roles, registration/discovery/routing/callable parity, bounds, and ordinary node:test discovery."
+      },
+      "reference_id": "ref-criterion-regressions",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "DOCUMENTATION. docs/acceptance-coverage-mcp.md owns the protocol and docs/mcp-integration.md links it without duplicating the catalog."
+      },
+      "reference_id": "ref-criterion-documentation",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "WK-2415 UNBLOCK. WK-2415 stays blocked until live discovery exposes the family and an orchestrator can use describe plus create/upsert for its exact mappings."
+      },
+      "reference_id": "ref-criterion-wk2415-unblock",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2417.acceptance",
+        "kind": "durable_id",
+        "value": "DIRECT-TO-MAIN. Operator-authorized direct-to-main delivery receives one findings-only review of the exact landed commit/range, one disposition, recorded validation/survivors, no terminal-review unit, and no forge handoff."
+      },
+      "reference_id": "ref-criterion-direct-main",
+      "type_term": "cc:criterion"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-supersession",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-supersession",
+      "target_claim_id": "claim-behavior-supersession"
+    },
+    {
+      "relation_id": "rel-verify-currentness",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-currentness",
+      "target_claim_id": "claim-behavior-currentness"
+    },
+    {
+      "relation_id": "rel-verify-precreate-describe",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-precreate-describe",
+      "target_claim_id": "claim-behavior-precreate-describe"
+    },
+    {
+      "relation_id": "rel-verify-mcp-family",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mcp-family",
+      "target_claim_id": "claim-behavior-mcp-family"
+    },
+    {
+      "relation_id": "rel-verify-authoring-semantics",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-authoring-semantics",
+      "target_claim_id": "claim-behavior-authoring-semantics"
+    },
+    {
+      "relation_id": "rel-verify-bounds",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-bounds",
+      "target_claim_id": "claim-behavior-bounds"
+    },
+    {
+      "relation_id": "rel-verify-role-policy",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-role-policy",
+      "target_claim_id": "claim-behavior-role-policy"
+    },
+    {
+      "relation_id": "rel-verify-discovery-parity",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-discovery-parity",
+      "target_claim_id": "claim-behavior-discovery-parity"
+    },
+    {
+      "relation_id": "rel-verify-nonauthority",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-nonauthority",
+      "target_claim_id": "claim-behavior-nonauthority"
+    },
+    {
+      "relation_id": "rel-verify-regressions",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-regressions",
+      "target_claim_id": "claim-behavior-regressions"
+    },
+    {
+      "relation_id": "rel-verify-documentation",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-documentation",
+      "target_claim_id": "claim-behavior-documentation"
+    },
+    {
+      "relation_id": "rel-verify-wk2415-unblock",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2415-unblock",
+      "target_claim_id": "claim-behavior-wk2415-unblock"
+    },
+    {
+      "relation_id": "rel-verify-direct-main",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-direct-main",
+      "target_claim_id": "claim-behavior-direct-main"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-authoring-semantics",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-authoring-semantics",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-authoring-semantics",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-authoring-semantics",
+        "proposition_id": "prop-verify-authoring-semantics"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-authoring-semantics",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-authoring-semantics",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-authoring-semantics",
+      "test_selector": {
+        "name": "authoring semantics",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-bounds",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-bounds",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-bounds",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-bounds",
+        "proposition_id": "prop-verify-bounds"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-bounds",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-bounds",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-bounds",
+      "test_selector": {
+        "name": "bounds",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-currentness",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-currentness",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-currentness",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-currentness",
+        "proposition_id": "prop-verify-currentness"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-currentness",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-currentness",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-currentness",
+      "test_selector": {
+        "name": "currentness",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-direct-main",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-direct-main",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-direct-main",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-direct-main",
+        "proposition_id": "prop-verify-direct-main"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-direct-main",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-direct-main",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-direct-main",
+      "test_selector": {
+        "name": "direct main",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-discovery-parity",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-discovery-parity",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-discovery-parity",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-discovery-parity",
+        "proposition_id": "prop-verify-discovery-parity"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-discovery-parity",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-discovery-parity",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-discovery-parity",
+      "test_selector": {
+        "name": "discovery parity",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-documentation",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-documentation",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-documentation",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-documentation",
+        "proposition_id": "prop-verify-documentation"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-documentation",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-documentation",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-documentation",
+      "test_selector": {
+        "name": "documentation",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-mcp-family",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-mcp-family",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-mcp-family",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-mcp-family",
+        "proposition_id": "prop-verify-mcp-family"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-mcp-family",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-mcp-family",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-mcp-family",
+      "test_selector": {
+        "name": "mcp family",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-nonauthority",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-nonauthority",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-nonauthority",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-nonauthority",
+        "proposition_id": "prop-verify-nonauthority"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-nonauthority",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-nonauthority",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-nonauthority",
+      "test_selector": {
+        "name": "nonauthority",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-precreate-describe",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-precreate-describe",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-precreate-describe",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-precreate-describe",
+        "proposition_id": "prop-verify-precreate-describe"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-precreate-describe",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-precreate-describe",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-precreate-describe",
+      "test_selector": {
+        "name": "precreate describe",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-regressions",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-regressions",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-regressions",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-regressions",
+        "proposition_id": "prop-verify-regressions"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-regressions",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-regressions",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-regressions",
+      "test_selector": {
+        "name": "regressions",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-role-policy",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-role-policy",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-role-policy",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-role-policy",
+        "proposition_id": "prop-verify-role-policy"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-role-policy",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-role-policy",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-role-policy",
+      "test_selector": {
+        "name": "role policy",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-supersession",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-supersession",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-supersession",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-supersession",
+        "proposition_id": "prop-verify-supersession"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-supersession",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-supersession",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-supersession",
+      "test_selector": {
+        "name": "supersession",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2415-unblock",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-wk2415-unblock",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-wk2415-unblock",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-wk2415-unblock",
+        "proposition_id": "prop-verify-wk2415-unblock"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion",
+        "mock_only_boundary_substitution"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2415-unblock",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-family"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2415-unblock",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-verify-wk2415-unblock",
+      "test_selector": {
+        "name": "wk2415 unblock",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

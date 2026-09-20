@@ -22,8 +22,14 @@ const generator = path.join(
 );
 const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const expectedVersion = (id) => id === "proof.idempotency.effect-nonduplication"
-  ? "3.0.0" : "2.0.0";
+
+const reconciliation = await readJson(path.join(packageRoot, "test/parameter-cutover-reconciliation.json"));
+const catalogRow = id => reconciliation.definitions.find(row => row.profile_id === id);
+
+const CURRENT_TEST_VALIDITY_VERSION = "10.0.0";
+const expectedVersion = id => id === "proof.verification.test-validity"
+  ? CURRENT_TEST_VALIDITY_VERSION : catalogRow(id).current_version;
+const sourceVersionFor = id => catalogRow(id).baseline_version;
 
 async function filesBelow(directory, prefix = "") {
   const output = [];
@@ -81,11 +87,11 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
     readJson(path.join(packageRoot, "proof-intents/catalog.json"))
   ]);
   assert.deepEqual(certificationCatalog, runtimeCatalog);
-  assert.equal(runtimeCatalog.packs.length, 38);
-  assert.equal(new Set(runtimeCatalog.packs.map(({ profile_id: id }) => id)).size, 38);
-  assert.equal(intentCatalog.intents.length, 38);
+  assert.equal(runtimeCatalog.packs.length, 37);
+  assert.equal(new Set(runtimeCatalog.packs.map(({ profile_id: id }) => id)).size, 37);
+  assert.equal(intentCatalog.intents.length, 37);
   assert.equal(intentCatalog.intents.reduce(
-    (sum, intent) => sum + intent.capable_packs.length, 0), 40);
+    (sum, intent) => sum + intent.capable_packs.length, 0), 39);
   const currentCatalogUniverse = JSON.stringify({
     runtime_profiles: runtimeCatalog,
     certification_profiles: certificationCatalog,
@@ -96,9 +102,7 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
   const current = new Set(runtimeCatalog.packs.map(
     ({ profile_id: id, profile_version: version }) => `${id}@${version}`
   ));
-  let exactTuples = 0;
-  let exactControls = 0;
-  const admissionVersions = { v1: 0, v2: 0 };
+  const admissionVersions = { v3: 0 };
   for (const pack of runtimeCatalog.packs) {
     assert.equal(pack.profile_version, expectedVersion(pack.profile_id));
     const runtimeDirectory = path.join(profilesRoot, pack.profile_id, pack.profile_version);
@@ -113,19 +117,15 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
     ]);
     assert.deepEqual(certifiedProfile, profile);
     assert.deepEqual(certifiedAdmission, admission);
-    assert.equal(profile.schema_version, "controlled-contract-verification-profile.v1");
+    assert.equal(profile.schema_version, "controlled-contract-verification-profile.v2");
     assert.equal(profile.contract_schema_version, "controlled-acceptance-contract.v1");
     assert.equal(profile.vocabulary_version, "controlled-contract-vocabulary.v1");
     assert.equal(admission.profile_digest, profileDigest(profile));
-    if (admission.schema_version === "controlled-contract-admitted-proof-pack.v1") {
-      admissionVersions.v1 += 1;
-    } else if (admission.schema_version === "controlled-contract-admitted-proof-pack.v2") {
-      admissionVersions.v2 += 1;
-      assert.equal(Number.isInteger(admission.certification.negative_fixture_count), true);
-      assert(admission.certification.negative_fixture_count >= 0);
-    }
+    assert.equal(admission.schema_version, "controlled-contract-admitted-proof-pack.v3");
+    admissionVersions.v3 += 1;
+    assert.match(admission.parameter_contract_digest, /^[a-f0-9]{64}$/u);
     if (pack.profile_id !== "proof.verification.test-validity") {
-      const sourceVersion = pack.profile_version === "3.0.0" ? "2.0.0" : "1.0.0";
+      const sourceVersion = sourceVersionFor(pack.profile_id);
       const source = await readJson(path.join(
         profilesRoot, pack.profile_id, sourceVersion, "profile.json"
       ));
@@ -139,13 +139,10 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
       assert.deepEqual(targetAdequacy.explicit_exclusions,
         sourceAdequacy.explicit_exclusions);
     }
-    if (admission.exact_binding) {
-      exactTuples += 1;
-      exactControls += admission.exact_binding.executable_control_count;
-    }
+
+    assert.equal(Object.hasOwn(admission, "exact_binding"), false, pack.profile_id);
   }
-  assert.deepEqual([exactTuples, exactControls], [13, 236]);
-  assert.deepEqual(admissionVersions, { v1: 25, v2: 13 });
+  assert.deepEqual(admissionVersions, { v3: runtimeCatalog.packs.length });
   for (const intent of intentCatalog.intents) {
     for (const pack of intent.capable_packs) assert.ok(current.has(
       `${pack.profile_id}@${pack.profile_version}`
@@ -156,35 +153,6 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
       ["controlled-contract-vocabulary.v1"]);
   }
 });
-test("every executable exact-binding corpus reproduces its stable certification", async () => {
-  const catalog = await readJson(path.join(profilesRoot, "catalog.json"));
-  let tuples = 0;
-  let passedControls = 0;
-  for (const pack of catalog.packs) {
-    const directory = path.join(certificationRoot, pack.profile_id, pack.profile_version);
-    let certification;
-    try { certification = await readJson(path.join(directory,
-      "exact-binding-certification.json")); }
-    catch (error) { if (error?.code === "ENOENT") continue; throw error; }
-    tuples += 1;
-    passedControls += certification.result.passed_control_ids.length;
-    assert.equal(certification.result.status, "passed");
-    assert.deepEqual(certification.result.failed_control_ids, []);
-    if (certification.corpus.executable_module) {
-      const module = await import(pathToFileURL(path.resolve(
-        packageRoot, "../..", certification.corpus.executable_module
-      )));
-      const result = await module.runExactBindingCertificationControls({
-        certificationDirectory: directory
-      });
-      assert.deepEqual(result.failed_control_ids, []);
-      assert.deepEqual(result.passed_control_ids,
-        certification.result.passed_control_ids);
-    }
-  }
-  assert.deepEqual([tuples, passedControls], [13, 236]);
-});
-
 test("current declarations name the complete neutral stable runtime closure", async () => {
   const forbidden = /(?:v0\.34|v034|experimental)/iu;
   const retiredOwners = new Set([
@@ -198,7 +166,7 @@ test("current declarations name the complete neutral stable runtime closure", as
   const generic = catalog.packs.filter(
     ({ profile_id: id }) => id !== "proof.verification.test-validity"
   );
-  assert.equal(generic.length, 37);
+  assert.equal(generic.length, 36);
   const stableRuntimeClosure = await executableDependencyClosure(
     repositoryRoot,
     "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs"

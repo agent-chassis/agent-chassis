@@ -15,40 +15,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "9f91c8c29c57f5e61ccfd850c4cbf53f062aec4ddc7c90b0442f1cb1e98d36b8",
-    "adequacy_result_digest": "8a0a5471178a85187c07409c8cc9ccf8fd0e49de147c780a2f9fdf2106801b47",
+    "adequacy_declaration_digest": "24984a57b62bd9c3a1a608c17c74d2fcd381f71835a56d702eb0d7636373a29d",
+    "adequacy_result_digest": "d8cf086f3f52f8aabf759732740820dd9bc47812008c14843895cbdb90c91984",
     "executable_control_count": 26,
     "negative_fixture_count": 126,
     "coverage_witness_count": 126
-  },
-  "exact_binding": {
-    "declaration_digest": "3e709ddf209951221e205942e5b0e563f11d816afe636d1d198fa7bfe7b47b39",
-    "certification_result_digest": "7af16b61891326fa9d02d311bb3e477b74bbfb6e993b3b97769c61d3ce97529e",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection",
-      "distinct_content_sha256",
-      "same_content_sha256"
-    ],
-    "corpus_id": "snapshot-pagination-consistency-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "7590cc25076bdccc93521a028bb56fb6838111d129d947462eb3e39b89749e0f",
-    "passed_control_ids": [
-      "caller-selected-attempt-refused",
-      "capture-order-swap-refused",
-      "duplicate-occurrence-positive",
-      "empty-page-positive",
-      "frozen-snapshot-positive",
-      "live-version-content-reuse-refused",
-      "member-occurrence-omission-refused",
-      "member-occurrence-reorder-refused",
-      "missing-trace-refused",
-      "projection-result-splice-refused",
-      "snapshot-identity-splice-refused",
-      "snapshot-state-content-change-refused"
-    ]
   }
 }

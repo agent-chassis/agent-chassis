@@ -1,16 +1,11 @@
 import type { ProofIntentDigests } from "./proof-intent-selection.d.mts";
+import type { AssessmentStages } from "./contract-assessment.d.mts";
 
 export interface ProofPlanPackRequest {
   profile_id: string;
   profile_version: string;
   requested_intents: string[];
   evaluation_input: null | { path: string };
-  exact_binding: null | {
-    capture_root: string;
-    contract_path: string;
-    evaluation_input_path: string;
-    sources: Record<string, unknown>;
-  };
   source_digests: Record<string, string | null>;
 }
 
@@ -22,14 +17,14 @@ export interface ProofPlan {
 }
 
 export interface MultiPackAssessment {
-  schema_version: "controlled-contract-multi-pack-assessment.v1";
+  schema_version: "controlled-contract-multi-pack-assessment.v2";
   assessment_identity: string;
   requested_proof_intents: string[];
   selected_pack_count: number;
   evaluated_pack_count: number;
   structure: "proven" | "not_proven" | "invalid";
+  stage_assessment: AssessmentStages;
   profile_discrimination: "proven" | "not_proven" | "not_assessed";
-  exact_binding: "proven" | "not_proven" | "not_assessed";
   assessment_scope: "planning";
   authority: "non_authoritative";
   overall_code: string;

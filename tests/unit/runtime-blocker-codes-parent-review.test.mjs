@@ -1,3 +1,4 @@
+import { RUNTIME_BLOCKER_DESCRIPTOR as composedTaxonomy } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -5,10 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const descriptor = JSON.parse(fs.readFileSync(
-  path.join(REPO_ROOT, "packages/wiki-core/data/runtime-blocker-codes.v1.json"),
-  "utf8"
-));
+const descriptor = composedTaxonomy;
 
 test("parent-review state is advisory and is not registered as a runtime blocker", () => {
   assert.equal(descriptor.schema_version, "runtime-blocker-codes.v1");

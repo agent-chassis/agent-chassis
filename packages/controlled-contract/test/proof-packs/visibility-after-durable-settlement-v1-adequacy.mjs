@@ -7,7 +7,7 @@ import { DOMAINS, MUTATIONS, executeVisibilityAfterDurableSettlement,
   from "./visibility-after-durable-settlement-v1-harness.mjs";
 
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE_DIGEST =
-  "b5df20bfbed017d124ef4ef778591b765f20480d801828e357fa4301f05fe3c9";
+  "ff03e0a4dce59b8ecdf7b811f5f383b3fbe3380509c8e3aa7e46df823c750cbd";
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_GUARANTEE_DIGEST =
   "04ce2d798103d1c8c32829cffd34c148c3ca710c0c0f4a016ee1d1945863351c";
 

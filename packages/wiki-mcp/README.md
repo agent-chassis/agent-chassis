@@ -4,7 +4,7 @@
 `packages/wiki-mcp` is the stdio MCP server that exposes the `wiki-core` substrate to
 repository-aware agents. It wraps the canonical work-record, retrieval, dispatch-readiness,
 generate/lint, and code-index / graph-impact operations as workspace-scoped `workspace_*`
-MCP tools, plus the structured agent-dispatch, tool-discovery, and agent-faq surfaces. JSON
+MCP tools, plus the structured agent-dispatch and tool-discovery surfaces. JSON
 work records stay canonical; this package is transport, not authority. It depends on
 `wiki-core` (operations) and on `agent-launch-core` / `agent-launch-cli` for the dispatch
 and launch path.
@@ -14,7 +14,7 @@ and launch path.
 Entry points:
 - `packages/wiki-mcp/src/server.mjs` — the `wiki-mcp` server bin and the tool-registration
   surface (source-scanned by a registration test).
-- `packages/wiki-mcp/src/lib/` — per-tool modules (code-index, agent-dispatch, agent-faq,
+- `packages/wiki-mcp/src/lib/` — per-tool modules (code-index, agent-dispatch,
   work-record edit routes).
 
 Workspace tools take a `repo` alias, never a caller-supplied filesystem path. CLI forms in

@@ -1,0 +1,13 @@
+{
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "requested_intents": [
+    "controlled-proof-intent.test-verification-validity"
+  ],
+  "selected_packs": [
+    {
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "5.0.0",
+      "evaluation_input_path": "WK-2417.pack-sha256-e84a80399469226ac277552a371272e516264496926cd07fab9f61deafb17e90.evaluation-input.json"
+    }
+  ]
+}

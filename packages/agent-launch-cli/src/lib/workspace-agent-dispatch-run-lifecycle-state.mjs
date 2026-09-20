@@ -4,49 +4,6 @@ import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
 
 import { statusRefusal } from "./workspace-agent-dispatch-refusal.mjs";
 
-export function listVisibleRuns(
-  runs,
-  { caller_session_id = null, state, subject = null } = {}
-) {
-  if (typeof caller_session_id !== "string" || caller_session_id.trim().length === 0) {
-    return statusRefusal(
-      BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH,
-      "caller_session_id_required",
-      null
-    );
-  }
-  const matching = [];
-  for (const record of runs.values()) {
-    if (record.caller_session_id !== caller_session_id) continue;
-    if (subject !== null && record.subject !== subject) continue;
-    if (state === "active" && record.terminal === true) continue;
-    if (state === "terminal" && record.terminal !== true) continue;
-    matching.push(record);
-  }
-
-  matching.sort((left, right) => {
-    if (left.started_at < right.started_at) return 1;
-    if (left.started_at > right.started_at) return -1;
-    if (left.run_id < right.run_id) return -1;
-    if (left.run_id > right.run_id) return 1;
-    return 0;
-  });
-
-  return {
-    accepted: true,
-    runs: matching.map((record) => ({
-      run_id: record.run_id,
-      monitor_handle: record.monitor_handle,
-      role: record.role,
-      subject: record.subject,
-      status: record.status,
-      terminal: record.terminal,
-      started_at: record.started_at,
-      updated_at: record.updated_at
-    }))
-  };
-}
-
 export function findRunRecord(runs, { run_id = null, monitor_handle = null } = {}) {
   let record = null;
   if (run_id && typeof run_id === "string") {
@@ -61,6 +18,48 @@ export function findRunRecord(runs, { run_id = null, monitor_handle = null } = {
     }
   }
   return record;
+}
+
+export function selectVisibleRunRecord(
+  runs,
+  { caller_session_id = null, subject, attempt_id = null } = {}
+) {
+  const subjectRecords = [...runs.values()].filter((record) => record.subject === subject);
+  const visible = subjectRecords.filter((record) =>
+    (caller_session_id === null || record.caller_session_id === caller_session_id));
+  if (attempt_id !== null) {
+    const selected = visible.find((record) => record.run_id === attempt_id) ?? null;
+    const hiddenExact = subjectRecords.some((record) => record.run_id === attempt_id);
+    return selected === null
+      ? {
+          selected: null,
+          code: hiddenExact
+            ? BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH
+            : "attempt_selector_mismatch",
+          candidates: []
+        }
+      : { selected, code: null, candidates: [selected] };
+  }
+  if (visible.length === 1) return { selected: visible[0], code: null, candidates: visible };
+  if (visible.length > 1) {
+    return {
+      selected: null,
+      code: "attempt_selection_ambiguous",
+      candidates: visible.map((record) => ({
+        attempt_id: record.run_id,
+        role: record.role,
+        status: record.status,
+        terminal: record.terminal
+      }))
+    };
+  }
+  return {
+    selected: null,
+    code: subjectRecords.length > 0
+      ? BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH
+      : "attempt_observation_unavailable",
+    candidates: []
+  };
 }
 
 export function snapshotRuns(runs) {

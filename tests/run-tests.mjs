@@ -40,6 +40,9 @@ const RUNNER_ROOT_SPECS = Object.freeze({
     purpose: "test-tmp"
   })
 });
+
+const INTEGRATION_MODES = new Set(["integration", "all"]);
+
 const CATCHABLE_TERMINATION_SIGNALS = Object.freeze(["SIGINT", "SIGTERM"]);
 const SIGNAL_GRACE_MS = 5000;
 const PROC_BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id";
@@ -489,12 +492,16 @@ function main() {
 
   const hasTimeoutFlag = flags.some((f) => f.startsWith("--test-timeout"));
 
+  const hasConcurrencyFlag = flags.some((f) => f.startsWith("--test-concurrency"));
+  const serializeFiles = INTEGRATION_MODES.has(mode);
+
   const timeoutMs = mode === "unit"
     ? DEFAULT_TEST_TIMEOUT_MS
     : INTEGRATION_TEST_TIMEOUT_MS;
   const nodeArgs = [
     "--test",
     ...(hasTimeoutFlag ? [] : [`--test-timeout=${timeoutMs}`]),
+    ...(serializeFiles && !hasConcurrencyFlag ? ["--test-concurrency=1"] : []),
     ...flags,
     ...targetFiles
   ];
@@ -640,7 +647,8 @@ function main() {
   writeStderr(
     `[run-tests] mode=${mode} files=${targetFiles.length} ` +
       `HOME=${scratchHomeRoot.path} TMPDIR=${scratchTempRoot.path} ` +
-      `timeout=${timeoutMs}ms\n`
+      `timeout=${timeoutMs}ms` +
+      `${serializeFiles && !hasConcurrencyFlag ? " concurrency=1" : ""}\n`
   );
 }
 

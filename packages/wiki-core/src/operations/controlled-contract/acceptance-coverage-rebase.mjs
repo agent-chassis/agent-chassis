@@ -93,88 +93,15 @@ function obligationProofIsCurrent(proof, selectedPacks) {
     pack.requested_intents.includes(proof.requested_intent) &&
     pack.selectors.some((selector) =>
       selector.kind === proof.selector?.kind &&
-      selector.component_id === proof.selector?.component_id &&
-      selector.evaluation_stage === proof.evaluation_stage));
+      selector.component_id === proof.selector?.component_id));
 }
 
 export function planObligationCoverageRebase(resolved, { sourceLocatorDigest }) {
-  const entries = [];
-  const safeRows = [];
-  const criteriaByLocator = new Map(resolved.criteria.map((criterion) => [
-    criterion.source_locator, criterion
-  ]));
-  const nodeIds = new Set(resolved.contractNodes.map(({ id }) => id));
-  const obligationIdCounts = new Map();
-  for (const row of resolved.rows) {
-    obligationIdCounts.set(row.obligation_id,
-      (obligationIdCounts.get(row.obligation_id) ?? 0) + 1);
-  }
-  const coveredLocators = new Set();
-
-  resolved.rows.forEach((row, occurrence) => {
-    const current = criteriaByLocator.get(row.source_locator) ?? null;
-    const oldIdentity = obligationRowIdentity(row);
-    const currentIdentity = current === null ? null : obligationCriterionIdentity(current);
-    let kind = null;
-    let allowed = ["replace", "remove"];
-    if (current === null) {
-      kind = "removed";
-      allowed = ["remove"];
-    } else if (!Array.isArray(row.controlled_contract_node_ids) ||
-        row.controlled_contract_node_ids.some((id) => !nodeIds.has(id))) {
-      kind = "absent_node";
-    } else if (!obligationProofIsCurrent(row.proof, resolved.selectedPacks)) {
-      kind = "changed";
-    } else {
-      const expectedDigest = sourceLocatorDigest({
-        criterion: current.criterion,
-        criterionIdentity: current.identity,
-        criterionSetDigest: resolved.criterionIdentities.digest,
-        obligationId: row.obligation_id,
-        sourceLocator: current.source_locator,
-        statement: row.statement
-      });
-      if (expectedDigest !== row.source_locator_digest) kind = "changed";
-    }
-    const retainable = kind === null;
-    if (kind === null && obligationIdCounts.get(row.obligation_id) > 1) {
-      kind = "duplicate";
-      allowed = ["retain", "replace", "remove"];
-    }
-    if (kind === null) {
-      safeRows.push(structuredClone(row));
-      coveredLocators.add(row.source_locator);
-      return;
-    }
-    const publicValue = publicConflict({ family: "obligation", kind,
-      oldIdentity, currentIdentity, occurrence, allowedDispositions: allowed });
-    entries.push(Object.freeze({ public: publicValue, oldRow: structuredClone(row),
-      currentIdentity, retainable }));
-  });
-
-  for (const criterion of resolved.criteria) {
-    if (coveredLocators.has(criterion.source_locator)) continue;
-    const hasTargetedConflict = entries.some(({ currentIdentity }) =>
-      currentIdentity?.source_locator === criterion.source_locator);
-    if (hasTargetedConflict) continue;
-    const currentIdentity = obligationCriterionIdentity(criterion);
-    entries.push(Object.freeze({
-      public: publicConflict({ family: "obligation", kind: "new_unmapped",
-        currentIdentity, allowedDispositions: ["add"] }),
-      oldRow: null,
-      currentIdentity,
-      retainable: false
-    }));
-  }
-
   return finalizePlan("obligation", {
     authoring_identity: resolved.authoringIdentity,
     source_content_digest: resolved.source?.content_digest ?? null,
-    criterion_identity_digest: resolved.criterionIdentities.digest,
-    contract_node_digest: resolved.bindings.contractNodeDigest,
-    selected_pack_digest: resolved.bindings.selectedPackDigest,
-    stale_reasons: resolved.staleReasons
-  }, entries, safeRows);
+    resolution_identity: resolved.resolution?.identity_digest ?? null
+  }, [], structuredClone(resolved.draftRows));
 }
 
 function acceptanceRowIdentity(row) {
@@ -351,16 +278,7 @@ export function projectRebaseConflictPage(plan, { cursor, staleRecovery } = {}) 
   const continuation = nextOffset < plan.entries.length
     ? encodeCursor(plan, nextOffset) : null;
   const page = pageShape(plan, selected, offset, continuation);
-  const nextCalls = continuation === null ? [] : [{
-    tool: plan.family === "obligation"
-      ? "workspace_controlled_contract_obligation_coverage_rebase"
-      : "workspace_controlled_contract_acceptance_coverage_rebase",
-    arguments: Object.freeze({
-      mode: "page",
-      conflict_set_identity: plan.conflictSetIdentity,
-      cursor: continuation
-    })
-  }];
+  const nextCalls = [];
   return Object.freeze({ ...page, next_calls: Object.freeze(nextCalls) });
 }
 

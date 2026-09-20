@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateAndResolveNativeContractV034 } from
-  "../lib/native-contract-carrier-v034.mjs";
+import { validateAndResolveNativeContractV1 } from
+  "../lib/native-contract-carrier-v1.mjs";
 import { buildAuthenticationProvenanceFixture } from
   "./proof-packs/authentication-provenance-v1-fixture.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
 
 function ref(referenceId) {
   return { kind: "reference", reference_id: referenceId };
@@ -28,7 +30,9 @@ function addMandatory(contract, {
   });
 }
 
-const validate = (contract) => validateAndResolveNativeContractV034(contract);
+const validate = (contract) => validateAndResolveNativeContractV1({
+  ...contract, test_proofs: buildStableTestProofPopulation(contract)
+});
 const diagnosticCodes = (contract) => validate(contract).diagnostics.map(({ code }) => code);
 
 test("all four positive/complement pairs contradict on the exact normalized edge", () => {

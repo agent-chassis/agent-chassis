@@ -1,0 +1,314 @@
+{
+  "schema_version": "wiki-core-controlled-contract-acceptance-coverage.v1",
+  "wk_id": "WK-2361",
+  "selected_unit": null,
+  "source_identity": {
+    "source_kind": "obligation-coverage",
+    "content_digest": "sha256:272bf8692e0a31b5f4f4a17f4e9c87c8656a471fd0d7f07900a48ac22b72170b"
+  },
+  "source_bindings": {
+    "workRecordLocatorDigest": "sha256:b0fde007a4289390207575ab6ac56a6e1f0d15a1d01b5c7a8402026d6ca3b758",
+    "contractDigest": "sha256:ed2ce38f3cd711c826a83f2283548159ffeb0ee5a3c7a43182224165f91c9cbc",
+    "contractNodeDigest": "sha256:3f273cc1eb1caaef2d34c927aebf23e8672fc3e0661b8dfb58b6ca0d3cb2bb44",
+    "proofPlanDigest": "sha256:bc1f879abb2929af97ca0aeb61c5d78409e2b4315183cee7cbf1d8ace5bb5d9a",
+    "selectedPackDigest": "sha256:a95d1fca211cc00a300405aea646e4e4028f124b92d69a728bb91a5464e8ace1",
+    "assessmentDigest": null,
+    "proofAssessmentDigest": null,
+    "profileVersionDigest": "sha256:3c2944d3ef39f88e9f9a9f79cdb1761213bff0da219553220b2afa218bbb0a7a",
+    "selectorArtifactDigest": "sha256:60f06f1a6fa18f86a7ea9a4c186c72102b390db8d3a4aecdbe0dbcda2167ef68",
+    "ownershipDigest": "sha256:401bfd71e9b08b65ab7046f327cd49fba1f7086cf3c1653852874d38fddd21e9",
+    "verificationDigest": "sha256:88e2b1e42b830642623a137c08e9edd21c3dbdf2ef5fc679120dd4e3289bb7d0",
+    "optionalScopeDigest": null,
+    "sourceDigest": "sha256:272bf8692e0a31b5f4f4a17f4e9c87c8656a471fd0d7f07900a48ac22b72170b",
+    "sourceKind": "obligation-coverage",
+    "mappingDigest": "sha256:0ddbf4a28e9c8d84e7d1c0e0da0d44a0cb6da3a4738ebf407867fb2e681cc327"
+  },
+  "criterion_identities": {
+    "version": "acceptance-coverage-criterion-identity.v1",
+    "identities": [
+      {
+        "position": 0,
+        "text": "ARCHITECTURE DRAFT D11, the single post-redteam disposition of D10 at current main `19b8bca3ce88b91bf8ad543017b8049b0baa1f84`. D4-D7 and D8-D10 review evidence remain immutable history. Retain one neutral guarded-owner enumeration and source-location engine consumed through category adapters. Remove duplicate recursive enumeration, site inventory, and owner-matrix mechanics from launcher boundary and durability controls; category controls retain their semantic corpora, authentication, and diagnostics but derive callers, sites, and the sole-owner matrix from neutral mechanics.",
+        "identity": "derived:828d46b3dd8fb38be89aca8cb8461689578303a4eea35d7cc8b9e8e76c3de434",
+        "source": "derived"
+      },
+      {
+        "position": 1,
+        "text": "The neutral registry names, for every guarded class, the exact posture or boundary, sole semantic owner, sole code or translation owner where applicable, production discovery rule, stable diagnostic identity, and exact owner-produced proof or classifica...",
+        "identity": "derived:f24d1a350919de23e4015672c5143ee41b11048f9f9c0010b900cdee6005d881",
+        "source": "derived"
+      },
+      {
+        "position": 2,
+        "text": "WK-2359 remains the sole owner of public refusal dispositions, envelopes, translations, and their behavioral proofs. WK-2382 remains the sole owner of asynchronous settlement, teardown precedence, cache retryability, process fail-stop dispositions, and ...",
+        "identity": "derived:968260d0b86dc6fc6f6d8175a5121d5cc992d4ac7f0750fefb1250f1eeeb4673",
+        "source": "derived"
+      },
+      {
+        "position": 3,
+        "text": "WK-2361 implementation depends on completed WK-2357, WK-2359, WK-2382, WK-2391, WK-2405, WK-2428, WK-2258, and WK-2257; record-level and slice-level dependencies are mechanically combined, so WK-2405 is not duplicated on SLICE-012. Before implementation dispatch, freeze current main `19b8bca3ce88b91bf8ad543017b8049b0baa1f84` plus exact consumed leaf identities and SHA-256 digests for the WK-2359 exception/refusal corpora, runtime-code registry, translator carrier, and witnesses; the WK-2382 asynchronous census and witnesses; the WK-2391 preflight projection/authentication seams; the WK-2405 findings-target seams; the WK-2428 recovery predicate carrier; the WK-2258 receipt-store publication/selection carrier and witnesses; and the WK-2257 resolver/injection carrier and witnesses. D11 controlled references `ref-wk2361-d11-current-owner-leaf-set` and `ref-wk2361-d11-owner-provenance-chain` are the exact current-main leaf set and intervening change chain. They preserve the ten refreshed WK-2359 leaves, the refreshed WK-2382 handler-boundary witness, and the five unchanged WK-2382 leaves established by the D10 redteam/blueteam; additionally refresh the WK-2405 findings witness and WK-2428 recovery-register leaves changed through current main, preserve every other consumed leaf, and bind every successor/remediation commit that changed a consumed path. Missing, moved, ambiguous, or digest-mismatched owners, artifacts, successors, or selectors block readiness.",
+        "identity": "derived:3ed194f597581502b044e801bd782f6f431859641b6ebba8a9ec8e265931f98e",
+        "source": "derived"
+      },
+      {
+        "position": 4,
+        "text": "Re-derive the audit's complete production populations, treating the reported 1,210 non-propagating catches and 771 statically resolvable code-shaped literals only as historical observations. The closed population is every Git-tracked `.mjs` file under `...",
+        "identity": "derived:872f54bff8c4cc79125e04e7b2c9ae634aeb3d621f124d8ae568f700c0d7ffbf",
+        "source": "derived"
+      },
+      {
+        "position": 5,
+        "text": "There is no anonymous legacy allowlist or permanent grandfathering. A confirmed-defect fact remains owned by its semantic corpus and carries exact source identity, semantic owner, remediation WK, falsifying test, and an independently bounded expiry or f...",
+        "identity": "derived:26e3ff69af50f4140319946be55b896a314496eb44b6da29274cf5962ac20682",
+        "source": "derived"
+      },
+      {
+        "position": 6,
+        "text": "An empty or unbound catch, log-and-continue path, detached rejection, generic module error default, or code-shaped literal is not automatically defective or safe. Owner corpora determine semantic disposition. Proven-safe suppression carries an exact ref...",
+        "identity": "derived:6465520c181096bcfd99ef7e93b12a8e031029e4654e0e41209b86fe9c82fd63",
+        "source": "derived"
+      },
+      {
+        "position": 7,
+        "text": "Internal typed errors do not need runtime-blocker registration merely because they exist. The engine mechanically proves every registered path crossing an authority boundary reaches exactly one declared translator and reports raw builtin errors, platfor...",
+        "identity": "derived:a3319fbeb52b3f2ddf291fcd778bc7991916a97b38fe6f1f3ef07e30857ba8cb",
+        "source": "derived"
+      },
+      {
+        "position": 8,
+        "text": "Preserve deny-by-default only for mechanical registry integrity: unparseable identities, duplicate bindings, contradictory owners, stale source locations, copied mechanical owner entries, missing or digest-mismatched owner-produced classification/proof ...",
+        "identity": "derived:951345b0330cedddaf96f331686708269b2dfe7c67a3cfafc9033dec4f7f8759",
+        "source": "derived"
+      },
+      {
+        "position": 9,
+        "text": "The operator-authorized restart produced D8 DRY run `wkdb_8271d4cdd0b9bb02` and D9 all-accepted-decisions run `wkdb_c92ac3bba1e3950a`; their one-time dispositions produced D10. D10 design-redteam run `wkdb_a231cf390df2e8cc` is authenticated in the canonical ledger at source digest `sha256:094cd60c9f4477d20961ecdefa2f9ec0dd08380723e025d9bdfb564e2ae6f54d`. Its exact one-time blueteam challenge run `wkdb_54cf133913b56191` is bound to that same target through canonical `challenged_review` provenance. The single coordinator disposition is: RT-001 NARROW to the predecessor-target identity inconsistency and resolve it with the authenticated shared source digest plus status-only transition explanation; RT-002 KEEP and refresh only the mismatched current-main owner leaves and their actual change chains; RT-003 REJECT because parent and slice dependencies are mechanically combined; RT-004 NARROW to missing slice-specific pre-dispatch proof topology and resolve it through D11 contract/evaluation bindings, the complete obligation source, and acceptance-coverage mapping; RT-005 REJECT for no reachable ambiguous generated source; RT-006 REJECT because SLICE-016 already separates diagnostic presentation from nonzero gating and requires the unresolved-only mutation. D11 is the post-disposition contract and receives no further design review or challenge without operator intervention.",
+        "identity": "derived:3df7ef6db12749e8d30752ef17e80b4ec954df58d2b9c9da1c90e5203458d184",
+        "source": "derived"
+      },
+      {
+        "position": 10,
+        "text": "Add a repository lint rule that fails on mechanically proven production legacy raw throws or rejected promises crossing a public boundary; malformed registered public envelopes or translator bindings; route-local public refusal builders mechanically pro...",
+        "identity": "derived:c1883f6134b65f605fd67fd6ff194137ba9dd2f9425d069c75566864bd0345df",
+        "source": "derived"
+      }
+    ],
+    "bindings": {
+      "contractDigest": "sha256:ed2ce38f3cd711c826a83f2283548159ffeb0ee5a3c7a43182224165f91c9cbc",
+      "proofPlanDigest": "sha256:bc1f879abb2929af97ca0aeb61c5d78409e2b4315183cee7cbf1d8ace5bb5d9a",
+      "selectedPackDigest": "sha256:a95d1fca211cc00a300405aea646e4e4028f124b92d69a728bb91a5464e8ace1",
+      "mappingDigest": "sha256:0ddbf4a28e9c8d84e7d1c0e0da0d44a0cb6da3a4738ebf407867fb2e681cc327"
+    },
+    "provenance": {
+      "selectedUnitDigest": "sha256:aa3e48e0ff94366a7d997c7110e3e26e1ae9bd0bb310dde255851e88dea9117b"
+    },
+    "digest": "4573b4465658089210e3991a45167d3e872d54e17e835aa3a9b3f23701b87e2a"
+  },
+  "rows": [
+    {
+      "criterion_identity": "derived:f24d1a350919de23e4015672c5143ee41b11048f9f9c0010b900cdee6005d881",
+      "node_ids": [
+        "ref-wk2361-criterion-002",
+        "claim-verify-wk2361-c002",
+        "claim-wk2361-c002"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:968260d0b86dc6fc6f6d8175a5121d5cc992d4ac7f0750fefb1250f1eeeb4673",
+      "node_ids": [
+        "ref-wk2361-criterion-003",
+        "claim-verify-wk2361-c003",
+        "claim-wk2361-c003"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:872f54bff8c4cc79125e04e7b2c9ae634aeb3d621f124d8ae568f700c0d7ffbf",
+      "node_ids": [
+        "ref-wk2361-criterion-005",
+        "claim-verify-wk2361-c005",
+        "claim-wk2361-c005",
+        "claim-wk2361-criterion005-uses-census-spec"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:26e3ff69af50f4140319946be55b896a314496eb44b6da29274cf5962ac20682",
+      "node_ids": [
+        "ref-wk2361-criterion-006",
+        "claim-verify-wk2361-c006",
+        "claim-wk2361-c006"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:6465520c181096bcfd99ef7e93b12a8e031029e4654e0e41209b86fe9c82fd63",
+      "node_ids": [
+        "ref-wk2361-criterion-007",
+        "claim-verify-wk2361-c007",
+        "claim-wk2361-c007"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:a3319fbeb52b3f2ddf291fcd778bc7991916a97b38fe6f1f3ef07e30857ba8cb",
+      "node_ids": [
+        "ref-wk2361-criterion-008",
+        "claim-verify-wk2361-c008",
+        "claim-wk2361-c008"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:951345b0330cedddaf96f331686708269b2dfe7c67a3cfafc9033dec4f7f8759",
+      "node_ids": [
+        "ref-wk2361-criterion-009",
+        "claim-verify-wk2361-c009",
+        "claim-wk2361-c009"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:3df7ef6db12749e8d30752ef17e80b4ec954df58d2b9c9da1c90e5203458d184",
+      "node_ids": [
+        "ref-wk2361-criterion-010",
+        "claim-verify-wk2361-c010",
+        "claim-wk2361-c010"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:c1883f6134b65f605fd67fd6ff194137ba9dd2f9425d069c75566864bd0345df",
+      "node_ids": [
+        "ref-wk2361-criterion-011",
+        "claim-verify-wk2361-c011",
+        "claim-wk2361-c011",
+        "claim-wk2361-proof-required-warning-shape-count",
+        "claim-wk2361-proof-required-warning-shape-members",
+        "claim-wk2361-proof-warning-code-value-exact",
+        "claim-wk2361-proof-warning-message-template-exact",
+        "claim-wk2361-proof-warning-payload-schema-exact",
+        "claim-wk2361-proof-warning-severity-value-exact",
+        "claim-wk2361-proof-warning-shape-count",
+        "claim-wk2361-proof-warning-shape-exact",
+        "claim-wk2361-proof-warning-shape-includes-required-fields",
+        "claim-wk2361-proof-warning-shape-members",
+        "claim-wk2361-proof-warning-shape-verification",
+        "claim-wk2361-proof-warning-signal-carries-exact-values",
+        "claim-wk2361-proof-warning-signal-contains-shape",
+        "claim-wk2361-unresolved-isolated-from-local-gate",
+        "claim-wk2361-unresolved-routes-to-authority"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:828d46b3dd8fb38be89aca8cb8461689578303a4eea35d7cc8b9e8e76c3de434",
+      "node_ids": [
+        "ref-wk2361-criterion-001",
+        "claim-verify-wk2361-c001",
+        "claim-wk2361-c001",
+        "claim-wk2361-proof-design-names-grounded-loci",
+        "claim-wk2361-proof-implementation-locus-targets-requirements",
+        "claim-wk2361-proof-placeholder-population-empty",
+        "claim-wk2361-proof-requirements-count",
+        "claim-wk2361-proof-requirements-members",
+        "claim-wk2361-proof-test-locus-covers-validation",
+        "claim-wk2361-proof-test-locus-targets-implementation",
+        "claim-wk2361-proof-validation-count",
+        "claim-wk2361-proof-validation-covers-all-requirements",
+        "claim-wk2361-proof-validation-members"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "uncovered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:3ed194f597581502b044e801bd782f6f431859641b6ebba8a9ec8e265931f98e",
+      "node_ids": [
+        "ref-wk2361-criterion-004",
+        "claim-verify-wk2361-c004",
+        "claim-wk2361-c004",
+        "claim-wk2361-current-successor-set",
+        "claim-wk2361-frozen-wk2359-leaf-set",
+        "claim-wk2361-frozen-wk2382-leaf-set"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    }
+  ]
+}

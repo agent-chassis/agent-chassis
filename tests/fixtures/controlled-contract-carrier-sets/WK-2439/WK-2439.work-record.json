@@ -1,0 +1,344 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2439",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "Generate bounded obligation and acceptance mapping authoring skeletons",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "status": "done",
+  "priority": "medium",
+  "owner": "unassigned",
+  "created": "2026-08-30",
+  "updated": "2026-08-31",
+  "resolution": "unresolved",
+  "read_scope": [
+    "AGENTS.md",
+    "docs/acceptance-coverage-mcp.md",
+    "docs/mcp-integration.md",
+    "docs/mcp-operation-reference.md",
+    "docs/tool-discovery.md",
+    "wiki/work-records/WK-2024.json",
+    "wiki/work-records/WK-2055.json",
+    "wiki/work-records/WK-2417.json",
+    "wiki/work-records/WK-2419.json",
+    "wiki/work-records/WK-2427.json",
+    "wiki/work-records/WK-2135.json",
+    "wiki/work-records/WK-2145.json",
+    "wiki/work-records/WK-2146.json",
+    "the project documentation",
+    "the project documentation",
+    "the project documentation",
+    "packages/controlled-contract",
+    "packages/wiki-core/src/operations/controlled-contract",
+    "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+    "tests"
+  ],
+  "repo_paths": [
+    "packages/controlled-contract",
+    "packages/wiki-core/src/operations/controlled-contract",
+    "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+    "packages/wiki-core/data/tool-discovery",
+    "tests",
+    "docs/acceptance-coverage-mcp.md",
+    "docs/mcp-integration.md",
+    "docs/mcp-operation-reference.md",
+    "docs/tool-discovery.md"
+  ],
+  "write_scope": [],
+  "depends_on": [],
+  "blocks": [],
+  "related": [
+    "WK-2024",
+    "WK-2055",
+    "WK-2417",
+    "WK-2419",
+    "WK-2427",
+    "WK-2437",
+    "WK-2438",
+    "WK-2135",
+    "WK-2145",
+    "WK-2146",
+    "IN-0038",
+    "IN-0016"
+  ],
+  "dispatch_intent": {
+    "intended_agent_role": null,
+    "target_unit": "none",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "PURPOSE. Add one shared server-side semantic skeleton composer consumed by the existing WK-2419 obligation-source describe and WK-2417 acceptance-mapping describe operations, so an agent starts from authenticated current criteria, contract nodes, admitted pack components and mutation arguments instead of manually reconstructing rows. Do not add a preparation route or another public authoring bootstrap.",
+      "SEMANTIC AUTHORITY STAYS WITH THE CALLER. A skeleton may enumerate current identities, allowed typed alternatives, required authored fields and unresolved slots; it must not invent an obligation statement, choose a mechanism, claim proof adequacy, select a gap disposition, assign coverage axes, or confer lifecycle authority.",
+      "CLOSED 39-ENTRY VOCABULARY. The controlled contract's ordered ref-skeleton-entry-01 through ref-skeleton-entry-39 population is exhaustive. It fixes common server/evolving/projection/transport/metric entries, nine obligation-row and mutation entries, and three acceptance-row entries. Implementations consume those stable identities and their encoded server-versus-authored categories and type alternatives; workers do not create, remove, merge, reorder or reinterpret an entry.",
+      "SERVER COMPOSITION. The shared composer receives only server-resolved WK/unit/focus, criteria, controlled-contract nodes, proof plan/selected pack, source/carrier state, bounds and existing create/upsert identities from the owning describe operations. Public schemas accept no paths, raw carriers, caller pack identities, canonical digests beyond mutation CAS inputs, or authority claims.",
+      "LOSSLESS BOUNDED PROJECTION. The complete deterministic 39-entry population remains available through the server/MCP transport boundary. Each existing describe operation exposes an inline gap-first skeleton projection of at most 16,384 canonical UTF-8 bytes with exact total/returned/omitted counts; when omitted is nonzero, the existing integrity-bound content-reference transport binds the complete population so all 39 identities are reconstructible. WK-2439 defines no parallel cursor, continuation, state machine, route, spill format or repeat-describe recovery.",
+      "EXECUTABLE HANDOFF. For absent carriers, completed authored decisions compose directly into the existing WK-2419 or WK-2417 create request. For current carriers, stable tool identity and non-CAS fixed arguments are emitted once, while expected_content_digest and every digest-bearing carrier identity are evolving state owned by existing mutation receipts: each single-row call consumes the prior receipt digest, emits the next, and final query/describe verifies the complete carrier. WK-2438 batch is used only when canonically available.",
+      "FRESH-SESSION COMPLETENESS. A restarted orchestrator discovers and calls the existing obligation or acceptance describe operation, fills only the semantic decisions exposed by its skeleton projection, submits through the advertised existing mutations with receipt-fed CAS state, reconstructs any omitted entries through the existing content reference, and verifies canonical final state without source inspection, raw JSON editing or hidden retained context.",
+      "LOCAL FAILURE DATA ONLY. The composer deterministically reports missing local inputs, invalid authored decisions, unresolved slots and bound overflow to the owning describe operation. WK-2437 exclusively owns public state classification, recovery-call selection, next_calls, blind-retry prevention and dependency recovery; WK-2439 must not synthesize an independent recovery workflow.",
+      "MEASUREMENT HANDOFF. The existing MCP fresh-session proof captures fixed-fixture raw call count, request/result UTF-8 bytes, unresolved-slot count, retry count, source-inspection-escape count and exact final-carrier-equivalence boolean, and compares the persisted carrier byte-for-byte with the intended complete authored state. WK-2055 exclusively owns composed-versus-manual reporting, denominators, conclusions and publication of conformance claims.",
+      "ROLE AND AUTHORITY. Skeleton composition is read-only and non-authoritative; writes occur only through the existing authenticated WK-2417/WK-2419 mutation operations. Role visibility remains that of the owning describe operation and never widens mutation permissions.",
+      "SCOPE EXCLUSIONS. Do not add a public preparation family; own task-directed state or recovery (WK-2437); own atomic mutation (WK-2438); own workflow reporting (WK-2055); alter proof-pack semantics; infer proof applicability; add policy/admission authority; implement stale rebase (WK-2427); change query cursor semantics (WK-2436); or duplicate generic proof-plan skeleton work delivered by WK-2024."
+    ],
+    "validation": [
+      "Add package/wiki-core tests for the exact controlled 39-entry vocabulary, deterministic ordering, unresolved semantic slots, stable versus receipt-fed arguments, no invented choices, exact 16,384-byte inline projection bound, total/returned/omitted accounting, complete-population reconstruction through the existing transport, and absence of independent continuation or recovery state.",
+      "Add real wiki-MCP fresh-session tests for absent and multi-row current obligation and acceptance carriers that complete authoring using only existing describe/mutation/verification operations, chain every receipt digest, reconstruct omissions, and compare the final canonical carrier exactly with the intended authored state.",
+      "Capture fixed-fixture raw call count, request/result UTF-8 bytes, unresolved-slot count, retry count, source-inspection-escape count and final-carrier-equivalence boolean for WK-2055; do not publish the composed-versus-manual workflow conclusion in WK-2439.",
+      "Run focused schema, registration, role, discovery, router, content-reference, acceptance-coverage and structured generate/lint checks named by final shaped slices."
+    ]
+  },
+  "sections": {
+    "summary": "Describe the failure mode, system boundary, capability, or invariant this item tracks.",
+    "why_it_matters": "State the operational impact and what future readers should understand from this work.",
+    "scope": {
+      "items": [
+        "impacted boundary or area is explicit",
+        "intended invariant or behavior is explicit",
+        "out-of-scope work is explicit when useful"
+      ],
+      "out_of_scope": []
+    },
+    "tasks": [
+      {
+        "text": "",
+        "status": "todo"
+      }
+    ],
+    "references": [],
+    "agent_notes": "",
+    "closure": {
+      "summary": "Delivered the complete controlled 39-entry obligation/acceptance authoring skeleton and integrated it through the existing wiki-core and MCP describe surfaces. Direct-to-main implementation landed as commits 6c57569e8e6612d556f7ece7a82654a2460cd2ab, ea7f348de0d37d9a4019f995cacd44a0e79fbb84, f4eb3a961fc70faf58404ecbc680c4ee9e5570cf, and dbdbd23158561d313bc3dbdb67438fe7b0a3173d. Every implementation unit received its one findings-only review, each optional blueteam was used once, all surviving findings were dispositioned once and remediated in-unit, and no remediation was re-reviewed.",
+      "validation": [
+        "Controlled-contract composer unit tests passed 8/8 after sparse-array remediation; export smoke and package/publication surface tests passed 9/9.",
+        "Final combined wiki-core skeleton operations passed 6/6 and MCP fresh-session integration passed 2/2.",
+        "Final fixed-fixture metrics: 21 calls, 22,741 request bytes, 316,119 result bytes, 7 unresolved slots, 0 retries, 0 source-inspection escapes, and exact final-carrier equivalence true.",
+        "Focused syntax, import/export, and scoped whitespace checks passed for WK-2439-owned changes.",
+        "The shared dirty-worktree registration suite was 28/31 because of three concurrent WK-2426 transition failures. The operator directed that WK-2426 remain untouched; those failures are not WK-2439 residue.",
+        "Final structured wiki generation and lint passed with zero findings after the concurrent discovery-manifest transition settled. WK-2439 validates independently with zero diagnostics."
+      ],
+      "follow_ups": [
+        "WK-2442 may proceed with the separately owned complete-task authoring-ergonomics verification after this WK closes.",
+        "WK-2426 retains ownership of its in-progress registration, discovery, and assessment-projection transition."
+      ]
+    }
+  },
+  "children": [],
+  "slices": [
+    {
+      "id": "SLICE-010",
+      "title": "Escalated combined core and MCP semantic skeleton integration",
+      "work_kind": "implementation",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [
+        "WK-2439",
+        "WK-2439#SLICE-003",
+        "WK-2439#SLICE-006",
+        "WK-2439#SLICE-007"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2439.json",
+        "wiki/contracts/WK-2439.carrier-set-manifest.json",
+        ".carrier-generations/eb5774dcaed63eb69b5de3e12c665e4bf34e480f35f61e492091a5fa8ec1831e/WK-2439.controlled-acceptance.json",
+        "wiki/contracts/WK-2439.obligation-coverage.json",
+        "wiki/contracts/WK-2439.controlled-acceptance-coverage.json",
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "docs/tool-discovery.md",
+        "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-acceptance-coverage.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "tests/unit",
+        "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "tests/integration/controlled-contract-mcp-registration.test.mjs",
+        "tests/helpers"
+      ],
+      "repo_paths": [
+        "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "write_scope": [
+        "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": true,
+        "requires_escalation": true
+      },
+      "acceptance": {
+        "criteria": [
+          "Absorb the existing uncommitted WK-2439#SLICE-004 three-path delivery as the starting delta, verify it against the original SLICE-004 contract, and complete the original SLICE-005 objectives in this one operator-authorized escalated unit. SLICE-005 had not started, and no prior SLICE-004 commit or implementation review exists.",
+          "Use one thin wiki-core adapter that supplies authenticated server-resolved facts to composeCoverageAuthoringSkeleton. Do not duplicate or reinterpret the controlled ordered ref-skeleton-entry-01 through ref-skeleton-entry-39 vocabulary, validation, ordering, category/type alternatives, or byte-bound algorithm.",
+          "Expose exactly one authoring_skeleton result from each existing obligation and acceptance describe operation. Add no public operation, preparation route, alias, cursor, continuation, recovery state machine, mutation surface, or input field.",
+          "Preserve the complete deterministic 39-entry population through the core/MCP boundary and expose a gap-first inline projection whose canonical JSON UTF-8 serialization is at most 16,384 bytes with exact total, returned, and omitted accounting.",
+          "At the MCP adapter boundary, when omitted is nonzero, use the existing jsonContent/content-reference transport with forceSpill over the complete population, verify integrity metadata, remove the internal complete copy from public inline JSON, and return the existing reference descriptor. When omitted is zero, return inline entries without a duplicate complete copy.",
+          "For absent carriers, emit the existing create identity, stable server arguments, and required authored fields. For current carriers, emit only existing single-row mutation identities, stable non-CAS arguments, and explicit receipt-fed slots for expected_content_digest and every digest-bearing carrier identity.",
+          "Prove current multi-row execution sequentially for at least two obligation rows and two acceptance rows: every mutation consumes the immediately prior receipt, followed by final existing query or describe verification. Advertise WK-2438 batch only if canonically available.",
+          "Pass only already-resolved unit/focus, criteria, contract nodes, selected packs, source/carrier state, existing mutation identities and arguments, and bounds. Accept no caller paths, raw carriers, caller-selected packs, arbitrary digests, or authority claims.",
+          "Preserve existing describe status, currentness, role visibility, mutation permissions, supported_next_calls, and WK-2437 recovery ownership. Composer diagnostics remain local data and cannot select recovery.",
+          "A fresh MCP session completes absent obligation and acceptance authoring using only existing describe, advertised create, and verification operations, reconstructing any omitted entries through the existing content reference.",
+          "The integration proof compares each persisted final carrier byte-for-byte with the complete intended authored state and captures fixed-fixture call count, request/result UTF-8 bytes, unresolved-slot count, retry count, source-inspection-escape count, and exact final-carrier-equivalence boolean.",
+          "Prove exact vocabulary identities and order, total 39, returned-plus-omitted accounting, at-most-16,384-byte actual JSON projection, deterministic output, unresolved slots, stable-versus-receipt-fed arguments, no invented semantic choices, and no independent transport or recovery protocol.",
+          "Update canonical protocol documentation with the exact 39-entry controlled population, lossless inline/content-reference behavior, receipt-fed CAS flow, caller authority, raw metric schema, and WK-2437/WK-2438/WK-2055 boundaries. Do not publish WK-2055 conclusions.",
+          "Registration and discovery must retain the exact existing operation-name population, with the obligation and acceptance describes remaining the sole authoring bootstraps.",
+          "Preserve unrelated dirty-worktree changes. Change only the eight declared paths. This consolidation adds no functional objective beyond the already reviewed SLICE-004 and SLICE-005 union."
+        ],
+        "validation": [
+          {
+            "operation": "node_test",
+            "target": "tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs",
+            "verification_ids": [
+              "claim-verify-core-projection"
+            ]
+          },
+          {
+            "operation": "node_test",
+            "target": "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+            "verification_ids": [
+              "claim-verify-mcp-fresh-session"
+            ]
+          },
+          {
+            "operation": "node_test",
+            "target": "tests/integration/controlled-contract-mcp-registration.test.mjs",
+            "verification_ids": [
+              "claim-verify-owner-boundaries"
+            ]
+          },
+          "Run focused syntax, import/export, and scoped diff-whitespace checks for all eight paths.",
+          "After documentation changes, run structured wiki generation and lint and require zero findings, or return the exact operator-run blocker."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+          "name": "server-resolved skeleton adapter",
+          "kind": "module",
+          "operation": "create",
+          "activity_kind": "implementation_new",
+          "artifact_kind": "production_code_module"
+        },
+        {
+          "path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+          "name": "obligation and acceptance describe projections",
+          "kind": "method",
+          "operation": "modify",
+          "activity_kind": "implementation_modify",
+          "artifact_kind": "production_code_module"
+        },
+        {
+          "path": "tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs",
+          "name": "core describe integration tests",
+          "kind": "test_case",
+          "operation": "create",
+          "activity_kind": "verification_test_authoring",
+          "artifact_kind": "unit_test"
+        },
+        {
+          "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+          "name": "existing describe discovery descriptors",
+          "kind": "config_key",
+          "operation": "modify",
+          "activity_kind": "implementation_modify",
+          "artifact_kind": "mcp_tool_surface"
+        },
+        {
+          "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+          "name": "existing describe MCP descriptions and transport",
+          "kind": "method",
+          "operation": "modify",
+          "activity_kind": "implementation_modify",
+          "artifact_kind": "mcp_tool_surface"
+        },
+        {
+          "path": "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+          "name": "fresh-session and ownership integration proof",
+          "kind": "test_case",
+          "operation": "create",
+          "activity_kind": "verification_test_authoring",
+          "artifact_kind": "integration_test"
+        },
+        {
+          "path": "docs/acceptance-coverage-mcp.md",
+          "name": "semantic skeleton protocol",
+          "kind": "docs_section",
+          "operation": "modify",
+          "activity_kind": "documentation",
+          "artifact_kind": "protocol_doc"
+        },
+        {
+          "path": "docs/mcp-operation-reference.md",
+          "name": "existing describe result contract",
+          "kind": "docs_section",
+          "operation": "modify",
+          "activity_kind": "documentation",
+          "artifact_kind": "reference_doc"
+        }
+      ],
+      "expected_changed_line_budget": 820,
+      "sections": {
+        "agent_notes": "Operator explicitly authorized consolidation of the remaining WK-2439 implementation into one escalated unit on 2026-08-31. This unit supersedes SLICE-004 and SLICE-005 without changing their already reviewed functional union. Design-redteam SLICE-006 and blueteam SLICE-007 remain the single design challenge/disposition and bind this combined unit; no new design review is permitted.\nOperator direct-to-main delivery recorded 2026-08-31. Exact landed implementation commit f4eb3a961fc70faf58404ecbc680c4ee9e5570cf has base 63ed1c42784db99d375514ea60d7eb7ce25ff07f and contains exactly the eight declared write-scope paths. Unrelated working-tree and index changes were excluded and preserved.\nWorker-reported validation: unit operations 4/4 passed; MCP integration 2/2 passed; six focused syntax checks passed; adapter and MCP export/import checks passed; scoped diff check passed; structured wiki generation and lint passed. Raw metrics: 21 calls, 22,741 request bytes, 316,119 result bytes, 7 unresolved slots, 0 retries, 0 source-inspection escapes, and final carrier equivalence true.\nThe exact-commit implementation review was SLICE-011, run wkdb_7e698ee8fcc7a844, artifact SHA-256 297505e4d3a0261b3f1ba1b566b671c5e33b416f20aab3e1d7d05b3f72683a20. It reported F001 and F002 as medium and non-blocking and independently classified the reproduced registration-suite 29/31 wording failures as pre-existing, out of scope, and non-impacting.\nThe one allowed blueteam was SLICE-012, run wkdb_fc5a84cff5bbf2af, artifact SHA-256 8c30b3ec886dfa7c60387894fb70029b974e2236a448a9111de618e6254d6d1a. It retained F001 KEEP and F002 KEEP with concrete reproductions. Coordinator disposition accepted both findings once.\nRequired same-unit remediation, without re-review: in packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs, omit or explicitly disable mutation and execution handoff for stale obligation and acceptance carriers while preserving canonical query/rebase/describe recovery; add one stale-state assertion for each family in tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs; and in tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs independently derive the complete expected acceptance source_bindings, compare independent bytes, and set final_carrier_equivalence only after the comparison succeeds.\nNo further implementation review, blueteam, or disposition is permitted. Do not expand into rebase/recovery ownership, mutation APIs, batching, frameworks, dependencies, SDK/CCE policy, new work units, or the unrelated registration wording failures. This direct-main unit remains in review until its in-unit remediation is landed and validation recorded; do not integrate it or call forge handoff.",
+        "closure": {
+          "summary": "Completed the escalated combined core/MCP semantic-skeleton integration by direct-to-main commit f4eb3a961fc70faf58404ecbc680c4ee9e5570cf and the single accepted post-review remediation commit dbdbd23158561d313bc3dbdb67438fe7b0a3173d. The exact implementation review and one blueteam retained F001 and F002; both were remediated in the existing unit without re-review. Commit dbdbd23158561d313bc3dbdb67438fe7b0a3173d was coordinator-verified on main with exactly the three disposition-approved paths.",
+          "validation": [
+            "Initial delivery: unit skeleton operations 4/4 passed; MCP integration 2/2 passed; syntax, import/export, scoped diff, structured wiki generation, and lint passed.",
+            "Remediation: unit skeleton operations 6/6 passed, including stale obligation and acceptance coverage while preserving absent/current behavior.",
+            "Remediation: MCP integration 2/2 passed with independently calculated final-carrier equivalence.",
+            "Fixed-fixture metrics remained 21 calls, 22,741 request bytes, 316,119 result bytes, 7 unresolved slots, 0 retries, 0 source-inspection escapes, and final carrier equivalence true.",
+            "Focused remediation syntax checks 3/3 passed and scoped git diff --check passed.",
+            "Registration suite ran 28/31 in the shared dirty worktree. The generation-persist wording, runtime-proof wording, and assessment-projection failures belong to concurrent in-progress WK-2426 surfaces; the operator directed that WK-2426 remain untouched. They do not alter WK-2439's operation-name population or accepted remediation."
+          ],
+          "follow_ups": [
+            "WK-2426 owns the concurrent registration-surface transition; no WK-2439 change or review loop is authorized."
+          ]
+        }
+      }
+    }
+  ],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "initiative": "IN-0038",
+  "derived_evidence": [],
+  "review_provenance": [
+    {
+      "schema_version": "review-provenance.v1",
+      "repository": "agent-chassis/agent-chassis",
+      "review_unit": "WK-2439#SLICE-001",
+      "reviewed_unit": "WK-2439",
+      "purpose": "standalone",
+      "role": "reviewer",
+      "run_id": "wkdb_ff81b8d9eea06d5c",
+      "target_kind": "canonical_contract",
+      "source_digest": "sha256:30ab6a2209f0605ef43f3d1cb3fecb56d685dbea2ffa1cd7c131b7d35014acbc",
+      "result_digest": "sha256:17e69f21b8efaf204d7352ff7d223de1f3bc3b66497d9360738bf4ff77f5e812",
+      "terminal_disposition": "succeeded"
+    }
+  ]
+}

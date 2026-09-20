@@ -20,8 +20,7 @@ import {
   upsertControlledContractAcceptanceCoverageOperation
 } from "../../packages/wiki-core/src/operations/controlled-contract.mjs";
 import {
-  patchControlledContractAcceptanceCoverageOperation,
-  patchControlledContractObligationCoverageOperation
+  patchControlledContractAcceptanceCoverageOperation
 } from "../../packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs";
 import {
   applyCompleteRebaseResolution,
@@ -368,8 +367,7 @@ function operationSelectedPacks(referenceIds) {
     source_digests: {},
     selectors: [{
       kind: "reference_binding",
-      component_id: "fixture-contract-nodes",
-      evaluation_stage: "pre_execution"
+      component_id: "fixture-contract-nodes"
     }]
   }];
 }
@@ -390,6 +388,29 @@ function operationRow(criterionIdentity, {
       scope_feasibility: scope
     }
   };
+}
+
+function operationContractNodeSemantics(nodes) {
+  return nodes.map((node, index) => ({
+    id: node.id,
+    mandatory: node.mandatory === true,
+    semantic: {
+      node_kind: "reference",
+      reference: {
+        reference_id: node.id,
+        type_term: "cc:state",
+        identity: {
+          kind: "runtime_parameter",
+          name: `Fixture contract-node meaning ${index + 1}`
+        }
+      }
+    },
+    declared_verification: {
+      relationships: [],
+      test_definitions: [],
+      executed_outcomes_included: false
+    }
+  }));
 }
 
 function operationRefusalCode(error) {
@@ -457,6 +478,7 @@ async function operationHarness({
       unit_digest: unitDigest,
       criteria: structuredClone(activeCriteria),
       contractNodes: structuredClone(activeContractNodes),
+      contractNodeSemantics: operationContractNodeSemantics(activeContractNodes),
       selectedPackNodeIds: structuredClone(activeSelectedPackNodeIds),
       selectedPacks: structuredClone(selectedPacks),
       carrier,
@@ -551,19 +573,14 @@ function acceptanceAtomicBaseline(request, {
     source_identity: structuredClone(request.sourceIdentity),
     authority: { authoritative: false, authors_mappings_only: true, grants: [] }
   };
+
   if (status === "post_commit_failure") return {
     ...result, status, commit_state: commitState, failure_code: failureCode,
-    next_calls: [{
-      tool: "workspace_controlled_contract_acceptance_coverage_describe",
-      arguments: { unit: "WK-2053" }
-    }]
+    next_calls: []
   };
   return {
     ...result, status, changed: status === "updated",
-    next_calls: [{
-      tool: "workspace_controlled_contract_acceptance_coverage_query",
-      arguments: { unit: "WK-2053" }
-    }]
+    next_calls: []
   };
 }
 
@@ -582,54 +599,75 @@ async function exactCreateInput(harness, rows) {
   };
 }
 
-test("coverage describe separates fixed arguments from caller-authored fields", async (t) => {
-  const harness = await operationHarness();
-  t.after(() => harness.cleanup());
-  const [identity] = await harness.criterionIdentities();
-  const absent = await describeControlledContractAcceptanceCoverageOperation({
-    repoRoot: harness.repoRoot, wkId: "WK-2053"
-  }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
-  assert.equal(absent.next_calls[0].tool,
-    "workspace_controlled_contract_acceptance_coverage_create");
-  assert.deepEqual(absent.next_calls[0].required_authored_fields, ["rows"]);
-  assert.equal(absent.next_calls[0].fixed_arguments.expected_content_digest, null);
-  assert.equal("rows" in absent.next_calls[0].fixed_arguments, false);
+const RETIRED_ACCEPTANCE_ROUTE_PREFIX =
+  "workspace_controlled_contract_acceptance_coverage_";
 
-  await createControlledContractAcceptanceCoverageOperation(
-    await exactCreateInput(harness, [operationRow(identity.identity)]),
-    { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease }
-  );
-  const current = await describeControlledContractAcceptanceCoverageOperation({
-    repoRoot: harness.repoRoot, wkId: "WK-2053"
-  }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
-  assert.deepEqual(current.next_calls.map(({ tool }) => tool), [
-    "workspace_controlled_contract_acceptance_coverage_query",
-    "workspace_controlled_contract_acceptance_coverage_upsert",
-    "workspace_controlled_contract_acceptance_coverage_remove"
-  ]);
-  assert.deepEqual(current.next_calls[1].required_authored_fields,
-    ["criterion_selector", "row"]);
-  assert.deepEqual(current.next_calls[2].required_authored_fields,
-    ["criterion_selector"]);
-  assert.equal(current.next_calls[1].fixed_arguments.expected_content_digest,
-    current.carrier_identity.content_digest);
-  assert.equal("criterion_selector" in current.next_calls[1].fixed_arguments, false);
+function assertNoRetiredAcceptanceRoute(value, label) {
+  assert.equal(JSON.stringify(value ?? null).includes(RETIRED_ACCEPTANCE_ROUTE_PREFIX), false,
+    `${label} must not name a retired per-family acceptance-coverage route`);
+}
 
-  await assert.rejects(queryControlledContractAcceptanceCoverageOperation({
-    repoRoot: harness.repoRoot,
-    wkId: "WK-2053",
-    selector: { kind: "criterion_identity", criterion_identity: "not-current" }
-  }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease }), (error) => {
-    const details = error.envelope.warning.payload.details;
-    assert.equal(error.code, "acceptance_coverage_criterion_selector_invalid");
-    assert.deepEqual(details.next_calls.map(({ tool }) => tool), [
-      "workspace_controlled_contract_acceptance_coverage_describe",
-      "workspace_controlled_contract_acceptance_coverage_query"
-    ]);
-    assert.equal(details.next_calls[1].arguments.unit, "WK-2053");
-    return true;
+test("coverage describe separates server-fixed arguments from receipt-fed and authored values",
+  async (t) => {
+    const harness = await operationHarness();
+    t.after(() => harness.cleanup());
+    const [identity] = await harness.criterionIdentities();
+    const absent = await describeControlledContractAcceptanceCoverageOperation({
+      repoRoot: harness.repoRoot, wkId: "WK-2053"
+    }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
+    assert.equal(absent.status, "carrier_absent");
+    assert.deepEqual(absent.next_calls, []);
+    assert.deepEqual(absent.supported_next_calls, []);
+    assertNoRetiredAcceptanceRoute(absent, "carrier-absent describe");
+    const absentHandoff = absent.authoring_skeleton.mutation_handoff;
+    assert.equal(absentHandoff.operation, "acceptance_coverage_authoring");
+
+    assert.deepEqual(absentHandoff.stable_arguments, { unit: "WK-2053" });
+    assert.equal("rows" in absentHandoff.stable_arguments, false);
+    assert.equal(absent.expected_absence.proven, true);
+    assert.equal(absent.expected_absence.expected_content_digest, null);
+
+    await createControlledContractAcceptanceCoverageOperation(
+      await exactCreateInput(harness, [operationRow(identity.identity)]),
+      { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease }
+    );
+    const current = await describeControlledContractAcceptanceCoverageOperation({
+      repoRoot: harness.repoRoot, wkId: "WK-2053"
+    }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
+    assert.equal(current.status, "carrier_present_current");
+    assert.deepEqual(current.next_calls, []);
+    assert.deepEqual(current.supported_next_calls, []);
+    assertNoRetiredAcceptanceRoute(current, "carrier-present describe");
+    const currentHandoff = current.authoring_skeleton.mutation_handoff;
+    assert.equal(currentHandoff.operation, "acceptance_coverage_authoring");
+    assert.deepEqual(currentHandoff.stable_arguments, { unit: "WK-2053" });
+
+    assert.deepEqual(currentHandoff.receipt_fed_digest_state, {
+      source: "immediately_prior_mutation_receipt",
+      fields: ["expected_content_digest", "carrier_identity.content_digest",
+        "source_identity.content_digest"]
+    });
+    for (const field of currentHandoff.receipt_fed_digest_state.fields) {
+      assert.equal(field.split(".")[0] in currentHandoff.stable_arguments, false, field);
+    }
+
+    assert.equal(current.digests.carrier, current.carrier_identity.content_digest);
+
+    await assert.rejects(queryControlledContractAcceptanceCoverageOperation({
+      repoRoot: harness.repoRoot,
+      wkId: "WK-2053",
+      selector: { kind: "criterion_identity", criterion_identity: "not-current" }
+    }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease }), (error) => {
+      const details = error.envelope.warning.payload.details;
+      assert.equal(error.code, "acceptance_coverage_criterion_selector_invalid");
+
+      assert.equal(details.changed, false);
+      assert.equal(details.selector_kind, "criterion_identity");
+      assert.deepEqual(details.next_calls, []);
+      assertNoRetiredAcceptanceRoute(details, "selector-invalid recovery");
+      return true;
+    });
   });
-});
 
 test("production handlers persist create, upsert, remove, and query without false success", async (t) => {
   const harness = await operationHarness();
@@ -640,6 +678,10 @@ test("production handlers persist create, upsert, remove, and query without fals
     resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease
   });
   assert.equal(created.changed, true);
+  const described = await describeControlledContractAcceptanceCoverageOperation({
+    repoRoot: harness.repoRoot, wkId: "WK-2053"
+  }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
+  assert.equal(created.authoring_identity, described.authoring_identity);
   assert.equal((await harness.readCarrier()).content.rows.length, 1);
 
   const queried = await queryControlledContractAcceptanceCoverageOperation({
@@ -647,6 +689,7 @@ test("production handlers persist create, upsert, remove, and query without fals
     selector: { kind: "criterion_identity", criterion_identity: identity.identity }
   }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
   assert.equal(queried.claim, "present");
+  assert.equal(queried.authoring_identity, described.authoring_identity);
   assert.ok(queried.unmapped_mandatory_node_ids.includes("node-mandatory-gap"));
   const criterionItem = queried.page.items.find((item) => item.kind === "criterion");
   assert.equal(criterionItem.axes.authored_contract_coverage, "covered");
@@ -661,6 +704,7 @@ test("production handlers persist create, upsert, remove, and query without fals
     row: changedRow
   }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
   assert.equal(upserted.changed, true);
+  assert.equal(upserted.authoring_identity, described.authoring_identity);
   assert.equal((await harness.readCarrier()).content.rows[0]
     .axes.implementation_ownership, "uncovered");
 
@@ -688,7 +732,8 @@ test("production handlers persist create, upsert, remove, and query without fals
     }),
     (error) => operationRefusalCode(error) ===
       "acceptance_coverage_persistence_receipt_mismatch" &&
-      error.details.changed === false
+      error.details.commit_state === "indeterminate" &&
+      !Object.hasOwn(error.details, "changed")
   );
   assert.equal(await noCarrier.readCarrier(), null);
 });
@@ -903,8 +948,8 @@ test("acceptance patch classifies post-rename durability and receipt failures", 
       assert.equal(result.status, "post_commit_failure");
       assert.equal(result.commit_state, commitState);
       assert.equal(Object.hasOwn(result, "changed"), false);
-      assert.equal(result.next_calls[0].tool,
-        "workspace_controlled_contract_acceptance_coverage_describe");
+      assert.deepEqual(result.next_calls, []);
+      assertNoRetiredAcceptanceRoute(result, `${name} post-commit failure`);
       const committedCarrier = await harness.readCarrier();
       assert.deepEqual(result, acceptanceAtomicBaseline(request, {
         contentDigest: committedCarrier.content_digest,
@@ -980,279 +1025,6 @@ test("canonical source lease excludes work-record and carrier mutation through r
   assert.ok(events.includes("blocked:work-record-writer"));
 });
 
-test("obligation patch materializes typed rows and validates the complete population", async () => {
-  const sourceIdentity = {
-    source_kind: "obligation-coverage",
-    wk_id: "WK-2438",
-    controlled_focus: null,
-    selected_unit: null,
-    locator_digest: `sha256:${"b".repeat(64)}`,
-    content_digest: `sha256:${"a".repeat(64)}`
-  };
-  const resolved = {
-    repoRoot: "/tmp/not-used-by-injected-persistence",
-    wkId: "WK-2438",
-    focus: null,
-    selectedUnit: null,
-    source: { content_digest: sourceIdentity.content_digest },
-    sourceCurrent: true,
-    staleReasons: [],
-    authoringIdentity: `sha256:${"c".repeat(64)}`,
-    prospectiveIdentity: Object.fromEntries(Object.entries(sourceIdentity)
-      .filter(([key]) => key !== "content_digest")),
-    rows: [],
-    criteria: [{
-      identity: "criterion-current",
-      criterion: "The patch remains atomic.",
-      source_locator: "/acceptance/criteria/0"
-    }],
-    criterionIdentities: { digest: `sha256:${"d".repeat(64)}` },
-    contractNodes: [{ id: "node-family" }],
-    selectedPacks: []
-  };
-  const input = {
-    repoRoot: resolved.repoRoot,
-    wkId: resolved.wkId,
-    sourceIdentity,
-    expectedAuthoringIdentity: resolved.authoringIdentity,
-    expectedContentDigest: sourceIdentity.content_digest,
-    operations: [{
-      op: "upsert",
-      obligationSelector: { kind: "obligation_id", obligation_id: "OBL-WK2438-FAMILY" },
-      row: {
-        obligation_id: "OBL-WK2438-FAMILY",
-        statement: "The family adapter validates the complete prospective population.",
-        criterion_selector: {
-          kind: "criterion_identity", criterion_identity: "criterion-current"
-        },
-        controlled_contract_node_ids: ["node-family"],
-        mechanism: {
-          owner: "wiki-core", kind: "test", selector: "family-patch"
-        },
-        proof: {
-          kind: "explicit_gap", gap_kind: "no_proof_required",
-          reason: "Executable family validation is the proof."
-        }
-      }
-    }]
-  };
-  const result = await patchControlledContractObligationCoverageOperation(input, {
-    resolveFacts: async () => resolved,
-    persistCarrier: async ({ content, bytes, write }) => ({
-      content_digest: controlledContractContentDigest(content),
-      byte_length: bytes.byteLength,
-      changed: write
-    })
-  });
-  assert.equal(result.status, "updated");
-  assert.deepEqual([result.operation_count, result.upsert_count,
-    result.remove_count, result.final_row_count], [1, 1, 0, 1]);
-  assert.equal(Object.hasOwn(result, "obligations"), false);
-
-  await assert.rejects(patchControlledContractObligationCoverageOperation({
-    ...input,
-    operations: [{
-      op: "remove",
-      obligationSelector: { kind: "obligation_id", obligation_id: "OBL-WK2438-FAMILY" }
-    }]
-  }, {
-    resolveFacts: async () => ({
-      ...resolved,
-      rows: [{
-        obligation_id: "OBL-WK2438-FAMILY",
-        source_locator: "/acceptance/criteria/0",
-        source_locator_digest: `sha256:${"e".repeat(64)}`,
-        statement: "The family adapter validates the complete prospective population.",
-        controlled_contract_node_ids: ["node-family"],
-        mechanism: { owner: "wiki-core", kind: "test", selector: "family-patch" },
-        proof: { kind: "explicit_gap", gap_kind: "no_proof_required",
-          reason: "Executable family validation is the proof." }
-      }]
-    }),
-    persistCarrier: async () => assert.fail("incomplete population reached persistence")
-  }), (error) => operationRefusalCode(error) ===
-    "obligation_coverage_population_incomplete" && error.details.changed === false);
-});
-
-function obligationAtomicFixture() {
-  const sourceIdentity = {
-    source_kind: "obligation-coverage",
-    wk_id: "WK-2438",
-    controlled_focus: null,
-    selected_unit: null,
-    locator_digest: `sha256:${"b".repeat(64)}`,
-    content_digest: `sha256:${"a".repeat(64)}`
-  };
-  const resolved = {
-    repoRoot: "/tmp/not-used-by-injected-persistence",
-    wkId: "WK-2438",
-    focus: null,
-    selectedUnit: null,
-    source: { content_digest: sourceIdentity.content_digest },
-    sourceCurrent: true,
-    staleReasons: [],
-    authoringIdentity: `sha256:${"c".repeat(64)}`,
-    prospectiveIdentity: Object.fromEntries(Object.entries(sourceIdentity)
-      .filter(([key]) => key !== "content_digest")),
-    rows: [],
-    criteria: [{
-      identity: "criterion-current",
-      criterion: "The patch remains atomic.",
-      source_locator: "/acceptance/criteria/0"
-    }],
-    criterionIdentities: { digest: `sha256:${"d".repeat(64)}` },
-    contractNodes: [{ id: "node-family" }],
-    selectedPacks: []
-  };
-  const row = {
-    obligation_id: "OBL-WK2438-FAMILY",
-    statement: "The family adapter validates the complete prospective population.",
-    criterion_selector: {
-      kind: "criterion_identity", criterion_identity: "criterion-current"
-    },
-    controlled_contract_node_ids: ["node-family"],
-    mechanism: { owner: "wiki-core", kind: "test", selector: "family-patch" },
-    proof: {
-      kind: "explicit_gap", gap_kind: "no_proof_required",
-      reason: "Executable family validation is the proof."
-    }
-  };
-  const request = {
-    repoRoot: resolved.repoRoot,
-    wkId: resolved.wkId,
-    sourceIdentity,
-    expectedAuthoringIdentity: resolved.authoringIdentity,
-    expectedContentDigest: sourceIdentity.content_digest,
-    operations: [{
-      op: "upsert",
-      obligationSelector: { kind: "obligation_id", obligation_id: row.obligation_id },
-      row
-    }]
-  };
-  let persisted = null;
-  const persistCarrier = async ({ content, bytes, write }) => {
-    const contentDigest = controlledContractContentDigest(content);
-    persisted = { content: structuredClone(content), contentDigest,
-      byteLength: bytes.byteLength };
-    if (write) {
-      resolved.rows = structuredClone(content.obligations);
-      resolved.source = { content_digest: contentDigest };
-    }
-    return { content_digest: contentDigest, byte_length: bytes.byteLength, changed: write };
-  };
-  return {
-    resolved, request, persistCarrier,
-    resolveFacts: async () => resolved,
-    persisted: () => persisted
-  };
-}
-
-function obligationAtomicBaseline(request, persisted, {
-  status, commitState, failureCode,
-  previousContentDigest = request.expectedContentDigest
-}) {
-  const result = {
-    schema_version: "controlled-contract-obligation-coverage-patch.v1",
-    source_kind: "obligation-coverage",
-    previous_content_digest: previousContentDigest,
-    content_digest: persisted.contentDigest,
-    operation_count: request.operations.length,
-    upsert_count: request.operations.filter(({ op }) => op === "upsert").length,
-    remove_count: request.operations.filter(({ op }) => op === "remove").length,
-    final_row_count: persisted.content.obligations.length,
-    byte_length: persisted.byteLength,
-    source_identity: { ...request.sourceIdentity,
-      content_digest: persisted.contentDigest },
-    authority: {
-      authoritative: false, authors_obligations_only: true, grants: [],
-      denies: ["proof", "requirement", "admission", "dispatch", "review",
-        "integration", "publication", "completion"]
-    }
-  };
-  if (status === "post_commit_failure") return {
-    ...result, status, commit_state: commitState, failure_code: failureCode,
-    next_calls: [{
-      tool: "workspace_controlled_contract_obligation_coverage_describe",
-      arguments: { unit: "WK-2438" }
-    }]
-  };
-  return {
-    ...result, status, changed: status === "updated",
-    next_calls: [{
-      tool: "workspace_controlled_contract_obligation_coverage_query",
-      arguments: { unit: "WK-2438" }
-    }]
-  };
-}
-
-test("obligation atomic results retain five exact complete-object baselines", async (t) => {
-  const fixture = obligationAtomicFixture();
-  const updated = await patchControlledContractObligationCoverageOperation(
-    fixture.request,
-    { resolveFacts: fixture.resolveFacts, persistCarrier: fixture.persistCarrier }
-  );
-  assert.deepEqual(updated, obligationAtomicBaseline(
-    fixture.request, fixture.persisted(), { status: "updated" }
-  ));
-
-  const replay = await patchControlledContractObligationCoverageOperation(
-    fixture.request,
-    { resolveFacts: fixture.resolveFacts, persistCarrier: fixture.persistCarrier }
-  );
-  assert.deepEqual(replay, obligationAtomicBaseline(
-    fixture.request, fixture.persisted(), {
-      status: "already_satisfied", previousContentDigest: updated.content_digest
-    }
-  ));
-
-  const currentRequest = {
-    ...fixture.request,
-    sourceIdentity: { ...fixture.request.sourceIdentity,
-      content_digest: updated.content_digest },
-    expectedContentDigest: updated.content_digest
-  };
-  const noChange = await patchControlledContractObligationCoverageOperation(
-    currentRequest,
-    { resolveFacts: fixture.resolveFacts, persistCarrier: fixture.persistCarrier }
-  );
-  assert.deepEqual(noChange, obligationAtomicBaseline(
-    currentRequest, fixture.persisted(), { status: "no_change" }
-  ));
-
-  for (const [commitState, failureCode] of [
-    ["committed", "injected_obligation_receipt"],
-    ["indeterminate", "obligation_coverage_post_commit_failure"]
-  ]) {
-    await t.test(`${commitState} post-commit recovery`, async () => {
-      const recovery = obligationAtomicFixture();
-      let persisted;
-      const result = await patchControlledContractObligationCoverageOperation(
-        recovery.request,
-        {
-          resolveFacts: recovery.resolveFacts,
-          persistCarrier: async ({ content, bytes }) => {
-            persisted = {
-              content: structuredClone(content),
-              contentDigest: controlledContractContentDigest(content),
-              byteLength: bytes.byteLength
-            };
-            return {
-              status: "post_commit_failure", commit_state: commitState,
-              content_digest: persisted.contentDigest,
-              byte_length: persisted.byteLength,
-              failure_code: failureCode
-            };
-          }
-        }
-      );
-      assert.deepEqual(result, obligationAtomicBaseline(
-        recovery.request, persisted,
-        { status: "post_commit_failure", commitState, failureCode }
-      ));
-    });
-  }
-});
-
 test("mutation final CAS binds every consumed identity and leaves state unchanged on races", async (t) => {
   const harness = await operationHarness();
   t.after(() => harness.cleanup());
@@ -1314,13 +1086,16 @@ test("query marks all contracted currentness changes stale and rejects stale con
     repoRoot: paged.repoRoot, wkId: "WK-2053"
   }, { resolveFacts: paged.resolveFacts });
   assert.equal(first.page.returned, 25);
-  assert.equal(first.next_calls.length, 1);
+
+  assert.deepEqual(first.next_calls, []);
+  assert.equal(first.page.complete, false);
+  assert.equal(typeof first.page.continuation, "string");
   paged.setBinding("selectorArtifactDigest", "sha256:selector-artifact-changed");
   await assert.rejects(
     queryControlledContractAcceptanceCoverageOperation({
       repoRoot: paged.repoRoot,
       wkId: "WK-2053",
-      cursor: first.next_calls[0].arguments.cursor
+      cursor: first.page.continuation
     }, { resolveFacts: paged.resolveFacts }),
     (error) => operationRefusalCode(error) === "acceptance_coverage_cursor_stale"
   );
@@ -1359,7 +1134,8 @@ test("operation cursor wrapping, selector binding, stateless refusals, and page 
   do {
     const page = await query(cursor);
     pages.push(page);
-    cursor = page.next_calls[0]?.arguments.cursor;
+
+    cursor = page.page.continuation ?? undefined;
   } while (cursor !== undefined);
 
   assert.equal(pages.length, 3);
@@ -1375,13 +1151,9 @@ test("operation cursor wrapping, selector binding, stateless refusals, and page 
     .map(({ criterion_identity: identity }) => identity)).size, 55);
   assert.equal(pages.filter(({ page }) => page.complete).length, 1);
   for (const result of pages.slice(0, -1)) {
-    assert.equal(result.page.continuation,
-      result.next_calls[0].arguments.cursor);
-    assert.deepEqual(result.next_calls[0].arguments, {
-      unit: "WK-2053",
-      selector,
-      cursor: result.page.continuation
-    });
+    assert.deepEqual(result.next_calls, []);
+    assert.equal(result.page.complete, false);
+    assert.equal(typeof result.page.continuation, "string");
     const operationCursor = decodeCursor(result.page.continuation);
     assert.equal(operationCursor.version,
       "wiki-core-acceptance-coverage-operation-cursor.v1");
@@ -1562,8 +1334,12 @@ test("acceptance rebase exact-identity attempt atomically rebinds and replays id
     repoRoot: harness.repoRoot, wkId: "WK-2053"
   }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
   assert.equal(described.status, "carrier_present_stale");
-  assert.equal(described.next_calls[0].tool,
-    "workspace_controlled_contract_acceptance_coverage_rebase");
+
+  assert.deepEqual(described.next_calls, []);
+  assertNoRetiredAcceptanceRoute(described, "carrier-present-stale describe");
+  assert.equal(described.currentness.current, false);
+  assert.ok(described.currentness.changed_bindings.length > 0);
+  assert.equal(Object.hasOwn(described.authoring_skeleton, "mutation_handoff"), false);
   const attempt = {
     ...acceptanceRebaseAttempt(described), repoRoot: harness.repoRoot
   };
@@ -1748,6 +1524,56 @@ test("rebase add, remove, and retain dispositions each produce one complete curr
   });
 });
 
+test("appending to a current twelve-criterion population retains every unchanged row",
+  async (t) => {
+    const originalCriteria = Array.from({ length: 12 }, (_, index) =>
+      `criterion ${String(index + 1).padStart(2, "0")}`);
+    const harness = await operationHarness({ criteria: originalCriteria });
+    t.after(() => harness.cleanup());
+    const originalIdentities = await harness.criterionIdentities();
+    await createControlledContractAcceptanceCoverageOperation(
+      await exactCreateInput(harness,
+        originalIdentities.map(({ identity }) => operationRow(identity))),
+      { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease }
+    );
+
+    async function append(criteria, locatorDigest) {
+      harness.setCriteria(criteria);
+      harness.setBinding("workRecordLocatorDigest", locatorDigest);
+      const described = await describeControlledContractAcceptanceCoverageOperation({
+        repoRoot: harness.repoRoot, wkId: "WK-2053"
+      }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease });
+      const attempted = await rebaseControlledContractAcceptanceCoverageOperation({
+        ...acceptanceRebaseAttempt(described), repoRoot: harness.repoRoot
+      }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease,
+        resolveSourceFacts: async () => CURRENT_SOURCE_FACTS });
+      assert.ok(attempted.conflicts.every(({ kind }) => kind === "new_unmapped"));
+      const dispositions = attempted.conflicts.map((conflict) => ({
+        conflict_id: conflict.conflict_id, disposition: "add",
+        row: operationRow(conflict.current_identity.criterion_identity)
+      }));
+      return rebaseControlledContractAcceptanceCoverageOperation({
+        repoRoot: harness.repoRoot, wkId: "WK-2053", mode: "resolve",
+        conflictSetIdentity: attempted.conflict_set_identity, dispositions
+      }, { resolveFacts: harness.resolveFacts, withSourceLease: harness.withSourceLease,
+        resolveSourceFacts: async () => CURRENT_SOURCE_FACTS });
+    }
+
+    const first = await append([...originalCriteria, "criterion 13"],
+      "sha256:append-one");
+    assert.equal(first.status, "resolved");
+    assert.equal((await harness.readCarrier()).content.rows.length, 13);
+    assert.deepEqual((await harness.readCarrier()).content.rows.slice(0, 12),
+      originalIdentities.map(({ identity }) => operationRow(identity)));
+
+    const second = await append([...originalCriteria, "criterion 13", "criterion 14",
+      "criterion 15"], "sha256:append-rest");
+    assert.equal(second.status, "resolved");
+    assert.equal((await harness.readCarrier()).content.rows.length, 15);
+    assert.deepEqual((await harness.readCarrier()).content.rows.slice(0, 12),
+      originalIdentities.map(({ identity }) => operationRow(identity)));
+  });
+
 test("rebase conflict cursor and conflict set reject relevant mutation but not retries", async (t) => {
   const harness = await operationHarness({
     criteria: Array.from({ length: 80 }, (_, index) => `old criterion ${index}`)
@@ -1771,6 +1597,10 @@ test("rebase conflict cursor and conflict set reject relevant mutation but not r
   assert.equal(first.status, "conflicts");
   assert.ok(Buffer.byteLength(JSON.stringify(first), "utf8") <= 16384);
   assert.ok(first.omitted_count > 0);
+
+  assert.notEqual(first.continuation, null);
+  assert.deepEqual(first.next_calls, []);
+  assertNoRetiredAcceptanceRoute(first, "continuation-bearing conflict page");
   const conflictIds = first.conflicts.map(({ conflict_id: id }) => id);
   const pageInput = {
     repoRoot: harness.repoRoot, wkId: "WK-2053", mode: "page",
@@ -1782,6 +1612,7 @@ test("rebase conflict cursor and conflict set reject relevant mutation but not r
   let page = retry;
   while (true) {
     assert.ok(Buffer.byteLength(JSON.stringify(page), "utf8") <= 16384);
+    assert.deepEqual(page.next_calls, []);
     conflictIds.push(...page.conflicts.map(({ conflict_id: id }) => id));
     if (page.continuation === null) break;
     page = await rebaseControlledContractAcceptanceCoverageOperation({
@@ -1800,37 +1631,12 @@ test("rebase conflict cursor and conflict set reject relevant mutation but not r
   );
 });
 
-test("stale duplicate rows cannot be retained in either rebase family", async () => {
-  const obligationResolved = {
-    rows: [0, 1].map(() => ({
-      obligation_id: "OBL-WK2427-DUPLICATE",
-      source_locator: "/acceptance/criteria/0",
-      source_locator_digest: "sha256:stale",
-      statement: "The exact semantic identity remains current.",
-      controlled_contract_node_ids: ["node-current"],
-      proof: { kind: "explicit_gap" }
-    })),
-    criteria: [{
-      identity: "criterion-current",
-      criterion: "The exact semantic identity remains current.",
-      source_locator: "/acceptance/criteria/0"
-    }],
-    contractNodes: [{ id: "node-current" }],
-    selectedPacks: [],
-    criterionIdentities: { digest: "sha256:criteria" },
-    authoringIdentity: "sha256:authoring",
-    source: { content_digest: "sha256:source" },
-    bindings: { contractNodeDigest: "sha256:nodes", selectedPackDigest: "sha256:packs" },
-    staleReasons: ["proof_identity"]
-  };
-  const obligationPlan = planObligationCoverageRebase(obligationResolved, {
-    sourceLocatorDigest: () => "sha256:current"
-  });
-  assert.deepEqual(obligationPlan.entries.map(({ public: conflict }) => conflict.kind),
-    ["changed", "changed"]);
-  assert.equal(obligationPlan.entries.some(({ public: conflict }) =>
-    conflict.allowed_dispositions.includes("retain")), false);
-
+test("duplicate draft identities and invalid acceptance duplicates cannot be retained", async () => {
+  const { validateObligationCoverageDraft } = await import('@agent-chassis/controlled-contract');
+  const draft = { schema_version: 'controlled-contract-obligation-coverage.v3',
+    wk_id: 'WK-2427', selected_unit: null, focus: null,
+    obligations: [{ obligation_id: 'OBL-DUPLICATE' }, { obligation_id: 'OBL-DUPLICATE' }] };
+  assert.equal(validateObligationCoverageDraft(draft).valid, false);
   const criterionIdentities = {
     digest: "sha256:current-identities",
     identities: [{ identity: "criterion-current", position: 0, source: "/acceptance/criteria/0" }]
@@ -1852,7 +1658,7 @@ test("stale duplicate rows cannot be retained in either rebase family", async ()
   assert.equal(acceptancePlan.entries.some(({ public: conflict }) =>
     conflict.allowed_dispositions.includes("retain")), false);
 
-  for (const plan of [obligationPlan, acceptancePlan]) {
+  for (const plan of [acceptancePlan]) {
     await assert.rejects(applyCompleteRebaseResolution(plan,
       plan.entries.map(({ public: conflict }) => ({
         conflict_id: conflict.conflict_id, disposition: "retain"
@@ -1864,7 +1670,7 @@ test("stale duplicate rows cannot be retained in either rebase family", async ()
   }
 });
 
-test("stale conflict sets and page limits carry exact family describe recovery", () => {
+test("stale conflict sets and page limits carry exact current-family recovery", () => {
   const identities = {
     digest: "sha256:current-identities",
     identities: [{ identity: "criterion-current", position: 0, source: "/acceptance/criteria/0" }]
@@ -1877,26 +1683,13 @@ test("stale conflict sets and page limits carry exact family describe recovery",
     contractNodes: [{ id: "node-covered" }]
   }, identities);
   const obligationPlan = planObligationCoverageRebase({
-    rows: [{
-      obligation_id: "OBL-WK2427-STALE",
-      source_locator: "/acceptance/criteria/0",
-      source_locator_digest: "sha256:stale",
-      statement: "Recover exactly.",
-      controlled_contract_node_ids: ["node-current"],
-      proof: { kind: "explicit_gap" }
-    }],
-    criteria: [{ identity: "criterion-current", criterion: "Recover exactly.",
-      source_locator: "/acceptance/criteria/0" }],
-    contractNodes: [{ id: "node-current" }], selectedPacks: [],
-    criterionIdentities: { digest: "sha256:criteria" },
-    authoringIdentity: "sha256:authoring", source: { content_digest: "sha256:source" },
-    bindings: { contractNodeDigest: "sha256:nodes", selectedPackDigest: "sha256:packs" },
-    staleReasons: ["source_locator_digest"]
-  }, { sourceLocatorDigest: () => "sha256:current" });
+    draftRows: [{ obligation_id: "OBL-WK2427-STALE", statement: "Recover exactly." }],
+    authoringIdentity: "sha256:authoring", source: { content_digest: "sha256:source" }
+  }, {});
   const calls = {
     acceptance: { tool: "workspace_controlled_contract_acceptance_coverage_describe",
       arguments: { unit: "WK-2427#SLICE-005", focus: "security" } },
-    obligation: { tool: "workspace_controlled_contract_obligation_coverage_describe",
+    obligation: { tool: "workspace_controlled_contract_obligation_coverage_query",
       arguments: { unit: "WK-2427#SLICE-005", focus: "security" } }
   };
   for (const plan of [acceptancePlan, obligationPlan]) {

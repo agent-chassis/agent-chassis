@@ -1,0 +1,395 @@
+{
+  "explicit_exclusions": [
+    "caller-declared-population-completeness",
+    "cas-linearizability",
+    "cross-contract-result-join",
+    "cross-pack-result-join",
+    "runtime-truth",
+    "snapshot-acquisition-atomicity",
+    "traversal-liveness",
+    "unrepresented-concurrency"
+  ],
+  "guarantee": "For one exact package-authenticated authoritative ordered-occurrence population and exact captured finite pagination trace, every occurrence is returned exactly once in authoritative order through one canonical initial state, one linear opaque cursor chain, one snapshot/version identity, and one terminal page, with equality-normalized completeness and fail-closed resource accounting.",
+  "guarantee_digest": "c5ad980aa18bc912f1364789e814675e45343e85f3ebf56702f932b357323414",
+  "profile_digest": "2e522fef0f37b384ed7d38b3e6d9eca9c171daa779cf9baa490d5b13a51897e3",
+  "profile_id": "proof.pagination.complete-traversal",
+  "profile_version": "3.0.0",
+  "required_mutant_kills": [
+    "aggregate-input-limit-plus-one",
+    "authenticated-population-omission",
+    "authenticated-population-substitution",
+    "authentication-capture-substitution",
+    "canonical-result-limit-plus-one",
+    "cross-page-reorder",
+    "cursor-dangling",
+    "cursor-fork",
+    "cursor-replay",
+    "cursor-skip",
+    "cursor-substitution",
+    "early-terminal",
+    "equality-normalized-duplicate",
+    "identifier-renaming-dependence",
+    "post-terminal-request",
+    "snapshot-drift",
+    "traversal-extra-member",
+    "traversal-occurrence-duplication",
+    "traversal-occurrence-omission",
+    "unknown-cursor",
+    "unknown-occurrence-identity",
+    "version-drift",
+    "within-page-reorder",
+    "work-limit-plus-one"
+  ],
+  "required_positive_cases": [
+    "empty-traversal",
+    "exact-page-multiple",
+    "multi-page-shape-a",
+    "multi-page-shape-b",
+    "multi-page-shape-c",
+    "page-size-one",
+    "partial-final-page",
+    "singleton-traversal"
+  ],
+  "required_profile_rejections": [
+    "missing-authoritative-population-binding",
+    "missing-duplicate-refusal",
+    "missing-exact-order-equality",
+    "missing-linear-cursor-chain",
+    "missing-resource-refusal-binding",
+    "missing-snapshot-version-preservation",
+    "missing-source-authentication-witness-binding",
+    "missing-source-of-record-witness-binding",
+    "missing-terminal-uniqueness"
+  ],
+  "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.2",
+  "execution_control_witnesses": [
+    {
+      "fixture_id": "aggregate-input-limit-plus-one",
+      "witness_id": "witness-aggregate-input-limit-plus-one"
+    },
+    {
+      "fixture_id": "authenticated-population-omission",
+      "witness_id": "witness-authenticated-population-omission"
+    },
+    {
+      "fixture_id": "authenticated-population-substitution",
+      "witness_id": "witness-authenticated-population-substitution"
+    },
+    {
+      "fixture_id": "authentication-capture-substitution",
+      "witness_id": "witness-authentication-capture-substitution"
+    },
+    {
+      "fixture_id": "canonical-result-limit-plus-one",
+      "witness_id": "witness-canonical-result-limit-plus-one"
+    },
+    {
+      "fixture_id": "cross-page-reorder",
+      "witness_id": "witness-cross-page-reorder"
+    },
+    {
+      "fixture_id": "cursor-dangling",
+      "witness_id": "witness-cursor-dangling"
+    },
+    {
+      "fixture_id": "cursor-fork",
+      "witness_id": "witness-cursor-fork"
+    },
+    {
+      "fixture_id": "cursor-replay",
+      "witness_id": "witness-cursor-replay"
+    },
+    {
+      "fixture_id": "cursor-skip",
+      "witness_id": "witness-cursor-skip"
+    },
+    {
+      "fixture_id": "cursor-substitution",
+      "witness_id": "witness-cursor-substitution"
+    },
+    {
+      "fixture_id": "early-terminal",
+      "witness_id": "witness-early-terminal"
+    },
+    {
+      "fixture_id": "equality-normalized-duplicate",
+      "witness_id": "witness-equality-normalized-duplicate"
+    },
+    {
+      "fixture_id": "identifier-renaming-dependence",
+      "witness_id": "witness-identifier-renaming-dependence"
+    },
+    {
+      "fixture_id": "post-terminal-request",
+      "witness_id": "witness-post-terminal-request"
+    },
+    {
+      "fixture_id": "snapshot-drift",
+      "witness_id": "witness-snapshot-drift"
+    },
+    {
+      "fixture_id": "traversal-extra-member",
+      "witness_id": "witness-traversal-extra-member"
+    },
+    {
+      "fixture_id": "traversal-occurrence-duplication",
+      "witness_id": "witness-traversal-occurrence-duplication"
+    },
+    {
+      "fixture_id": "traversal-occurrence-omission",
+      "witness_id": "witness-traversal-occurrence-omission"
+    },
+    {
+      "fixture_id": "unknown-cursor",
+      "witness_id": "witness-unknown-cursor"
+    },
+    {
+      "fixture_id": "unknown-occurrence-identity",
+      "witness_id": "witness-unknown-occurrence-identity"
+    },
+    {
+      "fixture_id": "version-drift",
+      "witness_id": "witness-version-drift"
+    },
+    {
+      "fixture_id": "within-page-reorder",
+      "witness_id": "witness-within-page-reorder"
+    },
+    {
+      "fixture_id": "work-limit-plus-one",
+      "witness_id": "witness-work-limit-plus-one"
+    },
+    {
+      "fixture_id": "missing-source-authentication-witness-binding",
+      "witness_id": "witness-missing-source-authentication-witness-binding"
+    },
+    {
+      "fixture_id": "missing-source-of-record-witness-binding",
+      "witness_id": "witness-missing-source-of-record-witness-binding"
+    },
+    {
+      "fixture_id": "missing-authoritative-population-binding",
+      "witness_id": "witness-missing-authoritative-population-binding"
+    },
+    {
+      "fixture_id": "missing-linear-cursor-chain",
+      "witness_id": "witness-missing-linear-cursor-chain"
+    },
+    {
+      "fixture_id": "missing-exact-order-equality",
+      "witness_id": "witness-missing-exact-order-equality"
+    },
+    {
+      "fixture_id": "missing-terminal-uniqueness",
+      "witness_id": "witness-missing-terminal-uniqueness"
+    },
+    {
+      "fixture_id": "missing-duplicate-refusal",
+      "witness_id": "witness-missing-duplicate-refusal"
+    },
+    {
+      "fixture_id": "missing-snapshot-version-preservation",
+      "witness_id": "witness-missing-snapshot-version-preservation"
+    },
+    {
+      "fixture_id": "missing-resource-refusal-binding",
+      "witness_id": "witness-missing-resource-refusal-binding"
+    }
+  ],
+  "executable_module": "packages/controlled-contract/test/proof-packs/complete-pagination-traversal-v1-adequacy.mjs",
+  "executable_module_digest": "21f6962610d35d14068bdfd3611dc5abdb52a695417e96c89c59c3c16d9d524e",
+  "executable_dependency_digests": [
+    {
+      "path": "packages/controlled-contract/lib/authentication-provenance-occurrence-projection.mjs",
+      "sha256": "5840827cdab652e7d6dcd7c4d9d792f896602dc40cb0fd2eb69a68740869719d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/bounded-diagnostic-projection.mjs",
+      "sha256": "7af8bfdd18bb47f8b41677b2f06406244cdc06cb91a2c3368d46e4345d3b52c2"
+    },
+    {
+      "path": "packages/controlled-contract/lib/caller-input-authority-confinement-projection.mjs",
+      "sha256": "c5a2a035614fb6a5957e5d8d62e7c55ccb1b32854ff9859be4a154d430bb32d2"
+    },
+    {
+      "path": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+      "sha256": "4615c3745a066497f67eb36b84228d3995250f354911c8f070aa7ef24224a4e4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/declared-boundary-record-consistency.mjs",
+      "sha256": "1928a0919ce49094f3d5cc31cb300a8fc5182afd81108c2455934aed0ca55ce1"
+    },
+    {
+      "path": "packages/controlled-contract/lib/declared-limit-guidance-propagation.mjs",
+      "sha256": "4be7f45a81baf2ed5d894b4b882befd8082ef6c8beaf23c05411014bc100267d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
+      "sha256": "1b851826cd19437f44830ee3f3a00464145e75eff411f0114336e2b24cdeae41"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
+      "sha256": "2090a18c5d66ebb84008074ac06a5ae127d04cf061ea7fb826eda25b99d29f05"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-projection.mjs",
+      "sha256": "7bc660f9fe302e2a1cbfde84ae988b15c6fa055f68e2b3104996457cf1028210"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v1.mjs",
+      "sha256": "eb2848ae678a33272b331bb7a741b46bdcff2a10882530172e3eabfa3d32dd1a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-common.mjs",
+      "sha256": "92eb204c95f15ed58a63080ad0f0ec4b06b81b30f44b4665308ccaf45c2552ae"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-runtime-registry.mjs",
+      "sha256": "c0aa33a3c1c0ec7977ca6f1df7f607d658fff52c3a33ca482d0d8fbec475b55a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/mutation-pagination-complete-traversal.mjs",
+      "sha256": "35d3876cf407cd8585a2f0090443646437372f0e73451de5c972ac750893756f"
+    },
+    {
+      "path": "packages/controlled-contract/lib/mutation-pagination-trace-projection.mjs",
+      "sha256": "121e4eceb5b8f1cf687e21a75b92bad6ffc9d156590bb5b8f22eff786f09a47d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-carrier-v1.mjs",
+      "sha256": "27b73ece7b1ed17df3f6cb34059c811d8621c519ba07a0f4a502966294e1ac79"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
+      "sha256": "5ae748ea3ea224ca2a0c9aa7320876d114345b3de336f1f91001f03c7427cb23"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
+      "sha256": "a72d06fb070544f9d70a558d0dcecb9e9e35ebaca804bbf4914417d7af89fd5f"
+    },
+    {
+      "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
+      "sha256": "a4b1c4877bc97a5630a4c61bff10af7155d074cb478541e4f214a4ab15110498"
+    },
+    {
+      "path": "packages/controlled-contract/lib/profile-digest.mjs",
+      "sha256": "6abee701ee068282b6f37dff287b04d1203186794b7dae3358dc2ca11bd532eb"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-validation.mjs",
+      "sha256": "ca70a86f877ecba36e3109858ea720456fff0effa0dd362b321709bc8e65e325"
+    },
+    {
+      "path": "packages/controlled-contract/lib/resource-policy.mjs",
+      "sha256": "0d7e7370a5745f4215ac69260fb6cfefeb048778cec1e4fd43c5da6c71448505"
+    },
+    {
+      "path": "packages/controlled-contract/lib/sound-negative-observation-projection.mjs",
+      "sha256": "c5871ef590e54b995daab6195e97e6dd3080d3fe20f720585312e68df7d66d85"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-association-semantics.mjs",
+      "sha256": "45df90f5d90670fbd22908302fa0d17884faf392f17c02d2368b338906e4aee7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-contract-schema-v1.mjs",
+      "sha256": "d6bb7568dc4bc223dddf24a92ae4cceaa9430a677c25c69d9984da3dcd5e6511"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
+      "sha256": "561df8820a08ded0262afca8d9eea9b9b2b8b8ff9aaa67c265d0f8e833456e93"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-partition-semantics.mjs",
+      "sha256": "373f4ef01f740f4be2e212ed9a74caf7a500cbef77fd985a37e2099653a4a2ac"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-relation-semantics.mjs",
+      "sha256": "b0c6a10cf8ed6ca1fdad35082a487f5784c3380d1818b3e6d0863580320f068d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-v1-family-validation.mjs",
+      "sha256": "9e187e0391c9ca19608c527e3164d8076667683b3ee50066c1dcabab83a6e79d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/supplementary-isolation-attempt-projection.mjs",
+      "sha256": "f9bea5575786c14574b517f70df5f350d0dd2475c3e4e69cab73a383a1738280"
+    },
+    {
+      "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
+      "sha256": "f7d2e9bf4e1fc57e8259b37f4e7af4600c34a47f153a33a46f738c576e1789e0"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-expanded-semantics.mjs",
+      "sha256": "5722474f5e849ad621669c7c8257acc3deb717470537a9c074ac0ebca852a270"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-runtime.mjs",
+      "sha256": "3e392e1832d1fad12b08020fd257888a0db23b1b7b95533c26ef7b46f3a9f5cb"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-schema-v1.mjs",
+      "sha256": "19dff50fcffb504d1d9a62eb5fa39a933e981dd17e7beb61a4a3988fa2153c76"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-semantics.mjs",
+      "sha256": "5c146658b4df10e9b28d9309aba75d0f3d3725911d2a2e32623e746c533aa8f4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
+      "sha256": "512fe162febb3e2685812be2aedc576d952558b92d0120e66d74f4d806f04a21"
+    },
+    {
+      "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
+      "sha256": "bb8f70ca8e70600cb951ec45d54a766e3f012cf7da2e6c1236ea2fe521b13e8a"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
+      "sha256": "ef4c49974e8169d82db660c1b779e03c0950459f37553ea17d3ee7db07b69caf"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
+      "sha256": "2a23773f0c36f70993b35d3f5dc5bd61de193ddae26c495671ec787d2915aab9"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-input.v2.schema.json",
+      "sha256": "336e00f95110a746bb10eb7992e11258a88410c6e73ae8bd43a85911eee316b4"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-result.v2.schema.json",
+      "sha256": "8bf6d47dc896af03ed7ee713e5ea92cbbb8c7659d023d7b800a597410a6d9d63"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile.v2.schema.json",
+      "sha256": "38f5d3b86163a83c26977e36b91885942c73cb9cbb86b13ac8d9a27a16531169"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/authentication-provenance-v1-fixture.mjs",
+      "sha256": "b7aa16d7ff3df157ae3212db876300bb6c5abc74a7b9bc8fa6e381b4d130e605"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/complete-pagination-traversal-v1-fixture.mjs",
+      "sha256": "9c5730e1b1fcb54cd47a5e777a4a9d98176cfe2ca57fa53803980770c8736f9d"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/complete-pagination-traversal-v1-harness.mjs",
+      "sha256": "0654f62714df28d6b31db174e9c6e1b65ec1db611c8d7bc00a65e4c0995bfd23"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
+      "sha256": "d55f40522f447e2541469ff531375a149f2c78703434bbf00914ac0c19d40a55"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs",
+      "sha256": "0ce9cd57dc3343339cbdfe28f15517754b99e813d1730dec104a2f64661b48fe"
+    },
+    {
+      "path": "packages/controlled-contract/vocabulary/controlled-contract-vocabulary.v1.mjs",
+      "sha256": "4e977d3b49644a8d2a6535387860f660280e90e3055d46204e0423e5c1a4bc92"
+    }
+  ]
+}

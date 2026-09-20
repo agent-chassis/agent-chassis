@@ -1,0 +1,1546 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-design-disposition",
+      "kind": "rationale",
+      "text": "DRY findings were dispositioned once and all accepted; the all-accepted-decision review then examined 51/51 accepted decisions and its two DEC-0118 findings were dispositioned once and accepted. D3 is the resulting contract design."
+    },
+    {
+      "annotation_id": "ann-envelope-owner",
+      "kind": "note",
+      "text": "The wiki-MCP assessment materializer is the sole final-envelope budget owner. It reserves workspaceRepo, assessment_identity, exact counts, omitted counts, and continuation metadata once, then passes the remaining allowance to semantic projection."
+    },
+    {
+      "annotation_id": "ann-losslessness",
+      "kind": "note",
+      "text": "Summary and page byte ceilings are delivery bounds only. Complete task-relevant rows and values remain snapshot-bound and reachable through typed collection, field-projection, and scalar-range continuations on the existing query routes."
+    },
+    {
+      "annotation_id": "ann-proof-obligations",
+      "kind": "note",
+      "text": "Six executable verification claims collectively cover all twelve behavior claims. Each binds candidate execution, module boundary traversal, a dependency-failure falsifier, an observable structured diagnostic, and an honest no-executed-coverage baseline before implementation."
+    },
+    {
+      "annotation_id": "ann-public-boundary",
+      "kind": "rationale",
+      "text": "Raw carriers, artifacts, proof plans, evaluation inputs, and evaluator join graphs are outside the assessment public contract under WK-2426. Non-task-relevant source digests and assessment completeness exemptions are removed rather than relabeled."
+    },
+    {
+      "annotation_id": "ann-scope",
+      "kind": "rationale",
+      "text": "This work changes public assessment transport and projection only. It preserves controlled-contract and proof-pack evaluation semantics, proof authority, CCE, role permissions, WK-2426 policy, and the single existing snapshot registry."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-both-families",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-both-families"
+    },
+    {
+      "claim_id": "claim-both-families-verified",
+      "falsifying_proposition_id": "prop-both-families-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-both-families-covered",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-docs-coverage",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-docs-coverage"
+    },
+    {
+      "claim_id": "claim-envelope-complete",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-envelope-complete"
+    },
+    {
+      "claim_id": "claim-final-envelope-success",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-final-envelope-success"
+    },
+    {
+      "claim_id": "claim-final-envelope-verified",
+      "falsifying_proposition_id": "prop-final-envelope-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-final-envelope-covered",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-guidance-nongoals-verified",
+      "falsifying_proposition_id": "prop-guidance-nongoals-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-guidance-nongoals-covered",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-lossless-query",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-lossless-query"
+    },
+    {
+      "claim_id": "claim-lossless-traversal-verified",
+      "falsifying_proposition_id": "prop-lossless-traversal-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-lossless-traversal-covered",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-non-goals",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-non-goals"
+    },
+    {
+      "claim_id": "claim-oversized-continuation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-oversized-continuation"
+    },
+    {
+      "claim_id": "claim-oversized-values-verified",
+      "falsifying_proposition_id": "prop-oversized-values-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-oversized-values-covered",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-regression-coverage",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-regression-coverage"
+    },
+    {
+      "claim_id": "claim-semantic-population-verified",
+      "falsifying_proposition_id": "prop-semantic-population-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-semantic-population-covered",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-single-budget-owner",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-single-budget-owner"
+    },
+    {
+      "claim_id": "claim-task-relevant-only",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-task-relevant-only"
+    },
+    {
+      "claim_id": "claim-vocabulary-clean",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-vocabulary-clean"
+    },
+    {
+      "claim_id": "claim-wk2426-preserved",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2426-preserved"
+    }
+  ],
+  "collections": [],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-assess"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-assess"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-both-families",
+      "subject_reference_id": "ref-assessment-materializer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-assess"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-assess"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-both-families-covered",
+      "subject_reference_id": "ref-integration-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-assess"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-assess"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-both-families-omitted",
+      "subject_reference_id": "ref-integration-tests"
+    },
+    {
+      "proposition_id": "prop-docs-coverage",
+      "subject_reference_id": "ref-docs-operations",
+      "operator": "reference:covers",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-semantic-results"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-oversized-values"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-non-authorizing-result"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-docs-integration"
+        }
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      }
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-semantic-results"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-envelope-complete",
+      "subject_reference_id": "ref-final-envelope"
+    },
+    {
+      "proposition_id": "prop-final-envelope-covered",
+      "subject_reference_id": "ref-integration-tests",
+      "operator": "reference:covers",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-assessment-materializer"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-controlled-tool-registry"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-compact-mode"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-assess-mcp-handler"
+        }
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      }
+    },
+    {
+      "proposition_id": "prop-final-envelope-omitted",
+      "subject_reference_id": "ref-integration-tests",
+      "operator": "reference:omits",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-assessment-materializer"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-controlled-tool-registry"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-compact-mode"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-assess-mcp-handler"
+        }
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      }
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-final-envelope"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-final-envelope-success",
+      "subject_reference_id": "ref-assessment-materializer"
+    },
+    {
+      "proposition_id": "prop-guidance-nongoals-covered",
+      "subject_reference_id": "ref-parity-tests",
+      "operator": "reference:covers",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-assessment-materializer"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-docs-operations"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-docs-integration"
+        }
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      }
+    },
+    {
+      "proposition_id": "prop-guidance-nongoals-omitted",
+      "subject_reference_id": "ref-parity-tests",
+      "operator": "reference:omits",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-assessment-materializer"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-docs-operations"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-docs-integration"
+        }
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      }
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-semantic-results"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-oversized-values"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-lossless-query",
+      "subject_reference_id": "ref-snapshot-registry"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-snapshot-registry"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-lossless-traversal-covered",
+      "subject_reference_id": "ref-boundary-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-snapshot-registry"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-lossless-traversal-omitted",
+      "subject_reference_id": "ref-boundary-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-second-registry"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-raw-sources"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-non-goals",
+      "subject_reference_id": "ref-assessment-materializer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-oversized-values"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-oversized-continuation",
+      "subject_reference_id": "ref-snapshot-registry"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-projector"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-oversized-values-covered",
+      "subject_reference_id": "ref-boundary-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-projector"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-oversized-values-omitted",
+      "subject_reference_id": "ref-boundary-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-assessment-materializer"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-snapshot-registry"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-descriptors"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-projector"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-projector"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-regression-coverage",
+      "subject_reference_id": "ref-regression-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-descriptors"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-semantic-population-covered",
+      "subject_reference_id": "ref-projection-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-descriptors"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-semantic-population-omitted",
+      "subject_reference_id": "ref-projection-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-projector"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-projector"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-single-budget-owner",
+      "subject_reference_id": "ref-assessment-materializer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-raw-sources"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-source-digests"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-task-relevant-only",
+      "subject_reference_id": "ref-assessment-materializer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-raw-sources"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-source-digests"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-vocabulary-clean",
+      "subject_reference_id": "ref-descriptors"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2426"
+        }
+      ],
+      "operator": "reference:preserves",
+      "proposition_id": "prop-wk2426-preserved",
+      "subject_reference_id": "ref-assessment-materializer"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "materializeControlledContractAssessmentResponse"
+      },
+      "reference_id": "ref-assessment-materializer",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/controlled-contract-semantic-projection-boundaries.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-boundary-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "wiki/decisions/DEC-0118.json",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-dec0118",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-descriptors",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "docs/mcp-integration.md",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-docs-integration",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "docs/mcp-controlled-contract-operations.md",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-docs-operations",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-final-mcp-envelope.v1"
+      },
+      "reference_id": "ref-final-envelope",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "assessControlledContractIntegrationTestDesignOperation"
+      },
+      "reference_id": "ref-integration-assess",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "projectControlledContractIntegrationAssessmentSummary"
+      },
+      "reference_id": "ref-integration-projector",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-integration-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-non-authorizing-result.v1"
+      },
+      "reference_id": "ref-non-authorizing-result",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-oversized-public-values.v1"
+      },
+      "reference_id": "ref-oversized-values",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/controlled-contract-mcp-package-parity.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-parity-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/controlled-contract-assessment-semantic-projection.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-projection-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-core/src/operations/controlled-contract/assessment-operations.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "assessControlledContractOperation"
+      },
+      "reference_id": "ref-proof-assess",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "projectControlledContractProofAssessmentSummary"
+      },
+      "reference_id": "ref-proof-projector",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-raw-source-bytes"
+      },
+      "reference_id": "ref-raw-sources",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-regression-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-secondary-snapshot-registry"
+      },
+      "reference_id": "ref-second-registry",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-task-relevant-semantic-results.v1"
+      },
+      "reference_id": "ref-semantic-results",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-snapshot-registry",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "assessment-source-derived-digests"
+      },
+      "reference_id": "ref-source-digests",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/data/tool-discovery/controlled-contract-tools.json",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-tool-discovery",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "wiki/work-records/WK-2426.json",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2426",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "accounted-population"
+      },
+      "reference_id": "ref-accounted-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "mcp_tool",
+        "kind": "durable_id",
+        "value": "workspace_controlled_contract_assess"
+      },
+      "reference_id": "ref-compact-mode",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "compact-population"
+      },
+      "reference_id": "ref-compact-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "assessment_summary"
+      },
+      "reference_id": "ref-compact-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "mcp_tool",
+        "kind": "durable_id",
+        "value": "workspace_controlled_contract_assessment_query"
+      },
+      "reference_id": "ref-complete-mode",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "assessment_query_pages"
+      },
+      "reference_id": "ref-complete-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "complete-result-population"
+      },
+      "reference_id": "ref-complete-result-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "disclosed-population"
+      },
+      "reference_id": "ref-disclosed-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "supported_next_call"
+      },
+      "reference_id": "ref-disclosure-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "task-relevant-semantic-row"
+      },
+      "reference_id": "ref-heavy-member-class",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "incomplete-omission-count"
+      },
+      "reference_id": "ref-incomplete-omission-count-condition",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "incomplete-total-count"
+      },
+      "reference_id": "ref-incomplete-total-condition",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "mode-population"
+      },
+      "reference_id": "ref-mode-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "no-compact-omission"
+      },
+      "reference_id": "ref-no-compact-omission-condition",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "omitted_count"
+      },
+      "reference_id": "ref-omission-count-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "omission-population"
+      },
+      "reference_id": "ref-omission-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "delivery-bound-projection"
+      },
+      "reference_id": "ref-omission-reason",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "omission-reason-catalog"
+      },
+      "reference_id": "ref-reason-catalog",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "silent-omission"
+      },
+      "reference_id": "ref-silent-omission-condition",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection_member",
+        "kind": "durable_id",
+        "value": "exact-counts"
+      },
+      "reference_id": "ref-source-member-counts",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection_member",
+        "kind": "durable_id",
+        "value": "assessment-identity"
+      },
+      "reference_id": "ref-source-member-identity",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection_member",
+        "kind": "durable_id",
+        "value": "task-relevant-semantic-rows"
+      },
+      "reference_id": "ref-source-member-rows",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection_member",
+        "kind": "durable_id",
+        "value": "summary-metadata"
+      },
+      "reference_id": "ref-source-member-summary",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "source-population"
+      },
+      "reference_id": "ref-source-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "mcp_tool_family",
+        "kind": "durable_id",
+        "value": "controlled-contract-assessment"
+      },
+      "reference_id": "ref-tool-family",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "total_count"
+      },
+      "reference_id": "ref-total-count-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "unaccounted-source"
+      },
+      "reference_id": "ref-unaccounted-source-condition",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "assessment_projection",
+        "kind": "durable_id",
+        "value": "unrecoverable-loss"
+      },
+      "reference_id": "ref-unrecoverable-loss-condition",
+      "type_term": "cc:state"
+    },
+    {
+      "reference_id": "ref-controlled-tool-registry",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "symbol": "createControlledContractToolRegistry"
+      }
+    },
+    {
+      "reference_id": "ref-integration-assess-mcp-handler",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "mcp_tool",
+        "value": "workspace_controlled_contract_integration_test_design_assess"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-both-families-verifies-both-families",
+      "role": "verifies",
+      "source_claim_id": "claim-both-families-verified",
+      "target_claim_id": "claim-both-families"
+    },
+    {
+      "relation_id": "rel-both-families-verifies-wk2426-preserved",
+      "role": "verifies",
+      "source_claim_id": "claim-both-families-verified",
+      "target_claim_id": "claim-wk2426-preserved"
+    },
+    {
+      "relation_id": "rel-final-envelope-verifies-final-envelope-success",
+      "role": "verifies",
+      "source_claim_id": "claim-final-envelope-verified",
+      "target_claim_id": "claim-final-envelope-success"
+    },
+    {
+      "relation_id": "rel-final-envelope-verifies-single-budget-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-final-envelope-verified",
+      "target_claim_id": "claim-single-budget-owner"
+    },
+    {
+      "relation_id": "rel-guidance-nongoals-verifies-docs-coverage",
+      "role": "verifies",
+      "source_claim_id": "claim-guidance-nongoals-verified",
+      "target_claim_id": "claim-docs-coverage"
+    },
+    {
+      "relation_id": "rel-guidance-nongoals-verifies-non-goals",
+      "role": "verifies",
+      "source_claim_id": "claim-guidance-nongoals-verified",
+      "target_claim_id": "claim-non-goals"
+    },
+    {
+      "relation_id": "rel-lossless-traversal-verifies-envelope-complete",
+      "role": "verifies",
+      "source_claim_id": "claim-lossless-traversal-verified",
+      "target_claim_id": "claim-envelope-complete"
+    },
+    {
+      "relation_id": "rel-lossless-traversal-verifies-lossless-query",
+      "role": "verifies",
+      "source_claim_id": "claim-lossless-traversal-verified",
+      "target_claim_id": "claim-lossless-query"
+    },
+    {
+      "relation_id": "rel-oversized-values-verifies-oversized-continuation",
+      "role": "verifies",
+      "source_claim_id": "claim-oversized-values-verified",
+      "target_claim_id": "claim-oversized-continuation"
+    },
+    {
+      "relation_id": "rel-oversized-values-verifies-regression-coverage",
+      "role": "verifies",
+      "source_claim_id": "claim-oversized-values-verified",
+      "target_claim_id": "claim-regression-coverage"
+    },
+    {
+      "relation_id": "rel-semantic-population-verifies-task-relevant-only",
+      "role": "verifies",
+      "source_claim_id": "claim-semantic-population-verified",
+      "target_claim_id": "claim-task-relevant-only"
+    },
+    {
+      "relation_id": "rel-semantic-population-verifies-vocabulary-clean",
+      "role": "verifies",
+      "source_claim_id": "claim-semantic-population-verified",
+      "target_claim_id": "claim-vocabulary-clean"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-both-families",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+            "mutation_id": "mutation-both-families",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-both-families-omitted",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-both-families",
+        "proposition_id": "prop-both-families-covered"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-both-families",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+        "subject_reference_ids": [
+          "ref-proof-assess",
+          "ref-integration-assess"
+        ]
+      },
+      "test_proof_id": "test-proof-both-families",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-both-families-verified",
+      "test_selector": {
+        "name": "both families",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-final-envelope",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-final-envelope",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-final-envelope-omitted",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-final-envelope",
+        "proposition_id": "prop-final-envelope-covered"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-final-envelope",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-assessment-materializer",
+          "ref-controlled-tool-registry",
+          "ref-compact-mode",
+          "ref-integration-assess-mcp-handler"
+        ]
+      },
+      "test_proof_id": "test-proof-final-envelope",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-final-envelope-verified",
+      "test_selector": {
+        "name": "final envelope",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-guidance-nongoals",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-guidance-nongoals",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-guidance-nongoals-omitted",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-guidance-nongoals",
+        "proposition_id": "prop-guidance-nongoals-covered"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-guidance-nongoals",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-assessment-materializer"
+        ]
+      },
+      "test_proof_id": "test-proof-guidance-nongoals",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-guidance-nongoals-verified",
+      "test_selector": {
+        "name": "guidance nongoals",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-lossless-traversal",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+            "mutation_id": "mutation-lossless-traversal",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-lossless-traversal-omitted",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-lossless-traversal",
+        "proposition_id": "prop-lossless-traversal-covered"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-lossless-traversal",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+        "subject_reference_ids": [
+          "ref-snapshot-registry"
+        ]
+      },
+      "test_proof_id": "test-proof-lossless-traversal",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-lossless-traversal-verified",
+      "test_selector": {
+        "name": "lossless traversal",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-oversized-values",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+            "mutation_id": "mutation-oversized-values",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-oversized-values-omitted",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-oversized-values",
+        "proposition_id": "prop-oversized-values-covered"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-oversized-values",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+        "subject_reference_ids": [
+          "ref-proof-projector"
+        ]
+      },
+      "test_proof_id": "test-proof-oversized-values",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-oversized-values-verified",
+      "test_selector": {
+        "name": "oversized values",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-semantic-population",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+            "mutation_id": "mutation-semantic-population",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-semantic-population-omitted",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-semantic-population",
+        "proposition_id": "prop-semantic-population-covered"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-semantic-population",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+        "subject_reference_ids": [
+          "ref-descriptors"
+        ]
+      },
+      "test_proof_id": "test-proof-semantic-population",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-semantic-population-verified",
+      "test_selector": {
+        "name": "semantic population",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

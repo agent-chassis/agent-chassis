@@ -1,10 +1,15 @@
-
+import path from "node:path";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { ensureLauncherRuntimeStateDir } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
+import { isWithinRepo } from "./launch-isolation.mjs";
+import { buildClaudeNativePermissionSettings } from "./workspace-agent-claude-launch-support.mjs";
 
 import {
   BACKEND_REFUSAL_CODES
 } from "./workspace-agent-dispatch-backend.mjs";
 import {
   deriveDirectoryScopedWritableMountsFromWriteScope,
+  deriveWritableMountsFromResolvedScope,
   assertDirectoryScopeWritableRootsSafe
 } from "./workspace-agent-write-scope.mjs";
 import {
@@ -17,7 +22,9 @@ import {
 } from "./stdio-mcp-conduit.mjs";
 
 export const CLAUDE_WORKSPACE_AGENT_MCP_CONDUIT_CONSTRUCTOR = createStdioMcpConduit;
-import { loadWorkRecordById } from "@agent-chassis/wiki-core";
+import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
+
+import { resolveConfiguredAgentExecutable } from "@agent-chassis/agent-launch-core/src/lib/registry.mjs";
 
 import { resolveLauncherSchemaConstrainedTierIsPaid } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
 import {
@@ -32,11 +39,10 @@ import {
 } from "./stdio-mcp-conduit-authority.mjs";
 import {
   CLAUDE_APPROVED_CREDENTIALS_READ_ONLY_FILES,
+  CLAUDE_CONFIGURED_EXECUTABLE_UNRESOLVABLE_REASON,
   CLAUDE_COMMAND_LINE_PROMPT_CONTRACT_INVALID_REASON,
   CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
   CLAUDE_NATIVE_COMMAND_TOOL,
-  CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON,
-  CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
   CLAUDE_RUNTIME_SETUP_REASONS,
   CLAUDE_WORKER_SCRATCH_UNAVAILABLE_REASON,
   buildUnavailableRefusal,
@@ -48,8 +54,6 @@ import {
   defaultReadLauncherOwnedHostHome,
   makeRefusal,
   mintClaudeWorkerScratchRoot,
-  mintLauncherOwnedClaudeNativePermissionSettings,
-  probeClaudeNativePermissionEnforcement,
   resolveLauncherOwnedClaudeRuntimeFacts,
   verifyClaudeArgvPromptContract,
   verifyClaudeRuntimeIdentityUnchanged
@@ -65,10 +69,42 @@ export async function resolveClaudeRuntimePreflight({
   credentialsReadOnlyFile,
   buildBwrapPlan,
   spawnIsolated,
-  probeClaudeRuntime
+  probeClaudeRuntime,
+  resolveConfiguredExecutable = resolveConfiguredAgentExecutable,
+  workspaceDir = undefined,
+  launcherTrustedPathEnv = null
 }) {
+
+  let configuredExecutable = null;
+  let configuredLeadingArgs = [];
+  if (typeof claudePath !== "string" || claudePath.length === 0) {
+    try {
+      ({ executable: configuredExecutable, leadingArgs: configuredLeadingArgs } =
+        await resolveConfiguredExecutable({
+          agentName: "claude",
+          workspaceDir
+        }));
+    } catch (err) {
+      return {
+        refusal: makeRefusal(
+          BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          err?.code ?? CLAUDE_CONFIGURED_EXECUTABLE_UNRESOLVABLE_REASON,
+          {
+            fact: "claude_configured_executable",
+            configuration_key: "agents.claude.base_argv[0]",
+            message: err?.message ?? String(err),
+            ...(err?.detail && typeof err.detail === "object" ? err.detail : {})
+          }
+        )
+      };
+    }
+  }
+  const injectedClaudePath = configuredExecutable === null;
   const runtimeFactsResult = resolveClaudeRuntimeFacts({
-    readHostHome: readLauncherOwnedHostHome
+    readHostHome: readLauncherOwnedHostHome,
+    configuredExecutable: configuredExecutable ?? claudePath,
+    pathEnv: launcherTrustedPathEnv,
+    preResolvedExecutable: injectedClaudePath
   });
   if (!runtimeFactsResult || runtimeFactsResult.ok !== true) {
     return {
@@ -80,9 +116,7 @@ export async function resolveClaudeRuntimePreflight({
     };
   }
   const runtimeFacts = runtimeFactsResult.facts;
-  const effectiveClaudePath = typeof claudePath === "string" && claudePath.length > 0
-    ? claudePath
-    : runtimeFacts.symlink;
+  const effectiveClaudePath = runtimeFacts.symlink;
   const effectiveFamilyRuntimeReadOnlyRoots = Array.isArray(familyRuntimeReadOnlyRoots)
     ? familyRuntimeReadOnlyRoots
     : Object.freeze([runtimeFacts.readOnlyRoot]);
@@ -144,21 +178,30 @@ export async function resolveClaudeRuntimePreflight({
     ? probe.detail.symlink_path
     : effectiveClaudePath;
 
-  return { refusal: null, spawn, probe, resolvedClaudePath };
+  return {
+    refusal: null,
+    spawn,
+    probe,
+    resolvedClaudePath,
+
+    configuredLeadingArgs: [...configuredLeadingArgs]
+  };
+}
+
+export function isClaudeNativePermissionSettingsArtifact(settings) {
+  return settings?.ok === true &&
+    typeof settings.settingsPath === "string" && settings.settingsPath.length > 0 &&
+    typeof settings.settingsRoot === "string" && settings.settingsRoot.length > 0;
 }
 
 export async function mintClaudeNativePermissionSurface({
   commandSurfaceRole,
   mintClaudeNativePermissionSettings,
-  verifyNativePermissionEnforcement,
-  nativePermissionProbeExplicitlyInjected,
-  launchTransportInjected,
   workspaceDir,
   writeScope,
   role,
   mcpToolNames,
-  env,
-  resolvedClaudePath
+  env
 }) {
   if (!commandSurfaceRole) return { refusal: null, claudeSettings: null };
   const claudeSettings = await mintClaudeNativePermissionSettings({
@@ -168,12 +211,7 @@ export async function mintClaudeNativePermissionSurface({
     mcpToolNames,
     env
   });
-  if (
-    !claudeSettings ||
-    claudeSettings.ok !== true ||
-    typeof claudeSettings.settingsPath !== "string" ||
-    typeof claudeSettings.settingsRoot !== "string"
-  ) {
+  if (!isClaudeNativePermissionSettingsArtifact(claudeSettings)) {
     return {
       refusal: {
         code: BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
@@ -186,23 +224,6 @@ export async function mintClaudeNativePermissionSurface({
       claudeSettings: null
     };
   }
-
-  if (nativePermissionProbeExplicitlyInjected || !launchTransportInjected) {
-    const enforcementProof = await verifyNativePermissionEnforcement({
-      claudePath: resolvedClaudePath,
-      env
-    });
-    if (!enforcementProof || enforcementProof.ok !== true) {
-      return {
-        refusal: {
-          code: BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          reason: enforcementProof?.reason ?? CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON,
-          detail: { app: "claude", probe: enforcementProof?.detail ?? enforcementProof?.checks ?? null }
-        },
-        claudeSettings: null
-      };
-    }
-  }
   return { refusal: null, claudeSettings };
 }
 
@@ -210,7 +231,9 @@ export function composeClaudeLaunchArgv({
   commandLine,
   conduit,
   mcpToolNames,
-  commandSurfaceRole
+  commandSurfaceRole,
+
+  configuredLeadingArgs = []
 }) {
   const registrationArgs = conduit === null
     ? []
@@ -220,7 +243,7 @@ export function composeClaudeLaunchArgv({
         commandSurfaceRole ? [CLAUDE_NATIVE_COMMAND_TOOL] : []
       );
   const optionArgs = Array.isArray(commandLine.optionArgs)
-    ? [...commandLine.optionArgs, ...registrationArgs]
+    ? [...configuredLeadingArgs, ...commandLine.optionArgs, ...registrationArgs]
     : null;
   if (optionArgs === null || typeof commandLine.prompt !== "string") {
     return {
@@ -257,13 +280,17 @@ export async function resolveClaudeWritePathMounts({
   hasAssignedWriteScope,
   workspaceDir,
   writeScope,
+  workerScopeAuthority = null,
   captureWriteScopeBaseline,
   mintWorkerScratchRoot,
   env
 }) {
 
   if (needsDirectoryScope) {
-    const derived = deriveDirectoryScopedWritableMountsFromWriteScope({ workspaceDir, writeScope });
+
+    const derived = workerScopeAuthority === null
+      ? deriveDirectoryScopedWritableMountsFromWriteScope({ workspaceDir, writeScope })
+      : deriveWritableMountsFromResolvedScope({ workspaceDir, resolvedScope: workerScopeAuthority.resolved_scope });
     const guard = assertDirectoryScopeWritableRootsSafe({
       workspaceDir,
       writableRoots: derived.writableRoots
@@ -421,9 +448,6 @@ export function resolveClaudeExecutorSeams(options, {
 }) {
   const hasInjectedCredentialsReadOnlyFile =
     Object.prototype.hasOwnProperty.call(options, "credentialsReadOnlyFile");
-
-  const nativePermissionProbeExplicitlyInjected =
-    Object.prototype.hasOwnProperty.call(options, "verifyNativePermissionEnforcement");
   const launchTransportInjected =
     Object.prototype.hasOwnProperty.call(options, "spawn") ||
     Object.prototype.hasOwnProperty.call(options, "spawnIsolated") ||
@@ -456,7 +480,6 @@ export function resolveClaudeExecutorSeams(options, {
     captureWriteScopeBaseline = collectGitChangedPaths,
 
     mintClaudeNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings,
-    verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement,
 
     resolveSchemaConstrainedTier = resolveLauncherSchemaConstrainedTierIsPaid,
 
@@ -466,14 +489,90 @@ export function resolveClaudeExecutorSeams(options, {
 
   return {
     hasInjectedCredentialsReadOnlyFile,
-    nativePermissionProbeExplicitlyInjected,
     launchTransportInjected,
     probeClaudeRuntime, captureFinalResult, claudePath, resolveClaudeRuntimeFacts,
     readLauncherOwnedHostHome, buildCommandLine, promptForSubject, env, defaultCwd,
     buildBwrapPlan, spawnIsolated, plainSpawn, familyRuntimeReadOnlyRoots, killTimeoutMs,
     loadWorkRecord, credentialsReadOnlyFile, mintWorkerScratchRoot, nativeRepoWriteMechanism,
     verifyWorkerWriteScope, captureWriteScopeBaseline, mintClaudeNativePermissionSettings,
-    verifyNativePermissionEnforcement, resolveSchemaConstrainedTier, verifyRuntimeIdentity,
+    resolveSchemaConstrainedTier, verifyRuntimeIdentity,
     createMcpConduit
   };
+}
+
+export const CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON =
+  "claude_native_permission_settings_unavailable";
+
+const CLAUDE_NATIVE_PERMISSION_SETTINGS_DIRNAME = "claude-native-permission-settings";
+
+export async function mintLauncherOwnedClaudeNativePermissionSettings({
+  workspaceDir,
+  writeScope = [],
+  role = "worker",
+
+  mcpToolNames = [],
+  env = process.env,
+  ensureRuntimeStateDir = ensureLauncherRuntimeStateDir,
+  ensureSettingsBaseDir = (dir) => mkdir(dir, { recursive: true }),
+  makeSettingsDir = mkdtemp,
+  writeSettings = writeFile,
+  buildSettings = buildClaudeNativePermissionSettings
+} = {}) {
+  let ensured;
+  try {
+    ensured = await ensureRuntimeStateDir({ workspaceDir, env });
+  } catch (err) {
+    return {
+      ok: false,
+      code: CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+      reason: "launcher runtime-state dir probe threw while minting Claude native-permission settings",
+      detail: { message: err?.message ?? String(err), code: err?.code ?? null }
+    };
+  }
+  if (!ensured || ensured.ok !== true || typeof ensured.dir !== "string" || ensured.dir.length === 0) {
+    return {
+      ok: false,
+      code: CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+      reason: "launcher runtime-state dir unavailable; cannot mint Claude native-permission settings",
+      detail: {
+        runtime_state_code: ensured?.code ?? null,
+        runtime_state_reason: ensured?.reason ?? null,
+        runtime_state_dir: ensured?.dir ?? null
+      }
+    };
+  }
+
+  const settingsBase = path.join(ensured.dir, CLAUDE_NATIVE_PERMISSION_SETTINGS_DIRNAME);
+  let settingsRoot;
+  try {
+    await ensureSettingsBaseDir(settingsBase);
+    settingsRoot = await makeSettingsDir(path.join(settingsBase, "run-"));
+    if (
+      typeof workspaceDir === "string" &&
+      workspaceDir.length > 0 &&
+      isWithinRepo(settingsRoot, path.resolve(workspaceDir))
+    ) {
+      return {
+        ok: false,
+        code: CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+        reason: "minted Claude native-permission settings resolved inside the repo write root",
+        detail: { settingsRoot, workspaceDir }
+      };
+    }
+    const settings = buildSettings({ workspaceDir, writeScope, role, mcpToolNames });
+    const settingsPath = path.join(settingsRoot, "settings.json");
+    await writeSettings(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
+    return { ok: true, settingsPath, settingsRoot, settings };
+  } catch (err) {
+    return {
+      ok: false,
+      code: CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
+      reason: "launcher could not mint Claude native-permission settings",
+      detail: {
+        settingsRoot: settingsRoot ?? null,
+        message: err?.message ?? String(err),
+        code: err?.code ?? null
+      }
+    };
+  }
 }

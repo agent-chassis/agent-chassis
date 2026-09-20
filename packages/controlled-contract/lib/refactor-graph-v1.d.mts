@@ -13,7 +13,7 @@ export interface ControlledContractRefactorCarrier {
 }
 export class ControlledContractRefactorError extends Error {
   readonly code: string; readonly limb: "mechanical_failure";
-  readonly owner: "controlled_contract_refactor_graph";
+  readonly owner: string;
   readonly deciding_facts: readonly unknown[]; readonly would_break: string;
   readonly recovery: unknown; readonly details: Readonly<Record<string, unknown>>;
 }
@@ -24,5 +24,9 @@ export function buildControlledContractRefactorClosure(request: {
   readonly live_carriers: readonly ControlledContractRefactorCarrier[] |
     Readonly<Record<string, unknown>>;
   readonly mode: ControlledContractRefactorMode;
+}): Readonly<Record<string, unknown>>;
+export function inspectControlledContractRefactorIdentityPopulation(request: {
+  readonly live_carriers: readonly ControlledContractRefactorCarrier[] |
+    Readonly<Record<string, unknown>>;
 }): Readonly<Record<string, unknown>>;
 export const planControlledContractRefactor: typeof buildControlledContractRefactorClosure;

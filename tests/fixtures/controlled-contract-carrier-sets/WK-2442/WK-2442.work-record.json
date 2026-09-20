@@ -1,0 +1,157 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2442",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "Verify proof and obligation map authoring ergonomics against complete task outcomes",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "status": "active",
+  "priority": "medium",
+  "owner": "unassigned",
+  "created": "2026-08-31",
+  "updated": "2026-09-01",
+  "resolution": "unresolved",
+  "read_scope": [
+    "AGENTS.md",
+    "docs/acceptance-coverage-mcp.md",
+    "docs/mcp-integration.md",
+    "docs/mcp-operation-reference.md",
+    "docs/tool-discovery.md",
+    "docs/mcp-dispatch-managed-run-lifecycle.md",
+    "the project documentation",
+    "the project documentation",
+    "the project documentation",
+    "wiki/work-records/WK-2055.json",
+    "wiki/work-records/WK-2094.json",
+    "wiki/work-records/WK-2145.json",
+    "wiki/work-records/WK-2436.json",
+    "wiki/work-records/WK-2437.json",
+    "wiki/work-records/WK-2438.json",
+    "wiki/work-records/WK-2439.json"
+  ],
+  "repo_paths": [],
+  "write_scope": [],
+  "depends_on": [
+    "WK-2439",
+    "WK-2426#SLICE-005",
+    "WK-2443"
+  ],
+  "blocks": [],
+  "related": [
+    "WK-2055",
+    "WK-2094",
+    "WK-2145",
+    "WK-2436",
+    "WK-2437",
+    "WK-2438",
+    "WK-2439",
+    "IN-0038",
+    "WK-2426",
+    "WK-2456",
+    "WK-2460",
+    "WK-2461",
+    "WK-2465"
+  ],
+  "dispatch_intent": {
+    "intended_agent_role": null,
+    "target_unit": "none",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "PURPOSE. Complement WK-2055 with a current quality-first verification of the landed proof-obligation and acceptance-mapping authoring tools. WK-2055 remains the canonical owner for comparative workflow measurement, reusable workflow reports, and regression-output artifacts. WK-2442 owns defining and validating whether an agent can complete the intended canonical task correctly and safely; do not optimize for a predetermined token, byte, or call ceiling.",
+      "SUFFICIENT EVIDENCE, NOT MINIMUM OUTPUT. Tool output may use as many tokens as the task requires. Record calls, request bytes, result bytes, pages, continuations, and population denominators as diagnostic evidence. Treat volume as a defect only when payload is materially irrelevant, duplicated, misleading, not progressively disclosed, violates an advertised transport bound, or prevents reliable task completion.",
+      "TASK-OUTCOME RUBRIC. For obligation inventory, proof and obligation map inspection, acceptance-gap review, and mapping repair, assess semantic completeness, correctness, relevance, discoverability, schema callability, executable next calls, authority preservation, and final canonical-state verification. A compact response is not a pass if it omits necessary context; a large response is not a failure if its content is necessary and usable.",
+      "STATE COVERAGE. Exercise current, absent, stale, invalid-selector, invalid-cursor, missing-contract, missing-proof-plan, multi-page, multi-row sequential mutation, and atomic batch states. Each nonterminal state must advance through an executable advertised call or give a precise no-agent-route blocker and operator action.",
+      "ROUTING AND PROGRESSIVE DISCLOSURE. Verify canonical task wording and natural-language variants, exact WK and four-digit slice preservation, describe-first discovery, bounded inline projections, lossless content-reference retrieval, and clear separation of server-fixed arguments from caller-authored semantic decisions.",
+      "IMPLEMENTATION EXECUTION RECEIPTS. Verify every exercised mutation path returns authenticated continuation evidence sufficient to identify the operation, canonical unit and focus, before/after carrier identity or digest, effects, and the exact safe verification or continuation call. Sequential execution must consume the immediately prior receipt-derived state; batch execution must return an atomic outcome; a fresh coordinator session must be able to resume from canonical state and retained receipt authority without hidden process memory.",
+      "NO BLIND OR UNSAFE RECOVERY. Fail a workflow that requires an identical blind retry, generic source inspection, raw carrier editing, shell reconstruction, unsupported mutation, caller-invented authority, or a next-call template that cannot be invoked as returned after authored semantic fields are supplied.",
+      "COMPARATIVE EVIDENCE. Assess manual row-by-row, skeleton-assisted sequential, and atomic batch paths over equivalent fixtures only to substantiate the quality-first task-outcome rubric. Consume or link WK-2055's canonical comparative measurements and reusable reporting artifacts where available; do not duplicate its workflow-measurement or reporting ownership. Record only the finding-specific evidence needed to establish task success, unresolved semantic decisions, recovery convergence, receipt continuity, final-carrier equivalence, and concrete quality defects.",
+      "DURABLE OUTPUT. Update only the owning quality-rubric guidance and MCP operation documentation needed to keep task-outcome and receipt-continuation expectations discoverable after restart. WK-2055 remains owner of reusable workflow-measurement reports and regression-output artifacts; avoid duplicating operation inventories, package semantics, or that evidence.",
+      "GAP OWNERSHIP. Do not absorb product/runtime defects discovered by verification. Link an existing independently scoped owner or allocate a new WK for each surviving functional or tooling-ergonomics gap. WK-2442 owns the quality-first verification rubric and the finding-specific evidence needed to validate it, not the comparative workflow-reporting artifacts owned by WK-2055.",
+      "LIFECYCLE. Treat this as the first design draft. Complete the required DRY and all-accepted-decision reviews and dispositions before authoring controlled acceptance and proof obligations or shaping implementation slices. Implementation remains blocked on the surviving WK-2439 remediation where it affects the verified public behavior."
+    ],
+    "validation": [
+      "Run complete fresh-session live-MCP workflows for the declared task and state matrix, following only discovery and advertised public next calls.",
+      "For each workflow, retain raw denominators and evidence for semantic completion, progressive disclosure, recovery convergence, receipt continuity, restartability, and exact final canonical-state equivalence; impose no arbitrary token or byte pass threshold.",
+      "Exercise sequential and atomic write paths only through authorized structured fixtures and verify each receipt-fed transition and final canonical state.",
+      "Run the focused regression targets named by the final shaped slices, then structured wiki generation/lint and documentation policy validation; report unrelated pre-existing findings separately."
+    ]
+  },
+  "sections": {
+    "summary": "Describe the failure mode, system boundary, capability, or invariant this item tracks.",
+    "why_it_matters": "State the operational impact and what future readers should understand from this work.",
+    "scope": {
+      "items": [
+        "impacted boundary or area is explicit",
+        "intended invariant or behavior is explicit",
+        "out-of-scope work is explicit when useful"
+      ],
+      "out_of_scope": []
+    },
+    "tasks": [
+      {
+        "text": "",
+        "status": "todo"
+      }
+    ],
+    "references": [],
+    "agent_notes": "",
+    "closure": null
+  },
+  "children": [],
+  "slices": [],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "initiative": "IN-0038",
+  "derived_evidence": [],
+  "review_provenance": [
+    {
+      "schema_version": "review-provenance.v1",
+      "repository": "agent-chassis/agent-chassis",
+      "review_unit": "WK-2442#SLICE-001",
+      "reviewed_unit": "WK-2442",
+      "purpose": "standalone",
+      "role": "reviewer",
+      "run_id": "wkdb_5a358fe1aab779c0",
+      "target_kind": "canonical_contract",
+      "source_digest": "sha256:d8eed442c1fadb18eb33f0e095468e0771c54b288e5a9d1d93c174cf0a42c1ec",
+      "result_digest": "sha256:aef26254cc12be281a1f0972eb5dad9263af81e6e29ac4c34d20ca5603e29c2f",
+      "terminal_disposition": "succeeded"
+    },
+    {
+      "schema_version": "review-provenance.v1",
+      "repository": "agent-chassis/agent-chassis",
+      "review_unit": "WK-2442#SLICE-003",
+      "reviewed_unit": "WK-2442",
+      "purpose": "standalone",
+      "role": "redteam",
+      "run_id": "wkdb_dc31ce91e2ba5cab",
+      "target_kind": "canonical_contract",
+      "source_digest": "sha256:10ff3f0a9ca08dcbac6f5e789149db7f9fa41a22c486dc5a1c04be5c6e2420cd",
+      "result_digest": "sha256:af1adf791aa5d23156168e848c07a8164b8e673952827a86ffc317bd5b827716",
+      "terminal_disposition": "succeeded"
+    },
+    {
+      "schema_version": "review-provenance.v1",
+      "repository": "agent-chassis/agent-chassis",
+      "review_unit": "WK-2442#SLICE-004",
+      "reviewed_unit": "WK-2442",
+      "purpose": "standalone",
+      "role": "reviewer",
+      "run_id": "wkdb_b58b4d1c19e753ec",
+      "target_kind": "canonical_contract",
+      "source_digest": "sha256:10ff3f0a9ca08dcbac6f5e789149db7f9fa41a22c486dc5a1c04be5c6e2420cd",
+      "result_digest": "sha256:76673d7deba904707b10ef821e13dd904fdc6bb29e4a60954412d1224e463b27",
+      "terminal_disposition": "succeeded",
+      "challenged_review": {
+        "review_unit": "WK-2442#SLICE-003",
+        "run_id": "wkdb_dc31ce91e2ba5cab",
+        "target_kind": "canonical_contract",
+        "source_digest": "sha256:10ff3f0a9ca08dcbac6f5e789149db7f9fa41a22c486dc5a1c04be5c6e2420cd"
+      }
+    }
+  ]
+}

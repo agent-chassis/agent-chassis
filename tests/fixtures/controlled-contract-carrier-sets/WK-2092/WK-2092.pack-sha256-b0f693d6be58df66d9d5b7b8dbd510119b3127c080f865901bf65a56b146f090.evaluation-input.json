@@ -1,0 +1,253 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "design_unit",
+      "reference_ids": [
+        "ref-wk2092-design"
+      ]
+    },
+    {
+      "role": "implementation_locus",
+      "reference_ids": [
+        "ref-readiness-implementation-locus"
+      ]
+    },
+    {
+      "role": "placeholder_population",
+      "reference_ids": [
+        "ref-readiness-placeholder-population"
+      ]
+    },
+    {
+      "role": "placeholders",
+      "reference_ids": []
+    },
+    {
+      "role": "required_warning_fields",
+      "reference_ids": [
+        "ref-readiness-warning-code-field",
+        "ref-readiness-warning-severity-field",
+        "ref-readiness-warning-message-field",
+        "ref-readiness-warning-payload-field"
+      ]
+    },
+    {
+      "role": "required_warning_shape_population",
+      "reference_ids": [
+        "ref-readiness-required-warning-shape-population"
+      ]
+    },
+    {
+      "role": "requirement_population",
+      "reference_ids": [
+        "ref-readiness-requirement-population"
+      ]
+    },
+    {
+      "role": "requirements",
+      "reference_ids": [
+        "ref-atomic-obligation-001",
+        "ref-atomic-obligation-002",
+        "ref-atomic-obligation-003",
+        "ref-atomic-obligation-004",
+        "ref-atomic-obligation-005",
+        "ref-atomic-obligation-006",
+        "ref-atomic-obligation-007",
+        "ref-atomic-obligation-008",
+        "ref-atomic-obligation-009",
+        "ref-atomic-obligation-010",
+        "ref-atomic-obligation-011",
+        "ref-atomic-obligation-012",
+        "ref-atomic-obligation-013",
+        "ref-atomic-obligation-014",
+        "ref-atomic-obligation-015",
+        "ref-atomic-obligation-016",
+        "ref-atomic-obligation-017",
+        "ref-atomic-obligation-018",
+        "ref-atomic-obligation-019",
+        "ref-atomic-obligation-020",
+        "ref-atomic-obligation-021",
+        "ref-atomic-obligation-022",
+        "ref-atomic-obligation-023",
+        "ref-atomic-obligation-024",
+        "ref-atomic-obligation-025",
+        "ref-atomic-obligation-026",
+        "ref-atomic-obligation-027",
+        "ref-atomic-obligation-028",
+        "ref-atomic-obligation-029",
+        "ref-atomic-obligation-030",
+        "ref-atomic-obligation-031",
+        "ref-atomic-obligation-032",
+        "ref-atomic-obligation-033",
+        "ref-atomic-obligation-034",
+        "ref-atomic-obligation-035",
+        "ref-atomic-obligation-036",
+        "ref-atomic-obligation-037",
+        "ref-atomic-obligation-038",
+        "ref-atomic-obligation-039",
+        "ref-atomic-obligation-040",
+        "ref-atomic-obligation-041"
+      ]
+    },
+    {
+      "role": "test_locus",
+      "reference_ids": [
+        "ref-readiness-test-locus"
+      ]
+    },
+    {
+      "role": "validated_requirements",
+      "reference_ids": [
+        "ref-atomic-obligation-001",
+        "ref-atomic-obligation-002",
+        "ref-atomic-obligation-003",
+        "ref-atomic-obligation-004",
+        "ref-atomic-obligation-005",
+        "ref-atomic-obligation-006",
+        "ref-atomic-obligation-007",
+        "ref-atomic-obligation-008",
+        "ref-atomic-obligation-009",
+        "ref-atomic-obligation-010",
+        "ref-atomic-obligation-011",
+        "ref-atomic-obligation-012",
+        "ref-atomic-obligation-013",
+        "ref-atomic-obligation-014",
+        "ref-atomic-obligation-015",
+        "ref-atomic-obligation-016",
+        "ref-atomic-obligation-017",
+        "ref-atomic-obligation-018",
+        "ref-atomic-obligation-019",
+        "ref-atomic-obligation-020",
+        "ref-atomic-obligation-021",
+        "ref-atomic-obligation-022",
+        "ref-atomic-obligation-023",
+        "ref-atomic-obligation-024",
+        "ref-atomic-obligation-025",
+        "ref-atomic-obligation-026",
+        "ref-atomic-obligation-027",
+        "ref-atomic-obligation-028",
+        "ref-atomic-obligation-029",
+        "ref-atomic-obligation-030",
+        "ref-atomic-obligation-031",
+        "ref-atomic-obligation-032",
+        "ref-atomic-obligation-033",
+        "ref-atomic-obligation-034",
+        "ref-atomic-obligation-035",
+        "ref-atomic-obligation-036",
+        "ref-atomic-obligation-037",
+        "ref-atomic-obligation-038",
+        "ref-atomic-obligation-039",
+        "ref-atomic-obligation-040",
+        "ref-atomic-obligation-041"
+      ]
+    },
+    {
+      "role": "validation_population",
+      "reference_ids": [
+        "ref-readiness-validation-population"
+      ]
+    },
+    {
+      "role": "warning_code_field",
+      "reference_ids": [
+        "ref-readiness-warning-code-field"
+      ]
+    },
+    {
+      "role": "warning_code_value",
+      "reference_ids": [
+        "ref-readiness-warning-code-value"
+      ]
+    },
+    {
+      "role": "warning_fields",
+      "reference_ids": [
+        "ref-readiness-warning-code-field",
+        "ref-readiness-warning-severity-field",
+        "ref-readiness-warning-message-field",
+        "ref-readiness-warning-payload-field"
+      ]
+    },
+    {
+      "role": "warning_message_field",
+      "reference_ids": [
+        "ref-readiness-warning-message-field"
+      ]
+    },
+    {
+      "role": "warning_message_template",
+      "reference_ids": [
+        "ref-readiness-warning-message-template"
+      ]
+    },
+    {
+      "role": "warning_payload_field",
+      "reference_ids": [
+        "ref-readiness-warning-payload-field"
+      ]
+    },
+    {
+      "role": "warning_payload_schema",
+      "reference_ids": [
+        "ref-readiness-warning-payload-schema"
+      ]
+    },
+    {
+      "role": "warning_severity_field",
+      "reference_ids": [
+        "ref-readiness-warning-severity-field"
+      ]
+    },
+    {
+      "role": "warning_severity_value",
+      "reference_ids": [
+        "ref-readiness-warning-severity-value"
+      ]
+    },
+    {
+      "role": "warning_shape_mismatch_condition",
+      "reference_ids": [
+        "ref-readiness-warning-shape-mismatch-condition"
+      ]
+    },
+    {
+      "role": "warning_shape_population",
+      "reference_ids": [
+        "ref-readiness-warning-shape-population"
+      ]
+    },
+    {
+      "role": "warning_signal",
+      "reference_ids": [
+        "ref-readiness-warning-signal"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "placeholder_count",
+      "value": 0
+    },
+    {
+      "role": "required_warning_field_count",
+      "value": 4
+    },
+    {
+      "role": "requirement_count",
+      "value": 41
+    },
+    {
+      "role": "validation_count",
+      "value": 41
+    },
+    {
+      "role": "warning_field_count",
+      "value": 4
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

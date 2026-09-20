@@ -4,8 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 import {
   runWorkRecordSummaryWithCompactGate,
@@ -13,8 +13,7 @@ import {
 } from "../../packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs";
 import {
   buildBlockedDispatchResult,
-  buildBlockedRunStatusResult,
-  buildBlockedRunWaitResult
+  buildBlockedRunStatusResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs";
 import { recommendToolRouteFromVocabulary } from "../../packages/wiki-core/src/operations/tool-router.mjs";
 import {
@@ -23,16 +22,26 @@ import {
   validateNextCalls,
   validateContinuationCalls,
   pickDoThisNext,
-  projectNextActionScalar
+  projectNextActionScalar,
+  requestContractErrors
 } from "../../packages/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
   buildPublicMechanicalRefusal,
   validatePublicMechanicalRefusal
 } from "../../packages/wiki-core/src/lib/refusal-payload.mjs";
 import { registerWorkRecordReadTools } from "../../packages/wiki-mcp/src/lib/work-record-read-tools.mjs";
-import { registerDiagnosticRoutes } from "../../packages/wiki-mcp/src/lib/dispatch-diagnostic-routes.mjs";
 import { registerDispatchTools } from "../../packages/wiki-mcp/src/lib/dispatch-tools/register.mjs";
-import { loadToolDiscoveryDescriptor } from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
+import { registerWikiCoreTools } from "../../packages/wiki-mcp/src/lib/wiki-core-tools.mjs";
+import { createRegisterTool } from "../../packages/wiki-mcp/src/lib/register-tool.mjs";
+import { registeredToolRequestContracts } from
+  "../../packages/wiki-mcp/src/lib/registered-tool-request-contracts.mjs";
+import { loadMcpToolTierRegistrationPolicy } from
+  "../../packages/wiki-mcp/src/lib/server-composition-helpers.mjs";
+import { shouldExposeTool } from "../../packages/wiki-mcp/src/lib/tool-profile.mjs";
+import {
+  filterToolDiscoveryTools,
+  loadToolDiscoveryDescriptor
+} from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
 import {
   RUNTIME_BLOCKER_DESCRIPTOR,
   isRuntimeBlockerCode
@@ -49,11 +58,27 @@ const WORKSPACE_REPO = "agent-chassis/agent-chassis";
 const WORKSPACE_DIR = "/repo";
 const RECORD_ID = "WK-9000";
 
-function captureRegisteredRequestSchemas() {
-  const captured = new Map();
+const SESSION_ROLE = "orchestrator";
+const SESSION_TIER = "free_local";
+
+async function captureRegisteredRequestSchemas() {
+  const registeredToolNames = new Set();
+  const registerTool = createRegisterTool({
+    server: new McpServer({ name: "next-calls-contract-conformance", version: "1.0.0" }),
+    toolProfile: SESSION_ROLE,
+    registeredTier: SESSION_TIER,
+    mcpToolTierRegistrationPolicy: await loadMcpToolTierRegistrationPolicy(),
+    toolUsageAuditBoundary: {
+      wrapHandler: (name) => () => {
+        throw new Error(`next-calls conformance must not run the ${name} handler`);
+      }
+    },
+    registeredToolNames,
+    structuredLog() {}
+  });
   const ctx = {
-    registerTool: (name, definition) => captured.set(name, definition),
-    registeredToolNames: new Set(),
+    registerTool,
+    registeredToolNames,
     workspaceRepos: [{ repo: WORKSPACE_REPO, dir: WORKSPACE_DIR }],
     z,
     jsonContent: () => {},
@@ -66,22 +91,33 @@ function captureRegisteredRequestSchemas() {
     dispatchSessionIdentity: null,
     isPaidTier: false
   };
+
+  registerWikiCoreTools({
+    ...ctx,
+    emptySchema: z.object({}),
+    extensionNamespacesSchema: z.array(z.string()).optional(),
+    section: "primary"
+  });
   registerWorkRecordReadTools(ctx);
-  registerDiagnosticRoutes(ctx);
   registerDispatchTools(ctx);
 
+  const requestContracts = registeredToolRequestContracts(registerTool);
   const schemas = {};
-  for (const [name, definition] of captured) {
-    const declared = definition?.inputSchema;
-    if (declared === undefined || declared === null) continue;
+  for (const name of [...registeredToolNames].sort()) {
 
-    const objectSchema = declared instanceof z.ZodType ? declared : z.object(declared);
-    schemas[name] = zodToJsonSchema(objectSchema);
+    schemas[name] = requestContracts.contractFor(name).publishedRequestSchema();
   }
-  return Object.freeze(schemas);
+  return { requestContracts, requestSchemas: Object.freeze(schemas) };
 }
 
-const REQUEST_SCHEMAS = captureRegisteredRequestSchemas();
+const REGISTERED = await captureRegisteredRequestSchemas();
+const REQUEST_SCHEMAS = REGISTERED.requestSchemas;
+
+const SESSION_DESCRIPTOR = {
+  ...toolDescriptor,
+  tools: filterToolDiscoveryTools(toolDescriptor, { registered_tier: SESSION_TIER })
+    .filter(({ tool_name: name }) => shouldExposeTool(SESSION_ROLE, name))
+};
 const VALIDATE_ROUTE = "workspace_work_record_validate";
 const PREFLIGHT_ROUTE = "workspace_coordination_preflight";
 const DISPATCH_ROUTE = "workspace_agent_dispatch";
@@ -120,13 +156,29 @@ function trackerReadFixture() {
   };
 }
 
+function trackerRecordFixture() {
+  return {
+    id: RECORD_ID,
+    work_kind: "tracker",
+    status: "active",
+    slices: Array.from({ length: 10 }, (unused, index) => ({
+      id: `SLICE-${String(index + 1).padStart(3, "0")}`,
+      status: index < 2 ? "active" : "done"
+    }))
+  };
+}
+
 function runSummaryGate(args) {
   return runWorkRecordSummaryWithCompactGate({
     workspaceRepo: WORKSPACE_REPO,
     workspaceDir: WORKSPACE_DIR,
     args,
-    getWorkRecordSummary: async () => trackerSummaryFixture(),
-    readWorkRecordById: async () => ({ source_digest: "sha256:source-a" })
+    readWorkRecordById: async () => ({
+      valid: true,
+      source_digest: "sha256:source-a",
+      record: trackerRecordFixture()
+    }),
+    isToolVisible: () => true
   });
 }
 
@@ -138,20 +190,49 @@ function runReadGate(toolFamily, args) {
     args,
     readCompact: async () => trackerReadFixture(),
     readExpensive: async () => {
-      throw new Error("refusal path must not call the expensive reader");
+      throw new Error("compact and enumeration paths must not call the expensive reader");
     },
-    readWorkRecordById: async () => ({ source_digest: "sha256:source-a" })
+    readWorkRecordById: async () => ({
+      valid: true,
+      source_digest: "sha256:source-a",
+      record: trackerRecordFixture()
+    })
   });
 }
 
-const routeMatched = () => recommendToolRouteFromVocabulary(
-  { task_description: "Is WK-1438#SLICE-012 dispatchable for a worker?" },
-  vocabulary
+function runStaleEnumeration() {
+  return runReadGate("workspace_get_record", {
+    id: RECORD_ID,
+    slice_offset: 2,
+    expected_source_digest: "sha256:stale-digest"
+  });
+}
+
+const recommend = (taskDescription) => recommendToolRouteFromVocabulary(
+  { task_description: taskDescription },
+  vocabulary,
+  {
+    descriptor: SESSION_DESCRIPTOR,
+    completeDescriptor: toolDescriptor,
+    requestContracts: REGISTERED.requestContracts
+  }
 );
-const routeAmbiguous = () => recommendToolRouteFromVocabulary(
-  { task_description: "Read WK-1438 and find docs for tool discovery" },
-  vocabulary
-);
+const routeMatched = () => recommend("Is WK-1438#SLICE-012 dispatchable for a worker?");
+const routeAmbiguous = () => recommend("Read WK-1438 and find docs for tool discovery");
+
+const routeIncomplete = () => recommend("Dispatch reviewer");
+
+async function assertRouterCallsRegistered(result, label) {
+  for (const call of result.next_calls) {
+    const args = call.arguments ?? {};
+    const contract = REGISTERED.requestContracts.contractFor(call.tool);
+    assert.ok(contract, `${label}: ${call.tool} is registered`);
+    assert.deepEqual(requestContractErrors(call.tool, args, REQUEST_SCHEMAS[call.tool]), [],
+      `${label}: ${call.tool} satisfies its published request schema`);
+    assert.equal(await contract.acceptsArguments(args), true,
+      `${label}: ${call.tool} satisfies its full input schema`);
+  }
+}
 
 function dispatchRemedyList() {
   return [
@@ -159,7 +240,7 @@ function dispatchRemedyList() {
     buildNextCall({ tool: "workspace_agent_dispatch" })
   ];
 }
-const DISPATCH_BUILDERS = [buildBlockedDispatchResult, buildBlockedRunStatusResult, buildBlockedRunWaitResult];
+const DISPATCH_BUILDERS = [buildBlockedDispatchResult, buildBlockedRunStatusResult];
 
 function assertEntryConformance(list, label) {
   assert.ok(Array.isArray(list) && list.length > 0, `${label}: carries a non-empty next_calls list`);
@@ -180,26 +261,36 @@ function assertEntryConformance(list, label) {
 
 test("(a) every list-bearing surface response conforms to the descriptor shape with registered tools", async () => {
   const summary = await runSummaryGate({ id: RECORD_ID });
-  assertEntryConformance(summary.compact_read.next_calls, "summary continuation");
+  assertEntryConformance(summary.next_calls, "summary lean default");
 
-  const summaryRefusal = await runSummaryGate({ id: RECORD_ID, verbose: true });
-  assert.equal(summaryRefusal.accepted, false);
-  assertEntryConformance(summaryRefusal.next_calls, "summary refusal");
+  const compactRead = await runReadGate("workspace_get_record", { id: RECORD_ID });
+  assert.equal(compactRead.format, "json-work-record");
+  assertEntryConformance(compactRead.compact_read.next_calls, "read compact disclosure");
 
-  const readRefusal = await runReadGate("workspace_get_record", { id: RECORD_ID, include_record: true });
-  assert.equal(readRefusal.accepted, false);
-  assertEntryConformance(readRefusal.next_calls, "read refusal");
+  const staleEnumeration = await runStaleEnumeration();
+  assert.equal(staleEnumeration.accepted, false);
+  assertEntryConformance(staleEnumeration.next_calls, "stale enumeration refusal");
 
-  assertEntryConformance(routeMatched().next_calls, "router matched");
-  assertEntryConformance(routeAmbiguous().next_calls, "router ambiguous");
+  const matched = await routeMatched();
+  assert.equal(matched.result_state, "matched");
+  assert.deepEqual(matched.next_calls, [{
+    tool: "workspace_validate_dispatch",
+    arguments: { unit: "WK-1438#SLICE-012", dispatch_role: "implementation" },
+    recommended: true
+  }]);
+  assertEntryConformance(matched.next_calls, "router matched");
+  await assertRouterCallsRegistered(matched, "router matched");
+
+  const ambiguous = await routeAmbiguous();
+  assertEntryConformance(ambiguous.next_calls, "router ambiguous");
+  assert.deepEqual(ambiguous.next_calls.map(({ tool }) => tool),
+    ["workspace_work_record_summary", "workspace_search_repo"]);
+  await assertRouterCallsRegistered(ambiguous, "router ambiguous");
 });
 
 test("(a) refusal-envelope reason_codes are registered separately (not via validateNextCalls)", async () => {
-  const summaryRefusal = await runSummaryGate({ id: RECORD_ID, verbose: true });
-  assert.equal(isRuntimeBlockerCode(summaryRefusal.reason_code), true);
-
-  const readRefusal = await runReadGate("workspace_get_record", { id: RECORD_ID, include_record: true });
-  assert.equal(isRuntimeBlockerCode(readRefusal.reason_code), true);
+  const staleEnumeration = await runStaleEnumeration();
+  assert.equal(isRuntimeBlockerCode(staleEnumeration.reason_code), true);
 
   const dispatchRefusal = buildBlockedDispatchResult({
     blockerCode: "role_policy_violation",
@@ -211,11 +302,12 @@ test("(a) refusal-envelope reason_codes are registered separately (not via valid
 
 test("(b) guidance-required surfaces carry a recommended entry; terminal/content-less carry none", async () => {
 
-  const summaryRefusal = await runSummaryGate({ id: RECORD_ID, verbose: true });
-  assert.notEqual(pickDoThisNext(summaryRefusal.next_calls), null, "summary refusal recommends a remedy");
+  const staleEnumeration = await runStaleEnumeration();
+  assert.notEqual(pickDoThisNext(staleEnumeration.next_calls), null, "stale enumeration recommends a restart");
 
-  const readRefusal = await runReadGate("workspace_get_record", { id: RECORD_ID, include_record: true });
-  assert.notEqual(pickDoThisNext(readRefusal.next_calls), null, "read refusal recommends a remedy");
+  const compactRead = await runReadGate("workspace_get_record", { id: RECORD_ID });
+  assert.notEqual(pickDoThisNext(compactRead.compact_read.next_calls), null,
+    "compact disclosure recommends a bounded route");
 
   for (const build of DISPATCH_BUILDERS) {
     const remedy = build({ blockerCode: "role_policy_violation", reason: "x", nextCalls: dispatchRemedyList() });
@@ -232,9 +324,18 @@ test("(b) guidance-required surfaces carry a recommended entry; terminal/content
     );
   }
 
-  const ambiguous = routeAmbiguous();
+  const ambiguous = await routeAmbiguous();
   assert.equal(ambiguous.result_state, "ambiguous");
   assert.equal(pickDoThisNext(ambiguous.next_calls), null, "an ambiguous route recommends nothing");
+
+  const incomplete = await routeIncomplete();
+  assert.equal(incomplete.result_state, "matched");
+  assert.equal(incomplete.operation, DISPATCH_ROUTE);
+  assert.deepEqual(incomplete.suggested_arguments, { role: "reviewer" });
+  assert.deepEqual(incomplete.required_authored_fields, ["subject"]);
+  assert.deepEqual(incomplete.next_calls, []);
+  assert.equal(await REGISTERED.requestContracts.contractFor(DISPATCH_ROUTE)
+    .acceptsArguments(incomplete.suggested_arguments), false);
 });
 
 test("(c) dispatch scalar next_action is a pure projection of the supplied list", () => {
@@ -276,6 +377,10 @@ function refusalWith(nextCalls, recoveryOverrides = {}, overrides = {}) {
     request_schemas: REQUEST_SCHEMAS,
     ...overrides
   };
+}
+
+function sameCallRefusalWith(nextCalls, recoveryOverrides = {}, overrides = {}) {
+  return refusalWith(nextCalls, recoveryOverrides, { route: VALIDATE_ROUTE, ...overrides });
 }
 
 const CONVERGENCE_MATRIX = [
@@ -343,9 +448,13 @@ const CONVERGENCE_MATRIX = [
 for (const cell of CONVERGENCE_MATRIX) {
   test(`(d) convergence matrix -- ${cell.name}`, () => {
     if (cell.expect === null) {
-      const envelope = buildPublicMechanicalRefusal(refusalWith(cell.nextCalls));
+      const envelope = buildPublicMechanicalRefusal(sameCallRefusalWith(cell.nextCalls));
+      assert.equal(envelope.route, VALIDATE_ROUTE);
       assert.equal(envelope.next_calls.length, 1);
       assert.notEqual(pickDoThisNext(envelope.next_calls), null);
+
+      assert.throws(() => buildPublicMechanicalRefusal(refusalWith(cell.nextCalls)),
+        /prerequisite_predicate cannot be validated without the originating tool identity/);
       return;
     }
     assert.throws(() => buildPublicMechanicalRefusal(refusalWith(cell.nextCalls)), cell.expect);
@@ -400,9 +509,9 @@ test("(d) every registered structured recovery projects into a callable continua
   }
 });
 
-test("(d) the merely-allowed router surfaces are unaffected by the continuation contract", () => {
+test("(d) the merely-allowed router surfaces are unaffected by the continuation contract", async () => {
 
-  const ambiguous = routeAmbiguous();
+  const ambiguous = await routeAmbiguous();
   assert.equal(validateNextCalls(ambiguous.next_calls, { knownTools: KNOWN_TOOLS }).valid, true);
   const strict = validateContinuationCalls(ambiguous.next_calls, {
     observedFacts: CONVERGENCE_FACTS,
@@ -442,7 +551,7 @@ test("(e) the published continuation satisfies the request contract its route de
   assert.ok(validateSchema, "the validate route publishes a request schema");
   assert.deepEqual(validateSchema.required, ["id"]);
 
-  const envelope = buildPublicMechanicalRefusal(refusalWith([{
+  const envelope = buildPublicMechanicalRefusal(sameCallRefusalWith([{
     tool: VALIDATE_ROUTE,
     arguments: { id: RECORD_ID },
     recommended: true,
@@ -485,7 +594,7 @@ test("(e) the published continuation satisfies the request contract its route de
 });
 
 test("(e) one contract runs on every path, and the carrier revalidates deterministically", () => {
-  const envelope = buildPublicMechanicalRefusal(refusalWith([{
+  const envelope = buildPublicMechanicalRefusal(sameCallRefusalWith([{
     tool: VALIDATE_ROUTE,
     arguments: { id: RECORD_ID },
     recommended: true,

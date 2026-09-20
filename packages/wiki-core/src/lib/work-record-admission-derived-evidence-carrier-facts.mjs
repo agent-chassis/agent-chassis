@@ -47,7 +47,20 @@ function normalizeNodeEngineCarrierFacts(value) {
   return facts;
 }
 
+function clustersLackUsableGraph(dispatchReadiness) {
+  const clusters = Array.isArray(dispatchReadiness?.clusters) ? dispatchReadiness.clusters : [];
+  return clusters.some((cluster) =>
+    (Array.isArray(cluster?.derived_evidence) ? cluster.derived_evidence : []).some((entry) =>
+      entry?.kind === "work_record_policy_path_family" &&
+      entry.cluster_basis === "path_family" &&
+      entry.implementation_cluster === true &&
+      entry.graph_available !== true));
+}
+
 export function createNodeEngineCarrierFactsFromDispatchReadiness(rawDispatchReadiness, dispatchReadiness) {
+  if (clustersLackUsableGraph(dispatchReadiness)) {
+    return null;
+  }
   const normalizedClusterCount = normalizeCarrierClusterCount(
     Array.isArray(dispatchReadiness?.clusters) ? dispatchReadiness.clusters.length : null
   );

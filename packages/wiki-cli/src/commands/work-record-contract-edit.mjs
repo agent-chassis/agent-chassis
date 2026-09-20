@@ -2,7 +2,39 @@
 
 import path from "node:path";
 import { parseArgs } from "../lib/cli.mjs";
-import { editWorkRecordContractByUnit } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
+import {
+  editWorkRecordContractByUnit,
+  upsertWorkRecordSliceByUnit
+} from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
+import {
+  WORK_RECORD_CONTRACT_LIST_FIELDS,
+  WORK_RECORD_EDIT_FIELD_REGISTRY,
+  WORK_RECORD_LIST_FIELD_WRITE_MODES,
+  WORK_RECORD_SLICE_LIST_FIELDS
+} from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit.mjs";
+
+const LIST_FIELD_MODE_INPUT_SHAPES = Object.freeze({
+  replace: "--values-json is the complete replacement array; omitted entries are removed",
+  append: "--values-json is an array with exactly one entry; an entry already present is a no-op"
+});
+
+function setListFieldHelp() {
+  const objectEntryFields = WORK_RECORD_EDIT_FIELD_REGISTRY
+    .filter((entry) => entry.owner === "setListField" && entry.value_schema.items?.type === "object")
+    .map((entry) => entry.field);
+  return [
+    "Usage: wiki work-records set-list-field --unit <WK-0001|WK-0001#slice-id> --field <field> --values-json <json-array> " +
+      `[--mode <${WORK_RECORD_LIST_FIELD_WRITE_MODES.join("|")}>] [--expected-source-digest <sha256:...>] [--dir <path>] [--json] [--verbose]`,
+    "       (--id <WK-0001> is accepted as an alias for --unit when targeting a record)",
+    "Write one controlled list-valued contract field through the shared list planner.",
+    `Modes: ${WORK_RECORD_LIST_FIELD_WRITE_MODES.join(", ")} (default: replace).`,
+    ...WORK_RECORD_LIST_FIELD_WRITE_MODES.map((mode) => `  ${mode}: ${LIST_FIELD_MODE_INPUT_SHAPES[mode]}`),
+    `Entries are strings, except ${objectEntryFields.join(", ")} entries, which are {"ref": "<returned entry reference>"} objects.`,
+    `Record-scope fields: ${WORK_RECORD_CONTRACT_LIST_FIELDS.join(", ")}.`,
+    `Slice-scope fields: ${WORK_RECORD_SLICE_LIST_FIELDS.join(", ")}.`,
+    "Operator fallback; agents should use workspace_work_record_edit."
+  ].join("\n");
+}
 
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
@@ -38,10 +70,7 @@ const CONTRACT_EDIT_ALLOWED_OPTIONS = {
     "dir", "expected-source-digest", "help", "id", "json", "slice-id", "unit", "verbose"
   ]),
   "set-list-field": new Set([
-    "dir", "expected-source-digest", "field", "help", "id", "json", "unit", "values-json", "verbose"
-  ]),
-  "set-acceptance": new Set([
-    "criteria-json", "dir", "expected-source-digest", "help", "id", "json", "unit", "validation-json", "verbose"
+    "dir", "expected-source-digest", "field", "help", "id", "json", "mode", "unit", "values-json", "verbose"
   ]),
   "shape-review-unit": new Set([
     "dir", "expected-source-digest", "help", "id", "json", "unit", "verbose"
@@ -181,7 +210,12 @@ function readExpectedSourceDigest(options, command) {
   return { ok: true, value: raw };
 }
 
-async function runContractEdit(options, { command, operation, buildParams }) {
+async function runContractEdit(options, {
+  command,
+  operation,
+  buildParams,
+  writer = editWorkRecordContractByUnit
+}) {
   const json = Boolean(options.json);
   const targetDir = path.resolve(String(options.dir || "."));
 
@@ -209,7 +243,7 @@ async function runContractEdit(options, { command, operation, buildParams }) {
     return;
   }
 
-  const result = await editWorkRecordContractByUnit({
+  const result = await writer({
     dir: targetDir,
     unitAddress: unitResult.unitAddress,
     operation,
@@ -242,6 +276,7 @@ export async function runUpsertSlice(argv) {
   await runContractEdit(options, {
     command: "upsert-slice",
     operation: "upsert_slice",
+    writer: upsertWorkRecordSliceByUnit,
     buildParams(opts) {
       const raw = getOption(opts, "slice-json");
       if (!raw) {
@@ -299,14 +334,7 @@ export async function runDeleteSlice(argv) {
 export async function runSetListField(argv) {
   const { options } = parseArgs(argv);
   if (options.help) {
-    console.log(
-      "Usage: wiki work-records set-list-field --unit <WK-0001|WK-0001#slice-id> --field <field> --values-json <json-array> [--expected-source-digest <sha256:...>] [--dir <path>] [--json] [--verbose]\n" +
-        "       (--id <WK-0001> is accepted as an alias for --unit when targeting a record)\n" +
-        "Set a controlled list-valued contract field to the supplied array of strings.\n" +
-        "Record-scope fields: docs, repo_paths, write_scope, depends_on, related, blocks.\n" +
-        "Slice-scope fields: docs, repo_paths, write_scope, depends_on (related and blocks are record-only).\n" +
-        "Operator fallback; agents should use workspace_work_record_contract_edit."
-    );
+    console.log(setListFieldHelp());
     return;
   }
   await runContractEdit(options, {
@@ -345,95 +373,20 @@ export async function runSetListField(argv) {
           })
         };
       }
-      return { ok: true, params: { field, values: parsed.value } };
-    }
-  });
-}
 
-export async function runSetAcceptance(argv) {
-  const { options } = parseArgs(argv);
-  if (options.help) {
-    console.log(
-      "Usage: wiki work-records set-acceptance --unit <WK-0001|WK-0001#slice-id> [--criteria-json <json>] [--validation-json <json-array>] [--expected-source-digest <sha256:...>] [--dir <path>] [--json] [--verbose]\n" +
-        "       (--id <WK-0001> is accepted as an alias for --unit when targeting a record)\n" +
-        "Set acceptance.criteria and/or acceptance.validation at record or slice scope. At least one must be provided.\n" +
-        "--criteria-json is a JSON array (strings or objects). --validation-json is a JSON array of strings.\n" +
-        "Operator fallback; agents should use workspace_work_record_contract_edit."
-    );
-    return;
-  }
-  await runContractEdit(options, {
-    command: "set-acceptance",
-    operation: "set_acceptance",
-    buildParams(opts) {
-      const params = {};
-      if ("criteria-json" in opts) {
-        const raw = getOption(opts, "criteria-json");
-        if (raw === null) {
-          return {
-            ok: false,
-            diagnostic: mkDiag(
-              "missing_option",
-              "set-acceptance requires a non-empty value for --criteria-json",
-              { path: "criteria-json" }
-            )
-          };
-        }
-        const parsed = parseJsonValue(raw, { fieldName: "criteria-json" });
-        if (!parsed.ok) {
-          return parsed;
-        }
-        if (!Array.isArray(parsed.value)) {
-          return {
-            ok: false,
-            diagnostic: mkDiag(
-              "invalid_acceptance_payload",
-              "--criteria-json must be a JSON array",
-              { path: "criteria-json" }
-            )
-          };
-        }
-        params.criteria = parsed.value;
+      if (!("mode" in opts)) {
+        return { ok: true, params: { field, values: parsed.value } };
       }
-      if ("validation-json" in opts) {
-        const raw = getOption(opts, "validation-json");
-        if (raw === null) {
-          return {
-            ok: false,
-            diagnostic: mkDiag(
-              "missing_option",
-              "set-acceptance requires a non-empty value for --validation-json",
-              { path: "validation-json" }
-            )
-          };
-        }
-        const parsed = parseJsonValue(raw, { fieldName: "validation-json" });
-        if (!parsed.ok) {
-          return parsed;
-        }
-        if (!Array.isArray(parsed.value)) {
-          return {
-            ok: false,
-            diagnostic: mkDiag(
-              "invalid_acceptance_payload",
-              "--validation-json must be a JSON array",
-              { path: "validation-json" }
-            )
-          };
-        }
-        params.validation = parsed.value;
-      }
-      if (!("criteria" in params) && !("validation" in params)) {
+      const mode = getOption(opts, "mode");
+      if (!mode) {
         return {
           ok: false,
-          diagnostic: mkDiag(
-            "missing_acceptance_payload",
-            "set-acceptance requires --criteria-json and/or --validation-json",
-            { path: "acceptance" }
-          )
+          diagnostic: mkDiag("missing_option", "set-list-field requires a non-empty value for --mode", {
+            path: "mode"
+          })
         };
       }
-      return { ok: true, params };
+      return { ok: true, params: { field, values: parsed.value, mode } };
     }
   });
 }

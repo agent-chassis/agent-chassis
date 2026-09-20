@@ -1,9 +1,9 @@
+import { referenceRoleValueMatches } from './proof-parameter-refinements.mjs';
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import { compiledValidators } from "./compiled-validator-cache.mjs";
 import {
-  loadAdmittedProofPack,
+  loadAdmittedProofPackMeaning,
   readProofPackCatalog
 } from "./admitted-proof-packs.mjs";
 import {
@@ -14,51 +14,10 @@ import { reduceProofIntentSelectionStatus } from
   "./proof-intent-selection-status.mjs";
 
 const packageRoot = new URL("../", import.meta.url);
-const [
-  intentArtifact,
-  intentSchema,
-  selectionV1Schema,
-  selectionV2Schema,
-  authoringSchema,
-  proofPackCatalog
-] =
-  await Promise.all([
-    readJson(new URL("proof-intents/catalog.json", packageRoot)),
-    readJson(new URL(
-      "schema/controlled-contract-proof-intent-catalog.v1.schema.json",
-      packageRoot
-    )),
-    readJson(new URL(
-      "schema/controlled-contract-proof-pack-selection.v1.schema.json",
-      packageRoot
-    )),
-    readJson(new URL(
-      "schema/controlled-contract-proof-pack-selection.v2.schema.json",
-      packageRoot
-    )),
-    readJson(new URL(
-      "schema/controlled-contract-proof-pack-authoring.v1.schema.json",
-      packageRoot
-    )),
-    readProofPackCatalog()
-  ]);
-
-const stableAuthoringSchema = structuredClone(authoringSchema);
-stableAuthoringSchema.$defs.evaluation_input_skeleton.properties.input_version.const =
-  "controlled-contract-verification-profile-input.v1";
-const {
-  validateIntentArtifact,
-  validateSelectionResult,
-  validateSelectionResultV2,
-  validateProofPackAuthoringProjection
-} = await compiledValidators("controlled-contract.proof-intent-selection.v1", {
-  validators: {
-    validateIntentArtifact: intentSchema,
-    validateSelectionResult: selectionV1Schema,
-    validateSelectionResultV2: selectionV2Schema,
-    validateProofPackAuthoringProjection: stableAuthoringSchema
-  }
-});
+const [intentArtifact, proofPackCatalog] = await Promise.all([
+  readJson(new URL("proof-intents/catalog.json", packageRoot)), readProofPackCatalog()
+]);
+import { validateIntentArtifact, validateSelectionResult, validateSelectionResultV2, validateProofPackAuthoringProjection } from "./proof-authoring-schemas.mjs";
 const MAX_AUTHORING_PROJECTION_BYTES = 65_536;
 
 class ProofIntentSelectionError extends Error {
@@ -191,7 +150,7 @@ for (const intent of intentArtifact.intents) for (const capable of intent.capabl
 }
 
 const loadedPacks = await Promise.all(proofPackCatalog.packs.map(
-  ({ profile_id: profileId }) => loadAdmittedProofPack(profileId)
+  ({ profile_id: profileId }) => loadAdmittedProofPackMeaning(profileId)
 ));
 const packByIdentity = new Map(loadedPacks.map((pack) => [packKey({
   profile_id: pack.profile.profile_id,
@@ -209,8 +168,7 @@ for (const intent of intentArtifact.intents) for (const capable of intent.capabl
     ) && intent.compatibility.vocabulary_versions.includes(
       pack.profile.vocabulary_version
     ) && pack.profile.vocabulary_version === VOCABULARY_VERSION;
-  if (!compatibleAdmission || !compatibleProfile || intent.exact_binding_required !==
-      (pack.admission_version === 2)) throw new ProofIntentSelectionError(
+  if (!compatibleAdmission || !compatibleProfile) throw new ProofIntentSelectionError(
     "proof_intent_pack_compatibility_invalid",
     "a controlled proof intent is inconsistent with its admitted pack carrier",
     { intent_id: intent.intent_id, pack: capable }
@@ -240,14 +198,6 @@ function requiredInput(inputId) {
     evaluation_input: [
       "evaluation_input_required",
       "Supply a pack-specific evaluation input bound by digest in the proof plan."
-    ],
-    exact_capture_root: [
-      "exact_capture_root_required",
-      "Supply a pack-specific trusted capture root in the proof plan."
-    ],
-    exact_binding_sources: [
-      "exact_binding_sources_required",
-      "Supply the pack-specific exact source declaration and its digest."
     ]
   };
   return {
@@ -258,12 +208,9 @@ function requiredInput(inputId) {
 }
 
 function missingCompatibleReferenceTypes(contract, pack) {
-  const contractTerms = new Set((contract?.references ?? []).map(
-    ({ type_term: typeTerm }) => typeTerm
-  ));
   const missing = [];
   for (const role of pack.profile.reference_roles ?? []) {
-    if (!role.allowed_type_terms.some((term) => contractTerms.has(term))) missing.push({
+    if (!(contract?.references ?? []).some(reference => referenceRoleValueMatches(role, reference))) missing.push({
       input_id: `reference_role:${role.role}`,
       reason_code: "compatible_contract_reference_type_missing",
       remediation: `Add or identify ${role.cardinality} contract reference(s) for the ${role.role} role using one of its allowed type terms.`
@@ -345,7 +292,7 @@ function authoringIntentDistinctions(intentDefinitions) {
 function projectedClaimPattern(pattern) {
   return {
     pattern_id: pattern.pattern_id,
-    required_by_stage: pattern.required_by_stage,
+
     claim_kind: pattern.claim_kind,
     allowed_modalities: sortedUnique(pattern.allowed_modalities),
     proposition: renderProposition(pattern.proposition_template),
@@ -380,7 +327,7 @@ function projectionCounts(profile) {
 function buildProofPackAuthoringProjection(pack, intentDefinitions) {
   const profile = pack.profile;
   const body = {
-    schema_version: "controlled-contract-proof-pack-authoring.v1",
+    schema_version: "controlled-contract-proof-pack-authoring.v2",
     digest_algorithm: "sha256-canonical-json-v1",
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
@@ -398,8 +345,8 @@ function buildProofPackAuthoringProjection(pack, intentDefinitions) {
     },
     evaluation_input_skeleton: {
       input_version:
-        "controlled-contract-verification-profile-input.v1",
-      allowed_evaluation_stages: sortedUnique(profile.evaluation_stages),
+        "controlled-contract-verification-profile-input.v2",
+
       reference_bindings: sortedBy((profile.reference_roles ?? []).map((role) => ({
         role: role.role,
         cardinality: role.cardinality,
@@ -422,10 +369,7 @@ function buildProofPackAuthoringProjection(pack, intentDefinitions) {
         : "supply_every_required_resolver_fact_pattern",
       delivered_evidence: (profile.evidence_patterns ?? []).length === 0
         ? "not_required"
-        : "supply_every_required_delivered_evidence_pattern",
-      exact_binding: pack.admission_version === 2
-        ? "required_by_proof_plan"
-        : "not_applicable"
+        : "supply_every_required_delivered_evidence_pattern"
     },
     role_constraints: {
       binding_constraint_patterns: sortedBy(
@@ -549,11 +493,45 @@ function describeProofPackAuthoring({
     profile_id: profileId,
     profile_version: profileVersion
   }));
-  if (!pack) throw new ProofIntentSelectionError(
-    "proof_pack_authoring_identity_unknown",
-    "the exact admitted proof-pack identity is unknown",
-    { profile_id: profileId, profile_version: profileVersion }
-  );
+  if (!pack) {
+
+    const candidates = loadedPacks.filter(({ profile }) =>
+      profile.profile_id === profileId).map((candidate) => {
+      const authoring = buildProofPackAuthoringProjection(candidate,
+        resolveAuthoringIntentDefinitions(candidate, null));
+      return {
+        selected_pack: { profile_id: authoring.profile_id,
+          profile_version: authoring.profile_version },
+        requested_intents: authoring.requested_intents,
+
+        source_digests: authoring.source_digests
+      };
+    });
+    throw new ProofIntentSelectionError(
+      "proof_pack_authoring_identity_unknown",
+      "the exact proof-pack identity is absent from the admitted authoring catalog",
+      { changed: false, profile_id: profileId, profile_version: profileVersion,
+        selection_scope: "admitted_authoring_catalog",
+        runtime_selection: "not_resolved",
+        explanation: "Authoring selects an exact admitted catalog identity. " +
+          "Implementation verification independently resolves its exact runtime identity; " +
+          "this authoring refusal does not establish runtime availability or select a replacement version.",
+        recovery: {
+          status: candidates.length > 0 ? "semantic_selection_required" : "unavailable",
+          candidates,
+          discovery_tool: candidates.length > 0
+            ? "workspace_controlled_proof_intents_discover" : null,
+          semantic_owner: candidates.length > 0
+            ? "workspace_controlled_contract_obligation_coverage_upsert" : null,
+          next_step: candidates.length > 0
+            ? "Discover the intended named proof, then save that proof name and its semantic inputs on the owning obligation."
+            : null,
+          unavailable_prerequisite: candidates.length > 0 ? null
+            : "No admitted authoring candidate exists for the requested profile id."
+        }
+      }
+    );
+  }
   return buildProofPackAuthoringProjection(
     pack,
     resolveAuthoringIntentDefinitions(pack, requestedIntents)
@@ -659,7 +637,6 @@ function selectProofPacksV2({ contract, requestedIntents, expectedDigests = null
       intent_distinctions: structuredClone(authoring.intent_distinctions),
       guarantee: pack.admission.guarantee,
       explicit_exclusions: structuredClone(authoring.explicit_exclusions),
-      exact_binding_required: pack.admission_version === 2,
       required_inputs: requiredIds.map(requiredInput),
       missing_compatible_reference_types:
         missingCompatibleReferenceTypes(contract, pack),
@@ -676,11 +653,7 @@ function selectProofPacksV2({ contract, requestedIntents, expectedDigests = null
         guarantee: pack.admission.guarantee_digest,
         adequacy_declaration:
           pack.admission.certification.adequacy_declaration_digest,
-        adequacy_result: pack.admission.certification.adequacy_result_digest,
-        ...(pack.admission_version === 2 ? {
-          exact_binding_declaration: pack.exact_binding_declaration_digest,
-          exact_binding_certification: pack.exact_binding_certification_digest
-        } : {})
+        adequacy_result: pack.admission.certification.adequacy_result_digest
       }
     };
   }).sort((left, right) => compareCodeUnits(packKey(left), packKey(right)));
@@ -770,7 +743,7 @@ function selectProofPacksV2({ contract, requestedIntents, expectedDigests = null
     runtime_evidence_applicability: "not_evaluated"
   };
   const result = {
-    schema_version: "controlled-contract-proof-pack-selection.v2",
+    schema_version: "controlled-contract-proof-pack-selection.v4",
     decision,
     requested_intents: normalizedIntents,
     per_intent_outcomes: perIntentOutcomes,
@@ -814,7 +787,7 @@ function projectProofIntentSelectionV1(result) {
       ? "requires_bindings" : "ready"
   }));
   const v1 = {
-    schema_version: "controlled-contract-proof-pack-selection.v1",
+    schema_version: "controlled-contract-proof-pack-selection.v3",
     requested_intents: [...result.requested_intents],
     selected_packs: selectedPacks,
     ambiguous_intents: result.per_intent_outcomes.filter(
@@ -884,7 +857,6 @@ function compactProofIntentSelection(result) {
       intent_distinctions: structuredClone(candidate.intent_distinctions),
       guarantee: candidate.guarantee,
       explicit_exclusions: [...candidate.explicit_exclusions],
-      exact_binding_required: candidate.exact_binding_required,
       required_inputs: structuredClone(candidate.required_inputs),
       missing_compatible_reference_types:
         structuredClone(candidate.missing_compatible_reference_types),

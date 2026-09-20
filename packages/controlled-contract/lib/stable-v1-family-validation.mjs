@@ -12,7 +12,10 @@ import {
   validateProfileSchemaV1,
   validateResultSchemaV1
 } from "./verification-profile-schema-v1.mjs";
-import { projectBoundedDiagnostics } from "./bounded-diagnostic-projection.mjs";
+import {
+  adaptRawSchemaDiagnostic,
+  projectBoundedDiagnostics
+} from "./bounded-diagnostic-projection.mjs";
 
 const STABLE_IDENTITIES = Object.freeze({
   contract_schema_version: SCHEMA_VERSION_V1,
@@ -48,12 +51,13 @@ function identityDiagnostic(pointer, expected, actual) {
   };
 }
 
-function schemaErrors(validator) {
-  return (validator.errors ?? []).map((error) => ({
-    code: "stable_family_schema_invalid", pointer: error.instancePath || "/",
-    keyword: error.keyword, reason_code: "stable_family_refused",
-    expected_identity: error.params?.allowedValue ?? null, actual_identity: null,
-    message: error.message ?? "stable family schema validation failed"
+function schemaErrors(validator, { document = null, basePointer = "" } = {}) {
+  return (validator.errors ?? []).map((error) => adaptRawSchemaDiagnostic(error, {
+    code: "stable_family_schema_invalid",
+    reasonCode: "stable_family_refused",
+    message: "stable family schema validation failed",
+    document,
+    basePointer
   }));
 }
 
@@ -106,6 +110,7 @@ function validateStableV1ContractFamily(contract) {
     stage: validation.valid ? "complete" : "schema_and_semantics",
     family: "stable_v1",
     diagnostics: projectBoundedDiagnostics(diagnostics),
+    diagnostic_details: Object.freeze(structuredClone(diagnostics)),
     facts: validation.facts
   });
 }
@@ -130,18 +135,23 @@ function validateStableV1Family({ contract, profile, input, result = null }) {
     stage: "identity", diagnostics: projectBoundedDiagnostics(diagnostics) });
 
   const contractFamily = validateStableV1ContractFamily(contract);
-  if (!contractFamily.valid) diagnostics.push(...contractFamily.diagnostics.diagnostics);
-  if (!validateProfileSchemaV1(profile)) diagnostics.push(...schemaErrors(validateProfileSchemaV1));
+  if (!contractFamily.valid) diagnostics.push(...(
+    contractFamily.diagnostic_details ?? contractFamily.diagnostics.diagnostics));
+  if (!validateProfileSchemaV1(profile)) diagnostics.push(...schemaErrors(
+    validateProfileSchemaV1, { document: profile, basePointer: "/profile" }));
   if (!validateEvaluationInputSchemaV1(input)) diagnostics.push(
-    ...schemaErrors(validateEvaluationInputSchemaV1)
+    ...schemaErrors(validateEvaluationInputSchemaV1,
+      { document: input, basePointer: "/input" })
   );
   if (result !== null && !validateResultSchemaV1(result)) diagnostics.push(
-    ...schemaErrors(validateResultSchemaV1)
+    ...schemaErrors(validateResultSchemaV1,
+      { document: result, basePointer: "/result" })
   );
   return Object.freeze({
     valid: diagnostics.length === 0,
     stage: diagnostics.length === 0 ? "complete" : "schema_and_semantics",
-    diagnostics: projectBoundedDiagnostics(diagnostics)
+    diagnostics: projectBoundedDiagnostics(diagnostics),
+    diagnostic_details: Object.freeze(structuredClone(diagnostics))
   });
 }
 

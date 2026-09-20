@@ -8,6 +8,7 @@
     "schema_version",
     "assessment_identity",
     "structure",
+    "stage_assessment",
     "profile_discrimination",
     "assessment_scope",
     "residue_status",
@@ -35,6 +36,7 @@
       "const": "controlled-contract-assessment.v1"
     },
     "assessment_identity": { "$ref": "#/$defs/sha256" },
+    "stage_assessment": { "$ref": "#/$defs/stage_assessment" },
     "structure": {
       "type": "string",
       "enum": ["proven", "not_proven", "invalid"]
@@ -42,10 +44,6 @@
     "profile_discrimination": {
       "type": "string",
       "enum": ["proven", "not_proven", "not_assessed"]
-    },
-    "exact_binding": {
-      "type": "string",
-      "enum": ["proven", "not_proven", "not_applicable"]
     },
     "assessment_scope": { "const": "planning" },
     "residue_status": {
@@ -60,7 +58,7 @@
     "authority": { "const": "non_authoritative" },
     "overall_code": {
       "type": "string",
-      "pattern": "^structure_(?:proven|not_proven|invalid)__profile_(?:proven|not_proven|not_assessed)(?:__exact_binding_(?:proven|not_proven))?__residue_(?:none|review_required|resolution_required|review_and_resolution_required)$"
+      "pattern": "^structure_(?:proven|not_proven|invalid)__profile_(?:proven|not_proven|not_assessed)__residue_(?:none|review_required|resolution_required|review_and_resolution_required)$"
     },
     "verification_scope": {
       "type": "object",
@@ -77,15 +75,6 @@
         "proof_plan_discrimination": {
           "type": "string",
           "enum": ["assessed_by_admitted_profile", "not_assessed"]
-        },
-        "exact_binding_capture": {
-          "type": "string",
-          "enum": ["assessed_by_deterministic_capture", "not_applicable"]
-        },
-        "projected_evaluation_binding": {
-          "description": "Whether the exact-bound declaration opted into binding the profile-selected contract nodes to the deterministic projected contract graph, and whether that binding held.",
-          "type": "string",
-          "enum": ["bound_to_deterministic_projection", "not_bound", "not_declared"]
         }
       }
     },
@@ -186,7 +175,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["source", "detail"],
+        "required": ["source", "detail", "assessment_stage"],
         "additionalProperties": false,
         "properties": {
           "source": {
@@ -199,7 +188,10 @@
               "assessment_binding"
             ]
           },
-          "detail": { "type": "object" }
+          "detail": { "type": "object" },
+          "assessment_stage": {
+            "enum": ["authoring", "execution_pending", "execution_evidence"]
+          }
         }
       }
     },
@@ -230,69 +222,23 @@
           "pattern": "^controlled-contract-assessment://sha256/[a-f0-9]{64}/manifest\\.json$"
         },
         "files": {
-          "oneOf": [
-            {
-              "type": "array",
-              "prefixItems": [
-                { "const": "assessment.json" },
-                { "const": "assessment.md" },
-                { "const": "structural.full.json" },
-                { "const": "admitted-proof.full.json" },
-                { "const": "proof-pack-admission.full.json" },
-                { "const": "manifest.json" }
-              ],
-              "items": false,
-              "minItems": 6,
-              "maxItems": 6
-            },
-            {
-              "type": "array",
-              "prefixItems": [
-                { "const": "assessment.json" },
-                { "const": "assessment.md" },
-                { "const": "structural.full.json" },
-                { "const": "admitted-proof.full.json" },
-                { "const": "proof-pack-admission.full.json" },
-                { "const": "exact-binding.full.json" },
-                { "const": "manifest.json" }
-              ],
-              "items": false,
-              "minItems": 7,
-              "maxItems": 7
-            }
-          ]
+          "type": "array",
+          "prefixItems": [
+            { "const": "assessment.json" },
+            { "const": "assessment.md" },
+            { "const": "structural.full.json" },
+            { "const": "admitted-proof.full.json" },
+            { "const": "proof-pack-admission.full.json" },
+            { "const": "manifest.json" }
+          ],
+          "items": false,
+          "minItems": 6,
+          "maxItems": 6
         }
       }
     }
   },
   "allOf": [
-    {
-      "if": {
-        "properties": { "exact_binding": { "const": "not_proven" } },
-        "required": ["exact_binding"]
-      },
-      "then": {
-        "properties": { "profile_discrimination": { "const": "not_proven" } }
-      }
-    },
-    {
-      "if": {
-        "properties": { "exact_binding": { "const": "proven" } },
-        "required": ["exact_binding"]
-      },
-      "then": {
-        "properties": {
-          "verification_scope": {
-            "type": "object",
-            "properties": {
-              "exact_binding_capture": {
-                "const": "assessed_by_deterministic_capture"
-              }
-            }
-          }
-        }
-      }
-    },
     {
       "if": {
         "properties": { "profile_discrimination": { "const": "proven" } },
@@ -417,6 +363,18 @@
     }
   ],
   "$defs": {
+    "stage_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authoring_state", "execution_gap_count", "expected_witness_count", "supplied_witness_count", "missing_witness_count"],
+      "properties": {
+        "authoring_state": { "enum": ["complete", "incomplete", "not_assessed"] },
+        "execution_gap_count": { "type": "integer", "minimum": 0 },
+        "expected_witness_count": { "type": "integer", "minimum": 0 },
+        "supplied_witness_count": { "type": "integer", "minimum": 0 },
+        "missing_witness_count": { "type": "integer", "minimum": 0 }
+      }
+    },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "profile_covered_claim": {
       "type": "object",
@@ -680,15 +638,6 @@
         "adequacy_result": {
           "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
         },
-        "exact_binding_sources": {
-          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-        },
-        "exact_binding_declaration": {
-          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-        },
-        "exact_binding_certification": {
-          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-        },
         "structural_schema": { "$ref": "#/$defs/sha256" },
         "assessment_schema": { "$ref": "#/$defs/sha256" },
         "assessment_format": { "$ref": "#/$defs/sha256" }
@@ -711,9 +660,6 @@
               "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
             },
             "proof_pack_admission": {
-              "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-            },
-            "exact_binding": {
               "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
             }
           }

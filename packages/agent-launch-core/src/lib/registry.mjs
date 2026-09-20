@@ -61,8 +61,8 @@ export async function initializeDefaultRegistry({ force = false, workspaceDir } 
   return registryPath;
 }
 
-export async function loadRegistry({ registryPath: overridePath } = {}) {
-  const registryPath = resolveLauncherRegistryPath(overridePath);
+export async function loadRegistry({ registryPath: overridePath, workspaceDir } = {}) {
+  const registryPath = resolveLauncherRegistryPath(overridePath, { workspaceDir });
   if (!(await fileExists(registryPath))) {
     throw new Error(`Launcher registry not found at ${registryPath}. Run "agent-launch init-config" first.`);
   }
@@ -76,6 +76,45 @@ export async function loadRegistry({ registryPath: overridePath } = {}) {
     hash: sha256(raw),
     data: parsed
   };
+}
+
+export const AGENT_EXECUTABLE_TOKEN_INVALID_REASON = "agent_executable_token_invalid";
+
+export function resolveAgentExecutable(agentConfig, agentName) {
+  const token = agentConfig?.base_argv?.[0];
+  if (typeof token !== "string" || token.trim().length === 0) {
+    const error = new Error(
+      `Agent ${agentName} base_argv[0] must be a non-blank executable string; `
+        + `got ${token === undefined ? "undefined" : JSON.stringify(token)}. `
+        + `Set agents.${agentName}.base_argv[0] in the launcher registry.`
+    );
+    error.code = AGENT_EXECUTABLE_TOKEN_INVALID_REASON;
+    error.detail = {
+      agent: agentName,
+      configuration_key: `agents.${agentName}.base_argv[0]`,
+      received_type: token === null ? "null" : typeof token,
+      operator_recovery:
+        `set agents.${agentName}.base_argv[0] to the executable to launch `
+        + "(a bare basename resolved on the launcher-trusted PATH, or an absolute path)"
+    };
+    throw error;
+  }
+  return {
+    executable: token,
+    leadingArgs: Object.freeze(agentConfig.base_argv.slice(1).map((value) => String(value)))
+  };
+}
+
+export async function resolveConfiguredAgentExecutable({
+  agentName,
+  mode = null,
+  registryPath = null,
+  workspaceDir = undefined
+} = {}) {
+  const registry = await loadRegistry({ registryPath, workspaceDir });
+  const agentConfig = resolveAgentConfig(registry, agentName, mode);
+  const { executable, leadingArgs } = resolveAgentExecutable(agentConfig, agentName);
+  return { executable, leadingArgs, registryPath: registry.path, agentConfig };
 }
 
 export function resolveAgentConfig(registry, agentName, mode) {

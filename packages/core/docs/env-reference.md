@@ -137,6 +137,7 @@ repo-local `.env` keys.
 | Key | Purpose |
 |---|---|
 | `AGENT_LAUNCH_RUNTIME_STATE_DIR` | Root for mutable launcher runtime state (nonces, token state). Must resolve outside the repo / `HOME` / `XDG` roots; defaults to an OS-tmpdir location when unset (`packages/agent-launch-core/src/lib/config.mjs`). |
+| `AGENT_CHASSIS_MCP_METRICS_ROOT` | Optional host-only **destination** for anonymous MCP metric files. Unset (the default) disables collection with no writer, timer, or file. When set it must be an absolute path to an existing real directory this uid owns at mode `0700`; an invalid value collects nothing and emits one path-free `invalid_config` diagnostic without refusing startup. Launcher-managed host servers receive only the launcher-resolved root, and every receiving host revalidates it. It is not accepted from tool arguments or worker environments, is independent of transcript capture, and is not repo-local `.env` configuration. See [Anonymous MCP metrics](mcp-telemetry.md). |
 | `AGENT_CHASSIS_MCP_TRANSCRIPT_ROOT` | Optional observability **destination** that arms the launcher's dormant stdio-MCP transcript capture. Unset (the default) means the conduit spawns the host wiki-MCP server exactly as it always did and records nothing. When set it must be an absolute path to an existing real directory this uid owns at mode `0700`; the launcher re-validates it and mints every per-session directory itself, and anything else disables capture with a diagnostic rather than refusing the launch. It selects no policy, transport, tool surface, or authority, and it is not repo-local `.env` configuration. See [Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md). |
 
 Other `AGENT_LAUNCH_*` variables (role-guard, isolation, bin-dir) are
@@ -161,4 +162,6 @@ credential or runtime-state projection.
   `NODE_ENGINE_LICENSE_KEY` alias); third-party agent-CLI credentials.
 - **Non-secret** (may appear in diagnostics): role `*_APP` / `*_MODEL`
   selections, the non-credential `NODE_ENGINE_*` service-config keys, and the
-  `WIKI_MCP_*` / `AGENT_LAUNCH_RUNTIME_STATE_DIR` settings.
+  `WIKI_MCP_*` / `AGENT_LAUNCH_RUNTIME_STATE_DIR` settings. The
+  `AGENT_CHASSIS_MCP_METRICS_ROOT` and `AGENT_CHASSIS_MCP_TRANSCRIPT_ROOT`
+  destinations are non-secret, but diagnostics never print their paths.

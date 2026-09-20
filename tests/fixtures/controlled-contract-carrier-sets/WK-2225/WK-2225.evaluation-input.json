@@ -1,0 +1,22 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-mutant-component-profile"
+      ],
+      "role": "component"
+    },
+    {
+      "reference_ids": [
+        "ref-mutant-suite-profile"
+      ],
+      "role": "suite"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

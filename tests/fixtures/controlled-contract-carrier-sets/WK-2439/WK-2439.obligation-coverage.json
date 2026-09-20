@@ -1,0 +1,552 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2439",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK2439-001",
+      "statement": "The existing obligation-source describe operation must consume the shared semantic skeleton composer.",
+      "controlled_contract_node_ids": [
+        "claim-obligation-describe-reuses-composer",
+        "ref-obligation-describe"
+      ],
+      "mechanism": {
+        "owner": "workspace_controlled_contract_obligation_coverage_describe",
+        "kind": "tool_operation",
+        "selector": "result.authoring_skeleton"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-002",
+      "statement": "The existing acceptance-mapping describe operation must consume the same shared semantic skeleton composer.",
+      "controlled_contract_node_ids": [
+        "claim-acceptance-describe-reuses-composer",
+        "ref-acceptance-describe"
+      ],
+      "mechanism": {
+        "owner": "workspace_controlled_contract_acceptance_coverage_describe",
+        "kind": "tool_operation",
+        "selector": "result.authoring_skeleton"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-003",
+      "statement": "One package-owned composeCoverageAuthoringSkeleton component must exist and be exported through the controlled-contract package surface.",
+      "controlled_contract_node_ids": [
+        "claim-package-component-exists",
+        "ref-shared-skeleton-composer"
+      ],
+      "mechanism": {
+        "owner": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "composeCoverageAuthoringSkeleton"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-004",
+      "statement": "The composer must expose unresolved authored decisions without inventing obligation statements, mechanisms, proof adequacy, gaps, pack applicability, node mappings, coverage axes, or lifecycle authority.",
+      "controlled_contract_node_ids": [
+        "claim-caller-retains-semantic-authority",
+        "ref-caller-semantic-decisions"
+      ],
+      "mechanism": {
+        "owner": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "composeCoverageAuthoringSkeleton"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-005",
+      "statement": "The complete semantic skeleton population must contain exactly 39 ordered entries.",
+      "controlled_contract_node_ids": [
+        "claim-skeleton-entry-count-is-exact",
+        "ref-skeleton-entry-count"
+      ],
+      "mechanism": {
+        "owner": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "kind": "configuration",
+        "selector": "coverage_authoring_skeleton_intended_entry_count=39"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-006",
+      "statement": "The ordered ref-skeleton-entry-01 through ref-skeleton-entry-39 population must be exhaustive and must not be created, removed, merged, reordered, or reinterpreted by implementation.",
+      "controlled_contract_node_ids": [
+        "claim-skeleton-vocabulary-is-closed",
+        "ref-skeleton-entry-population",
+        "ref-skeleton-entry-01",
+        "ref-skeleton-entry-02",
+        "ref-skeleton-entry-03",
+        "ref-skeleton-entry-04",
+        "ref-skeleton-entry-05",
+        "ref-skeleton-entry-06",
+        "ref-skeleton-entry-07",
+        "ref-skeleton-entry-08",
+        "ref-skeleton-entry-09",
+        "ref-skeleton-entry-10",
+        "ref-skeleton-entry-11",
+        "ref-skeleton-entry-12",
+        "ref-skeleton-entry-13",
+        "ref-skeleton-entry-14",
+        "ref-skeleton-entry-15",
+        "ref-skeleton-entry-16",
+        "ref-skeleton-entry-17",
+        "ref-skeleton-entry-18",
+        "ref-skeleton-entry-19",
+        "ref-skeleton-entry-20",
+        "ref-skeleton-entry-21",
+        "ref-skeleton-entry-22",
+        "ref-skeleton-entry-23",
+        "ref-skeleton-entry-24",
+        "ref-skeleton-entry-25",
+        "ref-skeleton-entry-26",
+        "ref-skeleton-entry-27",
+        "ref-skeleton-entry-28",
+        "ref-skeleton-entry-29",
+        "ref-skeleton-entry-30",
+        "ref-skeleton-entry-31",
+        "ref-skeleton-entry-32",
+        "ref-skeleton-entry-33",
+        "ref-skeleton-entry-34",
+        "ref-skeleton-entry-35",
+        "ref-skeleton-entry-36",
+        "ref-skeleton-entry-37",
+        "ref-skeleton-entry-38",
+        "ref-skeleton-entry-39"
+      ],
+      "mechanism": {
+        "owner": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "kind": "schema",
+        "selector": "closed ordered skeleton entry vocabulary"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-007",
+      "statement": "The composer must accept only server-resolved unit, criteria, controlled-contract, proof-plan, carrier-state, bound, and mutation identity facts supplied by the owning describe operation.",
+      "controlled_contract_node_ids": [
+        "claim-server-resolves-composer-inputs",
+        "ref-server-resolved-state"
+      ],
+      "mechanism": {
+        "owner": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "composeCoverageAuthoringSkeleton"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-008",
+      "statement": "Each describe projection must be gap-first, deterministic, at most 16,384 canonical UTF-8 bytes, and report exact total, returned, and omitted counts.",
+      "controlled_contract_node_ids": [
+        "claim-projection-bound-is-exact",
+        "ref-skeleton-projection",
+        "ref-projection-byte-bound"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "bounded authoring_skeleton projection"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-009",
+      "statement": "When inline entries are omitted, the complete 39-entry population must remain reconstructible through the existing integrity-bound content-reference transport.",
+      "controlled_contract_node_ids": [
+        "claim-omitted-entries-remain-reachable",
+        "ref-omitted-skeleton-population",
+        "ref-existing-transport"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "complete population content-reference handoff"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-010",
+      "statement": "Completed authored decisions must hand off only to the existing obligation or acceptance create and single-row mutation operations.",
+      "controlled_contract_node_ids": [
+        "claim-handoff-uses-existing-mutations",
+        "ref-existing-mutations"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "kind": "code_symbol",
+        "selector": "existing create and single-row mutation templates"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-011",
+      "statement": "Skeleton handoff must emit stable tool identity and non-CAS fixed arguments separately from evolving digest-bearing state.",
+      "controlled_contract_node_ids": [
+        "claim-stable-mutation-arguments-emitted"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "stable mutation identity and fixed arguments"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-012",
+      "statement": "Every current-carrier single-row mutation must consume expected content and carrier digests from the immediately prior mutation receipt before final query or describe verification.",
+      "controlled_contract_node_ids": [
+        "claim-cas-state-chains-mutation-receipts"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "receipt-fed CAS mutation state"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-013",
+      "statement": "A fresh orchestrator session must complete absent and current obligation-source authoring using describe, advertised existing mutations, receipt-fed CAS state, and final canonical verification.",
+      "controlled_contract_node_ids": [
+        "claim-obligation-fresh-session-completes"
+      ],
+      "mechanism": {
+        "owner": "workspace_controlled_contract_obligation_coverage_describe",
+        "kind": "tool_operation",
+        "selector": "fresh-session authoring_skeleton handoff"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-014",
+      "statement": "A fresh orchestrator session must complete absent and current acceptance-mapping authoring using describe, advertised existing mutations, receipt-fed CAS state, and final canonical verification.",
+      "controlled_contract_node_ids": [
+        "claim-acceptance-fresh-session-completes"
+      ],
+      "mechanism": {
+        "owner": "workspace_controlled_contract_acceptance_coverage_describe",
+        "kind": "tool_operation",
+        "selector": "fresh-session authoring_skeleton handoff"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-015",
+      "statement": "The composer must report only local diagnostics and leave public state classification, recovery-call selection, next calls, blind-retry prevention, and dependency recovery to WK-2437.",
+      "controlled_contract_node_ids": [
+        "claim-recovery-ownership-remains-wk2437",
+        "ref-recovery-owner"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs",
+        "kind": "code_symbol",
+        "selector": "local diagnostics without recovery selection"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-016",
+      "statement": "The fresh-session integration proof must compare the persisted canonical carrier byte-for-byte with the complete intended authored state and record the exact equivalence boolean.",
+      "controlled_contract_node_ids": [
+        "claim-final-carrier-equivalence-required"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+        "kind": "test",
+        "selector": "final carrier equivalence assertion"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-017",
+      "statement": "The fixed-fixture MCP proof must capture call count, request and result UTF-8 bytes, unresolved slots, retries, source-inspection escapes, and final-carrier equivalence.",
+      "controlled_contract_node_ids": [
+        "claim-raw-metrics-complete",
+        "ref-raw-metrics"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+        "kind": "test",
+        "selector": "fixed-fixture raw metric capture"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-018",
+      "statement": "Raw measurement facts must be handed to WK-2055 without WK-2439 publishing composed-versus-manual conclusions or conformance claims.",
+      "controlled_contract_node_ids": [
+        "claim-raw-metrics-handed-to-report-owner",
+        "ref-report-owner"
+      ],
+      "mechanism": {
+        "owner": "WK-2055",
+        "kind": "durable_record",
+        "selector": "raw metrics reporting ownership"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-019",
+      "statement": "Skeleton composition must remain read-only and non-authoritative, and mutation permissions and role visibility must remain owned by the existing operations.",
+      "controlled_contract_node_ids": [
+        "claim-composer-remains-nonauthoritative"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "kind": "code_symbol",
+        "selector": "existing role policy and operation registrations"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-020",
+      "statement": "WK-2439 must not add a public preparation operation, alias, cursor, state machine, recovery workflow, mutation surface, proof authority, or reporting owner.",
+      "controlled_contract_node_ids": [
+        "claim-no-new-public-preparation-route",
+        "ref-public-route-population",
+        "ref-batch-owner",
+        "ref-proof-skeleton-owner"
+      ],
+      "mechanism": {
+        "owner": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "kind": "configuration",
+        "selector": "unchanged controlled-contract public operation population"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-021",
+      "statement": "The package unit suite must falsify composer existence, exact vocabulary, determinism, semantic-authority preservation, and server-input boundaries.",
+      "controlled_contract_node_ids": [
+        "claim-verify-package-composer",
+        "ref-package-suite"
+      ],
+      "mechanism": {
+        "owner": "tests/unit/controlled-contract-coverage-authoring-skeleton.test.mjs",
+        "kind": "test",
+        "selector": "composer semantic and bound tests"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-022",
+      "statement": "The core unit suite must falsify bounded projection, lossless transport handoff, existing-mutation templates, receipt-fed CAS sequencing, and recovery ownership.",
+      "controlled_contract_node_ids": [
+        "claim-verify-core-projection",
+        "ref-core-suite",
+        "ref-core-module"
+      ],
+      "mechanism": {
+        "owner": "tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs",
+        "kind": "test",
+        "selector": "describe integration and projection tests"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-023",
+      "statement": "The MCP integration suite must falsify fresh-session absent and current authoring, exact final-carrier equivalence, raw metric completeness, and non-authoritative behavior.",
+      "controlled_contract_node_ids": [
+        "claim-verify-mcp-fresh-session",
+        "ref-mcp-suite",
+        "ref-mcp-module"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+        "kind": "test",
+        "selector": "fresh-session authoring and equivalence tests"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2439-024",
+      "statement": "The registration integration suite must falsify route growth, role or authority widening, and ownership leakage across WK-2437, WK-2438, WK-2055, and WK-2024.",
+      "controlled_contract_node_ids": [
+        "claim-verify-owner-boundaries",
+        "ref-registry-suite",
+        "ref-registration-module"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-mcp-registration.test.mjs",
+        "kind": "test",
+        "selector": "operation population and owner-boundary assertions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    }
+  ]
+}

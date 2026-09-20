@@ -40,7 +40,7 @@ export function buildFamilyExecutorBwrapPlan({
 
   runtimeRoots = [],
   readOnlyRoots = [],
-  protectGitMetadata = false,
+  gitMetadataProjection = null,
 
   additionalMaskTmpfsDirs = [],
   provisionedWorktreeGitIdentity = null,
@@ -122,7 +122,7 @@ export function buildFamilyExecutorBwrapPlan({
     writableRoots,
     writableFiles,
     runtimeRoots: asArray(runtimeRoots),
-    protectGitMetadata,
+    gitMetadataProjection,
     ...(serverProvisionedWorktreeGitIdentity !== null
       ? { provisionedWorktreeGitIdentity: serverProvisionedWorktreeGitIdentity }
       : {}),
@@ -201,6 +201,8 @@ export function buildValidationConfinementPlan({
   env = null,
   envAllowlist = DEFAULT_VALIDATION_ENV_ALLOWLIST,
   ephemeralTmpdir = VALIDATION_EPHEMERAL_TMPDIR,
+
+  useSystemTmp = false,
   agentLaunchDirName = DEFAULT_AGENT_LAUNCH_DIR_NAME,
   envFileName = DEFAULT_REPO_ENV_FILE_NAME,
   envFileExists = existsSync,
@@ -235,7 +237,8 @@ export function buildValidationConfinementPlan({
       mintedEnv[name] = envValues[name];
     }
   }
-  mintedEnv.TMPDIR = ephemeralTmpdir;
+  const effectiveTmpdir = useSystemTmp ? "/tmp" : ephemeralTmpdir;
+  mintedEnv.TMPDIR = effectiveTmpdir;
   const allowWithTmpdir = allowlist.includes("TMPDIR")
     ? allowlist
     : [...allowlist, "TMPDIR"];
@@ -258,7 +261,8 @@ export function buildValidationConfinementPlan({
 
     maskTmpfsDirs: agentLaunchDirExists(agentLaunchPath) ? [agentLaunchPath] : [],
 
-    tmpfsDirs: [ephemeralTmpdir],
+    tmpfsDirs: useSystemTmp ? [] : [ephemeralTmpdir],
+    useSystemTmp,
 
     shareNet: false,
 

@@ -135,7 +135,7 @@ export async function rollbackGraphSidecarWrite({ absolutePath, existedBefore, p
           code: "graph_sidecar_rollback_recheck_failed",
           severity: "warning",
           message:
-            "could not reread the graph sidecar before rollback; left it in place rather than risk clobbering a concurrent update. Rerun cleanup-derived-evidence to reconcile any orphan replay payload.",
+            "could not reread the graph sidecar before rollback; left it in place rather than risk clobbering a concurrent update. Any orphan replay payload it holds is inert and is not reclaimed by admission-artifact maintenance.",
           path: "graph_sidecar"
         }
       };
@@ -149,7 +149,7 @@ export async function rollbackGraphSidecarWrite({ absolutePath, existedBefore, p
         code: "graph_sidecar_rollback_skipped_concurrent_update",
         severity: "warning",
         message:
-          "graph sidecar changed after this writer's write; left it in place rather than clobbering a concurrent update. The canonical record was not written, so this writer's sidecar entry may be an orphan replay payload — rerun cleanup-derived-evidence to reconcile.",
+          "graph sidecar changed after this writer's write; left it in place rather than clobbering a concurrent update. The canonical record was not written, so this writer's sidecar entry may be an inert orphan replay payload; admission-artifact maintenance does not reclaim graph payloads.",
         path: "graph_sidecar"
       }
     };
@@ -170,7 +170,7 @@ export async function rollbackGraphSidecarWrite({ absolutePath, existedBefore, p
         code: "graph_sidecar_rollback_failed",
         severity: "warning",
         message:
-          "failed to roll back the graph sidecar after a canonical write failure; it is inert replay/debug data — rerun cleanup-derived-evidence to reconcile.",
+          "failed to roll back the graph sidecar after a canonical write failure; it is inert replay/debug data and is not reclaimed by admission-artifact maintenance.",
         path: "graph_sidecar"
       }
     };

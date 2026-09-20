@@ -162,7 +162,8 @@ function isCarryForwardableWorkerAdmissionGraphImpact(graphImpact) {
   }
 
   if (staleness === "fresh") {
-    return true;
+    return isObject(graphImpact.graph_snapshot) &&
+      normalizeNonEmptyString(graphImpact.graph_snapshot.schema_version) === "graph-snapshot.v1";
   }
 
   if (staleness === "stale") {

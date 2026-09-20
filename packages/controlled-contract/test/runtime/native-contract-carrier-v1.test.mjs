@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { loadStableContractSchemaV1 } from "../../lib/stable-contract-schema-v1.mjs";
 
 import {
   PROFILE_ID_V1,
@@ -11,13 +12,11 @@ import {
   buildNativeContractSchemaV1,
   validateAndResolveNativeContractV1
 } from "../../lib/native-contract-carrier-v1.mjs";
-import { migrateControlledAcceptanceContractV02ToV03 } from
-  "../../lib/test-proof-contract.mjs";
 import { CONTROLLED_VOCABULARY, validateVocabulary } from
   "../../lib/vocabulary-v1.mjs";
 
 const source = JSON.parse(await readFile(new URL(
-  "../../examples/minimal-controlled-acceptance-contract-v034.json", import.meta.url
+  "../../examples/minimal-controlled-acceptance-contract.v1.json", import.meta.url
 )));
 
 function proof() {
@@ -46,7 +45,7 @@ function proof() {
         module_path: "packages/controlled-contract/lib/native-contract-carrier-v1.mjs"
       },
       execution_provider: {
-        provider_id: "launcher.node-test-module-fault", provider_version: "1.0.0",
+        provider_id: "launcher.node-test-module-fault", provider_version: "2.0.0",
         capability: "falsifier_execution"
       }
     }],
@@ -57,24 +56,19 @@ function proof() {
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace"
     },
-    coverage_disposition: {
-      baseline_id: "coverage-baseline-example-suite",
-      baseline_state: "complete_executed_inventory",
-      items: [{ test_id: "test-component-exists", disposition: "preserved" }]
-    },
+    test_selector: { name: "the covered component is exercised", nesting: 0 },
     prohibited_shortcuts: ["coverage_percentage_only", "source_text_inspection"]
   };
 }
 
 function stableContract() {
-  const migrated = migrateControlledAcceptanceContractV02ToV03({
-    contract: structuredClone(source), testProofs: [proof()]
-  });
   return {
-    ...migrated,
+    ...structuredClone(source),
     schema_version: SCHEMA_VERSION_V1,
     vocabulary_version: VOCABULARY_VERSION_V1,
-    profile_id: PROFILE_ID_V1
+    profile_id: PROFILE_ID_V1,
+    test_proof_version: TEST_PROOF_VERSION_V1,
+    test_proofs: [proof()]
   };
 }
 
@@ -83,9 +77,7 @@ test("stable carrier schema is a standalone stable-v1 identity", async () => {
   assert.equal(NATIVE_CONTRACT_SCHEMA_V1.properties.test_proof_version.const,
     TEST_PROOF_VERSION_V1);
   assert.deepEqual(buildNativeContractSchemaV1(), NATIVE_CONTRACT_SCHEMA_V1);
-  const tracked = JSON.parse(await readFile(new URL(
-    "../../schema/controlled-acceptance-contract.v1.schema.json", import.meta.url
-  )));
+  const tracked = loadStableContractSchemaV1();
   assert.deepEqual(tracked, NATIVE_CONTRACT_SCHEMA_V1);
   assert.equal(JSON.stringify(tracked).includes(
     "controlled-acceptance-contract.experimental.v0.2.schema.json#"), false);
@@ -180,5 +172,24 @@ test("stable schema refuses experimental, mixed, partial, and stale identities",
     const candidate = stableContract();
     mutation(candidate);
     assert.equal(validateAndResolveNativeContractV1(candidate).schema_valid, false);
+  }
+});
+
+test("stable composition refuses missing, malformed and conflicting members", async () => {
+  const { composeStableContractSchemaV1 } = await import("../../lib/stable-contract-schema-v1.mjs");
+  const root = JSON.parse(await readFile(new URL(
+    "../../schema/controlled-acceptance-contract.v1.schema.json", import.meta.url)));
+  const fragment = JSON.parse(await readFile(new URL(
+    "../../schema/controlled-acceptance-test-proof-definitions.v1.schema.json", import.meta.url)));
+  assert.deepEqual(composeStableContractSchemaV1(root, fragment), NATIVE_CONTRACT_SCHEMA_V1);
+  for (const invalid of [null, {}, { $defs: {} }, { ...fragment, extra: true }]) {
+    assert.throws(() => composeStableContractSchemaV1(root, invalid), /malformed|incomplete/u);
+  }
+  const conflict = structuredClone(root);
+  conflict.$defs.test_proof_id = fragment.$defs.test_proof_id;
+  assert.throws(() => composeStableContractSchemaV1(conflict, fragment), /conflicting/u);
+  for (const read of [() => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); },
+    () => "{", url => url.pathname.includes("definitions") ? "{}" : JSON.stringify(root)]) {
+    assert.throws(() => loadStableContractSchemaV1(read), /cannot read|malformed|incomplete/u);
   }
 });

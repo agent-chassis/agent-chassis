@@ -83,7 +83,6 @@
         "capable_packs",
         "compatibility",
         "required_evaluation_inputs",
-        "exact_binding_required",
         "distinctions"
       ],
       "additionalProperties": false,
@@ -109,13 +108,10 @@
           "items": {
             "enum": [
               "controlled_contract",
-              "evaluation_input",
-              "exact_capture_root",
-              "exact_binding_sources"
+              "evaluation_input"
             ]
           }
         },
-        "exact_binding_required": { "type": "boolean" },
         "distinctions": {
           "type": "array",
           "items": { "$ref": "#/$defs/distinction" }

@@ -1,6 +1,7 @@
 
 
-import protobuf from "protobufjs";
+import { fromBinary } from "@bufbuild/protobuf";
+import { IndexSchema } from "@scip-code/scip";
 
 import {
   SIDECAR_GRAPH_SCHEMA_VERSION,
@@ -11,68 +12,14 @@ export const SCIP_PROTOCOL_VERSION = "0.8.1";
 
 export const SCIP_INDEXER_SPECS = Object.freeze({
   "scip-typescript": Object.freeze({
-    package: "@sourcegraph/scip-typescript@0.4.0",
     scheme: "scip-typescript",
     output: "typescript.scip"
   }),
   "scip-python": Object.freeze({
-    package: "@sourcegraph/scip-python@0.6.6",
     scheme: "scip-python",
     output: "python.scip"
   })
 });
-
-const SCIP_PROTO_SOURCE = `
-syntax = "proto3";
-package scip;
-message Index {
-  Metadata metadata = 1;
-  repeated Document documents = 2;
-  repeated SymbolInformation external_symbols = 3;
-}
-message Metadata {
-  int32 version = 1;
-  ToolInfo tool_info = 2;
-  string project_root = 3;
-  int32 text_document_encoding = 4;
-}
-message ToolInfo {
-  string name = 1;
-  string version = 2;
-  repeated string arguments = 3;
-}
-message Document {
-  string relative_path = 1;
-  repeated Occurrence occurrences = 2;
-  repeated SymbolInformation symbols = 3;
-  string language = 4;
-  string text = 5;
-  int32 position_encoding = 6;
-}
-message Occurrence {
-  repeated int32 range = 1;
-  string symbol = 2;
-  int32 symbol_roles = 3;
-  repeated string override_documentation = 4;
-  int32 syntax_kind = 5;
-  repeated int32 enclosing_range = 7;
-}
-message SymbolInformation {
-  string symbol = 1;
-  repeated string documentation = 3;
-  repeated Relationship relationships = 4;
-  int32 kind = 5;
-  string display_name = 6;
-  string enclosing_symbol = 8;
-}
-message Relationship {
-  string symbol = 1;
-  bool is_reference = 2;
-  bool is_implementation = 3;
-  bool is_type_definition = 4;
-  bool is_definition = 5;
-}
-`;
 
 const SCIP_SYMBOL_ROLE_DEFINITION = 0x1;
 
@@ -81,31 +28,11 @@ export const SCIP_CALL_GRAPH_UNAVAILABLE = "scip_call_graph_unavailable";
 export const SCIP_CALL_GRAPH_REASON_ENCLOSING_RANGE_UNPOPULATED =
   "enclosing_range_unpopulated";
 
-let scipRootPromise = null;
-
-function getScipRoot() {
-  if (!scipRootPromise) {
-
-    scipRootPromise = Promise.resolve(protobuf.parse(SCIP_PROTO_SOURCE, { keepCase: true }).root);
-  }
-  return scipRootPromise;
-}
-
 export async function decodeScipIndex(buffer) {
   if (!Buffer.isBuffer(buffer) && !(buffer instanceof Uint8Array)) {
     throw new TypeError("decodeScipIndex requires a Buffer/Uint8Array of .scip bytes");
   }
-  const root = await getScipRoot();
-  const IndexType = root.lookupType("scip.Index");
-  const message = IndexType.decode(buffer);
-  return IndexType.toObject(message, {
-    defaults: true,
-    arrays: true,
-    objects: true,
-    longs: Number,
-    enums: Number,
-    bytes: String
-  });
+  return fromBinary(IndexSchema, buffer);
 }
 
 function hasDefinitionRole(symbolRoles) {
@@ -159,24 +86,78 @@ export function createScipProviderDescriptor({ indexer, toolName, toolVersion })
   return descriptor;
 }
 
-function firstRangeLine(occurrence) {
-  const range = Array.isArray(occurrence?.range) ? occurrence.range : [];
-
-  return range.length >= 1 ? Number(range[0]) + 1 : null;
-}
-
-function parseScipRange(range) {
+function parseLegacyRange(range) {
   if (!Array.isArray(range) || range.length < 3) {
     return null;
   }
+  if (range.length !== 3 && range.length !== 4) return null;
   const nums = range.map(Number);
-  if (nums.some((value) => !Number.isFinite(value))) {
+  if (nums.some((value) => !Number.isInteger(value) || value < 0)) {
     return null;
   }
-  if (nums.length === 3) {
-    return { startLine: nums[0], startChar: nums[1], endLine: nums[0], endChar: nums[2] };
+  const parsed = nums.length === 3
+    ? { startLine: nums[0], startChar: nums[1], endLine: nums[0], endChar: nums[2] }
+    : { startLine: nums[0], startChar: nums[1], endLine: nums[2], endChar: nums[3] };
+  return comparePosition(parsed.startLine, parsed.startChar, parsed.endLine, parsed.endChar) <= 0
+    ? parsed
+    : null;
+}
+
+function parseTypedRange(oneof, enclosing = false) {
+  const singleCase = enclosing ? "singleLineEnclosingRange" : "singleLineRange";
+  const multiCase = enclosing ? "multiLineEnclosingRange" : "multiLineRange";
+  if (!oneof || oneof.case === undefined) return { range: null, unsupported: false };
+  const value = oneof.value;
+  if (oneof.case === singleCase) {
+    return {
+      range: parseLegacyRange([value?.line, value?.startCharacter, value?.endCharacter]),
+      unsupported: false
+    };
   }
-  return { startLine: nums[0], startChar: nums[1], endLine: nums[2], endChar: nums[3] };
+  if (oneof.case === multiCase) {
+    return {
+      range: parseLegacyRange([
+        value?.startLine, value?.startCharacter, value?.endLine, value?.endCharacter
+      ]),
+      unsupported: false
+    };
+  }
+  return { range: null, unsupported: true };
+}
+
+function parseOccurrenceRange(occurrence, enclosing = false) {
+  const oneof = enclosing ? occurrence?.typedEnclosingRange : occurrence?.typedRange;
+  const typed = parseTypedRange(oneof, enclosing);
+  if (oneof?.case !== undefined) return {
+    ...typed,
+    invalid: !typed.unsupported && !typed.range
+  };
+  const legacy = enclosing ? occurrence?.enclosingRange : occurrence?.range;
+  if (!Array.isArray(legacy) || legacy.length === 0) {
+    return { range: null, unsupported: false, invalid: !enclosing };
+  }
+  if (legacy.length !== 3 && legacy.length !== 4) {
+    return { range: null, unsupported: true, invalid: false };
+  }
+  const range = parseLegacyRange(legacy);
+  return { range, unsupported: false, invalid: !range };
+}
+
+function wholeLineRange(range) {
+  if (!range) return null;
+  const startLine = range.startLine + 1;
+  const producerLastLine = range.endLine + (range.endChar === 0 ? 0 : 1);
+  return { start_line: startLine, end_line: Math.max(startLine, producerLastLine) };
+}
+
+function firstRangeLine(occurrence) {
+  return wholeLineRange(parseOccurrenceRange(occurrence).range)?.start_line ?? null;
+}
+
+function symbolKey(indexer, relativePath, symbol) {
+  return JSON.stringify(
+    parseScipSymbol(symbol).local ? [indexer, relativePath, symbol] : [indexer, symbol]
+  );
 }
 
 function comparePosition(aLine, aChar, bLine, bChar) {
@@ -196,14 +177,14 @@ function scopeContainsRange(scope, range) {
 function buildScopeIndex(occurrences) {
   const scopes = [];
   for (const occurrence of occurrences) {
-    if (!hasDefinitionRole(occurrence?.symbol_roles)) {
+    if (!hasDefinitionRole(occurrence?.symbolRoles)) {
       continue;
     }
     const symbol = occurrence?.symbol;
     if (typeof symbol !== "string" || symbol.length === 0) {
       continue;
     }
-    const enclosing = parseScipRange(occurrence.enclosing_range);
+    const enclosing = parseOccurrenceRange(occurrence, true).range;
     if (!enclosing) {
       continue;
     }
@@ -243,10 +224,10 @@ export function normalizeScipIndex(decodedIndex, {
     throw new TypeError("normalizeScipIndex requires a decoded .scip Index object");
   }
   const documents = Array.isArray(decodedIndex.documents) ? decodedIndex.documents : [];
-  const externalSymbols = Array.isArray(decodedIndex.external_symbols)
-    ? decodedIndex.external_symbols
+  const externalSymbols = Array.isArray(decodedIndex.externalSymbols)
+    ? decodedIndex.externalSymbols
     : [];
-  const toolInfo = decodedIndex.metadata?.tool_info ?? {};
+  const toolInfo = decodedIndex.metadata?.toolInfo ?? {};
   const descriptor =
     providerDescriptor ||
     createScipProviderDescriptor({
@@ -264,7 +245,7 @@ export function normalizeScipIndex(decodedIndex, {
   let definitionOccurrenceCount = 0;
   let enclosingRangeDefinitionCount = 0;
   for (const document of documents) {
-    const relativePath = document?.relative_path;
+    const relativePath = document?.relativePath;
     if (typeof relativePath !== "string") {
       continue;
     }
@@ -276,16 +257,16 @@ export function normalizeScipIndex(decodedIndex, {
       if (typeof symbol !== "string" || symbol.length === 0) {
         continue;
       }
-      if (hasDefinitionRole(occurrence.symbol_roles)) {
+      if (hasDefinitionRole(occurrence.symbolRoles)) {
         definitionOccurrenceCount += 1;
-        if (parseScipRange(occurrence.enclosing_range)) {
+        if (parseOccurrenceRange(occurrence, true).range) {
           enclosingRangeDefinitionCount += 1;
         }
       }
       if (parseScipSymbol(symbol).local) {
         continue;
       }
-      if (hasDefinitionRole(occurrence.symbol_roles)) {
+      if (hasDefinitionRole(occurrence.symbolRoles)) {
         definedSymbols.add(symbol);
       }
     }
@@ -296,14 +277,14 @@ export function normalizeScipIndex(decodedIndex, {
   const displayNames = new Map();
   for (const document of documents) {
     for (const info of document?.symbols || []) {
-      if (typeof info?.symbol === "string" && typeof info.display_name === "string") {
-        displayNames.set(info.symbol, info.display_name);
+      if (typeof info?.symbol === "string" && typeof info.displayName === "string") {
+        displayNames.set(info.symbol, info.displayName);
       }
     }
   }
   for (const info of externalSymbols) {
-    if (typeof info?.symbol === "string" && typeof info.display_name === "string" && !displayNames.has(info.symbol)) {
-      displayNames.set(info.symbol, info.display_name);
+    if (typeof info?.symbol === "string" && typeof info.displayName === "string" && !displayNames.has(info.symbol)) {
+      displayNames.set(info.symbol, info.displayName);
     }
   }
 
@@ -311,11 +292,12 @@ export function normalizeScipIndex(decodedIndex, {
   const edges = new Map();
   const uncoveredDocuments = [];
   const coveredPaths = [];
+  const symbolOccurrences = [];
 
   const callEdges = new Map();
   let unattributedReferenceCount = 0;
   function attributeCall(scopeIndex, occurrence, calleeSymbol, relativePath, line) {
-    const referenceRange = parseScipRange(occurrence?.range);
+    const referenceRange = parseOccurrenceRange(occurrence).range;
     const scope = referenceRange ? innermostContainingScope(scopeIndex, referenceRange) : null;
     if (!scope || scope.local) {
 
@@ -342,7 +324,11 @@ export function normalizeScipIndex(decodedIndex, {
     definition_count: 0,
     reference_count: 0,
     local_symbol_count: 0,
-    empty_symbol_count: 0
+    empty_symbol_count: 0,
+    invalid_range_count: 0,
+    unsupported_range_count: 0,
+    invalid_enclosing_range_count: 0,
+    unsupported_enclosing_range_count: 0
   };
 
   function resolutionFor(symbol) {
@@ -400,7 +386,7 @@ export function normalizeScipIndex(decodedIndex, {
   }
 
   for (const document of documents) {
-    const relativePath = document?.relative_path;
+    const relativePath = document?.relativePath;
     if (typeof relativePath !== "string" || relativePath.length === 0) {
       continue;
     }
@@ -414,8 +400,14 @@ export function normalizeScipIndex(decodedIndex, {
     coveredPaths.push(relativePath);
 
     const scopeIndex = callGraphAvailable ? buildScopeIndex(document.occurrences || []) : [];
+    const localDefinitions = new Set(
+      (document.occurrences || [])
+        .filter((occurrence) => hasDefinitionRole(occurrence?.symbolRoles))
+        .map((occurrence) => occurrence?.symbol)
+        .filter((symbol) => parseScipSymbol(symbol).local)
+    );
 
-    for (const occurrence of document.occurrences || []) {
+    for (const [producerOrder, occurrence] of (document.occurrences || []).entries()) {
       counts.occurrence_count += 1;
       const symbol = occurrence?.symbol;
       if (typeof symbol !== "string" || symbol.length === 0) {
@@ -423,6 +415,36 @@ export function normalizeScipIndex(decodedIndex, {
         continue;
       }
       const parsed = parseScipSymbol(symbol);
+      const parsedRange = parseOccurrenceRange(occurrence);
+      const parsedEnclosingRange = parseOccurrenceRange(occurrence, true);
+      if (parsedRange.unsupported) counts.unsupported_range_count += 1;
+      else if (parsedRange.invalid) counts.invalid_range_count += 1;
+      if (parsedEnclosingRange.unsupported) counts.unsupported_enclosing_range_count += 1;
+      else if (
+        (Array.isArray(occurrence.enclosingRange) && occurrence.enclosingRange.length > 0) ||
+        occurrence.typedEnclosingRange?.case !== undefined
+      ) {
+        if (parsedEnclosingRange.invalid) counts.invalid_enclosing_range_count += 1;
+      }
+      const sourceRange = wholeLineRange(parsedRange.range);
+      if (sourceRange) {
+        const localResolution = parsed.local
+          ? localDefinitions.has(symbol)
+            ? { state: "resolved", dynamic_boundary: false }
+            : { state: "unresolved", dynamic_boundary: false, unresolved_reason: "missing_local_definition" }
+          : resolutionFor(symbol);
+        symbolOccurrences.push({
+          indexer,
+          path: relativePath,
+          symbol,
+          symbol_key: symbolKey(indexer, relativePath, symbol),
+          symbol_roles: Number(occurrence.symbolRoles || 0),
+          range: sourceRange,
+          enclosing_range: wholeLineRange(parsedEnclosingRange.range),
+          resolution: localResolution,
+          producer_order: producerOrder
+        });
+      }
       if (parsed.local) {
 
         counts.local_symbol_count += 1;
@@ -430,7 +452,7 @@ export function normalizeScipIndex(decodedIndex, {
       }
       const line = firstRangeLine(occurrence);
       ensureSymbolNode(symbol, parsed);
-      if (hasDefinitionRole(occurrence.symbol_roles)) {
+      if (hasDefinitionRole(occurrence.symbolRoles)) {
         counts.definition_count += 1;
         addSymbolEdge("defines_symbol", relativePath, symbol, line);
       } else {
@@ -468,6 +490,16 @@ export function normalizeScipIndex(decodedIndex, {
 
   const graphNodes = [...nodes.values()].sort((left, right) => left.id.localeCompare(right.id));
   const graphEdges = [...edges.values()].sort((left, right) => left.id.localeCompare(right.id));
+  const orderedOccurrences = symbolOccurrences
+    .sort((left, right) =>
+      left.indexer.localeCompare(right.indexer) ||
+      left.path.localeCompare(right.path) ||
+      left.range.start_line - right.range.start_line ||
+      left.range.end_line - right.range.end_line ||
+      left.symbol_key.localeCompare(right.symbol_key) ||
+      left.symbol_roles - right.symbol_roles ||
+      left.producer_order - right.producer_order)
+    .map(({ producer_order: _producerOrder, ...occurrence }) => occurrence);
 
   let resolvedSymbolCount = 0;
   let unresolvedSymbolCount = 0;
@@ -489,6 +521,7 @@ export function normalizeScipIndex(decodedIndex, {
     graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
     graph_nodes: graphNodes,
     graph_edges: graphEdges,
+    symbol_occurrences: orderedOccurrences,
     provider_descriptor: descriptor,
 
     call_graph_available: callGraphAvailable,

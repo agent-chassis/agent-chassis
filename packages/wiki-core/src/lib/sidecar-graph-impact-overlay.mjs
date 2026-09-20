@@ -5,7 +5,6 @@ import {
   SIDECAR_GRAPH_SCHEMA_VERSION,
   createSidecarGraphState
 } from "./sidecar-graph-schema.mjs";
-import { classifyReadSidecarGraphArtifact } from "./sidecar-graph-impact-artifact.mjs";
 import { extractSidecarGraph } from "./sidecar-graph-extractors.mjs";
 import { filterSidecarSourcePaths } from "./sidecar-paths.mjs";
 import { runSidecarGit } from "./sidecar-status.mjs";
@@ -284,19 +283,16 @@ function dedupeUnavailable(entries) {
   );
 }
 
-export function selectGraph({ status, artifact, overlay }) {
+export function selectGraph({ baseGraph, overlay }) {
   if (overlay.graph) {
-    return mergeBaseAndOverlayGraph({ artifact, overlay });
+    return mergeBaseAndOverlayGraph({ baseGraph, overlay });
   }
 
-  return classifyBaseGraphSelection({ artifact });
+  return classifyBaseGraphSelection({ baseGraph });
 }
 
-function mergeBaseAndOverlayGraph({ artifact, overlay }) {
+function mergeBaseAndOverlayGraph({ baseGraph, overlay }) {
   const overlayGraph = overlay.graph;
-  const classified = artifact ? classifyReadSidecarGraphArtifact(artifact) : null;
-  const baseGraph =
-    classified?.compatible && classified.graph_state.graph_available ? artifact.graph : null;
 
   const graphState = createSidecarGraphState({
     graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
@@ -406,24 +402,26 @@ function mergeGraphByFilePrecedence({ baseGraph, overlayGraph, overlay }) {
   };
 }
 
-function classifyBaseGraphSelection({ artifact }) {
-  const classified = artifact ? classifyReadSidecarGraphArtifact(artifact) : null;
-
-  if (!classified?.compatible || !classified.graph_state.graph_available) {
+function classifyBaseGraphSelection({ baseGraph }) {
+  if (!baseGraph || baseGraph.graph_schema_version !== SIDECAR_GRAPH_SCHEMA_VERSION) {
     return {
       graph: null,
-      graphState: classified?.graph_state || createSidecarGraphState({}),
-      reason: classified?.graph_state?.status_reason || "graph_unavailable"
+      graphState: createSidecarGraphState({}),
+      reason: "graph_unavailable"
     };
   }
 
   return {
-    graph: artifact.graph,
+    graph: baseGraph,
     graphState: {
-      ...classified.graph_state,
+      ...createSidecarGraphState({
+        graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
+        graph_available: true,
+        status_reason: "graph_store_available"
+      }),
       edge_source: "base_index",
       dirty_graph_mode: "base_index_only",
-      unavailable_paths: classified.graph_state.unavailable_paths || []
+      unavailable_paths: []
     },
     reason: "base_graph_available"
   };

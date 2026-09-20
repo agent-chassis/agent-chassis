@@ -1,3 +1,4 @@
+import { RUNTIME_BLOCKER_DESCRIPTOR } from './runtime-blocker-taxonomy.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -166,7 +167,7 @@ function loadInitiativeStatusTaxonomyFromDisk() {
     ? raw.action_kinds.map((entry) => normalizeActionKindEntry(entry, reasonCodeEntriesByAction)).filter(Boolean)
     : [];
   const runtimeBlockerPath = RUNTIME_BLOCKER_TAXONOMY_PATH;
-  const runtimeBlockerRaw = readJsonFile(runtimeBlockerPath);
+  const runtimeBlockerRaw = RUNTIME_BLOCKER_DESCRIPTOR;
   const runtimeBlockerCodes = normalizeRuntimeBlockerTaxonomy(runtimeBlockerRaw);
   const localReasonCodeStrings = localReasonCodeEntries.map((entry) => entry.code);
   const reasonCodeByDefaultAction = Object.fromEntries(
@@ -651,7 +652,7 @@ function makeDispatchValidationAction(taxonomy, selection, overrides = {}) {
     priority: 'high',
     blocking: false,
     reason_code: 'record_needs_validation',
-    summary: 'Validate dispatch readiness for this unit.',
+    summary: 'Optionally assess dispatch readiness for this unit; the assessment grants no launch permission.',
     ...overrides,
   });
 }
@@ -747,7 +748,7 @@ function deriveActionForSelection(taxonomy, selection, { initiativeMismatch = fa
     const dispatchIntent = getDispatchIntent(selection.entry);
     if (dispatchIntent && asNonEmptyString(dispatchIntent.target_unit) && dispatchIntent.target_unit !== 'none') {
       return makeDispatchValidationAction(taxonomy, selection, {
-        summary: 'Validate dispatch readiness before launching the selected unit.',
+        summary: 'Readiness assessment for the selected unit is optional; starting it goes to dispatch, which checks current facts itself.',
       });
     }
 

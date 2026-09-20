@@ -11,8 +11,7 @@
     "guarantee",
     "guarantee_digest",
     "explicit_exclusions",
-    "certification",
-    "exact_binding"
+    "certification"
   ],
   "properties": {
     "schema_version": { "const": "controlled-contract-admitted-proof-pack.v2" },
@@ -77,50 +76,6 @@
           }
         }
       ]
-    },
-    "exact_binding": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "declaration_digest",
-        "certification_result_digest",
-        "executable_control_count",
-        "binding_kinds",
-        "relation_operators",
-        "corpus_id",
-        "corpus_version",
-        "corpus_digest",
-        "passed_control_ids"
-      ],
-      "properties": {
-        "declaration_digest": { "$ref": "#/$defs/sha256" },
-        "certification_result_digest": { "$ref": "#/$defs/sha256" },
-        "executable_control_count": { "type": "integer", "minimum": 1 },
-        "binding_kinds": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": { "enum": [
-            "artifact_bytes",
-            "complete_reachability_snapshot",
-            "observed_execution_mutation_snapshot"
-          ] }
-        },
-        "relation_operators": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": { "enum": ["same_content_sha256", "distinct_content_sha256", "distinct_capture_id", "distinct_source_descriptor", "deterministic_projection"] }
-        },
-        "corpus_id": { "$ref": "#/$defs/id" },
-        "corpus_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
-        "corpus_digest": { "$ref": "#/$defs/sha256" },
-        "passed_control_ids": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": { "$ref": "#/$defs/id" }
-        }
-      }
     }
   },
   "$defs": {

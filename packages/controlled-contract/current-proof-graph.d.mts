@@ -98,6 +98,21 @@ export interface ProofGraphCrossCarrierBinding {
   evaluation_input_pointers: string[];
 }
 
+/**
+ * One resolved explicit claim-pattern binding. `claim_id` is joined to the
+ * PROSPECTIVE contract, so a claim authored in the same proposal resolves;
+ * whether `pattern_id` exists and permits an explicit binding is decided by the
+ * selected pack's own evaluator, not by composition.
+ */
+export interface ProofGraphClaimPatternBinding {
+  pattern_id: string | null;
+  claim_id: string;
+  claim_kind: string | null;
+  modality: string | null;
+  contract_pointer: string;
+  evaluation_input_pointer: string;
+}
+
 export interface ProofGraphUnresolvedPointer {
   carrier_kind: ControlledContractCarrierKind | null;
   pointer: string;
@@ -116,7 +131,7 @@ export interface ControlledProofGraphCompositionResult {
   contract_content_digest: string;
   proposal_operation_count: number;
   proposal_projection_bytes: number;
-  permitted_cross_carrier_join: Readonly<Record<string, string>>;
+  permitted_cross_carrier_joins: ReadonlyArray<Readonly<Record<string, string>>>;
   counts: Readonly<Record<string, number>>;
   carriers: ProofGraphProspectiveCarrier[];
   manifest_inputs: Array<{
@@ -126,6 +141,7 @@ export interface ControlledProofGraphCompositionResult {
     byte_length: number;
   }>;
   cross_carrier_bindings: ProofGraphCrossCarrierBinding[];
+  claim_pattern_bindings: ProofGraphClaimPatternBinding[];
   delegated_validations: string[];
   proof_plan_digest: string | null;
   /**
@@ -158,6 +174,10 @@ export const PROOF_GRAPH_CARRIER_ORDER:
   readonly ControlledContractCarrierKind[];
 export const PROOF_GRAPH_PERMITTED_CROSS_CARRIER_JOIN:
   Readonly<Record<string, string>>;
+export const PROOF_GRAPH_PERMITTED_CLAIM_PATTERN_JOIN:
+  Readonly<Record<string, string>>;
+export const PROOF_GRAPH_PERMITTED_CROSS_CARRIER_JOINS:
+  ReadonlyArray<Readonly<Record<string, string>>>;
 export const PROOF_GRAPH_FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS:
   Readonly<Record<string, string>>;
 export class ProofGraphCompositionError extends Error {

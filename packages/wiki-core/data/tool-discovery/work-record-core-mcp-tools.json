@@ -3,9 +3,145 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "work-record-core-mcp-tools.json",
-  "summary": "MCP work-record inbox allocation, validate, staleness-check, status, task, closure, and summary routes.",
-  "tool_count": 7,
+  "summary": "MCP work-record inbox allocation, entry save/read, validate, staleness-check, status, closure, and summary routes.",
+  "tool_count": 8,
   "tools": [
+    {
+      "tool_name": "workspace_work_record_entry_upsert",
+      "display_name": "Upsert work-record entry",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_entry_upsert",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/work-record-schema.md",
+        "docs/work-record-persistence.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/work-record-entries.mjs",
+        "packages/wiki-core/src/lib/work-record-entry-material.mjs",
+        "packages/wiki-mcp/src/lib/work-record-entry-tools.mjs"
+      ],
+      "notes": "Creates a nonempty durable entry or publishes a new immutable version under the required current source digest. A reusable source ref from completed managed findings captures exact original advisory text plus run/value provenance under incumbent monitoring authorization; it grants no attestation or authority. Success is compact; uncertain publication is reconciled through canonical reads.",
+      "use_when": [
+        "work_record_mutation"
+      ],
+      "do_not_use_when": [
+        "ordinary prose edit"
+      ],
+      "authoritative_for": [
+        "durable work-record entry mutation"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "work_record_mutation"
+        ],
+        "operation": "entry_upsert",
+        "arguments": {
+          "unit": "$unit_if_known",
+          "title": "$title_if_known",
+          "content": {
+            "text": "$text_if_known"
+          },
+          "expected_source_digest": "$current_source_digest"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": [
+        "unit",
+        "current source digest",
+        "create content"
+      ],
+      "replacement_for_misuse": [
+        {
+          "misuse_code": "read_only_context",
+          "routing_intent": "selected_work_record_context",
+          "use_instead": "workspace_work_record_entry_read"
+        }
+      ]
+    },
+    {
+      "tool_name": "workspace_work_record_entry_read",
+      "display_name": "Read work-record entry",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_work_record_entry_read",
+      "task_ids": [
+        "summarize-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/work-record-schema.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/work-record-entries.mjs",
+        "packages/wiki-mcp/src/lib/work-record-entry-tools.mjs"
+      ],
+      "notes": "Returns bounded entry and history metadata pages by default; immutable bodies, reusable references and exact selections only when requested. Every result carries the record source_digest, usable for CAS; returned calls pin version, offsets and that digest. Default pages target 2,048 bytes; an explicit body length up to 8,192 scalars returns the largest exact range fitting one 8,192-byte result. This route owns the entry read grammar; workspace_read_page reaches the same owner through entry:{...} and re-addresses the emitted calls to itself.",
+      "use_when": [
+        "selected_work_record_context"
+      ],
+      "do_not_use_when": [
+        "work-record mutation"
+      ],
+      "authoritative_for": [
+        "durable work-record entry reads"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "selected_work_record_context"
+        ],
+        "operation": "entry_read",
+        "arguments": {
+          "unit": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      },
+      "requires_prior_state": [
+        "unit"
+      ],
+      "replacement_for_misuse": []
+    },
     {
       "tool_name": "workspace_create_record",
       "display_name": "Workspace create record",
@@ -47,7 +183,7 @@
         "packages/wiki-mcp/src/server.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Trusted MCP create route for allocator-backed canonical wiki records (issue, initiative, decision, source, area) in a configured workspace repo. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots. CLI fallback `npm run wiki -- create <type> <title>` is operator-only, and the raw create_record tool with a caller-supplied `dir` is not the agent-safe path.",
+      "notes": "Sole general allocator-backed creation route. Creates a bare inbox WK with no proof_posture and returns an obligation-coverage query, then upsert, as the authoring path for requirements and controlled-acceptance disposition. It accepts no birth-time contract, proof plan or posture, slice, readiness, lifecycle state, or filesystem root. CLI fallback is operator-only.",
       "use_when": [
         "work_record_mutation",
         "mutation_operation=create"
@@ -125,7 +261,23 @@
         "packages/wiki-core/src/operations/work-records.mjs",
         "packages/wiki-core/src/lib/work-record-schema.mjs"
       ],
-      "notes": "Preferred MCP work-record validation surface; read-only, returns structured diagnostics for a canonical JSON work record without writing generated views, caches, or records. Compact default returns the validation result and bounded diagnostics only; if the CLI fallback is used, it stays diagnostic-focused rather than surfacing a full record body."
+      "notes": "Preferred MCP work-record validation surface; read-only, returns structured diagnostics for a canonical JSON work record without writing generated views, caches, or records. Compact default returns the validation result and bounded diagnostics only; if the CLI fallback is used, it stays diagnostic-focused rather than surfacing a full record body.",
+      "use_when": [
+        "Check the structural validity of one known canonical work record."
+      ],
+      "do_not_use_when": [
+        "The task needs that record's content, or permission to launch or transition it."
+      ],
+      "authoritative_for": [
+        "work-record structural diagnostics"
+      ],
+      "recommended_first_call": {
+        "operation": "workspace_work_record_validate",
+        "arguments": {
+          "id": "$work_record_id"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_record_staleness_check",
@@ -166,7 +318,7 @@
         "packages/wiki-mcp/src/server.mjs",
         "packages/wiki-core/src/operations/work-records-store-io.mjs"
       ],
-      "notes": "Read-only comparison route over source_digest values reads already return. Takes a bounded array of {id, observed_source_digest} entries for canonical WK-#### work records and resolves each to exactly one of four states: unchanged, changed (carrying current_source_digest so a later check can be re-keyed without a second read), absent (the load reports missing_json_record), or unreadable (present but yielding no usable digest, carrying the loader's diagnostic codes). absent and unreadable stay distinct and neither collapses into changed. It adds no provenance mechanism, no second digest computation, and no tracking: every digest and absence fact comes from the canonical work-record loader. The response uses the repository's bounded-response vocabulary (total_count, returned_count, has_more) and adds unchecked_ids naming every submitted identity that was not resolved, so a truncated answer never reads as a complete one. Digests are the raw sha256:<hex> value, never a compact_read_token, whose embedded issue/expiry times cannot separate an expired token from a changed record.",
+      "notes": "Read-only comparison of source_digest values that earlier reads returned, for up to 100 {id, observed_source_digest} entries naming canonical WK-#### records. Each resolves to unchanged, changed (with current_source_digest), absent (missing_json_record), or unreadable (with loader diagnostic codes); absent and unreadable never collapse into changed. total_count, returned_count, and has_more bound the answer, and unchecked_ids names every unresolved identity. Use the raw sha256:<hex> digest. It returns no content and replaces neither fresh reads nor write CAS.",
       "use_when": [
         "session holds source_digest values from earlier reads and needs to know whether those reads are still current",
         "long-running session must detect a mid-session canonical work-record change before acting on stale context"
@@ -176,7 +328,22 @@
         "a record is being re-read",
         "write precondition enforcement (use the CAS expected_source_digest precondition instead)",
         "no source_digest from a prior read is held"
-      ]
+      ],
+      "authoritative_for": [
+        "WK source_digest staleness comparison"
+      ],
+      "recommended_first_call": {
+        "operation": "compare observed WK source digests",
+        "arguments": {
+          "entries": [
+            {
+              "id": "$work_record_id",
+              "observed_source_digest": "$observed_source_digest"
+            }
+          ]
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_work_record_set_status",
@@ -215,9 +382,10 @@
       ],
       "source_files": [
         "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-core/src/operations/work-records.mjs"
+        "packages/wiki-core/src/operations/work-records.mjs",
+        "packages/wiki-mcp/src/lib/work-record-write-tools.mjs"
       ],
-      "notes": "Agent-safe MCP route for trusted record- or slice-level status updates on a configured workspace repository. Resolves the repository through configured aliases and writes through the validated work-record path; the MCP boundary rejects caller-supplied filesystem roots, policy carriers, raw JSON patches, and unsupported fields. A transition to review or done attaches an advisory closeout_lint summary plus a cleanly_closeable flag — advisory, not a hard refusal: a red lint means the unit is not cleanly closeable until fixed or recorded as a pre-existing blocker.",
+      "notes": "Agent-safe MCP route for record- or slice-level status updates on a configured workspace repository through validated persistence; caller filesystem roots, policy carriers, raw JSON patches, and unsupported fields refuse. A malformed or stale expected_source_digest refuses before the request is classified. Under DEC-0177 an ordinary done is not refused for completion_policy forge_confirmed_merge, and supplies no forge merge evidence. A completion that also records authored closure is one call to workspace_work_record_set_closure with status done. A transition to review or done that changes canonical bytes runs the generated-view and lint checks once, through generateAndLint as the sole executor, reporting a failing check as failing and an unavailable one as not run with its cause, neither as a rollback. A request that changed nothing reports no_canonical_mutation and runs none.",
       "use_when": [
         "work_record_mutation",
         "mutation_operation=status"
@@ -244,75 +412,6 @@
           "misuse_code": "ignored_required_next_action",
           "routing_intent": "work_record_mutation",
           "use_instead": "workspace_work_record_set_status"
-        }
-      ]
-    },
-    {
-      "tool_name": "workspace_work_record_set_task",
-      "display_name": "Workspace work-record set task",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_work_record_set_task",
-      "task_ids": [
-        "set-closure"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 113,
-      "side_effects": [
-        "workspace_write",
-        "record_write"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo",
-        "work_record"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/mcp-integration.md",
-        "docs/work-record-ontology.md",
-        "packages/wiki-core/contract/schema.md",
-        "docs/operating-model.md"
-      ],
-      "source_files": [
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-core/src/operations/work-records.mjs"
-      ],
-      "notes": "Agent-safe MCP route for trusted record- or slice-level task completion on a configured workspace repository. Resolves the repository through configured aliases and writes through the validated work-record path; the MCP boundary rejects caller-supplied filesystem roots, policy carriers, raw JSON patches, and unsupported fields. Output is the compact edit envelope, not the full record.",
-      "use_when": [
-        "work_record_mutation",
-        "mutation_operation=task"
-      ],
-      "do_not_use_when": [
-        "read-only context",
-        "different mutation route"
-      ],
-      "authoritative_for": [
-        "task work-record mutations"
-      ],
-      "recommended_first_call": {
-        "routing_intents": [
-          "work_record_mutation"
-        ],
-        "operation": "task"
-      },
-      "requires_prior_state": [
-        "unit",
-        "task selector/value"
-      ],
-      "replacement_for_misuse": [
-        {
-          "misuse_code": "ignored_required_next_action",
-          "routing_intent": "work_record_mutation",
-          "use_instead": "workspace_work_record_set_task"
         }
       ]
     },
@@ -358,9 +457,10 @@
         "packages/wiki-core/data/tool-discovery/work-record-core-mcp-tools.json",
         "packages/wiki-mcp/src/server.mjs",
         "packages/wiki-core/src/operations/work-records.mjs",
-        "packages/wiki-core/src/lib/work-record-schema.mjs"
+        "packages/wiki-core/src/lib/work-record-schema.mjs",
+        "packages/wiki-mcp/src/lib/work-record-write-tools.mjs"
       ],
-      "notes": "Write-capable agent-safe MCP route for closure updates on a WK or slice. Applies a structured patch over schema-owned closure fields (summary, validation, follow_ups) through the validated work-record path; rejects caller-supplied filesystem roots and refuses on an expected_source_digest mismatch. A successful write attaches an advisory closeout_lint summary plus a cleanly_closeable flag — advisory, not a hard refusal.",
+      "notes": "Write-capable agent-safe MCP route for closure updates on a WK or slice. Writes schema-owned closure fields (summary, validation, follow_ups) through validated persistence; caller filesystem roots refuse, as does a malformed or stale expected_source_digest, answered before the request is classified. The explicit optional status done composes authored closure and that transition into one validated canonical write, or persists neither; omitted, closure is recorded without changing status. Completion is never inferred from prose; under DEC-0177 it is not refused for completion_policy forge_confirmed_merge. A mutation that changes canonical bytes runs the generated-view and lint checks once through generateAndLint, reporting a failing check as failing and an unavailable one as not run with its cause, never as a rollback. An unchanged request runs none.",
       "use_when": [
         "work_record_mutation",
         "mutation_operation=closure"
@@ -370,7 +470,8 @@
         "different mutation route"
       ],
       "authoritative_for": [
-        "closure work-record mutations"
+        "closure work-record mutations",
+        "one-call closure and requested final status composition"
       ],
       "recommended_first_call": {
         "routing_intents": [
@@ -431,10 +532,14 @@
       ],
       "source_files": [
         "packages/wiki-core/src/lib/work-record-summary.mjs",
+        "packages/wiki-core/src/lib/work-record-entry-content.mjs",
+        "packages/wiki-core/src/lib/work-record-entry-schema.mjs",
+        "packages/wiki-core/src/lib/work-record-ordinary-field-read.mjs",
         "packages/wiki-core/src/operations/work-record-summary.mjs",
+        "packages/wiki-mcp/src/lib/work-record-ordinary-field-read.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Compact read-only work-record summary for a selected WK or slice. Record-level default output is compact-first: it carries dependencies, review_state, blockers, terminal_review_designation and omission counts, but NOT write_scope, acceptance or validation. Three bounded routes reach what it withholds: unit=<WK-ID>#<slice-id> for one slice, selected_record:true for write_scope, acceptance and validation, and slice_offset/slice_limit/slice_status to page through withheld slices, each page carrying the digest to pass back so a record edited mid-enumeration is reported rather than stitched. None is an expensive option or needs a token first; expensive full or debug reads of large trackers stay refused unless narrowed or acknowledged. Findings rows carry review_purpose: reviewer omission defaults to standalone, explicit redteam standalone is projected, omitted redteam stays absent; non-findings omit it. Record-level output also carries terminal_review_designation: a state of missing, designated, ambiguous or not_applicable plus the exact eligible_count, adding unit_id only when exactly one unit is eligible. Both are advisory and non-authorizing.",
+      "notes": "Compact read-only summary for a selected WK or slice. Default output is lean: ok, unit, actual status, a bounded title summary, and at most three role-callable next calls. details:{offset,limit} (default 3, maximum 5) lists live role-visible selected routes. ordinary_field selects root/slice summary, why_it_matters, agent_notes, or one task's text as exact references; reference_only omits bodies, literal selection returns before/match/after references, and text pages default to 512 and cap at 1024 Unicode scalars. member:{path} with id or unit=<WK-ID>#<slice-id> pages one field or exact string range, selected_record:true returns write_scope, acceptance, and validation, and slice_offset/slice_limit/slice_status page slices; returned pages pin source_digest. No whole-record mode. References, review_purpose, and terminal_review_designation are advisory, descriptive, fact-only, and non-authorizing.",
       "use_when": [
         "selected_work_record_context",
         "selected_slice_detail"

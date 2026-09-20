@@ -1,7 +1,7 @@
 
 
 import { readFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,8 +17,6 @@ const DEFAULT_DESCRIPTOR_PATH = path.join(
   "../../data",
   RUNTIME_BLOCKER_TAXONOMY_DESCRIPTOR_FILENAME
 );
-
-const RAW_DESCRIPTOR = JSON.parse(readFileSync(DEFAULT_DESCRIPTOR_PATH, "utf8"));
 
 const RUNTIME_BLOCKER_ENTRY_KEYS = new Set([
   "code",
@@ -478,6 +476,11 @@ export function assertRuntimeBlockerDescriptorShape(descriptor) {
       "runtime blocker taxonomy descriptor wk_0532_bootstrap_subset must be a unique non-empty string array"
     );
   }
+  for (const code of descriptor.wk_0532_bootstrap_subset) {
+    if (!seenCodes.has(code)) throw new Error(`bootstrap subset names unregistered code ${code}`);
+  }
+  const enumKeys = descriptor.codes.map(entry => toEnumKey(entry.code));
+  if (new Set(enumKeys).size !== enumKeys.length) throw new Error("conflicting taxonomy enum identities");
   assertPackageLocalIdentityNamespaces(descriptor, seenCodes);
   assertPrivateCauseDeclarations(descriptor, seenCodes);
   assertNonRegistrableAuthorityIdentities(descriptor, seenCodes);
@@ -485,11 +488,44 @@ export function assertRuntimeBlockerDescriptorShape(descriptor) {
   return descriptor;
 }
 
-function assertDescriptorShape(descriptor) {
-  return assertRuntimeBlockerDescriptorShape(descriptor);
+export function loadRuntimeBlockerDescriptor({
+  descriptorPath = DEFAULT_DESCRIPTOR_PATH,
+  read = readFileSync,
+  realpath = realpathSync
+} = {}) {
+  const manifest = JSON.parse(read(descriptorPath, "utf8"));
+  if (!isPlainObject(manifest)) throw new Error("taxonomy manifest must be an object");
+  for (const key of Object.keys(manifest)) {
+    if (key === "codes" || (!RUNTIME_BLOCKER_DESCRIPTOR_KEYS.has(key) && key !== "code_shards")) {
+      throw new Error(`taxonomy manifest declares invalid field ${key}`);
+    }
+  }
+  if (!isUniqueNonEmptyStringArray(manifest.code_shards) || manifest.code_shards.length === 0) {
+    throw new Error("taxonomy manifest requires unique code_shards");
+  }
+  const root = realpath(path.dirname(descriptorPath));
+  const codes = [];
+  for (const name of manifest.code_shards) {
+    if (!/^runtime-blocker-codes\/[a-z][a-z0-9-]*\.v1\.json$/u.test(name)) {
+      throw new Error(`taxonomy shard name is not confined: ${name}`);
+    }
+    const file = realpath(path.join(root, name));
+    if (path.relative(root, file).startsWith("..") || path.isAbsolute(path.relative(root, file))) {
+      throw new Error(`taxonomy shard escapes data directory: ${name}`);
+    }
+    const shard = JSON.parse(read(file, "utf8"));
+    if (!isPlainObject(shard) || shard.schema_version !== "runtime-blocker-code-shard.v1" ||
+        Object.keys(shard).some(key => !["schema_version", "codes"].includes(key)) ||
+        !Array.isArray(shard.codes) || shard.codes.length === 0) {
+      throw new Error(`invalid taxonomy shard: ${name}`);
+    }
+    codes.push(...shard.codes);
+  }
+  const { code_shards, ...metadata } = manifest;
+  return assertRuntimeBlockerDescriptorShape({ ...metadata, codes });
 }
 
-assertDescriptorShape(RAW_DESCRIPTOR);
+const RAW_DESCRIPTOR = loadRuntimeBlockerDescriptor();
 
 function freezeDeep(value) {
   if (Array.isArray(value)) {

@@ -1,227 +1,141 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import {
-  SidecarBuildRefusalError,
+  SidecarIndexEnsureError,
   buildSidecarIndex,
   getSidecarContextForPath,
-  getSidecarGraphImpactDiff,
-  getSidecarImpactPaths,
-  getSidecarIndexStatus
+  getSidecarIndexStatus,
+  getSidecarQueryImpact
 } from "@agent-chassis/wiki-core";
-import { getSidecarGraphImpactPaths } from "@agent-chassis/wiki-core/src/lib/sidecar-graph-impact.mjs";
 import {
   getSidecarSymbolCallers,
   getSidecarSymbolCallees,
   getSidecarSymbolDefinition,
   getSidecarSymbolReferences
 } from "@agent-chassis/wiki-core/src/lib/sidecar-symbol-query.mjs";
-import { optionalOption, parseArgs, parseListOption, requireOption } from "../lib/cli.mjs";
+import { optionalOption, parseArgs } from "../lib/cli.mjs";
 
-function helpText(surfaceName = "sidecar") {
-  const label = surfaceName === "code-index" ? "repo code index" : "sidecar code index";
-  const graphCommand =
-    surfaceName === "code-index"
-      ? `  graph-impact-paths
-           Return graph-backed ${label} impact context for one or more paths
-  graph-impact-diff
-           Return graph-backed ${label} impact context for a raw, parsed, or live git diff
-  find-references
-           Return SCIP-derived references for a symbol or path+line position
-  definition
-           Return SCIP-derived definition target(s) for a symbol or path+line position
-  callers
-           Return SCIP-derived callers for a symbol or path+line position
-  callees
-           Return SCIP-derived callees for a symbol or path+line position
-`
-      : "";
-  const graphExample =
-    surfaceName === "code-index"
-      ? `  wiki ${surfaceName} graph-impact-paths --json --paths packages/app/src/service.mjs --dir /path/to/repo
-  wiki ${surfaceName} graph-impact-diff --json --live-git --dir /path/to/repo
-  wiki ${surfaceName} find-references --json --symbol "<scip-symbol>" --dir /path/to/repo
-  wiki ${surfaceName} definition --json --path packages/app/src/service.mjs --line 12 --dir /path/to/repo
-  wiki ${surfaceName} callers --json --symbol "<scip-symbol>" --dir /path/to/repo
-  wiki ${surfaceName} callees --json --path packages/app/src/service.mjs --line 12 --dir /path/to/repo
-`
-      : "";
-  return `Usage: wiki ${surfaceName} <command> [options]
+const HELP_TEXT = `Usage: wiki code-index <command> [options]
 
 Commands:
-  build    Explicitly build the ${label}
+  build    Prepare the repo code index now (queries refresh it automatically)
   context-for-path
-           Return scoped ${label} context for one path
-${graphCommand}  impact-paths
-           Return ${label} impact context for one or more paths
-  rebuild  Explicitly rebuild the ${label}
-  status   Report read-only ${label} status
+           Return committed repo code index context for one path
+  impact
+           Return committed impact for paths, a patch, parsed diff records or the live Git diff
+  find-references
+           Return SCIP references and definitions with committed source for a symbol or path+line
+  definition
+           Return SCIP definition target(s) with committed source for a symbol or path+line
+  callers
+           Return SCIP callers with committed call-site source for a symbol or path+line
+  callees
+           Return SCIP callees with committed call-site source for a symbol or path+line
+  rebuild  Force a clean rebuild of the repo code index
+  status   Report read-only repo code index status
+
+Query output: --json or --verbose prints the complete answer; plain output lists every population.
 
 Examples:
-  wiki ${surfaceName} build --json --dir /path/to/repo
-  wiki ${surfaceName} context-for-path --json --path packages/app/src/service.mjs --dir /path/to/repo
-${graphExample}  wiki ${surfaceName} impact-paths --json --paths packages/app/src/service.mjs --dir /path/to/repo
-  wiki ${surfaceName} rebuild --json --dir /path/to/repo
-  wiki ${surfaceName} status --json --dir /path/to/repo
+  wiki code-index build --json --dir /path/to/repo
+  wiki code-index context-for-path --json --path packages/app/src/service.mjs --dir /path/to/repo
+  wiki code-index impact --json --paths packages/app/src/service.mjs --dir /path/to/repo
+  wiki code-index impact --json --live-git --dir /path/to/repo
+  wiki code-index find-references --json --symbol "<scip-symbol>" --dir /path/to/repo
+  wiki code-index definition --json --path packages/app/src/service.mjs --line 12 --dir /path/to/repo
+  wiki code-index callers --json --symbol "<scip-symbol>" --dir /path/to/repo
+  wiki code-index callees --json --path packages/app/src/service.mjs --line 12 --dir /path/to/repo
+  wiki code-index rebuild --json --dir /path/to/repo
+  wiki code-index status --json --dir /path/to/repo
 `;
-}
 
-function printStatusSummary(status, { surfaceName = "sidecar" } = {}) {
-  const label = surfaceName === "code-index" ? "Code index" : "Sidecar";
-  console.log(`${label} status: ${status.staleness}`);
+function printStatusSummary(status) {
+  console.log(`Code index status: ${status.staleness}`);
   console.log(`Dirty state: ${status.dirty_state}`);
   console.log(`Cache path: ${status.cache_path}`);
   console.log(`Artifact path: ${status.artifact_path}`);
 }
 
-function printBuildSummary(result, { surfaceName = "sidecar" } = {}) {
-  const label = surfaceName === "code-index" ? "Code index" : "Sidecar";
-  console.log(`${label} ${result.build_action}: ${result.staleness}`);
+function printBuildSummary(result) {
+  console.log(`Code index ${result.build_action}: ${result.staleness}`);
   console.log(`Dirty state: ${result.dirty_state}`);
   console.log(`Cache path: ${result.cache_path}`);
   console.log(`Artifact path: ${result.artifact_path}`);
   console.log(`Indexed sources: ${result.source_count}`);
 }
 
-function printImpactSummary(result, { surfaceName = "sidecar" } = {}) {
-  const label = surfaceName === "code-index" ? "Code index" : "Sidecar";
-  console.log(`${label} ${result.query_kind}: ${result.staleness}`);
-  console.log(`Dirty state: ${result.dirty_state}`);
+const PLAIN_OBJECT_FIELDS = ["input", "impact_state", "source", "symbol_resolution", "scip_state",
+  "call_attribution", "graph_state", "counts"];
 
-  if (result.context_available === "compact" || result.context_available === "degraded") {
-    console.log(`Context available: ${result.context_available}`);
-    console.log(`Path: ${result.path || "(none)"}`);
-    if (typeof result.loc === "number") {
-      console.log(`LOC: ${result.loc}`);
-    }
-    console.log(`Canonical refs: ${result.canonical_ref_count ?? 0}`);
-    console.log(`Related code paths: ${result.related_code_path_count ?? 0}`);
-    console.log(`Likely tests: ${result.likely_test_count ?? 0}`);
-    if (result.next_action) {
-      console.log(`Next action: ${result.next_action}`);
-    }
+function printQueryResult(result, options) {
+  if (options.json || options.verbose) {
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
-
-  console.log(`Validated paths: ${(result.validated_paths || []).join(", ") || "(none)"}`);
-  console.log(`Canonical refs: ${(result.canonical_refs || []).length}`);
-  console.log(`Likely tests: ${(result.likely_tests || []).join(", ") || "(none)"}`);
-}
-
-function formatCanonicalRef(ref) {
-  return [ref.id, ref.title].filter(Boolean).join(" - ") || ref.path || "(unknown)";
-}
-
-function printGraphImpactSummary(result, { surfaceName = "code-index" } = {}) {
-  const label = surfaceName === "code-index" ? "Code index" : "Sidecar";
-  const graphState = result.graph_state || {};
-  const statusWarnings = result.derived_evidence.filter(
-    (entry) =>
-      entry.kind === "sidecar_status_hint" ||
-      (entry.kind === "sidecar_path_validation" && entry.valid === false) ||
-      entry.kind === "sidecar_graph_path_state"
-  );
-
-  console.log(`${label} ${result.query_kind}: ${result.staleness}`);
+  console.log(`Code index ${result.query_kind}: ${result.staleness}`);
   console.log(`Dirty state: ${result.dirty_state}`);
-  console.log(`Graph available: ${Boolean(graphState.graph_available)}`);
-  console.log(`Graph edge source: ${graphState.edge_source || "unavailable"}`);
-  console.log(`Dirty graph mode: ${graphState.dirty_graph_mode || "unavailable"}`);
-  console.log(`Validated paths: ${result.validated_paths.join(", ") || "(none)"}`);
-  console.log(`Invalid paths: ${result.invalid_paths.join(", ") || "(none)"}`);
-  console.log(
-    `Unavailable graph paths: ${(graphState.unavailable_paths || []).join(", ") || "(none)"}`
-  );
-  console.log(`Warnings: ${statusWarnings.length}`);
-  for (const warning of statusWarnings.slice(0, 10)) {
-    const subject = warning.input_path || warning.dimension || warning.kind;
-    const message = warning.message || warning.reason || warning.code || "warning";
-    console.log(`- ${subject}: ${message}`);
-  }
-  console.log(`Structural impacts: ${result.structural_impacts.length}`);
-  for (const impact of result.structural_impacts.slice(0, 10)) {
-    console.log(`- ${impact.kind} (${impact.severity}): ${impact.reason}`);
-  }
-  console.log(`Missing update hints: ${result.missing_update_hints.length}`);
-  for (const hint of result.missing_update_hints.slice(0, 10)) {
-    console.log(`- ${hint.kind} ${hint.missing_surface}: ${hint.reason}`);
-  }
-  console.log(`Canonical refs: ${result.canonical_refs.length}`);
-  for (const ref of result.canonical_refs.slice(0, 5)) {
-    console.log(`- ${formatCanonicalRef(ref)}`);
-  }
-}
-
-function printGraphImpactDiffSummary(result, { surfaceName = "code-index" } = {}) {
-  printGraphImpactSummary(result, { surfaceName });
-  console.log(`Diff sources: ${result.input_diff_sources.map((entry) => entry.source).join(", ") || "(none)"}`);
-  console.log(`Validated diff records: ${result.validated_diff_records.length}`);
-  console.log(`Invalid diff records: ${result.invalid_diff_records.length}`);
-  console.log(`Affected paths: ${result.affected_paths.join(", ") || "(none)"}`);
-  for (const state of result.graph_state?.diff_path_states?.slice(0, 10) || []) {
-    console.log(
-      `- ${state.change_kind}: old=${state.old_state} ${state.old_path || "(absent)"} new=${state.new_state} ${state.new_path || "(absent)"}`
-    );
-  }
-}
-
-function printSymbolQuerySummary(result, { surfaceName = "code-index" } = {}) {
-  const label = surfaceName === "code-index" ? "Code index" : "Sidecar";
-  const scipState = result.scip_state || {};
-  const isCallQuery = result.query_kind === "symbol_callers" || result.query_kind === "symbol_callees";
-  console.log(`${label} ${result.query_kind}: ${result.staleness}`);
-  console.log(`Dirty state: ${result.dirty_state}`);
-  console.log(`SCIP available: ${Boolean(scipState.scip_available)}`);
-  console.log(`SCIP graph available: ${Boolean(scipState.graph_available)}`);
-  console.log(`SCIP status: ${scipState.status_reason || "unknown"}`);
-  if (isCallQuery && Object.hasOwn(scipState, "call_graph_available")) {
-    console.log(`SCIP call graph available: ${Boolean(scipState.call_graph_available)}`);
-  }
-  if (isCallQuery && scipState.call_graph_status_reason) {
-    console.log(`SCIP call graph status: ${scipState.call_graph_status_reason}`);
-  }
-  if (isCallQuery && scipState.call_graph_unavailable_reason) {
-    console.log(`SCIP call graph unavailable reason: ${scipState.call_graph_unavailable_reason}`);
-  }
-  console.log(`Symbol: ${result.symbol || "(unresolved)"}`);
-  if (isCallQuery && result.symbol_resolution?.state) {
-    console.log(`Symbol resolution: ${result.symbol_resolution.state}`);
-  }
-  if (isCallQuery && result.symbol_resolution?.status_reason) {
-    console.log(`Symbol resolution status: ${result.symbol_resolution.status_reason}`);
-  }
-  if (isCallQuery && result.coverage?.call_graph_status_reason) {
-    console.log(`Coverage call graph status: ${result.coverage.call_graph_status_reason}`);
-  }
-  console.log(`Definitions: ${(result.definitions || []).length}`);
-  for (const definition of (result.definitions || []).slice(0, 10)) {
-    console.log(`- ${definition.path || "(unknown)"}:${definition.line ?? "?"} ${definition.resolution?.state || "unknown"}`);
-  }
-  console.log(`References: ${(result.references || []).length}`);
-  for (const reference of (result.references || []).slice(0, 10)) {
-    console.log(`- ${reference.path || "(unknown)"}:${reference.line ?? "?"} ${reference.resolution?.state || "unknown"}`);
-  }
-  if (result.query_kind === "symbol_callers" || (result.callers || []).length > 0) {
-    console.log(`Callers: ${(result.callers || []).length}`);
-    for (const caller of (result.callers || []).slice(0, 10)) {
-      console.log(
-        `- ${caller.caller_symbol || "(unknown)"} -> ${caller.callee_symbol || "(unknown)"} ${caller.resolution?.state || "unknown"}`
-      );
+  console.log(`Committed head: ${result.index_head ?? "(none)"}`);
+  for (const field of PLAIN_OBJECT_FIELDS) {
+    if (result[field] && typeof result[field] === "object") {
+      console.log(`${field}: ${JSON.stringify(result[field])}`);
     }
   }
-  if (result.query_kind === "symbol_callees" || (result.callees || []).length > 0) {
-    console.log(`Callees: ${(result.callees || []).length}`);
-    for (const callee of (result.callees || []).slice(0, 10)) {
-      console.log(
-        `- ${callee.caller_symbol || "(unknown)"} -> ${callee.callee_symbol || "(unknown)"} ${callee.resolution?.state || "unknown"}`
-      );
+  for (const [field, value] of Object.entries(result)) {
+    if (!Array.isArray(value)) continue;
+    console.log(`${field}: ${value.length}`);
+    for (const entry of value) {
+      console.log(`- ${typeof entry === "string" ? entry : JSON.stringify(entry)}`);
     }
   }
 }
 
-async function runStatus(argv, { surfaceName = "sidecar" } = {}) {
+function parseQueryArgs(argv, command, { values, booleans, positionals: allowPositionals }) {
+  const options = {};
+  const positionals = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith("--")) {
+      if (!allowPositionals) throw new Error(`${command} does not accept positional argument ${token}`);
+      positionals.push(token);
+      continue;
+    }
+    const equals = token.indexOf("=");
+    const key = token.slice(2, equals === -1 ? undefined : equals);
+    if (Object.hasOwn(options, key)) throw new Error(`${command} accepts --${key} at most once`);
+    if (booleans.has(key)) {
+      if (equals !== -1) throw new Error(`${command} --${key} does not take a value`);
+      options[key] = true;
+    } else if (values.has(key)) {
+      if (equals !== -1) {
+        options[key] = token.slice(equals + 1);
+      } else if (index + 1 < argv.length) {
+        options[key] = argv[index + 1];
+        index += 1;
+      } else {
+        throw new Error(`${command} --${key} requires a value`);
+      }
+    } else {
+      throw new Error(`${command} does not accept --${key}`);
+    }
+  }
+  return { options, positionals };
+}
+
+const TRANSPORT_VALUES = ["dir", "cache-dir"];
+const TRANSPORT_BOOLEANS = ["json", "help", "verbose"];
+
+function transportQuery(options) {
+  return {
+    dir: path.resolve(String(options.dir ?? ".")),
+    ...(Object.hasOwn(options, "cache-dir") ? { cacheDir: options["cache-dir"] } : {}),
+    ...(options["include-suppressed"] === true ? { includeSuppressed: true } : {})
+  };
+}
+
+async function runStatus(argv) {
   const { options } = parseArgs(argv);
   if (options.help) {
-    console.log(`Usage: wiki ${surfaceName} status --json [--dir <path>] [--cache-dir <path>]`);
+    console.log("Usage: wiki code-index status --json [--dir <path>] [--cache-dir <path>]");
     return;
   }
 
@@ -236,14 +150,14 @@ async function runStatus(argv, { surfaceName = "sidecar" } = {}) {
     return;
   }
 
-  printStatusSummary(status, { surfaceName });
+  printStatusSummary(status);
 }
 
-async function runBuild(argv, { rebuild = false, surfaceName = "sidecar" } = {}) {
+async function runBuild(argv, { rebuild = false } = {}) {
   const { options } = parseArgs(argv);
   if (options.help) {
     console.log(
-      `Usage: wiki ${surfaceName} ${rebuild ? "rebuild" : "build"} --json [--dir <path>] [--cache-dir <path>]`
+      `Usage: wiki code-index ${rebuild ? "rebuild" : "build"} --json [--dir <path>] [--cache-dir <path>]`
     );
     return;
   }
@@ -257,7 +171,7 @@ async function runBuild(argv, { rebuild = false, surfaceName = "sidecar" } = {})
       rebuild
     });
   } catch (error) {
-    if (options.json && error instanceof SidecarBuildRefusalError && error.envelope) {
+    if (options.json && error instanceof SidecarIndexEnsureError) {
       console.log(JSON.stringify(error.envelope, null, 2));
       process.exitCode = 1;
       return;
@@ -270,224 +184,106 @@ async function runBuild(argv, { rebuild = false, surfaceName = "sidecar" } = {})
     return;
   }
 
-  printBuildSummary(result, { surfaceName });
+  printBuildSummary(result);
 }
 
-async function runImpactPaths(argv, { surfaceName = "sidecar" } = {}) {
-  const { positionals, options } = parseArgs(argv);
+const IMPACT_SUBJECT_OPTIONS = ["patch", "patch-file", "diff-records-json", "live-git"];
+
+async function runImpact(argv) {
+  const { options, positionals } = parseQueryArgs(argv, "impact", {
+    values: new Set([...TRANSPORT_VALUES, "paths", "patch", "patch-file", "diff-records-json"]),
+    booleans: new Set([...TRANSPORT_BOOLEANS, "include-suppressed", "live-git"]),
+    positionals: true
+  });
   if (options.help) {
     console.log(
-      `Usage: wiki ${surfaceName} impact-paths --json [--dir <path>] [--cache-dir <path>] [--paths <path,path>] [path ...]`
+      "Usage: wiki code-index impact [--json | --verbose] [--dir <path>] [--cache-dir <path>] [--include-suppressed] (--paths <path,path> [path ...] | --patch <text> | --patch-file <path> | --diff-records-json <json> | --live-git)"
     );
     return;
   }
-
-  const targetDir = path.resolve(String(options.dir || "."));
-  const paths = [...parseListOption(options, "paths"), ...positionals];
-  const result = await getSidecarImpactPaths({
-    dir: targetDir,
-    cacheDir: optionalOption(options, "cache-dir") || undefined,
-    paths,
-    includeSuppressed: Boolean(options["include-suppressed"])
-  });
-
-  if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
+  const subjects = [
+    ...(Object.hasOwn(options, "paths") || positionals.length > 0 ? ["paths"] : []),
+    ...IMPACT_SUBJECT_OPTIONS.filter((key) => Object.hasOwn(options, key))
+  ];
+  if (subjects.length !== 1) {
+    throw new Error("impact requires exactly one of --paths/positional paths, --patch, --patch-file, " +
+      `--diff-records-json or --live-git${subjects.length > 1 ? `; received ${subjects.join(", ")}` : ""}`);
   }
-
-  printImpactSummary(result, { surfaceName });
-}
-
-async function runGraphImpactPaths(argv, { surfaceName = "code-index" } = {}) {
-  const { positionals, options } = parseArgs(argv);
-  if (options.help) {
-    console.log(
-      `Usage: wiki ${surfaceName} graph-impact-paths --json [--dir <path>] [--cache-dir <path>] [--paths <path,path>] [path ...]`
-    );
-    return;
-  }
-
-  const targetDir = path.resolve(String(options.dir || "."));
-  const paths = [...parseListOption(options, "paths"), ...positionals];
-  const result = await getSidecarGraphImpactPaths({
-    dir: targetDir,
-    cacheDir: optionalOption(options, "cache-dir") || undefined,
-    paths,
-    includeSuppressed: Boolean(options["include-suppressed"])
-  });
-
-  if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  printGraphImpactSummary(result, { surfaceName });
-}
-
-async function runGraphImpactDiff(argv, { surfaceName = "code-index" } = {}) {
-  const { options } = parseArgs(argv);
-  if (options.help) {
-    console.log(
-      `Usage: wiki ${surfaceName} graph-impact-diff --json [--dir <path>] [--cache-dir <path>] [--patch <text>] [--patch-file <path>] [--diff-records-json <json>] [--live-git]`
-    );
-    return;
-  }
-
-  const targetDir = path.resolve(String(options.dir || "."));
-  const diffRecordsJson = optionalOption(options, "diff-records-json");
-  const patchFile = optionalOption(options, "patch-file");
-  let patchText = optionalOption(options, "patch") || null;
-  if (patchFile) {
-    patchText = await readFile(path.resolve(String(patchFile)), "utf8");
-  }
-  const diffRecords = diffRecordsJson ? JSON.parse(diffRecordsJson) : null;
-  const result = await getSidecarGraphImpactDiff({
-    dir: targetDir,
-    cacheDir: optionalOption(options, "cache-dir") || undefined,
-    patchText,
-    diffRecords,
-    liveGit: Boolean(options["live-git"]),
-    includeSuppressed: Boolean(options["include-suppressed"])
-  });
-
-  if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  printGraphImpactDiffSummary(result, { surfaceName });
-}
-
-async function runContextForPath(argv, { surfaceName = "sidecar" } = {}) {
-  const { positionals, options } = parseArgs(argv);
-  if (options.help) {
-    console.log(
-      `Usage: wiki ${surfaceName} context-for-path --json [--dir <path>] [--cache-dir <path>] [--verbose] --path <path>`
-    );
-    return;
-  }
-
-  const targetDir = path.resolve(String(options.dir || "."));
-  const inputPath = optionalOption(options, "path") || positionals[0] || null;
-
-  const result = await getSidecarContextForPath({
-    dir: targetDir,
-    cacheDir: optionalOption(options, "cache-dir") || undefined,
-    path: inputPath || requireOption(options, "path", "context-for-path requires --path <path>"),
-    includeSuppressed: Boolean(options["include-suppressed"]),
-    verbose: Boolean(options.verbose)
-  });
-
-  if (options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  printImpactSummary(result, { surfaceName });
-}
-
-function parseSymbolQueryArgs(argv, command) {
-  const { positionals, options } = parseArgs(argv);
-  const symbol = optionalOption(options, "symbol") || positionals[0] || null;
-  const inputPath = optionalOption(options, "path");
-  const line = optionalOption(options, "line");
-  const character = optionalOption(options, "character");
-  const targetDir = path.resolve(String(options.dir || "."));
-  if (options.help) {
-    return { help: true };
-  }
-  if (!symbol && (!inputPath || !line)) {
-    throw new Error(
-      `${command} requires either --symbol <symbol> or --path <path> --line <line>`
-    );
-  }
-  return {
-    options,
-    query: {
-      dir: targetDir,
-      cacheDir: optionalOption(options, "cache-dir") || undefined,
-      symbol,
-      path: inputPath,
-      line,
-      character
+  const query = transportQuery(options);
+  if (subjects[0] === "paths") {
+    query.paths = [...String(options.paths ?? "").split(",").map((value) => value.trim())
+      .filter(Boolean), ...positionals];
+  } else if (subjects[0] === "patch") {
+    query.patchText = options.patch;
+  } else if (subjects[0] === "patch-file") {
+    query.patchText = await readFile(path.resolve(String(options["patch-file"])), "utf8");
+  } else if (subjects[0] === "diff-records-json") {
+    try {
+      query.diffRecords = JSON.parse(options["diff-records-json"]);
+    } catch (error) {
+      throw new Error(`impact --diff-records-json must be valid JSON: ${error.message}`);
     }
-  };
+  } else {
+    query.liveGit = true;
+  }
+  printQueryResult(await getSidecarQueryImpact(query), options);
 }
 
-async function runFindReferences(argv, { surfaceName = "code-index" } = {}) {
-  const parsed = parseSymbolQueryArgs(argv, "find-references");
-  if (parsed.help) {
+async function runContextForPath(argv) {
+  const { options, positionals } = parseQueryArgs(argv, "context-for-path", {
+    values: new Set([...TRANSPORT_VALUES, "path"]),
+    booleans: new Set([...TRANSPORT_BOOLEANS, "include-suppressed"]),
+    positionals: true
+  });
+  if (options.help) {
     console.log(
-      `Usage: wiki ${surfaceName} find-references --json [--dir <path>] [--cache-dir <path>] (--symbol <symbol> | --path <path> --line <line> [--character <char>])`
+      "Usage: wiki code-index context-for-path [--json | --verbose] [--dir <path>] [--cache-dir <path>] [--include-suppressed] --path <path>"
     );
     return;
   }
-
-  const result = await getSidecarSymbolReferences(parsed.query);
-  if (parsed.options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
+  const pathCount = positionals.length + (Object.hasOwn(options, "path") ? 1 : 0);
+  if (pathCount !== 1) {
+    throw new Error("context-for-path requires exactly one path via --path <path> or one positional path");
   }
-
-  printSymbolQuerySummary(result, { surfaceName });
+  const result = await getSidecarContextForPath({ ...transportQuery(options),
+    path: options.path ?? positionals[0] });
+  printQueryResult(result, options);
 }
 
-async function runDefinition(argv, { surfaceName = "code-index" } = {}) {
-  const parsed = parseSymbolQueryArgs(argv, "definition");
-  if (parsed.help) {
+const NAVIGATION_OPTIONS = {
+  values: new Set([...TRANSPORT_VALUES, "symbol", "path", "line", "character"]),
+  booleans: new Set(TRANSPORT_BOOLEANS),
+  positionals: true
+};
+
+const NAVIGATION_QUERIES = Object.freeze({
+  "find-references": getSidecarSymbolReferences,
+  definition: getSidecarSymbolDefinition,
+  callers: getSidecarSymbolCallers,
+  callees: getSidecarSymbolCallees
+});
+
+async function runNavigation(command, argv) {
+  const { options, positionals } = parseQueryArgs(argv, command, NAVIGATION_OPTIONS);
+  if (options.help) {
     console.log(
-      `Usage: wiki ${surfaceName} definition --json [--dir <path>] [--cache-dir <path>] (--symbol <symbol> | --path <path> --line <line> [--character <char>])`
+      `Usage: wiki code-index ${command} [--json | --verbose] [--dir <path>] [--cache-dir <path>] (--symbol <symbol> [--path <path> for a local symbol] | --path <path> --line <line> [--character <char>])`
     );
     return;
   }
-
-  const result = await getSidecarSymbolDefinition(parsed.query);
-  if (parsed.options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
+  if (positionals.length > 1 || (positionals.length === 1 && Object.hasOwn(options, "symbol"))) {
+    throw new Error(`${command} accepts at most one positional symbol and only without --symbol`);
   }
-
-  printSymbolQuerySummary(result, { surfaceName });
+  const query = { dir: path.resolve(String(options.dir ?? ".")) };
+  const symbol = Object.hasOwn(options, "symbol") ? options.symbol : positionals[0];
+  for (const [key, value] of [["symbol", symbol], ["path", options.path], ["line", options.line],
+    ["character", options.character], ["cacheDir", options["cache-dir"]]]) {
+    if (value !== undefined) query[key] = value;
+  }
+  printQueryResult(await NAVIGATION_QUERIES[command](query), options);
 }
 
-async function runCallers(argv, { surfaceName = "code-index" } = {}) {
-  const parsed = parseSymbolQueryArgs(argv, "callers");
-  if (parsed.help) {
-    console.log(
-      `Usage: wiki ${surfaceName} callers --json [--dir <path>] [--cache-dir <path>] (--symbol <symbol> | --path <path> --line <line> [--character <char>])`
-    );
-    return;
-  }
-
-  const result = await getSidecarSymbolCallers(parsed.query);
-  if (parsed.options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  printSymbolQuerySummary(result, { surfaceName });
-}
-
-async function runCallees(argv, { surfaceName = "code-index" } = {}) {
-  const parsed = parseSymbolQueryArgs(argv, "callees");
-  if (parsed.help) {
-    console.log(
-      `Usage: wiki ${surfaceName} callees --json [--dir <path>] [--cache-dir <path>] (--symbol <symbol> | --path <path> --line <line> [--character <char>])`
-    );
-    return;
-  }
-
-  const result = await getSidecarSymbolCallees(parsed.query);
-  if (parsed.options.json) {
-    console.log(JSON.stringify(result, null, 2));
-    return;
-  }
-
-  printSymbolQuerySummary(result, { surfaceName });
-}
-
-export async function runSidecar(argv, { surfaceName = "sidecar" } = {}) {
+export async function runSidecar(argv) {
   const [command, ...rest] = argv;
 
   switch (command) {
@@ -495,72 +291,30 @@ export async function runSidecar(argv, { surfaceName = "sidecar" } = {}) {
     case "help":
     case "--help":
     case "-h":
-      console.log(helpText(surfaceName));
+      console.log(HELP_TEXT);
       return;
     case "build":
-      await runBuild(rest, { surfaceName });
+      await runBuild(rest);
       return;
     case "context-for-path":
-      await runContextForPath(rest, { surfaceName });
+      await runContextForPath(rest);
       return;
-    case "graph-impact-paths":
-      if (surfaceName !== "code-index") {
-        throw new Error(
-          "graph-impact-paths is available under wiki code-index only; WK-0081 did not add a legacy sidecar alias"
-        );
-      }
-      await runGraphImpactPaths(rest, { surfaceName });
-      return;
-    case "graph-impact-diff":
-      if (surfaceName !== "code-index") {
-        throw new Error(
-          "graph-impact-diff is available under wiki code-index only; WK-0085 did not add a legacy sidecar alias"
-        );
-      }
-      await runGraphImpactDiff(rest, { surfaceName });
+    case "impact":
+      await runImpact(rest);
       return;
     case "find-references":
-      if (surfaceName !== "code-index") {
-        throw new Error(
-          "find-references is available under wiki code-index only; WK-1230#SLICE-006 did not add a legacy sidecar alias"
-        );
-      }
-      await runFindReferences(rest, { surfaceName });
-      return;
     case "definition":
-      if (surfaceName !== "code-index") {
-        throw new Error(
-          "definition is available under wiki code-index only; WK-1230#SLICE-006 did not add a legacy sidecar alias"
-        );
-      }
-      await runDefinition(rest, { surfaceName });
-      return;
     case "callers":
-      if (surfaceName !== "code-index") {
-        throw new Error(
-          "callers is available under wiki code-index only; WK-1259#SLICE-008 did not add a legacy sidecar alias"
-        );
-      }
-      await runCallers(rest, { surfaceName });
-      return;
     case "callees":
-      if (surfaceName !== "code-index") {
-        throw new Error(
-          "callees is available under wiki code-index only; WK-1259#SLICE-008 did not add a legacy sidecar alias"
-        );
-      }
-      await runCallees(rest, { surfaceName });
-      return;
-    case "impact-paths":
-      await runImpactPaths(rest, { surfaceName });
+      await runNavigation(command, rest);
       return;
     case "rebuild":
-      await runBuild(rest, { rebuild: true, surfaceName });
+      await runBuild(rest, { rebuild: true });
       return;
     case "status":
-      await runStatus(rest, { surfaceName });
+      await runStatus(rest);
       return;
     default:
-      throw new Error(`Unknown ${surfaceName} command: ${command}\n\n${helpText(surfaceName)}`);
+      throw new Error(`Unknown code-index command: ${command}\n\n${HELP_TEXT}`);
   }
 }

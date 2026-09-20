@@ -1,0 +1,786 @@
+{
+  "$defs": {
+    "test_proof_id": {
+      "type": "string",
+      "pattern": "^test-proof-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "boundary_id": {
+      "type": "string",
+      "pattern": "^sut-boundary-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "observable_id": {
+      "type": "string",
+      "pattern": "^observable-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "falsifier_id": {
+      "type": "string",
+      "pattern": "^falsifier-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "provider_id": {
+      "type": "string",
+      "pattern": "^launcher\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+    },
+    "provider_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "repo_module_path": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_@./-]+\\.(?:cjs|js|mjs)$"
+    },
+    "mutation_id": {
+      "type": "string",
+      "pattern": "^mutation-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "execution_provider_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_version",
+        "capability"
+      ],
+      "properties": {
+        "provider_id": {
+          "$ref": "#/$defs/provider_id"
+        },
+        "provider_version": {
+          "$ref": "#/$defs/provider_version"
+        },
+        "capability": {
+          "enum": [
+            "candidate_execution",
+            "falsifier_execution"
+          ]
+        }
+      }
+    },
+    "traversal_provider_binding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "provider_id",
+            "provider_version",
+            "capability",
+            "boundary_kind",
+            "observation_mechanism",
+            "observation_seam",
+            "evidence_artifact_type"
+          ],
+          "properties": {
+            "mode": {
+              "const": "provider"
+            },
+            "provider_id": {
+              "$ref": "#/$defs/provider_id"
+            },
+            "provider_version": {
+              "$ref": "#/$defs/provider_version"
+            },
+            "capability": {
+              "const": "boundary_traversal"
+            },
+            "boundary_kind": {
+              "enum": [
+                "api",
+                "cli",
+                "module",
+                "process",
+                "protocol",
+                "repository_state",
+                "runtime_component",
+                "storage"
+              ]
+            },
+            "observation_mechanism": {
+              "enum": [
+                "function_entry_probe",
+                "node_test_structured_events",
+                "node_test_v8_coverage",
+                "python_call_trace"
+              ]
+            },
+            "observation_seam": {
+              "enum": [
+                "ava_selected_test_body",
+                "cargo_selected_test_function",
+                "deno_selected_test_body",
+                "go_selected_test_function",
+                "jest_selected_test_body",
+                "lib0_selected_test_body",
+                "mocha_selected_test_body",
+                "node_test_structured_assertion",
+                "pytest_selected_call",
+                "stestr_selected_test_method",
+                "vitest_selected_test_attempt"
+              ]
+            },
+            "evidence_artifact_type": {
+              "enum": [
+                "boundary_trace",
+                "structured_test_result"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "registry_id",
+            "registry_version"
+          ],
+          "properties": {
+            "mode": {
+              "const": "registry_unsupported"
+            },
+            "registry_id": {
+              "const": "launcher.test-proof-provider-registry"
+            },
+            "registry_version": {
+              "const": "1.3.0"
+            }
+          }
+        }
+      ]
+    },
+    "falsification_provider_binding": {
+      "description": "Whether this proof declares a falsifier. Omitting the binding declares the incumbent meaning, provider mode, under which the proof declares at least one falsifier. registry_unsupported declares that the catalog lists no falsifier provider for it, and the proof then declares none; the selected test still executes and the absent falsification is reported as a capability limitation, never as a satisfied check.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "const": "provider"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "registry_id",
+            "registry_version"
+          ],
+          "properties": {
+            "mode": {
+              "const": "registry_unsupported"
+            },
+            "registry_id": {
+              "const": "launcher.test-proof-provider-registry"
+            },
+            "registry_version": {
+              "const": "1.3.0"
+            }
+          }
+        }
+      ]
+    },
+    "system_under_test_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary_id",
+        "kind",
+        "subject_reference_ids"
+      ],
+      "properties": {
+        "boundary_id": {
+          "$ref": "#/$defs/boundary_id"
+        },
+        "kind": {
+          "enum": [
+            "api",
+            "cli",
+            "module",
+            "process",
+            "protocol",
+            "repository_state",
+            "runtime_component",
+            "storage"
+          ]
+        },
+        "subject_reference_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference_id"
+          }
+        },
+        "runtime_module_path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/repo_module_path"
+            },
+            {
+              "type": "string",
+              "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_@./-]+\\.(?:cjs|cts|go|js|jsx|mjs|mts|py|rs|ts|tsx)$"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "module"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "runtime_module_path": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/repo_module_path"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_@./-]+\\.(?:cjs|cts|go|js|jsx|mjs|mts|py|rs|ts|tsx)$"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "runtime_module_path"
+            ]
+          },
+          "else": {
+            "properties": {
+              "runtime_module_path": false
+            }
+          }
+        }
+      ]
+    },
+    "observable_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observable_id",
+        "kind",
+        "proposition_id"
+      ],
+      "properties": {
+        "observable_id": {
+          "$ref": "#/$defs/observable_id"
+        },
+        "kind": {
+          "enum": [
+            "exit_status",
+            "persisted_artifact",
+            "protocol_message",
+            "return_value",
+            "side_effect",
+            "state_transition",
+            "structured_diagnostic"
+          ]
+        },
+        "proposition_id": {
+          "$ref": "#/$defs/proposition_id"
+        }
+      }
+    },
+    "falsifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "falsifier_id",
+        "strategy",
+        "proposition_id",
+        "expected_outcome",
+        "mutation",
+        "execution_provider"
+      ],
+      "properties": {
+        "falsifier_id": {
+          "$ref": "#/$defs/falsifier_id"
+        },
+        "strategy": {
+          "enum": [
+            "boundary_bypass",
+            "dependency_failure",
+            "input_mutation",
+            "observable_suppression",
+            "result_inversion",
+            "state_corruption",
+            "forced_invocation"
+          ]
+        },
+        "proposition_id": {
+          "$ref": "#/$defs/proposition_id"
+        },
+        "expected_outcome": {
+          "const": "verification_fails"
+        },
+        "mutation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation_id",
+            "mechanism",
+            "target_kind",
+            "module_path"
+          ],
+          "properties": {
+            "mutation_id": {
+              "$ref": "#/$defs/mutation_id"
+            },
+            "mechanism": {
+              "enum": [
+                "module_substitution",
+                "python_scalar_return_substitution",
+                "scalar_return_substitution"
+              ]
+            },
+            "target_kind": {
+              "enum": [
+                "module",
+                "function"
+              ]
+            },
+            "module_path": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/repo_module_path"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_@./-]+\\.(?:cjs|cts|go|js|jsx|mjs|mts|py|rs|ts|tsx)$"
+                }
+              ]
+            },
+            "entry_export": {
+              "type": "string",
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+            },
+            "operation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "module_path",
+                "export_name"
+              ],
+              "properties": {
+                "module_path": {
+                  "$ref": "#/$defs/repo_module_path"
+                },
+                "export_name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+                }
+              }
+            },
+            "invocation": {
+              "const": "first_original_return_no_arguments"
+            },
+            "function_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 256
+            },
+            "replacement": {
+              "description": "The one JSON scalar a result_inversion falsifier substitutes for the selected function return literal.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "execution_provider": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/execution_provider_identity"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "capability": {
+                  "const": "falsifier_execution"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "strategy": {
+                "const": "forced_invocation"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "mutation": {
+                "required": [
+                  "entry_export",
+                  "operation",
+                  "invocation"
+                ],
+                "type": "object",
+                "properties": {
+                  "entry_export": {
+                    "$ref": "#/$defs/falsifier/properties/mutation/properties/entry_export"
+                  },
+                  "operation": {
+                    "$ref": "#/$defs/falsifier/properties/mutation/properties/operation"
+                  },
+                  "invocation": {
+                    "$ref": "#/$defs/falsifier/properties/mutation/properties/invocation"
+                  }
+                }
+              }
+            },
+            "type": "object"
+          },
+          "else": {
+            "properties": {
+              "mutation": {
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "entry_export"
+                      ],
+                      "properties": {
+                        "entry_export": {
+                          "$ref": "#/$defs/falsifier/properties/mutation/properties/entry_export"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "operation"
+                      ],
+                      "properties": {
+                        "operation": {
+                          "$ref": "#/$defs/falsifier/properties/mutation/properties/operation"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "invocation"
+                      ],
+                      "properties": {
+                        "invocation": {
+                          "$ref": "#/$defs/falsifier/properties/mutation/properties/invocation"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "mutation": {
+                "type": "object",
+                "required": [
+                  "mechanism"
+                ],
+                "properties": {
+                  "mechanism": {
+                    "enum": [
+                      "python_scalar_return_substitution",
+                      "scalar_return_substitution"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "mutation": {
+                "type": "object",
+                "required": [
+                  "function_name",
+                  "replacement"
+                ],
+                "properties": {
+                  "mechanism": {
+                    "enum": [
+                      "python_scalar_return_substitution",
+                      "scalar_return_substitution"
+                    ]
+                  },
+                  "module_path": {
+                    "type": "string",
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_@./-]+\\.(?:cjs|cts|go|js|jsx|mjs|mts|py|rs|ts|tsx)$"
+                  },
+                  "function_name": {
+                    "$ref": "#/$defs/falsifier/properties/mutation/properties/function_name"
+                  },
+                  "replacement": {
+                    "$ref": "#/$defs/falsifier/properties/mutation/properties/replacement"
+                  },
+                  "target_kind": {
+                    "const": "function"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "mutation": {
+                "type": "object",
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "function_name"
+                      ],
+                      "properties": {
+                        "function_name": {
+                          "$ref": "#/$defs/falsifier/properties/mutation/properties/function_name"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "replacement"
+                      ],
+                      "properties": {
+                        "replacement": {
+                          "$ref": "#/$defs/falsifier/properties/mutation/properties/replacement"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "properties": {
+                  "mechanism": {
+                    "const": "module_substitution"
+                  },
+                  "target_kind": {
+                    "const": "module"
+                  },
+                  "module_path": {
+                    "$ref": "#/$defs/repo_module_path"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "test_selector": {
+      "description": "Declarative selection of the one assertion this proof executes. The node:test arm names an exact test name and nesting depth inside the sole node_test target the work record binds to this verification. The provider-qualified native arm names a listed candidate provider and one literal native node identity owned by the authored case target. Neither arm asserts that the test exists or ran.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "nesting": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "nesting"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "nesting": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 64
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider_id",
+            "provider_version",
+            "node_id"
+          ],
+          "properties": {
+            "provider_id": {
+              "type": "string",
+              "pattern": "^launcher\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+            },
+            "provider_version": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "node_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        }
+      ]
+    },
+    "test_proof_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_proof_id",
+        "verification_claim_id",
+        "system_under_test_boundary",
+        "observable_result",
+        "candidate_execution_provider",
+        "falsifiers",
+        "traversal_provider",
+        "test_selector",
+        "prohibited_shortcuts"
+      ],
+      "properties": {
+        "test_proof_id": {
+          "$ref": "#/$defs/test_proof_id"
+        },
+        "verification_claim_id": {
+          "$ref": "#/$defs/claim_id"
+        },
+        "system_under_test_boundary": {
+          "$ref": "#/$defs/system_under_test_boundary"
+        },
+        "observable_result": {
+          "$ref": "#/$defs/observable_result"
+        },
+        "candidate_execution_provider": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/execution_provider_identity"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "capability": {
+                  "const": "candidate_execution"
+                }
+              }
+            }
+          ]
+        },
+        "falsifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/falsifier"
+          }
+        },
+        "falsification_provider": {
+          "$ref": "#/$defs/falsification_provider_binding"
+        },
+        "traversal_provider": {
+          "$ref": "#/$defs/traversal_provider_binding"
+        },
+        "test_selector": {
+          "$ref": "#/$defs/test_selector"
+        },
+        "prohibited_shortcuts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "coverage_percentage_only",
+              "mock_only_boundary_substitution",
+              "snapshot_only_assertion",
+              "source_text_inspection",
+              "test_count_only",
+              "unexecuted_assertion"
+            ]
+          },
+          "contains": {
+            "const": "source_text_inspection"
+          },
+          "minContains": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "falsification_provider"
+            ],
+            "properties": {
+              "falsification_provider": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "const": "registry_unsupported"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "falsifiers": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "falsifiers": {
+                "type": "array",
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

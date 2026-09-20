@@ -4,6 +4,11 @@
 This document describes how a consuming repository installs the shared
 AgentChassis tooling from a package registry and runs the one-line bootstrap.
 
+## Runtime Prerequisite
+
+Install and select Node.js 24.20.0 or newer before installing or invoking any
+`@agent-chassis/*` package.
+
 The tooling is published as scoped npm packages under the `@agent-chassis`
 scope. The supported operational install for a consuming repo is the
 `@agent-chassis/core` package, which installs every binary and pulls in the
@@ -162,7 +167,9 @@ root. In one command it:
 
 1. Seeds the wiki core surfaces when missing (`wiki/schema.md`,
    `wiki/conventions.md`, `wiki/index.md`, `wiki/catalog.md`, and an in-progress
-   `IN-0001` first-work placeholder), syncs the record templates plus the
+   `IN-0001` first-work placeholder as canonical
+   `wiki/initiatives/IN-0001.json` with generated
+   `wiki/initiatives/IN-0001.md`), syncs the record templates plus the
    directly appendable `wiki/templates/AGENTS.md.boilerplate.md` helper, and
    resyncs `wiki/.wiki-contract.json` while
    preserving local `vocab.topics.local` and `inference.paths` entries.
@@ -206,8 +213,10 @@ Bootstrap does **not**:
 Fresh installation proceeds directly from the operator-created root guidance
 and ordinary launcher setup to `npx agent-launch orchestrator IN-0001`.
 Existing-repository adoption, merging, migration, compatibility, and rerun
-behavior are deferred. The legacy adoption-verify implementation remains
-available but is not invoked, advertised, or required by this fresh path.
+behavior are excluded from the supported fresh path. An obsolete adoption-verify
+implementation may still be present, but it is unsupported legacy residue and
+may be removed without compatibility notice. Supporting it again would require
+an accepted DEC under the repository-wide compatibility posture.
 
 ## MCP Configuration
 

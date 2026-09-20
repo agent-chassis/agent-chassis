@@ -1,0 +1,22 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "component",
+      "reference_ids": [
+        "ref-component"
+      ]
+    },
+    {
+      "role": "suite",
+      "reference_ids": [
+        "ref-suite"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

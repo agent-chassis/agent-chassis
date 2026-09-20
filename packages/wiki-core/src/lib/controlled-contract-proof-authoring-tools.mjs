@@ -74,6 +74,38 @@ export async function describeControlledContractTestProofAuthoring() {
   return packageApi.describeStableTestProofAuthoring();
 }
 
+async function deriveRuntimeTestProofContract({
+  repoRoot, wkId, focus, content, contentDigest, generationDigest
+}) {
+  const { readCanonicalObligationSource } = await import(
+    "../operations/controlled-contract/acceptance-coverage-facts.mjs");
+  const caseSource = await readCanonicalObligationSource({
+    repoRoot, wkId, focus, selectedUnit: null
+  }, { optional: true });
+  if (!(caseSource?.content.cases?.length > 0)) return null;
+  const { resolveProofAuthoringSource, resolveDerivedProofAuthoringContract } = await import(
+    "../operations/controlled-contract/proof-authoring-source.mjs");
+  const source = await resolveProofAuthoringSource({ repoRoot, wkId, focus, selectedUnit: null });
+  const derived = await resolveDerivedProofAuthoringContract({
+    ...source, canonicalContract: { content, content_digest: contentDigest }
+  });
+
+  const [confirmedGeneration, confirmedSource] = await Promise.all([
+    readStableControlledContractGeneration({ repoRoot, wkId }),
+    resolveProofAuthoringSource({ repoRoot, wkId, focus, selectedUnit: null })
+  ]);
+  if (confirmedGeneration.projection.generation_digest !== generationDigest ||
+      (confirmedSource.caseSource?.content_digest ?? null) !==
+        (source.caseSource?.content_digest ?? null)) {
+    fail("controlled_contract_generation_stale",
+      "canonical controlled-contract generation or authored case source moved during runtime binding", {
+        expected_generation_digest: generationDigest,
+        observed_generation_digest: confirmedGeneration.projection.generation_digest
+      });
+  }
+  return derived;
+}
+
 async function queryControlledContractTestProofBindingsInternal({
   repoRoot,
   wkId,
@@ -96,9 +128,16 @@ async function queryControlledContractTestProofBindingsInternal({
   }
   const content = parseCarrierJson(generationCarrier.bytes);
   const packageApi = await loadControlledContractPackage();
+
+  const derived = runtimePopulation
+    ? await deriveRuntimeTestProofContract({
+      repoRoot, wkId, focus, content, contentDigest: generationCarrier.content_digest,
+      generationDigest: generation.projection.generation_digest
+    })
+    : null;
   const projection = runtimePopulation
     ? packageApi.resolveStableTestProofBindingPopulation({
-      contract: content, verificationIds
+      contract: derived?.content ?? content, verificationIds
     })
     : packageApi.queryStableTestProofBindings({ contract: content, verificationIds });
   return Object.freeze({
@@ -107,6 +146,7 @@ async function queryControlledContractTestProofBindingsInternal({
     focus: focus ?? null,
     filename,
     content_digest: generationCarrier.content_digest,
+    ...(derived == null ? {} : { derived_contract_digest: derived.content_digest }),
     controlled_contract_generation: generation.projection.generation_digest,
     controlled_contract_generation_schema_version: generation.projection.schema_version,
     controlled_contract_generation_carrier_count: generation.projection.carrier_count,
@@ -169,7 +209,10 @@ export async function patchControlledContractTestProofBindings({
   });
 }
 
-export async function patchControlledContractVerificationBundles({
+export const CONTROLLED_CONTRACT_VERIFICATION_BUNDLE_PREPARATION_SCHEMA =
+  "controlled-contract-verification-bundle-preparation.v1";
+
+export async function prepareControlledContractVerificationBundlePatch({
   repoRoot,
   wkId,
   focus = null,
@@ -196,24 +239,71 @@ export async function patchControlledContractVerificationBundles({
     }
   );
   const packageApi = await loadControlledContractTestProofPackage();
-  const prospective = packageApi.applyStableVerificationBundles({
-    contract: carrier.content, operations
+  let prospective;
+  try {
+    prospective = packageApi.applyStableVerificationBundles({
+      contract: carrier.content, operations
+    });
+  } catch (error) {
+    if (!(error instanceof packageApi.StableTestProofContractError) ||
+        error.code !== "stable_verification_bundle_result_invalid") throw error;
+
+    throw new ControlledContractToolError(error.code, error.message, {
+      ...error.details,
+      changed: false
+    });
+  }
+  return Object.freeze({
+    schema_version: CONTROLLED_CONTRACT_VERIFICATION_BUNDLE_PREPARATION_SCHEMA,
+    owner: "applyStableVerificationBundles",
+    wk_id: wkId,
+    focus: focus ?? null,
+    carrier_kind: "contract",
+    source_content_digest: carrier.content_digest,
+    expected_content_digest: expectedContentDigest,
+    content: structuredClone(prospective.contract),
+    changed_verification_ids: structuredClone(prospective.changed_verification_ids),
+    semantic_judgment: prospective.semantic_judgment
   });
+}
+
+export function validateControlledContractVerificationBundlePreparation(prepared) {
+  if (!isPlainObject(prepared) ||
+      prepared.schema_version !== CONTROLLED_CONTRACT_VERIFICATION_BUNDLE_PREPARATION_SCHEMA ||
+      prepared.carrier_kind !== "contract" || !isPlainObject(prepared.content) ||
+      !Array.isArray(prepared.changed_verification_ids)) fail(
+    "controlled_contract_verification_bundle_preparation_invalid",
+    "prospective verification-bundle preparation is not one complete contract artifact"
+  );
+  return prepared;
+}
+
+export async function commitControlledContractVerificationBundlePatch(prepared, {
+  repoRoot
+}) {
+  validateControlledContractVerificationBundlePreparation(prepared);
   const receipt = await writeControlledContractCarrierFile({
-    repoRoot, wkId, focus, carrierKind: "contract",
-    expectedContentDigest, content: prospective.contract
+    repoRoot, wkId: prepared.wk_id, focus: prepared.focus, carrierKind: "contract",
+    expectedContentDigest: prepared.expected_content_digest, content: prepared.content
   });
   return Object.freeze({
     schema_version: "controlled-contract-verification-bundle-patch.v1",
-    wk_id: wkId,
-    focus: focus ?? null,
+    wk_id: prepared.wk_id,
+    focus: prepared.focus,
     previous_content_digest: receipt.previous_content_digest,
     content_digest: receipt.content_digest,
     written: receipt.written,
     no_op: receipt.no_op,
-    changed_verification_ids: structuredClone(prospective.changed_verification_ids),
-    semantic_judgment: prospective.semantic_judgment
+    changed_verification_ids: structuredClone(prepared.changed_verification_ids),
+    semantic_judgment: prepared.semantic_judgment
   });
+}
+
+export async function patchControlledContractVerificationBundles(input) {
+  const prepared = validateControlledContractVerificationBundlePreparation(
+    await prepareControlledContractVerificationBundlePatch(input));
+  return commitControlledContractVerificationBundlePatch(prepared,
+    { repoRoot: input.repoRoot });
 }
 
 export async function writeControlledContractProofPlanFile(input) {

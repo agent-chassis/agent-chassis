@@ -1,0 +1,767 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-wk2327-provenance",
+      "kind": "rationale",
+      "text": "The new agent-launch-core owner constructs the complete agent-run-provenance.v1 envelope and its artifact descriptors; reviewed launch and direct capture only observe facts and persist success or a non-provenance construction diagnostic."
+    },
+    {
+      "annotation_id": "ann-wk2327-distinct-contracts",
+      "kind": "rationale",
+      "text": "structured-dispatch-provenance.v1 construction and agent-run-provenance-inspection.v1 inspection are separate contracts with separate owners and are not fallbacks for agent-run-provenance.v1 construction."
+    },
+    {
+      "annotation_id": "ann-wk2327-result-mode",
+      "kind": "rationale",
+      "text": "The result-mode module remains the sole vocabulary, classification, validation, complete-envelope construction, equality, and bounded legacy-compatibility owner. One family-neutral final-result seam invokes that owner after terminal facts exist. Codex and Claude adapters transport facts only and do not construct or attach complete semantic envelopes. selected_contract names the selected structured-result contract; mode names the classified outcome."
+    },
+    {
+      "annotation_id": "ann-wk2327-transport",
+      "kind": "rationale",
+      "text": "Receipt storage and recovery validate and transport complete envelopes. Current evidence must match exactly; missing or conflicting evidence refuses mechanically instead of selecting a source."
+    },
+    {
+      "annotation_id": "ann-wk2327-reviews",
+      "kind": "provenance",
+      "text": "DRY review wkdb_3540b7a24ece0cf3 produced four accepted medium findings. Historical adopted-decision review wkdb_69a6acbe8c22fb68 covered only DEC-0177 through DEC-0181. Corrective adopted-decision review wkdb_e272ef3dd07c0f5a covered all 51 accepted decisions and retained F-001 through F-003; SLICE-026 and SLICE-027 were cancelled and SLICE-033 owns the family-neutral correction. The review artifact is immutable; its selected-lineage settlement remains operator_recovery_needed."
+    },
+    {
+      "annotation_id": "ann-wk2327-forbidden-population",
+      "kind": "rationale",
+      "text": "The complete WK-2327 forbidden population covers reviewed-launch envelope construction, direct-capture envelope construction, receipt-local selection/reconstruction, recovery-local selection/reconstruction, and complete result-mode attachment from either family adapter. The family-neutral terminal seam is the sole semantic consumer of adapter facts."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-behavior-wk2327-ownership",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2327-behavior"
+    },
+    {
+      "claim_id": "claim-verify-wk2327-ownership",
+      "falsifying_proposition_id": "prop-wk2327-falsifier-owner-absent",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2327-verification",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-wk2327-forbidden-noninvocation",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-wk2327-forbidden-use"
+    },
+    {
+      "claim_id": "claim-evidence-wk2327-forbidden-read",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2327-forbidden-verification-reads"
+    },
+    {
+      "claim_id": "claim-verify-wk2327-forbidden-noninvocation",
+      "falsifying_proposition_id": "prop-wk2327-forbidden-use",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2327-forbidden-verification-covers",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-wk2327-validity-component",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2327-validity-component-exists"
+    },
+    {
+      "claim_id": "claim-verify-wk2327-test-validity",
+      "falsifying_proposition_id": "prop-wk2327-validity-component-absent",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2327-validity-suite-covers",
+      "verification_method": "test_execution"
+    }
+  ],
+  "collections": [],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-obligation-provenance-owner"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-obligation-artifact-owner"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-obligation-result-mode-owner"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-obligation-receipt-transport"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-obligation-recovery-equality"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-obligation-authority-boundary"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2327-behavior",
+      "subject_reference_id": "ref-wk2327-implementation"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-wk2327-verification",
+      "subject_reference_id": "ref-wk2327-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-wk2327-falsifier-owner-absent",
+      "subject_reference_id": "ref-wk2327-result-mode-owner"
+    },
+    {
+      "proposition_id": "prop-wk2327-forbidden-use",
+      "subject_reference_id": "ref-wk2327-forbidden-subject",
+      "operator": "reference:uses",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-reviewed-constructor"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-direct-constructor"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-receipt-fallback"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-recovery-fallback"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-adapter-envelope-attachment"
+        }
+      ],
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-wk2327-forbidden-context"
+        ]
+      }
+    },
+    {
+      "proposition_id": "prop-wk2327-forbidden-verification-reads",
+      "subject_reference_id": "ref-wk2327-suite",
+      "operator": "reference:reads",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-subject"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-context"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-reviewed-constructor"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-direct-constructor"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-receipt-fallback"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-recovery-fallback"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-adapter-envelope-attachment"
+        }
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      }
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-subject"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-context"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-forbidden-population"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2327-forbidden-verification-covers",
+      "subject_reference_id": "ref-wk2327-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-wk2327-validity-component-exists",
+      "subject_reference_id": "ref-wk2327-validity-component"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2327-validity-component"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2327-validity-suite-covers",
+      "subject_reference_id": "ref-wk2327-validity-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-wk2327-validity-component-absent",
+      "subject_reference_id": "ref-wk2327-validity-component"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "domain": "agent-chassis.work-record",
+        "kind": "durable_id",
+        "value": "WK-2327 implementation"
+      },
+      "reference_id": "ref-wk2327-implementation",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-core/src/lib/agent-run-provenance-envelope.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-provenance-owner",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-core/src/operations/launch.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-reviewed-launch",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/codex-role-run-capture.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-direct-capture",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-result-mode.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-result-mode-owner",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-receipt-store",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-recovery.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-recovery",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/provenance-result-mode-owner.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-wk2327-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "WK-2327.acceptance",
+        "kind": "durable_id",
+        "value": "single agent-run-provenance.v1 envelope owner and no partial fallback"
+      },
+      "reference_id": "ref-obligation-provenance-owner",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2327.acceptance",
+        "kind": "durable_id",
+        "value": "single agent-run artifact descriptor shaper"
+      },
+      "reference_id": "ref-obligation-artifact-owner",
+      "type_term": "cc:criterion"
+    },
+    {
+      "reference_id": "ref-obligation-result-mode-owner",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2327.acceptance",
+        "value": "one family-neutral terminal semantic seam constructs complete workspace-agent-result-mode.v1 envelopes; family adapters report facts only; selected_contract is distinct from outcome mode"
+      }
+    },
+    {
+      "identity": {
+        "domain": "WK-2327.acceptance",
+        "kind": "durable_id",
+        "value": "receipt validates and transports exact result-mode envelope without fallback"
+      },
+      "reference_id": "ref-obligation-receipt-transport",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2327.acceptance",
+        "kind": "durable_id",
+        "value": "current recovery requires receipt and terminal evidence equality; legacy conversion is owner-only"
+      },
+      "reference_id": "ref-obligation-recovery-equality",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "WK-2327.acceptance",
+        "kind": "durable_id",
+        "value": "construction grants no lifecycle or policy authority and fails only mechanically"
+      },
+      "reference_id": "ref-obligation-authority-boundary",
+      "type_term": "cc:criterion"
+    },
+    {
+      "reference_id": "ref-wk2327-forbidden-subject",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2327.operation",
+        "value": "current provenance/result-mode consumers plus Codex and Claude family adapters"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-forbidden-context",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2327.execution-context",
+        "value": "current explicit provenance/result-mode evidence and accepted terminal launch facts"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-forbidden-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2327.forbidden-operations",
+        "value": "persistExactSliceReviewReceiptUnderAuthority, receiptCompletesExactSliceReview, boundedResultMode, createBackendRecovery, and family-adapter invocation of attachLauncherObservedTerminalResultMode"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-forbidden-reviewed-constructor",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-receipts.mjs",
+        "symbol": "persistExactSliceReviewReceiptUnderAuthority"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-forbidden-direct-constructor",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-validation.mjs",
+        "symbol": "receiptCompletesExactSliceReview"
+      }
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "boundedResultMode"
+      },
+      "reference_id": "ref-wk2327-forbidden-receipt-fallback",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-recovery.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "createBackendRecovery"
+      },
+      "reference_id": "ref-wk2327-forbidden-recovery-fallback",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk2327-provenance-result-mode-ownership-protocol"
+      },
+      "reference_id": "ref-wk2327-validity-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk2327-provenance-result-mode-owner-suite"
+      },
+      "reference_id": "ref-wk2327-validity-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "reference_id": "ref-wk2327-terminal-seam",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-final-result-evidence.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-codex-adapter",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-codex-in-process-executor.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-claude-adapter",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-claude-executor.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-forbidden-adapter-envelope-attachment",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-result-mode.mjs",
+        "symbol": "attachLauncherObservedTerminalResultMode"
+      }
+    },
+    {
+      "reference_id": "ref-wk2327-verification-test-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2327.test-population",
+        "value": "tests/provenance-result-mode-owner.test.mjs; tests/workspace-agent-dispatch-backend-final-result.test.mjs; tests/workspace-agent-dispatch-codex-terminal-result-mode.test.mjs; tests/workspace-agent-dispatch-claude-executor-final-result.test.mjs; tests/workspace-agent-family-adapter-boundary.test.mjs"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-wk2327-verifies-ownership",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2327-ownership",
+      "target_claim_id": "claim-behavior-wk2327-ownership"
+    },
+    {
+      "relation_id": "rel-wk2327-verifies-forbidden-noninvocation",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2327-forbidden-noninvocation",
+      "target_claim_id": "claim-behavior-wk2327-forbidden-noninvocation"
+    },
+    {
+      "relation_id": "rel-wk2327-verifies-test-validity",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2327-test-validity",
+      "target_claim_id": "claim-behavior-wk2327-validity-component"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2327-forbidden-owner-failure",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-result-mode.mjs",
+            "mutation_id": "mutation-wk2327-forbidden-owner-failure",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk2327-forbidden-use",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-wk2327-forbidden-noninvocation",
+        "proposition_id": "prop-wk2327-forbidden-verification-covers"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2327-forbidden-noninvocation",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-wk2327-forbidden-subject",
+          "ref-wk2327-forbidden-reviewed-constructor",
+          "ref-wk2327-forbidden-direct-constructor",
+          "ref-wk2327-forbidden-receipt-fallback",
+          "ref-wk2327-forbidden-recovery-fallback",
+          "ref-wk2327-forbidden-adapter-envelope-attachment",
+          "ref-wk2327-terminal-seam",
+          "ref-wk2327-codex-adapter",
+          "ref-wk2327-claude-adapter"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2327-forbidden-noninvocation",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-wk2327-forbidden-noninvocation",
+      "test_selector": {
+        "name": "wk2327 forbidden noninvocation",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2327-result-mode-owner-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-result-mode.mjs",
+            "mutation_id": "mutation-wk2327-result-mode-owner-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk2327-falsifier-owner-absent",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-wk2327-ownership",
+        "proposition_id": "prop-wk2327-verification"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2327-ownership",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-wk2327-provenance-owner",
+          "ref-wk2327-reviewed-launch",
+          "ref-wk2327-direct-capture",
+          "ref-wk2327-result-mode-owner",
+          "ref-wk2327-terminal-seam",
+          "ref-wk2327-codex-adapter",
+          "ref-wk2327-claude-adapter",
+          "ref-wk2327-receipt-store",
+          "ref-wk2327-recovery"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2327-ownership",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-wk2327-ownership",
+      "test_selector": {
+        "name": "wk2327 ownership",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2327-test-validity-owner-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-result-mode.mjs",
+            "mutation_id": "mutation-wk2327-test-validity-owner-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk2327-validity-component-absent",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-wk2327-test-validity",
+        "proposition_id": "prop-wk2327-validity-suite-covers"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2327-test-validity",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-wk2327-validity-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2327-test-validity",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-wk2327-test-validity",
+      "test_selector": {
+        "name": "wk2327 test validity",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

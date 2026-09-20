@@ -6,6 +6,8 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
+import { parseExecutableSelector, parseRunnerSelector } from "./test-runtime-setup/cli.mjs";
+
 export const SETUP_AGENTS = Object.freeze([
   Object.freeze({
     key: "claude",
@@ -22,15 +24,34 @@ export const SETUP_AGENTS = Object.freeze([
 ]);
 
 const USAGE = `Usage: agent-chassis setup [--agent claude|codex] [--dry-run]
+              [--language <name>] [--runner <name>[@<project>]]...
+              [--executable <toolchain>=<absolute-path>]...
+       agent-chassis setup --test-runtimes [options]
 
 Runs first-time AgentChassis setup from a consumer repo root:
   - npx wiki bootstrap --profile standard
   - copy the matching launcher template to agent-launch.toml when absent
   - npx agent-launch init-config
+  - prepare this repository's local test runtimes: find the test project from
+    the repository's own manifests, locate its toolchain on PATH, save the
+    choices in ${"`"}agent-chassis-runtime.json${"`"}, then validate, prepare and publish
+    readiness through the launcher-owned setup
   - print operator-owned root-guidance, staging, code-index, and orchestrator commands
 
 This command is for a new repository. Setup never creates, reads, modifies, or
-deletes root AGENTS.md or CLAUDE.md. Run the printed commands to create them.`;
+deletes root AGENTS.md or CLAUDE.md. Run the printed commands to create them.
+
+Test-runtime options (all optional; setup asks only about what it cannot
+determine, and says exactly which option to pass when it cannot ask):
+  --language <name>             choose the repository language when several fit
+  --runner <name>[@<project>]   choose the test runner and project directly
+  --executable <toolchain>=<absolute-path>
+                                where a toolchain is installed, when PATH has
+                                none or the wrong one (repeatable)
+
+--test-runtimes reruns only that last step for an already-configured
+repository, with the same resolution and the same saved configuration. Run
+"agent-chassis setup --test-runtimes --help" for its options.`;
 
 function packageRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,21 +70,44 @@ function detectAgents() {
   return SETUP_AGENTS.filter((agent) => commandAvailable(agent.command));
 }
 
+function valueOf(argv, index, name) {
+  const arg = argv[index];
+  if (arg.startsWith(`${name}=`)) return { value: arg.slice(name.length + 1), next: index };
+  if (index + 1 >= argv.length) throw new Error(`${name} requires a value`);
+  return { value: argv[index + 1], next: index + 1 };
+}
+
 function parseArgs(argv) {
   const options = {
     agent: null,
-    dryRun: false
+    dryRun: false,
+    language: null,
+    runners: [],
+    executables: {}
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    const name = arg.split("=")[0];
     if (arg === "--dry-run") {
       options.dryRun = true;
-    } else if (arg === "--agent") {
-      options.agent = argv[index + 1];
-      index += 1;
-    } else if (arg.startsWith("--agent=")) {
-      options.agent = arg.slice("--agent=".length);
+    } else if (name === "--agent") {
+      const { value, next } = valueOf(argv, index, name);
+      options.agent = value;
+      index = next;
+    } else if (name === "--language") {
+      const { value, next } = valueOf(argv, index, name);
+      options.language = value;
+      index = next;
+    } else if (name === "--runner") {
+      const { value, next } = valueOf(argv, index, name);
+      options.runners.push(parseRunnerSelector(value));
+      index = next;
+    } else if (name === "--executable") {
+      const { value, next } = valueOf(argv, index, name);
+      const { name: toolchain, executable } = parseExecutableSelector(value);
+      options.executables[toolchain] = executable;
+      index = next;
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
     } else {
@@ -78,18 +122,20 @@ function parseArgs(argv) {
   return options;
 }
 
-function printStep(message) {
-  process.stdout.write(`\n==> ${message}\n`);
+function printStep(output, message) {
+  output.write(`\n==> ${message}\n`);
 }
 
-function runCommand(command, args, { dryRun }) {
-  process.stdout.write(`$ ${[command, ...args].join(" ")}\n`);
+function runCommand(command, args, { dryRun, cwd, env, output }) {
+  output.write(`$ ${[command, ...args].join(" ")}\n`);
   if (dryRun) {
     return;
   }
 
   const result = spawnSync(command, args, {
     stdio: "inherit",
+    cwd,
+    env,
     shell: process.platform === "win32",
     windowsHide: true
   });
@@ -140,15 +186,15 @@ async function chooseAgent({ requestedAgent, detectedAgents, input = process.std
   }
 }
 
-function copyLauncherTemplate({ agent, dryRun }) {
-  const target = path.resolve(process.cwd(), "agent-launch.toml");
+function copyLauncherTemplate({ agent, dryRun, cwd, output }) {
+  const target = path.resolve(cwd, "agent-launch.toml");
   if (fs.existsSync(target)) {
-    process.stdout.write("agent-launch.toml already exists; review it before replacing local launcher defaults.\n");
+    output.write("agent-launch.toml already exists; review it before replacing local launcher defaults.\n");
     return;
   }
 
   const source = path.join(packageRoot(), "templates", agent.template);
-  process.stdout.write(`Copy ${source} -> ${target}\n`);
+  output.write(`Copy ${source} -> ${target}\n`);
   if (dryRun) {
     return;
   }
@@ -171,37 +217,68 @@ export function renderNextCommands() {
   ].join("\n");
 }
 
-function printNextCommands() {
-  process.stdout.write(renderNextCommands());
+function printNextCommands(output) {
+  output.write(renderNextCommands());
 }
 
-export async function runSetup({ argv = process.argv.slice(2) } = {}) {
+async function prepareTestRuntimes({ options, cwd, input, output, env }) {
+  const { prepareRepositoryTestRuntimes } = await import("./test-runtime-setup/prepare.mjs");
+  try {
+    return await prepareRepositoryTestRuntimes({ repositoryRoot: cwd, runners: options.runners,
+      language: options.language, executables: options.executables, dryRun: options.dryRun,
+      input, output, env });
+  } catch (error) {
+    output.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return { ok: false, status: "failed" };
+  }
+}
+
+export async function runSetup({
+  argv = process.argv.slice(2),
+  cwd = process.cwd(),
+  input = process.stdin,
+  output = process.stdout,
+  env = process.env
+} = {}) {
+  if (argv.includes("--test-runtimes")) {
+    const { runTestRuntimesSetup } = await import("./test-runtime-setup/cli.mjs");
+    const result = await runTestRuntimesSetup({ argv, cwd, output });
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
   const options = parseArgs(argv);
   if (options.help) {
-    process.stdout.write(`${USAGE}\n`);
+    output.write(`${USAGE}\n`);
     return;
   }
 
   const detectedAgents = detectAgents();
   const agent = await chooseAgent({
     requestedAgent: options.agent,
-    detectedAgents
+    detectedAgents,
+    input,
+    output
   });
 
-  printStep("Bootstrap wiki surfaces");
-  runCommand("npx", ["wiki", "bootstrap", "--profile", "standard"], options);
+  const step = { dryRun: options.dryRun, cwd, env, output };
+  printStep(output, "Bootstrap wiki surfaces");
+  runCommand("npx", ["wiki", "bootstrap", "--profile", "standard"], step);
 
-  printStep("Configure launcher template");
+  printStep(output, "Configure launcher template");
   if (agent === null) {
-    process.stdout.write("Skipped agent-launch.toml copy because no launcher template was selected.\n");
+    output.write("Skipped agent-launch.toml copy because no launcher template was selected.\n");
   } else {
-    copyLauncherTemplate({ agent, dryRun: options.dryRun });
+    copyLauncherTemplate({ agent, dryRun: options.dryRun, cwd, output });
   }
 
-  printStep("Initialize launcher config");
-  runCommand("npx", ["agent-launch", "init-config"], options);
+  printStep(output, "Initialize launcher config");
+  runCommand("npx", ["agent-launch", "init-config"], step);
 
-  printNextCommands();
+  printStep(output, "Prepare local test runtimes");
+  const prepared = await prepareTestRuntimes({ options, cwd, input, output, env });
+  if (!prepared.ok) process.exitCode = 1;
+
+  printNextCommands(output);
 }
 
 if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {

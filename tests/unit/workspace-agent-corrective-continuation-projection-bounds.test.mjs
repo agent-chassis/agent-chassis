@@ -27,15 +27,14 @@ function trustedError(overrides = {}) {
         slice_unit: "WK-1712#SLICE-001",
         exact_subject: "WK-1712#SLICE-001",
         responsible_actor: "launcher",
-        next_action: "retry_workspace_agent_run_status_same_monitor_and_subject",
-        monitor_handle: "wkmh_exact_review",
+        next_action: "retry_workspace_agent_run_status_same_subject",
         launcher_retirement_required: true,
         filesystem_cleanup_forbidden: true,
         preserve_substantive_review: true,
         preserve_review_status: true,
         replacement_review_required: false,
         notification:
-          "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the same monitor handle and exact subject"
+          "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the exact subject"
       },
       ...overrides
     },
@@ -43,14 +42,14 @@ function trustedError(overrides = {}) {
   };
 }
 
-test("the trusted corrective chain is projected from bounded scalar copies", () => {
+test("the trusted corrective chain preserves the complete diagnostic and separate recovery", () => {
   const carrier = trustedError();
   const projected = projectManagedIdentityCheckFailure(carrier);
   const source = carrier.detail;
   const sourceObserved = source.observed_canonical_status;
   const sourceRecovery = source.recovery;
 
-  assert.equal(projected.message, "managed identity check failed");
+  assert.deepEqual(projected.diagnostic, carrier);
   assert.equal(projected.code, carrier.code);
   assert.equal(projected.cause_code, source.cause_code);
   for (const field of ["record_id", "slice_id", "parent_status", "slice_status"]) {
@@ -66,15 +65,15 @@ test("the trusted corrective chain is projected from bounded scalar copies", () 
       assert.equal(projected.recovery[tuple][field], sourceRecovery[tuple][field]);
     }
   }
-  assert.equal(JSON.stringify(projected).includes("secret"), false);
+  assert.equal(JSON.stringify(projected).includes("secret"), true);
 
   assert.notEqual(projected.observed_canonical_status, sourceObserved);
   assert.notEqual(projected.recovery, sourceRecovery);
   assert.notEqual(projected.recovery.observed, sourceRecovery.observed);
 });
 
-test("a supported mixed-cause aggregate preserves only its stable mismatch code", () => {
-  const projected = projectManagedIdentityCheckFailure({
+test("a supported mixed-cause aggregate preserves its complete diagnostic", () => {
+  const error = {
     code: "agent_launch.managed_run.corrective_reviewed_target_mismatch.v1",
     detail: {
       subject: "WK-1712#SLICE-001",
@@ -83,12 +82,12 @@ test("a supported mixed-cause aggregate preserves only its stable mismatch code"
       rejected_group_codes: ["foreign.cause", CAUSE_CODE],
       rejected_groups_omitted: 0
     }
-  });
+  };
+  const projected = projectManagedIdentityCheckFailure(error);
 
-  assert.deepEqual(projected, {
-    message: "managed identity check failed",
-    code: "agent_launch.managed_run.corrective_reviewed_target_mismatch.v1"
-  });
+  assert.equal(projected.code,
+    "agent_launch.managed_run.corrective_reviewed_target_mismatch.v1");
+  assert.deepEqual(projected.diagnostic, error);
   assert.equal(Object.hasOwn(projected, "observed_canonical_status"), false);
   assert.equal(Object.hasOwn(projected, "recovery"), false);
 });
@@ -96,8 +95,9 @@ test("a supported mixed-cause aggregate preserves only its stable mismatch code"
 test("an actionable carrier without a valid recovery route retains its diagnosis", () => {
   const carrier = trustedError();
   delete carrier.detail.recovery;
-  assert.deepEqual(projectManagedIdentityCheckFailure(carrier), {
-    message: "managed identity check failed",
+  const projected = projectManagedIdentityCheckFailure(carrier);
+  assert.deepEqual({ ...projected, diagnostic: undefined }, {
+    diagnostic: undefined,
     code: CODE,
     cause_code: CAUSE_CODE,
     observed_canonical_status: carrier.detail.observed_canonical_status,
@@ -122,7 +122,7 @@ test("a nonactionable carrier may retain bounded status facts without recovery",
   assert.equal(Object.hasOwn(projected, "recovery"), false);
 });
 
-test("foreign or malformed carriers remain bounded", () => {
+test("foreign or malformed carriers remain complete diagnostics without gaining authority", () => {
   const errors = [
     { code: "foreign.code", detail: { cause_code: CAUSE_CODE } },
     trustedError({ cause_code: "foreign.cause" }),
@@ -130,33 +130,27 @@ test("foreign or malformed carriers remain bounded", () => {
     trustedError({ recovery: { recovery_kind: "foreign" } }),
     trustedError({ observed_canonical_status: { record_id: "WK-1712", slice_id: "SLICE-001", parent_status: "todo", slice_status: "todo", secret: "do not copy" } })
   ];
-  assert.deepEqual(errors.map(projectManagedIdentityCheckFailure), [
-    { message: "managed identity check failed", originating_code_status: "invalid" },
-    { message: "managed identity check failed", code: CODE },
-    { message: "managed identity check failed", code: CODE },
-    {
-      message: "managed identity check failed",
-      code: CODE,
-      cause_code: CAUSE_CODE,
+  const results = errors.map(projectManagedIdentityCheckFailure);
+  assert.deepEqual(results.map(({ diagnostic }) => diagnostic), errors);
+  assert.deepEqual(results.map(({ diagnostic: _diagnostic, ...result }) => result), [
+    { originating_code_status: "invalid" }, { code: CODE }, { code: CODE },
+    { code: CODE, cause_code: CAUSE_CODE,
       observed_canonical_status: errors[3].detail.observed_canonical_status,
-      recovery_carrier_status: "malformed"
-    },
-    { message: "managed identity check failed", code: CODE }
+      recovery_carrier_status: "malformed" }, { code: CODE }
   ]);
 });
 
-test("hostile string codes are rejected without echo", () => {
+test("non-stable string codes remain diagnostic data but do not become cause authority", () => {
   const hostileCodes = [
     "raw producer prose containing a secret",
     "/var/private/identity-store",
     "",
     `agent_launch.${"x".repeat(128)}.v1`
   ];
-  assert.deepEqual(hostileCodes.map((code) => projectManagedIdentityCheckFailure({ code })),
-    hostileCodes.map(() => ({
-      message: "managed identity check failed",
-      originating_code_status: "invalid"
-    })));
+  const results = hostileCodes.map((code) => projectManagedIdentityCheckFailure({ code }));
+  assert.deepEqual(results.map(({ diagnostic }) => diagnostic.code), hostileCodes);
+  assert.deepEqual(results.map(({ originating_code_status: status }) => status),
+    hostileCodes.map(() => "invalid"));
 });
 
 test("dotted and bare snake_case codes are carried with bounded source evidence", () => {
@@ -164,35 +158,41 @@ test("dotted and bare snake_case codes are carried with bounded source evidence"
     "agent_launch.managed_run.identity_store_read_failed.v1",
     "managed_run_identity_check_threw"
   ];
-  assert.deepEqual(codes.map((code) => projectManagedIdentityCheckFailure({
+  const results = codes.map((code) => projectManagedIdentityCheckFailure({
     code,
     detail: { source_code: "EACCES" }
-  })), codes.map((code) => ({
-    message: "managed identity check failed",
-    code,
-    source_code: "EACCES"
-  })));
+  }));
+  assert.deepEqual(results.map(({ diagnostic: _diagnostic, ...result }) => result),
+    codes.map((code) => ({ code, source_code: "EACCES" })));
+  assert.deepEqual(results.map(({ diagnostic }) => diagnostic.detail.source_code),
+    ["EACCES", "EACCES"]);
 });
 
 test("carried, unavailable, and invalid originating-code outcomes are distinct", () => {
-  const values = ["operator_recovery_needed", undefined, 17, "not a stable code"];
-  assert.deepEqual(values.map((code) => projectManagedIdentityCheckFailure({ code })), [
-    { message: "managed identity check failed", code: "operator_recovery_needed" },
-    { message: "managed identity check failed", originating_code_status: "unavailable" },
-    { message: "managed identity check failed", originating_code_status: "unavailable" },
-    { message: "managed identity check failed", originating_code_status: "invalid" }
+  const values = [
+    { code: "operator_recovery_needed" }, {}, { code: 17 }, { code: "not a stable code" }
+  ];
+  assert.deepEqual(values.map((value) => {
+    const { diagnostic: _diagnostic, ...result } = projectManagedIdentityCheckFailure(value);
+    return result;
+  }), [
+    { code: "operator_recovery_needed" },
+    { originating_code_status: "unavailable" },
+    { originating_code_status: "unavailable" },
+    { originating_code_status: "invalid" }
   ]);
 });
 
 test("source_code is carried only when its bounded system-code shape is valid", () => {
   const code = "managed_run_identity_check_threw";
-  assert.deepEqual([
+  const results = [
     projectManagedIdentityCheckFailure({ code, detail: { source_code: "EAI_AGAIN" } }),
     projectManagedIdentityCheckFailure({ code, detail: { source_code: "/secret/errno" } }),
     projectManagedIdentityCheckFailure({ code, detail: { source_code: "E".repeat(129) } })
-  ], [
-    { message: "managed identity check failed", code, source_code: "EAI_AGAIN" },
-    { message: "managed identity check failed", code },
-    { message: "managed identity check failed", code }
+  ];
+  assert.deepEqual(results.map(({ diagnostic: _diagnostic, ...result }) => result), [
+    { code, source_code: "EAI_AGAIN" }, { code }, { code }
   ]);
+  assert.equal(results[1].diagnostic.detail.source_code, "/secret/errno");
+  assert.equal(results[2].diagnostic.detail.source_code, "E".repeat(129));
 });

@@ -49,22 +49,61 @@ resolved from the canonical CCE/Node Engine key posture, never from caller input
 The important rule is simple: if the advice for a recurring issue changes, the
 source of truth is the corpus data file, not this prose page.
 
+The `verify-proof-execution-not-executable` entry covers every stable
+`agent_launch.verify_proof.*` execution wrapper. It explains that a valid
+structured failing assertion is `unsatisfied`, while inability to obtain
+authenticated execution or receipt evidence is `not_executable` or refused.
+Callers query the entry by the returned stable reason code, inspect its minimal
+recovery facts, repair the named contract/test or launcher/runtime prerequisite,
+and only then retry the same `workspace_verify_proof` subject.
+The entry distinguishes ordinary head/tail diagnostic capture from lossless
+proof-reporter protocol capture. Its
+`test_proof_structured_events_oversized` guidance requires reducing the
+declared structured event population or repairing the reporter protocol owner;
+truncated protocol bytes are never accepted as JSON.
+For an authenticated failed event below that protocol boundary, the complete
+evidence includes available error messages and stacks, assertion
+expected/actual/operator values, and nested cause or aggregate-error links. The
+same complete result associates each event stream with its candidate,
+falsifier, or traversal artifact. The compact summary continues to name only
+the evidence reference; callers retrieve its ranges without rerunning
+verification. Exact producer-declared protected strings use the existing closed
+redaction reasons and field signals. Undeclared diagnostic values are not
+suppressed by guessed sensitive-key, stack, path, or message rules.
+The same entry covers `test_proof_selected_identity_not_observed`: compare its
+expected ID with the bounded target, file-wrapper status/error codes,
+observed/returned/omitted counts, and at most eight safe
+file/name/nesting/ID candidates, then repair test startup or reporter
+observation before retrying. `test_proof_bound_identity_mismatch` is reserved
+for a genuine declared-versus-authenticated identity disagreement. Neither
+refusal returns the event stream or a complete large inventory. A completed
+verification answers with the compact `workspace-verify-proof-summary.v1`:
+requested subject, one common subject binding, aggregate status, exact proof
+and obligation-relationship counts, per-proof and per-obligation verdicts,
+shared reason/recovery entries for unmet or unevaluated items, and an evidence
+reference. Complete diagnostics, observed inventories, and bindings are read on
+demand through repeated `workspace_read_mcp_content_reference` calls named by
+the summary's `evidence_retrieval`; they name the same captured result and are
+never rerun.
+
+The `committed-slice-redispatch-refused` entry covers a worker redispatch that
+finds an existing committed delivery. It distinguishes the refused worker launch
+from the separate integration request, names the exact registered integration
+call shape, and explains that any follow-up remediation slice comes only after an
+accepted integration result. It grants no integration or lifecycle authority.
+
 ## Read-Only Surfaces
 
-The FAQ is surfaced through two equivalent read-only entrypoints:
-
-- MCP `workspace_agent_faq`
-- CLI parity command `wiki agent-faq`
-
-The CLI form is the operator-parity route for the same read-only surface. In
-this repository it is invoked through the wiki wrapper, for example:
+The FAQ is surfaced through one read-only entrypoint, the operator CLI command
+`wiki agent-faq`. It has no MCP tool. In this repository it is invoked through
+the wiki wrapper, for example:
 
 ```bash
 npm run wiki -- agent-faq --json
 ```
 
-Both surfaces are additive. They report the corpus; they do not change
-dispatch, readiness, launcher behavior, or any other runtime policy.
+The command is additive. It reports the corpus; it does not change dispatch,
+readiness, launcher behavior, or any other runtime policy.
 
 ### Bounded disclosure
 

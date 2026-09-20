@@ -1,0 +1,28 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800",
+  "profile_id": "proof.completeness.lossless-projection",
+  "profile_version": "4.0.0",
+  "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+  "guarantee": "When one declared structured tool exposes one compact mode and one distinct documented complete mode, the declared compact result omits at least one declared heavy member; every declared omission is absent from the compact population, present in the complete-result population, represented in an omission population whose computed union with the compact population equals the complete source population, and represented in a disclosed population equal to the omission population; the complete-result population equals the source population; the compact result names the complete mode and carries the disclosure, complete total, and omission total; both totals equal the corresponding exact bound population cardinalities; and the selected omission reason is a member of a closed declared reason catalog.",
+  "guarantee_digest": "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80",
+  "explicit_exclusions": [
+    "authored-population-truthfulness",
+    "code-routing-and-call-graph",
+    "cross-storage-envelope-parity",
+    "delivered-test-implementation",
+    "identity-provenance-truthfulness",
+    "member-byte-value-equality",
+    "modes-outside-bound-pair",
+    "pagination-range-and-cursor-semantics",
+    "redaction-and-security-exemptions"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "17ff49057eb560f2b6c424804910cf05ce9de82c35f836f2f39ae906cfac2d1c",
+    "adequacy_result_digest": "d66b99021633e2e6184d373320521d2af6f51c938cc822986e501134388b0efd",
+    "executable_control_count": 35,
+    "negative_fixture_count": 10,
+    "coverage_witness_count": 179
+  }
+}

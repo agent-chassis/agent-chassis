@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from
+  "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -53,9 +54,9 @@ test("the published package exposes bounded assessment and selection commands an
   });
   assert.equal(
     manifest.exports[
-      "./schema/controlled-contract-component-exclusion-applicability.v1.schema.json"
+      "./schema/controlled-contract-component-exclusion-applicability.v2.schema.json"
     ],
-    "./schema/controlled-contract-component-exclusion-applicability.v1.schema.json"
+    "./schema/controlled-contract-component-exclusion-applicability.v2.schema.json"
   );
   assert.deepEqual(manifest.bin, {
     "controlled-contract": "bin/assess-contract.mjs",
@@ -97,19 +98,18 @@ test("the published package exposes bounded assessment and selection commands an
     "lib/deterministic-lexicographic-ordering.mjs",
     "lib/declared-boundary-record-consistency.mjs",
     "lib/declared-limit-guidance-propagation.mjs",
-    "lib/integration-prefix-capture-compatibility.mjs",
     "lib/sound-negative-observation-projection.mjs",
     "lib/caller-input-authority-confinement-projection.mjs",
     "proof-intents/catalog.json",
-    "schema/controlled-contract-proof-intent-catalog.v1.schema.json",
+    "schema/controlled-contract-proof-intent-catalog.v2.schema.json",
     "schema/controlled-contract-proof-intent-discovery.v1.schema.json",
     "schema/controlled-contract-proof-pack-binding-assistance.v1.schema.json",
-    "schema/controlled-contract-proof-pack-authoring.v1.schema.json",
+    "schema/controlled-contract-proof-pack-authoring.v2.schema.json",
     "schema/controlled-contract-proof-plan-request.v1.schema.json",
     "schema/controlled-contract-proof-plan.v1.schema.json",
-    "schema/controlled-contract-multi-pack-assessment.v1.schema.json",
-    "schema/controlled-contract-component-exclusion-applicability.v1.schema.json",
-    "schema/controlled-contract-obligation-coverage.v1.schema.json"
+    "schema/controlled-contract-multi-pack-assessment.v2.schema.json",
+    "schema/controlled-contract-component-exclusion-applicability.v2.schema.json",
+    "schema/controlled-contract-obligation-coverage.v3.schema.json"
   ]) assert.equal(manifest.files.includes(required), true, required);
   assert.equal(
     manifest.files.includes("lib/deterministic-projection.mjs"),
@@ -135,20 +135,74 @@ test("runtime profiles contain only compact admitted artifacts", async () => {
     ));
     const names = (await readdir(directory)).sort();
     const expected = [
-      "admission.json", "evaluation-input.template.json", "profile.json"
+      "admission.json", "evaluation-input.template.json", "parameter-contract.json", "profile.json"
     ];
     if (pack.profile_id === "proof.verification.test-validity") expected.push("evaluator.mjs");
-    if (admission.schema_version === "controlled-contract-admitted-proof-pack.v2") {
-      expected.push("exact-binding-certification.json", "exact-binding.json");
-    }
     if (pack.profile_id === "proof.design.implementation-readiness" &&
-        pack.profile_version === "2.1.0") {
+        pack.profile_version === "4.0.0") {
       expected.push("component-exclusion-applicability.json");
     }
     expected.sort();
     assert.deepEqual(names, expected, pack.profile_id);
   }
   assert.ok(catalog.packs.length > 0);
+});
+
+test("current packaged proof bindings reject historical and stale identities", async (t) => {
+  const { loadExactAdmittedProofPack } = await import("../lib/admitted-proof-packs.mjs");
+  const catalog = JSON.parse(await readFile(
+    path.join(packageRoot, "profiles/catalog.json"), "utf8"
+  ));
+  const identities = catalog.packs.map(
+    ({ profile_id: id, profile_version: version }) => `${id}@${version}`
+  );
+  assert.equal(new Set(identities).size, identities.length);
+  const current = catalog.packs.find(
+    ({ profile_id: id }) => id === "proof.verification.test-validity"
+  );
+  assert.ok(current);
+  const admitted = await loadExactAdmittedProofPack({
+    profileId: current.profile_id,
+    profileVersion: current.profile_version
+  });
+  assert.equal(admitted.test_validity_evaluator.status, "resolved");
+  assert.equal(admitted.test_validity_evaluator.implementation_digest,
+    "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f");
+  for (const profileVersion of ["7.0.0", "9.0.0"]) {
+    await assert.rejects(loadExactAdmittedProofPack({
+      profileId: current.profile_id,
+      profileVersion
+    }), { code: "proof_pack_exact_version_not_current" });
+  }
+
+  const { stdout } = await execFileAsync("npm", [
+    "pack", "--dry-run", "--json", "--ignore-scripts"
+  ], { cwd: packageRoot, env: childEnvironment(), maxBuffer: 4 * 1024 * 1024 });
+  const names = new Set(JSON.parse(stdout)[0].files.map(({ path: file }) => file));
+  assert.equal(names.has("lib/proof-evaluator-registry.mjs"), true);
+  assert.equal(names.has(`${current.path}/evaluator.mjs`), true);
+  assert.equal(names.has(
+    "profiles/proof.verification.test-validity/7.0.0/evaluator.mjs"), true);
+  assert.equal([...names].some((name) => /(?:^|\/)test(?:\/|$)|certification/u.test(name)),
+    false);
+
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "wk2568-stale-pack-"));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const copiedPackage = path.join(temporary, "controlled-contract");
+  await cp(packageRoot, copiedPackage, { recursive: true });
+  await symlink(path.resolve(packageRoot, "../../node_modules"),
+    path.join(copiedPackage, "node_modules"), "dir");
+  const admissionPath = path.join(copiedPackage, current.path, "admission.json");
+  const staleAdmission = JSON.parse(await readFile(admissionPath, "utf8"));
+  staleAdmission.profile_digest = "0".repeat(64);
+  await writeFile(admissionPath, `${JSON.stringify(staleAdmission, null, 2)}\n`);
+  const copiedLoader = await import(
+    `${pathToFileURL(path.join(copiedPackage, "lib/admitted-proof-packs.mjs")).href}?stale=1`
+  );
+  await assert.rejects(copiedLoader.loadExactAdmittedProofPack({
+    profileId: current.profile_id,
+    profileVersion: current.profile_version
+  }), { code: "proof_pack_admission_binding_mismatch" });
 });
 
 test("the public current surface exposes selection and zero/one/many assessment", async () => {
@@ -175,7 +229,6 @@ test("the public current surface exposes selection and zero/one/many assessment"
   assert.equal(typeof taskResultPageAccounting, "function");
   assert.equal(typeof taskResultScalarRangeAccounting, "function");
   assert.equal(typeof current.assessContractFiles, "function");
-  assert.equal(typeof current.assessExactBoundContractFiles, "function");
   assert.equal(typeof current.assessStructuralContractFile, "function");
   assert.equal(typeof current.selectProofPacks, "function");
   assert.equal(typeof current.discoverProofIntents, "function");
@@ -209,11 +262,7 @@ test("the public current surface exposes selection and zero/one/many assessment"
   assert.equal(typeof current.validateObligationCoverageCarrier, "function");
   assert.equal(typeof current.buildObligationGuaranteeSelectorIndex, "function");
   assert.equal(typeof current.resolveObligationGuaranteeSelector, "function");
-  assert.deepEqual(current.OBLIGATION_COVERAGE_OUTCOMES, [
-    "stale", "unmapped", "explicit_gap", "guarantee_incompatible",
-    "mapped_input_missing", "mapped_pack_not_evaluated",
-    "profile_proven_exact_binding_missing", "mechanically_proven"
-  ]);
+  assert.deepEqual(current.OBLIGATION_COVERAGE_OUTCOMES, ['stale', 'explicit_gap', 'design_invalid', 'selected']);
   assert.equal(typeof current.describeStableTestProofAuthoring, "function");
   assert.equal(typeof current.queryStableTestProofBindings, "function");
   assert.equal(typeof current.replaceStableTestProofBindings, "function");
@@ -276,7 +325,8 @@ test("the public current declaration exposes discovery types and values", async 
     "replaceStableTestProofBindings",
     "resolveStableTestProofProviderBindings",
     "TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST",
-    "assessTestProofContract"
+    "assessTestProofContract",
+    "ProofAuthoringError", "assertProofAuthoringDraft"
   ]) assert.match(declaration, new RegExp(`\\b${name}\\b`, "u"), name);
   for (const name of [
     "deriveSoundNegativeObservationCapture",
@@ -330,7 +380,7 @@ test("the publication dry run ships discovery runtime and excludes test corpora"
     "lib/proof-plan-compiler.mjs",
     "lib/proof-plan-compiler.d.mts",
     "schema/controlled-contract-proof-plan-request.v1.schema.json",
-    "schema/controlled-contract-component-exclusion-applicability.v1.schema.json",
+    "schema/controlled-contract-component-exclusion-applicability.v2.schema.json",
     "lib/acceptance-coverage-identity.mjs",
     "lib/acceptance-coverage.mjs",
     "lib/acceptance-coverage-projection.mjs",
@@ -340,15 +390,15 @@ test("the publication dry run ships discovery runtime and excludes test corpora"
     "lib/test-proof-contract-v1.mjs",
     "lib/test-proof-provider-registry.mjs",
     "schema/controlled-acceptance-contract.v1.schema.json",
-    "schema/controlled-contract-obligation-coverage.v1.schema.json",
+    "schema/controlled-contract-obligation-coverage.v3.schema.json",
     "schema/controlled-contract-test-proof-runtime-evidence.v2.schema.json",
     "lib/test-proof-assessment.mjs",
     "schema/controlled-contract-assessment.v2.schema.json",
-    "profiles/proof.verification.test-validity/2.0.0/evaluator.mjs",
-    "profiles/proof.design.implementation-readiness/2.1.0/admission.json",
-    "profiles/proof.design.implementation-readiness/2.1.0/component-exclusion-applicability.json",
-    "profiles/proof.design.implementation-readiness/2.1.0/evaluation-input.template.json",
-    "profiles/proof.design.implementation-readiness/2.1.0/profile.json"
+    "profiles/proof.verification.test-validity/7.0.0/evaluator.mjs",
+    "profiles/proof.design.implementation-readiness/4.0.0/admission.json",
+    "profiles/proof.design.implementation-readiness/4.0.0/component-exclusion-applicability.json",
+    "profiles/proof.design.implementation-readiness/4.0.0/evaluation-input.template.json",
+    "profiles/proof.design.implementation-readiness/4.0.0/profile.json"
   ]) assert.equal(names.has(required), true, required);
   for (const name of names) {
     assert.doesNotMatch(name, /(?:^|\/)test(?:\/|$)/u);
@@ -375,6 +425,8 @@ test("an isolated packed public current entrypoint loads its complete runtime cl
     const [packed] = JSON.parse(stdout);
     const consumerRoot = path.join(temporary, "consumer");
     await mkdir(consumerRoot);
+
+    await mkdir(path.join(consumerRoot, ".git"));
     await execFileAsync("tar", [
       "-xzf", path.join(temporary, packed.filename), "-C", consumerRoot
     ]);
@@ -439,20 +491,17 @@ test("the packed package root excludes experimental producers and preserves stab
       assert.equal(root.canonicalEvaluationFilename("WK-2196", "focused-case"),
         "WK-2196-focused-case.evaluation-input.json");
     }
-    const carrier = {
-      schema_version: "controlled-contract-obligation-coverage.v1",
-      wk_id: "WK-2095",
-      obligations: [{
-        obligation_id: "OBL-001", source_locator: "/acceptance/criteria/0",
-        source_locator_digest: `sha256:${"d".repeat(64)}`,
-        statement: "Expose one exact package root behavior.",
-        controlled_contract_node_ids: ["node-one"],
-        mechanism: { owner: "packages/controlled-contract/current.mjs",
-          kind: "code_symbol", selector: "validateObligationCoverageCarrier" },
-        proof: { kind: "explicit_gap", gap_kind: "review_only",
-          reason: "Surface resolution test does not assess a proof pack." }
-      }]
-    };
+    const selection = { ...await sourceRoot.pinProofSelection('proof.verification.test-validity'), parameters: {} };
+
+    assert.equal('resolveProofAuthoring' in sourceRoot, false);
+    const { resolveProofAuthoring } = await import('../lib/proof-authoring-resolution.mjs');
+    const resolved = await resolveProofAuthoring({
+      schema_version: 'controlled-contract-obligation-coverage.v3', wk_id: 'WK-2095',
+      selected_unit: null, focus: null, obligations: [{ obligation_id: 'OBL-001',
+        statement: 'Expose one exact package root behavior.', selection,
+        gap: { gap_kind: 'review_only', reason: 'Package import does not execute proof.' } }]
+    }, { source_digest: `sha256:${'a'.repeat(64)}` });
+    const carrier = resolved.mapping;
     for (const root of [sourceRoot, packedRoot]) {
       assert.deepEqual(root.assertComponentExclusionApplicability(
         null, {}, {}
@@ -461,10 +510,8 @@ test("the packed package root excludes experimental producers and preserves stab
         component_exclusion_applicability_digest: null
       });
       assert.equal(root.validateObligationCoverageCarrier(carrier).valid, true);
-      const index = root.buildObligationGuaranteeSelectorIndex({ packs: [] });
       const evaluation = root.evaluateAcceptanceCoverage({
-        obligationCoverage: carrier, guaranteeSelectorIndex: index,
-        selectedPackIds: []
+        obligationCoverage: carrier
       });
       assert.equal(evaluation.obligation_outcomes[0].outcome, "explicit_gap");
       assert.equal(root.projectAcceptanceCoverage({ evaluation }).totals.total, 1);

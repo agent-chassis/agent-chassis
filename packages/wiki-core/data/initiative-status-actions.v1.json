@@ -202,8 +202,8 @@
       "suggested_tool": "workspace_validate_dispatch",
       "priority": "high",
       "advisory_only": true,
-      "default_description": "Read-only dispatch-readiness validation is the next step for the selected unit.",
-      "verbose_description": "Use when a non-authoritative initiative-status scan hints that admission evidence may be absent, stale, or incomplete. Validate the exact selected unit through the read-only dispatch-readiness envelope; this action does not classify recovery, authenticate carriers or sidecars, or decide dispatchability."
+      "default_description": "Optional read-only dispatch-readiness assessment for the selected unit; it is not required before starting the unit.",
+      "verbose_description": "Use when a non-authoritative initiative-status scan hints that admission evidence may be absent, stale, or incomplete, or when a coordinator wants the prospective \"can this unit start?\" answer. Assess the exact selected unit through the read-only dispatch-readiness envelope. This recommendation is advisory: it grants no launch permission, imposes no pre-call on workspace_agent_dispatch, which performs its own current checks, and does not classify recovery, authenticate carriers or sidecars, or decide dispatchability."
     },
     {
       "kind": "record_graph_impact_evidence",

@@ -21,7 +21,6 @@ import {
   runUpsertSlice,
   runDeleteSlice,
   runSetListField,
-  runSetAcceptance,
   runShapeReviewUnit
 } from "./work-record-contract-edit.mjs";
 
@@ -72,9 +71,6 @@ export async function runWorkRecords(argv) {
     case "set-list-field":
       await runSetListField(rest);
       return;
-    case "set-acceptance":
-      await runSetAcceptance(rest);
-      return;
     case "shape-review-unit":
       await runShapeReviewUnit(rest);
       return;
@@ -82,10 +78,10 @@ export async function runWorkRecords(argv) {
     case "--help":
     case "-h":
       console.log(
-        "Usage: wiki work-records <load|digest|validate|summary|admission|evaluate-admission|refresh-admission-metrics|cleanup-derived-evidence|persist-graph-impact|set-status|set-task|set-closure|upsert-slice|delete-slice|set-list-field|set-acceptance|shape-review-unit> [options]\n" +
+        "Usage: wiki work-records <load|digest|validate|summary|admission|evaluate-admission|refresh-admission-metrics|cleanup-derived-evidence|persist-graph-impact|set-status|set-task|set-closure|upsert-slice|delete-slice|set-list-field|shape-review-unit> [options]\n" +
           "Inspect canonical JSON work-records, evaluate or refresh worker-admission evidence, or perform trusted schema-aware work-record edits.\n" +
           "Edit commands use --unit <WK-0001|WK-0001#slice-id>; --id is record-only where supported.\n" +
-          "Contract/slice edit commands (upsert-slice, delete-slice, set-list-field, set-acceptance, shape-review-unit) are operator fallbacks;\n" +
+          "Contract/slice edit commands (upsert-slice, delete-slice, set-list-field, shape-review-unit) are operator fallbacks;\n" +
           "agents should use the workspace_work_record_contract_edit MCP route."
       );
       return;

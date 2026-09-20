@@ -217,6 +217,16 @@ export function normalizeSidecarRepoPath(inputPath) {
   return normalizePathInput(inputPath);
 }
 
+export function isSidecarRepoPath(inputPath) {
+  try {
+    normalizePathInput(inputPath);
+    return true;
+  } catch (error) {
+    if (error instanceof SidecarPathValidationError) return false;
+    throw error;
+  }
+}
+
 function validatePatternSyntax(pattern) {
   normalizePathInput(pattern);
   if (UNSUPPORTED_GLOB_SYNTAX.test(pattern)) {
@@ -355,6 +365,34 @@ export function getUnindexedSidecarSourceMatch(relativePath) {
 
 export function isUnindexedSidecarSourcePath(relativePath) {
   return getUnindexedSidecarSourceMatch(relativePath) != null;
+}
+
+const SIDECAR_SCIP_PROVIDER_INPUTS = Object.freeze({
+  "scip-typescript": Object.freeze({
+    extensions: Object.freeze([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"]),
+    basenames: Object.freeze(["yarn.lock", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc",
+      ".nvmrc", ".node-version"]),
+    pattern: null
+  }),
+  "scip-python": Object.freeze({
+    extensions: Object.freeze([".py", ".pyi"]),
+    basenames: Object.freeze(["pyproject.toml", "setup.py", "setup.cfg", "Pipfile", "Pipfile.lock",
+      "poetry.lock", "uv.lock", "pyrightconfig.json", ".python-version"]),
+    pattern: /^requirements.*\.txt$/
+  })
+});
+
+export const SIDECAR_SCIP_PROVIDER_NAMES = Object.freeze(Object.keys(SIDECAR_SCIP_PROVIDER_INPUTS));
+
+export function isSidecarScipProviderInputPath(provider, inputPath) {
+  const rules = SIDECAR_SCIP_PROVIDER_INPUTS[provider];
+  if (!rules) throw new TypeError(`unsupported SCIP provider: ${provider}`);
+  const relativePath = normalizeSidecarRepoPath(inputPath);
+  const basename = path.posix.basename(relativePath);
+  if (rules.basenames.includes(basename) || rules.pattern?.test(basename)) return true;
+  const extension = path.posix.extname(relativePath);
+  if (!rules.extensions.includes(extension)) return false;
+  return extension !== ".json" || !isUnindexedSidecarSourcePath(relativePath);
 }
 
 export function getSidecarDirtyIgnoredPathMatch(relativePath) {

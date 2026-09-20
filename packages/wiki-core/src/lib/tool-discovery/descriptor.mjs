@@ -1063,19 +1063,41 @@ export function evaluateAgentToolConformance(descriptor, manifest, { accessPolic
   };
 }
 
-function evaluateTokenBudget(currentLengths, budget, owner, targetWk) {
+function evaluateTokenBudget(
+  currentLengths,
+  budget,
+  owner,
+  targetWk,
+  { metadataCompleteNames = new Set() } = {}
+) {
   const baselineLengths = budget.baseline_lengths;
   const names = new Set([...Object.keys(baselineLengths), ...Object.keys(currentLengths)]);
   let debtAdded = 0;
   let debtRetired = 0;
+  let metadataCompleteGrowth = 0;
+  let newEntryValue = 0;
   const addedEntryNames = [];
   const retiredEntryNames = [];
+  const newEntryNames = [];
+  const metadataCompleteGrowthNames = [];
   for (const name of names) {
-    const baseline = baselineLengths[name] ?? 0;
     const current = currentLengths[name] ?? 0;
+    if (!Object.hasOwn(baselineLengths, name)) {
+      if (current > 0) {
+        newEntryValue += current;
+        newEntryNames.push(name);
+      }
+      continue;
+    }
+    const baseline = baselineLengths[name];
     if (current > baseline) {
-      debtAdded += current - baseline;
-      addedEntryNames.push(name);
+      if (metadataCompleteNames.has(name)) {
+        metadataCompleteGrowth += current - baseline;
+        metadataCompleteGrowthNames.push(name);
+      } else {
+        debtAdded += current - baseline;
+        addedEntryNames.push(name);
+      }
     } else if (current < baseline) {
       debtRetired += baseline - current;
       retiredEntryNames.push(name);
@@ -1085,13 +1107,21 @@ function evaluateTokenBudget(currentLengths, budget, owner, targetWk) {
   return {
     target: budget.target_ceiling,
     current_value: currentValue,
+
+    recorded_value: currentValue - newEntryValue,
     denominator: Object.keys(currentLengths).length,
+    recorded_denominator: Object.keys(currentLengths).length - newEntryNames.length,
     baseline_value: budget.baseline_total,
     baseline_denominator: budget.baseline_denominator,
     debt_added: debtAdded,
     debt_retired: debtRetired,
     added_entry_names: addedEntryNames.sort(),
     retired_entry_names: retiredEntryNames.sort(),
+    new_entry_value: newEntryValue,
+    new_entry_count: newEntryNames.length,
+    new_entry_names: newEntryNames.sort(),
+    metadata_complete_growth: metadataCompleteGrowth,
+    metadata_complete_growth_names: metadataCompleteGrowthNames.sort(),
     owner,
     target_wk: targetWk,
     remaining_excess: Math.max(0, currentValue - budget.target_ceiling),
@@ -1108,6 +1138,11 @@ export function evaluateAgentToolTokenBudgetDebt(
   { liveDescriptions = null } = {}
 ) {
   const debt = manifest[AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD];
+  const metadataCompleteNames = new Set(
+    (Array.isArray(descriptor?.tools) ? descriptor.tools : [])
+      .filter((tool) => missingAgentToolConformanceControls(tool).length === 0)
+      .map((tool) => tool.tool_name)
+  );
   const notesLengths = Object.fromEntries(
     (Array.isArray(descriptor?.tools) ? descriptor.tools : [])
       .filter((tool) => isNonEmptyString(tool?.notes))
@@ -1118,7 +1153,8 @@ export function evaluateAgentToolTokenBudgetDebt(
       notesLengths,
       debt.raw_discovery_notes,
       debt.owner,
-      debt.target_wk
+      debt.target_wk,
+      { metadataCompleteNames }
     )
   };
   if (liveDescriptions !== null) {
@@ -1131,7 +1167,8 @@ export function evaluateAgentToolTokenBudgetDebt(
       descriptionLengths,
       debt.live_paid_operator_descriptions,
       debt.owner,
-      debt.target_wk
+      debt.target_wk,
+      { metadataCompleteNames }
     );
   }
   return report;

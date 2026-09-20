@@ -7,12 +7,6 @@ export interface ProofPlanCompilerRequest {
     profile_id: string;
     profile_version: string;
     evaluation_input_path?: string;
-    exact_capture?: null | {
-      capture_root?: string;
-      contract_path?: string;
-      evaluation_input_path?: string;
-      sources?: Record<string, unknown>;
-    };
   }>;
 }
 

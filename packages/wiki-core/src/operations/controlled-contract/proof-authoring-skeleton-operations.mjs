@@ -14,7 +14,9 @@ import {
   withCanonicalControlledContractSourceLease,
   writeControlledContractCarrierSet
 } from "../../lib/controlled-contract-tools.mjs";
-import { CONTROLLED_CONTRACT_AUTHORING_REASONS } from
+import {
+  CONTROLLED_CONTRACT_AUTHORING_REASONS
+} from
   "../../lib/controlled-contract-authoring-state.mjs";
 import { readCanonicalProofPlanRequest } from
   "../../lib/controlled-contract-carrier-set-tools.mjs";
@@ -71,13 +73,15 @@ const PROOF_AUTHORING_DRAFT_FIELDS = Object.freeze(["carrier_operations"]);
 
 function proofAuthoringSkeletonCall(input, extra = {}) {
   return Object.freeze({
-    tool: "workspace_controlled_proof_authoring_skeleton",
-    arguments: Object.freeze({
+    capability: "proof_authoring_skeleton",
+    status: "retired_public_workflow",
+    subject: Object.freeze({
       wk_id: input.wkId,
-      ...(input.focus === undefined || input.focus === null ? {} : { focus: input.focus }),
-      selected_pack: input.selectedPack,
-      ...extra
-    })
+      ...(input.focus === undefined || input.focus === null ? {} : { focus: input.focus })
+    }),
+    selected_pack: input.selectedPack,
+    authored_input: Object.freeze(structuredClone(extra)),
+    recovery: null
   });
 }
 
@@ -148,29 +152,71 @@ function assertProofAuthoringIssuance(input) {
   );
 }
 
+function proofAuthoringBindingDecision(skeleton) {
+  const diagnostics = structuredClone(skeleton.evaluation_input_diagnostics);
+  const unresolved = skeleton.unresolved_required_roles;
+  return Object.freeze({
+    question: unresolved.length > 0
+      ? "Which returned candidate should fill each unresolved proof-pack role, and how should each reported evaluation-input diagnostic be corrected?"
+      : "How should each reported evaluation-input diagnostic be corrected?",
+    unresolved_roles: Object.freeze(unresolved.map(
+      ({ kind, role, status }) => Object.freeze({ kind, role, status })
+    )),
+    evaluation_input_diagnostics: diagnostics,
+    response_contract: Object.freeze({
+      request:
+        "Reuse the retained skeleton call and update its one supplied semantic input; do not add proposal_draft until every required role and evaluation diagnostic is resolved.",
+      reference_binding: Object.freeze({
+        shape: Object.freeze({ role: "<unresolved role>",
+          reference_ids: Object.freeze(["<selected reference_id>"]) }),
+        candidate_selector:
+          "entries[kind=reference_candidate,role=<unresolved role>].candidate.reference_id"
+      }),
+      number_binding: Object.freeze({
+        shape: Object.freeze({ role: "<unresolved role>",
+          value: "<selected candidate value>" }),
+        candidate_selector:
+          "entries[kind=number_candidate,role=<unresolved role>].candidate.value"
+      }),
+      diagnostic_resolution: Object.freeze({
+        requirement:
+          "Correct or remove every binding named by evaluation_input_diagnostics; select replacement role names only from the returned role_index and candidates for that same binding kind.",
+        role_selector: "role_index[role=<reported or intended role>]"
+      }),
+      constraints: Object.freeze([
+        "Use reference_bindings for reference roles and number_bindings for number roles.",
+        "Preserve every existing binding, requested intent, selected pack, evaluation stage, and unrelated evaluation-input field.",
+        "Use only candidates returned for the same role by the emitted binding-inspection call."
+      ])
+    })
+  });
+}
+
 function proofAuthoringSkeletonNextAction({ input, skeleton, record }) {
   if (record !== null) return Object.freeze({
-    tool: "workspace_controlled_contract_authoring_state",
-    arguments: Object.freeze({
+    capability: "proof_graph_publication",
+    status: "retired_public_workflow",
+    subject: Object.freeze({
       wk_id: input.wkId,
-      ...(input.focus === undefined || input.focus === null ? {} : { focus: input.focus }),
-      continuation: record.identity
-    })
+      ...(input.focus === undefined || input.focus === null ? {} : { focus: input.focus })
+    }),
+    continuation: record.identity,
+    recovery: null
   });
   const unresolvedRoles = skeleton.unresolved_required_roles.map(({ role }) => role);
   if (unresolvedRoles.length > 0 || skeleton.evaluation_input_diagnostics.length > 0) {
     return Object.freeze({
-      tool: "workspace_controlled_proof_pack_bindings_inspect",
-      arguments: Object.freeze({
+      capability: "proof_pack_binding_resolution",
+      status: "capability-incomplete",
+      subject: Object.freeze({
         wk_id: input.wkId,
-        ...(input.focus === undefined || input.focus === null
-          ? {} : { focus: input.focus }),
-        profile_id: skeleton.selected_pack.profile_id,
-        profile_version: skeleton.selected_pack.profile_version,
-        requested_intents: [...skeleton.requested_intents],
-        ...(unresolvedRoles.length > 0
-          ? { roles: [...new Set(unresolvedRoles)].slice(0, 64) } : {})
-      })
+        ...(input.focus === undefined || input.focus === null ? {} : { focus: input.focus })
+      }),
+      selected_pack: skeleton.selected_pack,
+      requested_intents: Object.freeze([...skeleton.requested_intents]),
+      unresolved_roles: Object.freeze([...new Set(unresolvedRoles)].slice(0, 64)),
+      recovery: null,
+      author_decision: proofAuthoringBindingDecision(skeleton)
     });
   }
   return Object.freeze({
@@ -178,19 +224,10 @@ function proofAuthoringSkeletonNextAction({ input, skeleton, record }) {
       requested_intents: [...skeleton.requested_intents],
       ...(input.evaluationInput === undefined
         ? { bindings: input.bindings ?? {} }
-        : { evaluation_input: input.evaluationInput })
-    }),
-    verification_bundles: structuredClone(skeleton.verification_bundles),
-    evaluation_input_skeleton:
-      structuredClone(skeleton.evaluation_input_skeleton),
-    proof_plan_request: structuredClone(skeleton.proof_plan_request),
-    author_semantics: Object.freeze([Object.freeze({
-      pointer: "/proposal_draft",
-      target_type: "controlled_proof_graph_proposal_draft",
-      requirement:
-        "supply carrier_operations to issue a server continuation; the exact source declaration is server-owned",
-      required_fields: Object.freeze([...PROOF_AUTHORING_DRAFT_FIELDS])
-    })])
+        : { evaluation_input: input.evaluationInput }),
+
+      proposal_draft: Object.freeze({ carrier_operations: Object.freeze([]) })
+    })
   });
 }
 
@@ -230,11 +267,6 @@ const SERVER_KNOWN_PROPOSAL_TARGETS = Object.freeze([
     carrierKind: "evaluation_input",
     target: "number_bindings",
     resolve: (skeleton) => skeleton.evaluation_input?.number_bindings
-  }),
-  Object.freeze({
-    carrierKind: "evaluation_input",
-    target: "evaluation_stage",
-    resolve: (skeleton) => skeleton.evaluation_input?.evaluation_stage
   }),
   Object.freeze({
     carrierKind: "proof_plan_request",
@@ -334,6 +366,52 @@ function resolveServerKnownProposalOperations({ input, pkg, skeleton }) {
     }
   }
   return filled.length === 0 ? carrierOperations : [...carrierOperations, ...filled];
+}
+
+async function completeUniquelyDerivableBindings({ pkg, contract, skeleton }) {
+  const unresolved = skeleton.unresolved_required_roles;
+  if (unresolved.length === 0 || unresolved.some(({ status }) =>
+    status !== "one_compatible_candidate")) return null;
+  const roles = [...new Set(unresolved.map(({ role }) => role))];
+  const inspection = await pkg.inspectProofPackBindingsPage({
+    contract,
+    profileId: skeleton.selected_pack.profile_id,
+    profileVersion: skeleton.selected_pack.profile_version,
+    requestedIntents: skeleton.requested_intents,
+    evaluationInput: skeleton.evaluation_input,
+    roles,
+    statuses: ["one_compatible_candidate"],
+    maximumItems: 128
+  });
+  const completed = structuredClone(skeleton.evaluation_input);
+  const referenceBindings = new Map((completed.reference_bindings ?? []).map(
+    (binding) => [binding.role, binding]));
+  const numberBindings = new Map((completed.number_bindings ?? []).map(
+    (binding) => [binding.role, binding]));
+  const completedRoles = [];
+  for (const role of unresolved) {
+    const indexed = inspection.role_index.filter((entry) =>
+      entry.kind === role.kind && entry.role === role.role);
+    const candidates = inspection.items.filter((entry) =>
+      entry.kind === `${role.kind}_candidate` && entry.role === role.role);
+    if (indexed.length !== 1 || indexed[0].status !== "one_compatible_candidate" ||
+        indexed[0].compatible_candidate_count !== 1 || candidates.length !== 1) return null;
+    if (role.kind === "reference") referenceBindings.set(role.role, {
+      role: role.role,
+      reference_ids: [candidates[0].candidate.reference_id]
+    });
+    else if (role.kind === "number") numberBindings.set(role.role, {
+      role: role.role,
+      value: candidates[0].candidate.value
+    });
+    else return null;
+    completedRoles.push({ kind: role.kind, role: role.role,
+      candidate_count: 1 });
+  }
+  completed.reference_bindings = [...referenceBindings.values()];
+  completed.number_bindings = [...numberBindings.values()];
+  return Object.freeze({ evaluationInput: completed,
+    roles: Object.freeze(completedRoles) });
 }
 
 export async function buildProofAuthoringSkeletonOperation(input) {
@@ -472,7 +550,7 @@ export async function buildProofAuthoringSkeletonOperation(input) {
       throw new Error("package composition omitted the requested selected-pack identity");
     }
     const pkg = await loadControlledContractPackage();
-    const skeleton = await pkg.buildProofAuthoringSkeleton({
+    let skeleton = await pkg.buildProofAuthoringSkeleton({
       contract: contract.content,
       selectedPack,
       requestedIntents: input.requestedIntents,
@@ -490,13 +568,37 @@ export async function buildProofAuthoringSkeletonOperation(input) {
         ? { bindings: input.bindings ?? {} }
         : { evaluationInput: input.evaluationInput })
     });
+    let automaticCompletion = null;
+    if (input.proposalDraft === undefined) {
+      automaticCompletion = await completeUniquelyDerivableBindings({
+        pkg, contract: contract.content, skeleton
+      });
+      if (automaticCompletion !== null) skeleton = await pkg.buildProofAuthoringSkeleton({
+        contract: contract.content,
+        selectedPack,
+        requestedIntents: input.requestedIntents,
+        focus: input.focus ?? null,
+        ...(persistedRequest === null ? {} : {
+          currentProofPlanRequest: {
+            ...persistedRequest,
+            selected_packs: composedPacks.filter(({ profile_id: profileId,
+              profile_version: profileVersion }) =>
+              profileId !== requestedSelectedPackIdentity.profile_id ||
+              profileVersion !== requestedSelectedPackIdentity.profile_version)
+          }
+        }),
+        evaluationInput: automaticCompletion.evaluationInput
+      });
+    }
     let record = null;
     const reusable = skeleton.unresolved_required_roles.length === 0 &&
       skeleton.evaluation_input_diagnostics.length === 0;
-    if (input.proposalDraft !== undefined && reusable) {
+    if ((input.proposalDraft !== undefined || automaticCompletion !== null) && reusable) {
 
+      const proposalInput = input.proposalDraft === undefined
+        ? { ...input, proposalDraft: { carrier_operations: [] } } : input;
       const carrierOperations = resolveServerKnownProposalOperations({
-        input, pkg, skeleton
+        input: proposalInput, pkg, skeleton
       });
       const proposal = {
         schema_version: "controlled-proof-graph-proposal.v1",
@@ -542,6 +644,18 @@ export async function buildProofAuthoringSkeletonOperation(input) {
       evaluation_input_diagnostics: skeleton.evaluation_input_diagnostics,
       ...(record === null ? {} : { continuation: record.identity }),
       continuation_issued: record !== null,
+      ...(automaticCompletion === null ? {} : {
+        automatic_reference_authoring: Object.freeze({
+          status: "uniquely_derived",
+          role_count: automaticCompletion.roles.length,
+          roles: automaticCompletion.roles
+        })
+      }),
+      effects: Object.freeze({
+        continuation_issued: record !== null,
+        canonical_publication: "not_requested",
+        canonical_carriers_changed: false
+      }),
       next_action: proofAuthoringSkeletonNextAction({ input, skeleton, record }),
       digests: skeleton.digests
     });

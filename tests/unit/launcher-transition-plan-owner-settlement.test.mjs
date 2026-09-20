@@ -61,11 +61,30 @@ function wkOwnerCarrier(baseSha) {
       output_branch: REF,
       wk_tip_sha: baseSha
     }),
+
+    controlled_acceptance_state: Object.freeze({
+      schema_version: "controlled-acceptance-state.v1",
+      wk_id: WK_ID,
+      selected_unit: { kind: "slice", address: SUBJECT, record_id: WK_ID,
+        slice_id: SLICE_ID },
+      state: "complete",
+      generation: "e".repeat(64),
+      disposition: { required: true, exemption: null, classification: "standard",
+        classification_rationale: null, rationale_provenance: null },
+      population: { dimension_count: 9, incomplete_row_count: 0,
+        actionable_row_count: 0, non_actionable_row_count: 0 },
+      definition_readiness: null,
+      semantic: { admission: { admits: true } },
+      mechanically_complete: true, recovery: null
+    }),
     controlled_contract_generation: Object.freeze({
       schema_version: "controlled-contract-resolved-generation.v1",
       record_id: WK_ID,
       count: 1,
-      generation_digest: `sha256:${"d".repeat(64)}`
+      generation_digest: `sha256:${"d".repeat(64)}`,
+      manifest_selection: Object.freeze([Object.freeze({
+        focus: null, generation: "e".repeat(64)
+      })])
     }),
     wk_snapshot: Object.freeze({
       ref: `refs/heads/${REF}`,
@@ -257,7 +276,7 @@ test("the invalid projection requests one bounded settlement from WK-2261", () =
   }), invalidated);
 });
 
-test("the exact canonically admitted WK-2261 carrier is observed with spawn blocked", () => {
+test("test-proof-owner-settlement-current-generation: exact current-W carrier is observed before allocation", () => {
   const { plan, selected, admitted } = allocatedPlan();
   const invalidated = invalidate(plan, selected);
   const winner = ownerCarrier(OID_B);

@@ -381,8 +381,8 @@ function buildCompletePaginationProfileFixture({
     annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const input = {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "pre_dispatch",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...roles[role]]
     })),

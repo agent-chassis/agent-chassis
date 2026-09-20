@@ -25,7 +25,7 @@ const controlledContractRoot = path.resolve(
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.failure.settlement-and-cleanup/2.0.0"
+  "certification/profiles/proof.failure.settlement-and-cleanup/3.0.0"
 );
 async function readJson(relative) {
   return JSON.parse(await readFile(path.join(packDirectory, relative), "utf8"));

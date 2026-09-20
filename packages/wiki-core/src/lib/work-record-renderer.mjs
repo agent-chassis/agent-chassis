@@ -30,6 +30,7 @@ import {
   projectWorkRecordTestProofValidation,
   renderWorkRecordValidationEntry
 } from "./work-record-test-proof-bindings.mjs";
+import { projectWorkRecordEntries } from "./work-record-entry-projection.mjs";
 
 export const WORK_RECORD_RENDERER_NAME = "agent-chassis";
 export const WORK_RECORD_RENDERER_VERSION = "0.2.0";
@@ -331,6 +332,13 @@ function renderWorkRecordMarkdownBody(record, metadata) {
     "",
     renderParagraph(record.sections?.agent_notes),
     "",
+    renderSectionHeading("Saved Entries"),
+    "",
+    renderBulletList(projectWorkRecordEntries(record, { limit: 3 }).entries, {
+      empty: "- None",
+      formatter: (entry) => `${escapeInlineCode(entry.entry_id)} v${entry.current_version}: ${entry.title}`
+    }),
+    "",
     renderSectionHeading("Closure"),
     "",
     formatClosureSection(record.sections?.closure),
@@ -557,7 +565,10 @@ export function renderWorkRecordAgentBrief(record, options = {}) {
     compactedFields,
     sliceId: metadataSliceId
   });
-  return buildBriefProjectionResult(record, metadata, { sliceId });
+  return buildBriefProjectionResult(record, metadata, {
+    sliceId,
+    entryMaterial: options.entryMaterial ?? null
+  });
 }
 
 export function checkWorkRecordRenderProjectionRecord(projection, { sourceRecord = null } = {}) {

@@ -303,6 +303,9 @@ export function interpretNodeEngineAdmissibility(packResult) {
     ratified,
     ...(authenticatedRequestSent !== null
       ? { authenticated_request_sent: authenticatedRequestSent }
+      : {}),
+    ...(Object.hasOwn(packResult, "failure_diagnostic")
+      ? { failure_diagnostic: packResult.failure_diagnostic }
       : {})
   });
 }
@@ -400,6 +403,9 @@ export function foldNodeEngineAdmissibilityIntoReadiness(readiness, outcome) {
       : {}),
     ...(typeof outcome.authenticated_request_sent === "boolean"
       ? { authenticated_request_sent: outcome.authenticated_request_sent }
+      : {}),
+    ...(Object.hasOwn(outcome, "failure_diagnostic")
+      ? { failure_diagnostic: outcome.failure_diagnostic }
       : {})
   };
   if (outcome.recovery_validation) {

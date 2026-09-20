@@ -1,0 +1,13 @@
+{
+  "domains": [
+    {
+      "id": "plugin-registry"
+    },
+    {
+      "id": "feature-gated-scheduler"
+    },
+    {
+      "id": "compatibility-codec"
+    }
+  ]
+}

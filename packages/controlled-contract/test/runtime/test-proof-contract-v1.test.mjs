@@ -3,13 +3,12 @@ import test from "node:test";
 
 import {
   STABLE_TEST_PROOF_AUTHORING_LIMITS,
-  STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS,
   StableTestProofContractError,
   applyStableVerificationBundles,
+  buildStableTestProofBindingTemplate,
   canonicalStableTestProofContractJson,
-  classifyStableTestProofRuntimeReadiness,
   describeStableTestProofAuthoring,
-  projectStableTestProofCurrentPopulation,
+  projectStableTestProofSelector,
   queryStableTestProofBindings,
   replaceStableTestProofBindings,
   resolveStableTestProofBindingPopulation,
@@ -44,15 +43,13 @@ function binding() {
         target_kind: "module",
         module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs" },
       execution_provider: { provider_id: "launcher.node-test-module-fault",
-        provider_version: "1.0.0", capability: "falsifier_execution" } }],
+        provider_version: "2.0.0", capability: "falsifier_execution" } }],
     traversal_provider: { mode: "provider", provider_id: "launcher.node-test-v8-coverage",
       provider_version: "1.0.0", capability: "boundary_traversal",
       boundary_kind: "module", observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace" },
-    coverage_disposition: { baseline_id: "coverage-baseline-component",
-      baseline_state: "complete_executed_inventory",
-      items: [{ test_id: "test-component", disposition: "preserved" }] },
+    test_selector: { name: "component assertion", nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
 }
@@ -162,10 +159,7 @@ function populatedContract(bindingCount) {
     bundle.test_proof.falsifiers[0].falsifier_id = `falsifier-${suffix}`;
     bundle.test_proof.falsifiers[0].mutation.mutation_id = `mutation-${suffix}`;
     bundle.test_proof.falsifiers[0].mutation.module_path = longModulePath;
-    bundle.test_proof.coverage_disposition.baseline_id = `coverage-baseline-${suffix}`;
-    bundle.test_proof.coverage_disposition.items = [{
-      test_id: `test-${suffix}`, disposition: "preserved"
-    }];
+    bundle.test_proof.test_selector = { name: `assertion ${suffix}`, nesting: 0 };
     operations.push({ op: "upsert", verification_id: bundle.verification_id, bundle });
   }
   return applyStableVerificationBundles({ contract: source, operations }).contract;
@@ -222,11 +216,7 @@ function mutuallyReferencingBundle(identity, suffix, otherIdentity) {
       falsifier_id: `falsifier-${suffix}`,
       mutation: { ...falsifier.mutation, mutation_id: `mutation-${suffix}` }
     })),
-    coverage_disposition: {
-      ...bundle.test_proof.coverage_disposition,
-      baseline_id: `coverage-baseline-${suffix}`,
-      items: [{ test_id: `test-${suffix}`, disposition: "preserved" }]
-    }
+    test_selector: { name: `assertion ${suffix}`, nesting: 0 }
   };
   return bundle;
 }
@@ -240,14 +230,14 @@ test("stable authoring validates, canonicalizes, queries, and replaces atomicall
   assert.equal(selected.matched_count, 1);
   assert.deepEqual(selected.bindings, [binding()]);
   const replacement = binding();
-  replacement.coverage_disposition.baseline_id = "coverage-baseline-replacement";
+  replacement.test_selector = { name: "replacement assertion", nesting: 2 };
   const result = replaceStableTestProofBindings({ contract: source, replacements: [{
     op: "replace", verification_id: "claim-suite-covers-component", binding: replacement
   }] });
-  assert.equal(result.contract.test_proofs[0].coverage_disposition.baseline_id,
-    "coverage-baseline-replacement");
-  assert.equal(source.test_proofs[0].coverage_disposition.baseline_id,
-    "coverage-baseline-component");
+  assert.deepEqual(result.contract.test_proofs[0].test_selector,
+    { name: "replacement assertion", nesting: 2 });
+  assert.deepEqual(source.test_proofs[0].test_selector,
+    { name: "component assertion", nesting: 0 });
   assert.ok(result.contract_digest.startsWith("sha256:"));
 });
 
@@ -273,73 +263,53 @@ test("runtime population resolution is independent of the public query byte budg
     STABLE_TEST_PROOF_AUTHORING_LIMITS.query_result_bytes);
 });
 
-test("stable runtime readiness keeps inventory and selection independent", () => {
-  const missingInventory = binding();
-  missingInventory.coverage_disposition = {
-    baseline_id: "coverage-baseline-component",
-    baseline_state: "no_executed_coverage",
-    items: []
-  };
+test("the declarative selector is projected exactly and never carries execution state", () => {
+  const selector = projectStableTestProofSelector(binding());
+  assert.deepEqual(selector, { name: "component assertion", nesting: 0 });
+  assert.equal(Object.isFrozen(selector), true);
+
+  const unwritten = binding();
+  unwritten.test_selector = { name: "a test nobody has written", nesting: 3 };
   assert.equal(validateStableTestProofContract({
-    ...contract(), test_proofs: [missingInventory]
+    ...contract(), test_proofs: [unwritten]
   }).valid, true);
-  assert.deepEqual(classifyStableTestProofRuntimeReadiness(missingInventory), {
-    schema_version: "controlled-contract-test-proof-runtime-readiness.v1",
-    status: "not_ready",
-    reason: STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_INVENTORY,
-    candidate_total: 0,
-    current_test_ids: [],
-    selected_test_id: null,
-    runtime_test_identity: null,
-    authority: "diagnostic",
-    admissibility_effect: "none"
-  });
-
-  const missingSelection = binding();
-  assert.equal(classifyStableTestProofRuntimeReadiness(missingSelection).reason,
-    STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_SELECTION);
-
-  const invalidSelection = binding();
-  invalidSelection.runtime_test_identity = { test_id: "test-outside-population" };
-  const invalid = classifyStableTestProofRuntimeReadiness(invalidSelection);
-  assert.equal(invalid.reason,
-    STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.INVALID_SELECTION);
-  assert.equal(invalid.candidate_total, 1);
-
-  const ready = binding();
-  ready.coverage_disposition.items.push({
-    test_id: "test-retired", disposition: "replaced",
-    replacement_test_ids: ["test-nested", "test-second"]
-  });
-  ready.runtime_test_identity = { test_id: "test-nested" };
-  assert.deepEqual(projectStableTestProofCurrentPopulation(ready),
-    ["test-component", "test-nested", "test-second"]);
-  assert.deepEqual(classifyStableTestProofRuntimeReadiness(ready).runtime_test_identity,
-    { test_id: "test-nested" });
-  assert.equal(classifyStableTestProofRuntimeReadiness(ready).reason,
-    STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.READY);
-
-  const selectedWithoutInventory = structuredClone(missingInventory);
-  selectedWithoutInventory.runtime_test_identity = { test_id: "test-component" };
-  assert.equal(classifyStableTestProofRuntimeReadiness(selectedWithoutInventory).reason,
-    STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_INVENTORY);
+  assert.deepEqual(projectStableTestProofSelector(unwritten),
+    { name: "a test nobody has written", nesting: 3 });
+  const serialized = JSON.stringify(describeStableTestProofAuthoring());
+  for (const retired of ["coverage_disposition", "runtime_test_identity", "readiness",
+    "test_inventory", "baseline"]) {
+    assert.equal(serialized.includes(retired), false, retired);
+  }
 });
 
-test("stable runtime population rejects duplicate identities before readiness", () => {
-  const duplicate = binding();
-  duplicate.coverage_disposition.items.push({
-    test_id: "test-retired", disposition: "replaced",
-    replacement_test_ids: ["test-component"]
-  });
-  assert.throws(() => projectStableTestProofCurrentPopulation(duplicate),
-    (error) => error instanceof StableTestProofContractError &&
-      error.code === "stable_test_proof_current_population_duplicate");
-  const validated = validateStableTestProofContract({
-    ...contract(), test_proofs: [duplicate]
-  });
-  assert.equal(validated.valid, false);
-  assert.equal(validated.diagnostics.diagnostics.some(({ code }) =>
-    code === "stable_test_proof_current_population_duplicate"), true);
+test("a malformed declarative selector is refused by the projector and the carrier alike", () => {
+  const cases = [
+    ["absent", (value) => { delete value.test_selector; }],
+    ["null", (value) => { value.test_selector = null; }],
+    ["empty name", (value) => { value.test_selector = { name: "", nesting: 0 }; }],
+    ["negative nesting", (value) => { value.test_selector = { name: "x", nesting: -1 }; }],
+    ["fractional nesting", (value) => { value.test_selector = { name: "x", nesting: 1.5 }; }],
+    ["unsupported member", (value) => {
+      value.test_selector = { name: "x", nesting: 0, test_id: "test-observed" };
+    }],
+    ["oversized name", (value) => {
+      value.test_selector = { name: "n".repeat(513), nesting: 0 };
+    }]
+  ];
+  for (const [label, mutate] of cases) {
+    const malformed = binding();
+    mutate(malformed);
+    assert.throws(() => projectStableTestProofSelector(malformed), (error) =>
+      error instanceof StableTestProofContractError &&
+      error.code === "stable_test_proof_selector_invalid", label);
+    const validated = validateStableTestProofContract({
+      ...contract(), test_proofs: [malformed]
+    });
+    assert.equal(validated.valid, false, label);
+
+    assert.ok(validated.diagnostics.diagnostics.some(({ pointer }) =>
+      pointer.startsWith("/test_proofs/0")), label);
+  }
 });
 
 test("verification bundles add and remove a complete test graph atomically", () => {
@@ -394,7 +364,7 @@ test("verification bundle upsert replaces an exclusive inspection or analysis gr
 
   const existingTestExecution = contract();
   const mismatch = inspectionReplacementBundle();
-  mismatch.test_proof.coverage_disposition.baseline_id = "different";
+  mismatch.test_proof.test_selector = { name: "different", nesting: 0 };
   assert.equal(errorCode(() => applyStableVerificationBundles({
     contract: existingTestExecution,
     operations: [{ op: "upsert", verification_id: mismatch.verification_id,
@@ -447,7 +417,7 @@ test("verification bundle mutation is closed, exact, bounded, and removal-safe",
     op: "upsert", verification_id: bundle.verification_id, bundle
   }] }).contract;
   const mismatch = structuredClone(bundle);
-  mismatch.test_proof.coverage_disposition.baseline_id = "different";
+  mismatch.test_proof.test_selector = { name: "different", nesting: 0 };
   assert.equal(errorCode(() => applyStableVerificationBundles({ contract: added,
     operations: [{ op: "remove", verification_id: bundle.verification_id,
       bundle: mismatch }] })), "stable_verification_bundle_content_mismatch");
@@ -571,12 +541,12 @@ function fillAuthorSemantics(bundle, authorSemantics) {
       setPointer(bundle, hole.pointer, "packages/controlled-contract/current.mjs");
       continue;
     }
-    if (hole.target_type === "coverage_baseline_state") {
-      setPointer(bundle, hole.pointer, "no_executed_coverage");
+    if (hole.target_type === "test_name") {
+      setPointer(bundle, hole.pointer, "authored assertion");
       continue;
     }
-    if (hole.target_type === "coverage_item") {
-      setPointer(bundle, hole.pointer, []);
+    if (hole.target_type === "test_nesting") {
+      setPointer(bundle, hole.pointer, 0);
       continue;
     }
     assert.ok(first !== undefined, `no candidate for ${hole.pointer}`);
@@ -715,4 +685,60 @@ test("an empty verification identity refuses before any template is built", () =
   const { buildVerificationBundleTemplate } = vocabularyExports;
   assert.throws(() => buildVerificationBundleTemplate({ verificationId: "" }),
     (error) => error.code === "stable_verification_bundle_input_invalid");
+});
+
+test("forced invocation admits explicit closed selections and keeps dependency failure separate", () => {
+  const source = contract();
+  const falsifier = source.test_proofs[0].falsifiers[0];
+  falsifier.strategy = "forced_invocation";
+  Object.assign(falsifier.mutation, { entry_export: "runNativePermissionProbeProcess",
+    operation: { module_path: "packages/agent-launch-cli/src/lib/workspace-agent-launch-core.mjs",
+      export_name: "superviseChildLaunch" }, invocation: "first_original_return_no_arguments" });
+  assert.equal(validateStableTestProofContract(source).valid, true);
+  for (const mutate of [
+    value => { delete value.mutation.entry_export; },
+    value => { delete value.mutation.operation; },
+    value => { delete value.mutation.invocation; }
+  ]) {
+    const changed = structuredClone(source);
+    mutate(changed.test_proofs[0].falsifiers[0]);
+    assert.equal(validateAndResolveNativeContractV1(changed).schema_valid, true);
+    const execution = validateStableTestProofContract(changed);
+    assert.equal(execution.valid, false);
+    assert.ok(execution.diagnostics.diagnostics.some(
+      diagnostic => diagnostic.code === "stable_test_proof_incomplete"));
+  }
+  for (const mutate of [
+    value => { value.mutation.operation.command = "arbitrary"; },
+    value => { value.mutation.operation.export_name = "call()"; },
+    value => { value.mutation.operation.module_path = "../escape.mjs"; },
+    value => { value.mutation.invocation = "before_entry"; },
+    value => { value.mutation.source = "arbitrary execution"; },
+    value => { value.strategy = "dependency_failure"; }
+  ]) {
+    const changed = structuredClone(source);
+    mutate(changed.test_proofs[0].falsifiers[0]);
+    assert.equal(validateAndResolveNativeContractV1(changed).schema_valid, false);
+    assert.equal(validateStableTestProofContract(changed).valid, false);
+  }
+  const mismatched = structuredClone(source);
+  mismatched.test_proofs[0].falsifiers[0].execution_provider = {
+    provider_id: "launcher.node-test", provider_version: "1.0.0", capability: "falsifier_execution"
+  };
+  assert.equal(validateStableTestProofContract(mismatched).valid, false);
+  assert.equal(validateStableTestProofContract(contract()).valid, true);
+});
+
+test("forced-invocation template binds the strategy and closed recipe explicitly", () => {
+  const template = buildStableTestProofBindingTemplate({ verificationId: "claim-verify-forbidden",
+    strategy: "forced_invocation" });
+  const falsifier = template.binding.falsifiers[0];
+  assert.equal(falsifier.strategy, "forced_invocation");
+  assert.equal(falsifier.mutation.invocation, "first_original_return_no_arguments");
+  assert.equal(falsifier.execution_provider.provider_id, "launcher.node-test-module-fault");
+  for (const suffix of ["entry_export", "operation/module_path", "operation/export_name"]) {
+    assert.ok(template.author_semantics.some(hole => hole.pointer === `/falsifiers/0/mutation/${suffix}`));
+  }
+  assert.throws(() => buildStableTestProofBindingTemplate({ verificationId: "claim-verify-forbidden",
+    strategy: "unknown" }));
 });

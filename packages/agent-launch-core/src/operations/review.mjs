@@ -127,8 +127,7 @@ export async function reviewHandoff({
   ) {
     throw new Error(
       `Implementation-scoped handoff requires a valid ${graphImpactCheckpoint.required_section}; ` +
-        "include graph-impact-paths, workspace_code_index_graph_impact_paths, " +
-        "graph-impact-diff, workspace_code_index_graph_impact_diff, " +
+        "include code-index impact or workspace_code_index_impact with its paths or diff subject, " +
         "or not applicable with a reason"
     );
   }

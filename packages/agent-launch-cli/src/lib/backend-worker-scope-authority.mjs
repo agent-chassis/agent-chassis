@@ -4,70 +4,124 @@ import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import {
   CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT,
-  collectControlledContractPrivateScopeIntersections,
-  computeWorkRecordSourceDigest,
-  excludeControlledContractPrivatePaths
-} from "@agent-chassis/wiki-core";
+  collectControlledContractPrivateScopeIntersections
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import {
+  compileRepositoryScopePath,
+  repositoryScopeGlobIndex
+} from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
 import {
   WK_SUBJECT_RE,
   EXACT_IMPLEMENTATION_SLICE_RE,
   WORKSPACE_AGENT_FROZEN_SCOPE_AUTHORITY_SCHEMA_VERSION,
-  WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V1,
   WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2,
   WORKTREE_CHECKOUT_MODE_FULL
 } from "./backend-constants.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
 import { sameStringArray } from "./backend-scope-authority-shared.mjs";
-import { SCOPE_TREE_PATH_KINDS, createWorkerScopeTreeReader } from "./backend-worker-scope-tree.mjs";
+
+import {
+  SCOPE_TREE_PATH_KINDS,
+  createWorkerScopeTreeReader,
+  resolveWritableScopeCoverage
+} from "./backend-worker-scope-tree.mjs";
 
 import { defaultRunGit } from "./worktree-substrate-primitives.mjs";
 
-function normalizeCanonicalScope(entries, label, recordPath, { required = true } = {}) {
-  if (!Array.isArray(entries)) {
-    if (!required && entries === undefined) return Object.freeze([]);
-    throw new Error(`${label} for the exact selected unit must be an array in ${recordPath}`);
-  }
-  const normalized = [];
-  for (const entry of entries) {
-    if (typeof entry !== "string" || entry.length === 0 || entry !== entry.trim() ||
-        path.posix.isAbsolute(entry) || entry.startsWith("-") || entry.includes("\\") ||
-        /[\x00-\x1f\x7f]/.test(entry) || path.posix.normalize(entry) !== entry ||
-        entry === "." || entry.split("/").some((part) => part === "" || part === "." || part === "..")) {
-      throw new Error(`${label} contains a non-canonical repository-relative path in ${recordPath}: ${JSON.stringify(entry)}`);
-    }
-    if (entry.split("/").includes(".git")) {
-      throw new Error(`${label} contains a forbidden Git metadata path in ${recordPath}: ${JSON.stringify(entry)}`);
-    }
-    normalized.push(entry);
-  }
-  return Object.freeze([...new Set(normalized)].sort());
+import {
+  deriveCanonicalReadableScope,
+  deriveCanonicalUnitScope
+} from "./canonical-unit-scope.mjs";
+
+export const WORKER_SCOPE_PATH_REFUSED = "worker_scope_path_refused";
+export const WORKER_SCOPE_PATH_REFUSAL_CAUSES = Object.freeze({
+  NON_CANONICAL: "non_canonical_path",
+  GIT_METADATA: "git_metadata_path",
+  MISSING_LEAF: "missing_leaf",
+  MISSING_INTERMEDIATE: "missing_intermediate",
+  SYMLINK: "symlink",
+  GITLINK: "gitlink",
+  TYPE_CONFLICT: "type_conflict",
+  ESCAPES_REPOSITORY: "escapes_repository"
+});
+const CAUSES = WORKER_SCOPE_PATH_REFUSAL_CAUSES;
+const CAUSE_VALUES = new Set(Object.values(CAUSES));
+const SCOPE_FIELDS = new Set(["read_scope", "repo_paths", "write_scope"]);
+const SCOPE_PATH_FACT_LIMIT = 1024;
+
+const mintedScopePathRefusals = new WeakSet();
+
+function scopePathRefusal(message, { field, path: entry, component = null, cause }) {
+  const error = new Error(message);
+  error.code = WORKER_SCOPE_PATH_REFUSED;
+  error.detail = Object.freeze({ field, path: entry, component, cause });
+  mintedScopePathRefusals.add(error);
+  return error;
 }
 
-function assertPathWithin(root, candidate, label) {
+const boundedScopeFact = (value) =>
+  typeof value === "string" && value.length > 0 && value.length <= SCOPE_PATH_FACT_LIMIT ? value : null;
+
+export function readWorkerScopePathRefusal(error) {
+  if (!mintedScopePathRefusals.has(error)) return null;
+  const { field, path: entry, component, cause } = error.detail;
+  if (!SCOPE_FIELDS.has(field) || !CAUSE_VALUES.has(cause) || boundedScopeFact(entry) === null) return null;
+  return Object.freeze({
+    code: WORKER_SCOPE_PATH_REFUSED,
+    field,
+    path: entry,
+    component: boundedScopeFact(component),
+    cause
+  });
+}
+
+const scopeInvalid = (message, facts = null) => {
+  if (facts === null) throw new Error(message);
+  const kind = facts.kind === "git_metadata" ? "forbidden Git metadata" : "non-canonical repository-relative";
+  throw scopePathRefusal(`${facts.field} contains a ${kind} path: ${JSON.stringify(facts.path)}`, {
+    field: facts.field,
+    path: facts.path,
+    cause: facts.kind === "git_metadata" ? CAUSES.GIT_METADATA : CAUSES.NON_CANONICAL
+  });
+};
+
+function assertPathWithin(root, candidate, label, scopePath = null) {
   const relative = path.relative(root, candidate);
   if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error(`${label} escapes or aliases the canonical repository root`);
+    const message = `${label} escapes or aliases the canonical repository root`;
+    if (scopePath === null) throw new Error(message);
+    throw scopePathRefusal(message, { field: label, path: scopePath, cause: CAUSES.ESCAPES_REPOSITORY });
   }
 }
 
-function splitValidatedScopeComponents(scopePath, label, writable) {
-  const components = scopePath.split("/");
-  const wildcardIndex = components.findIndex((part) => /[*?[]/.test(part));
-  if (wildcardIndex === 0) {
-    throw new Error(`${label} root-wide wildcard scope is unsupported: ${JSON.stringify(scopePath)}`);
+function splitValidatedScopeComponents(scopePath, label) {
+  const parsed = compileRepositoryScopePath(scopePath);
+  if (!parsed.ok) {
+    throw scopePathRefusal(
+      `${label} contains a non-canonical repository-relative path: ${JSON.stringify(scopePath)}`,
+      { field: label, path: scopePath, cause: CAUSES.NON_CANONICAL }
+    );
   }
-  if (writable && wildcardIndex !== -1) {
-    throw new Error(`${label} wildcard write targets are unsupported: ${JSON.stringify(scopePath)}`);
-  }
+  const { components, directory_hint: directoryHint } = parsed.value;
+  const wildcardIndex = repositoryScopeGlobIndex(parsed.value);
   return Object.freeze({
+    directoryHint,
     wildcardIndex,
     parts: Object.freeze(wildcardIndex === -1 ? components : components.slice(0, wildcardIndex))
   });
 }
 
 function validateScopePathType(mainRepo, scopePath, label, { writable = false, allowMissingLeaf = false } = {}) {
-  const { wildcardIndex, parts } = splitValidatedScopeComponents(scopePath, label, writable);
+  const { directoryHint, wildcardIndex, parts } = splitValidatedScopeComponents(scopePath, label);
+  const componentAt = (index) => parts.slice(0, index + 1).join("/");
+  const refuse = (message, index, cause) => scopePathRefusal(message, {
+    field: label, path: scopePath, component: componentAt(index), cause
+  });
   let current = mainRepo;
+  let finalStat = null;
   for (let index = 0; index < parts.length; index += 1) {
     current = path.join(current, parts[index]);
     const final = index === parts.length - 1;
@@ -77,40 +131,60 @@ function validateScopePathType(mainRepo, scopePath, label, { writable = false, a
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
       if ((writable || allowMissingLeaf) && final && wildcardIndex === -1) return;
-      throw new Error(`${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${JSON.stringify(current)}`);
+      throw refuse(
+        `${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${JSON.stringify(componentAt(index))}`,
+        index, final ? CAUSES.MISSING_LEAF : CAUSES.MISSING_INTERMEDIATE
+      );
     }
     if (stat.isSymbolicLink()) {
-      throw new Error(`${label} crosses a symlink at ${JSON.stringify(current)}`);
+      throw refuse(`${label} crosses a symlink at ${JSON.stringify(componentAt(index))}`, index, CAUSES.SYMLINK);
     }
     if (!final && !stat.isDirectory()) {
-      throw new Error(`${label} has a path-type conflict at non-directory ${JSON.stringify(current)}`);
+      throw refuse(
+        `${label} has a path-type conflict at non-directory ${JSON.stringify(componentAt(index))}`, index, CAUSES.TYPE_CONFLICT
+      );
     }
+    if (final) finalStat = stat;
+  }
+  if (directoryHint && wildcardIndex === -1 && finalStat !== null && !finalStat.isDirectory()) {
+    throw refuse(
+      `${label} has a path-type conflict at non-directory ${JSON.stringify(componentAt(parts.length - 1))}`,
+      parts.length - 1, CAUSES.TYPE_CONFLICT
+    );
   }
   if (parts.length > 0) {
-    assertPathWithin(mainRepo, realpathSync(current), label);
+    assertPathWithin(mainRepo, realpathSync(current), label, scopePath);
   }
 }
 
 export const LANDING_AUTHORITY_WORK_RECORD_RE = /^wiki\/work-records\/[^/*?[]+\.json$/u;
 
 function validateScopePathTypeInTree(reader, scopePath, label, { writable = false, allowMissingLeaf = false } = {}) {
-  const { wildcardIndex, parts } = splitValidatedScopeComponents(scopePath, label, writable);
+  const { directoryHint, wildcardIndex, parts } = splitValidatedScopeComponents(scopePath, label);
   if (parts.length === 0) return;
   const resolved = reader.resolve(parts);
-  const at = JSON.stringify(parts.slice(0, resolved.index + 1).join("/"));
+  const component = parts.slice(0, resolved.index + 1).join("/");
+  const at = JSON.stringify(component);
   const final = resolved.index === parts.length - 1;
+  const refuse = (message, cause) => scopePathRefusal(message, { field: label, path: scopePath, component, cause });
   if (resolved.kind === SCOPE_TREE_PATH_KINDS.ABSENT) {
     if ((writable || allowMissingLeaf) && final && wildcardIndex === -1) return;
-    throw new Error(`${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${at}`);
+    throw refuse(
+      `${label} is incomplete at ${JSON.stringify(scopePath)}; missing ${at}`,
+      final ? CAUSES.MISSING_LEAF : CAUSES.MISSING_INTERMEDIATE
+    );
   }
   if (resolved.kind === SCOPE_TREE_PATH_KINDS.SYMLINK) {
-    throw new Error(`${label} crosses a symlink at ${at}`);
+    throw refuse(`${label} crosses a symlink at ${at}`, CAUSES.SYMLINK);
   }
   if (resolved.kind === SCOPE_TREE_PATH_KINDS.GITLINK) {
-    throw new Error(`${label} crosses a gitlink at ${at}`);
+    throw refuse(`${label} crosses a gitlink at ${at}`, CAUSES.GITLINK);
   }
   if (!final) {
-    throw new Error(`${label} has a path-type conflict at non-directory ${at}`);
+    throw refuse(`${label} has a path-type conflict at non-directory ${at}`, CAUSES.TYPE_CONFLICT);
+  }
+  if (directoryHint && wildcardIndex === -1 && resolved.kind !== SCOPE_TREE_PATH_KINDS.DIRECTORY) {
+    throw refuse(`${label} has a path-type conflict at non-directory ${at}`, CAUSES.TYPE_CONFLICT);
   }
 }
 
@@ -146,15 +220,13 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
     unitAddress: subject,
     status: slice.status ?? null
   });
-  const readScope = excludeControlledContractPrivatePaths(normalizeCanonicalScope(
-    slice.read_scope, "read_scope", recordPath, { required: false }
-  ));
-  const repoPaths = excludeControlledContractPrivatePaths(normalizeCanonicalScope(
-    slice.repo_paths, "repo_paths", recordPath, { required: false }
-  ));
-  const writeScope = excludeControlledContractPrivatePaths(normalizeCanonicalScope(
-    slice.write_scope, "write_scope", recordPath
-  ));
+  const scopeOptions = { invalid: scopeInvalid, forbidGitMetadata: true };
+  const readScope = deriveCanonicalUnitScope(
+    slice.read_scope, "read_scope", recordPath, { ...scopeOptions, required: false });
+  const repoPaths = deriveCanonicalUnitScope(
+    slice.repo_paths, "repo_paths", recordPath, { ...scopeOptions, required: false });
+  const writeScope = deriveCanonicalUnitScope(
+    slice.write_scope, "write_scope", recordPath, scopeOptions);
   const reader = openScopeExistenceBase({ mainRepo: repo, scopeBase, deps });
 
   const validateReadable = (entry, label, options) => (
@@ -162,13 +234,35 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
       ? validateScopePathType(repo, entry, label, options)
       : validateScopePathTypeInTree(reader, entry, label, options)
   );
-  for (const entry of readScope) {
-    validateReadable(entry, "read_scope", { allowMissingLeaf: writeScope.includes(entry) });
-  }
-  for (const entry of repoPaths) {
-    validateReadable(entry, "repo_paths", { allowMissingLeaf: writeScope.includes(entry) });
-  }
   for (const entry of writeScope) validateScopePathTypeInTree(reader, entry, "write_scope", { writable: true });
+
+  const exclusions = Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]);
+  const writable = resolveWritableScopeCoverage(reader, writeScope, { exclusions });
+  const writableCovers = writable.covers;
+
+  for (const [label, entries] of [["read_scope", readScope], ["repo_paths", repoPaths]]) {
+    for (const entry of entries) {
+      validateReadable(entry, label, {
+        allowMissingLeaf: writableCovers(compileRepositoryScopePath(entry).value.canonical_path)
+      });
+    }
+  }
+  const readableScope = deriveCanonicalReadableScope(readScope, repoPaths);
+  const readable = reader.resolveMembership(
+    readableScope.filter((entry) => !LANDING_AUTHORITY_WORK_RECORD_RE.test(entry)), { exclusions });
+  const readableFiles = [
+    ...readable.files, ...readableScope.filter((entry) => LANDING_AUTHORITY_WORK_RECORD_RE.test(entry))
+  ];
+  const resolvedScope = Object.freeze({
+    readable: Object.freeze({
+      files: Object.freeze([...new Set(readableFiles)].filter((file) => !writableCovers(file)).sort()),
+      directories: Object.freeze(readable.directories.filter((directory) => !writableCovers(directory)))
+    }),
+    writable: Object.freeze({
+      files: writable.files,
+      directories: writable.directories
+    })
+  });
   if (record.schema_version !== undefined &&
       (typeof record.schema_version !== "string" || record.schema_version.length === 0)) {
     throw new Error("canonical work-record schema_version is incompatible");
@@ -189,10 +283,12 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
     source_version: record.schema_version ?? null,
     read_scope: readScope,
     repo_paths: repoPaths,
-    readable_scope: Object.freeze([...new Set([...readScope, ...repoPaths])].sort()),
+    readable_scope: readableScope,
     write_scope: writeScope,
 
-    scope_exclusions: Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]),
+    scope_exclusions: exclusions,
+
+    resolved_scope: resolvedScope,
     private_scope_policy_facts: privateScopePolicyFacts
   });
 }
@@ -224,19 +320,13 @@ export function assertProvisionedScopeAuthority(binding, authority) {
     throw new Error("launcher-provisioned authority selected-unit identity mismatch");
   }
 
-  if (binding.schema_version === WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V1) {
-    if (binding.index_sparse !== false || !Array.isArray(binding.cone_dirs) || binding.cone_dirs.length === 0 ||
-        Object.prototype.hasOwnProperty.call(binding, "checkout_mode")) {
-      throw new Error("launcher-provisioned sparse (v1) authority binding is incomplete or carries a full-mode checkout_mode");
-    }
-  } else if (binding.schema_version === WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2) {
-    if (binding.checkout_mode !== WORKTREE_CHECKOUT_MODE_FULL ||
-        Object.prototype.hasOwnProperty.call(binding, "cone_dirs") ||
-        Object.prototype.hasOwnProperty.call(binding, "index_sparse")) {
-      throw new Error("launcher-provisioned full (v2) authority binding is incomplete or carries sparse cone facts");
-    }
-  } else {
-    throw new Error("launcher-provisioned authority binding carries an unknown checkout-mode discriminant");
+  if (binding.schema_version !== WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2) {
+    throw new Error("launcher-provisioned authority binding is not a full-checkout v2 binding");
+  }
+  if (binding.checkout_mode !== WORKTREE_CHECKOUT_MODE_FULL ||
+      Object.prototype.hasOwnProperty.call(binding, "cone_dirs") ||
+      Object.prototype.hasOwnProperty.call(binding, "index_sparse")) {
+    throw new Error("launcher-provisioned full (v2) authority binding is incomplete or carries sparse cone facts");
   }
   return binding;
 }

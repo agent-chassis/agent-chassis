@@ -17,7 +17,7 @@ const behaviorSpecs = [
 function authoredObligation(spec) {
   return {
     obligation_id: spec.id,
-    required_by_stage: "pre_dispatch",
+
     satisfaction_mode: "authored_claim",
     claim_kind: "behavior",
     allowed_modalities: [spec.modality],
@@ -224,13 +224,13 @@ test("resolver facts and delivery evidence activate at their declared stages", (
   stagedPolicy.obligations.push(
     {
       obligation_id: "ownership-graph-acyclic",
-      required_by_stage: "pre_dispatch",
+
       satisfaction_mode: "authoritative_resolver_fact",
       fact_key: "ownership-graph-acyclic"
     },
     {
       obligation_id: "falsifier-executed",
-      required_by_stage: "post_delivery",
+
       satisfaction_mode: "delivered_evidence",
       evidence_key: "falsifier-executed"
     }
@@ -273,7 +273,7 @@ test("pre-dispatch does not require roles used only by post-delivery claims", ()
   });
   stagedPolicy.obligations.push({
     obligation_id: "delivered-artifact-preserved",
-    required_by_stage: "post_delivery",
+
     satisfaction_mode: "authored_claim",
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],

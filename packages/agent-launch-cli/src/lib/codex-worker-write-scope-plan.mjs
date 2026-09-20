@@ -166,6 +166,27 @@ export async function planWorkerWriteScopeNewDirectories(repo, writeScope) {
   return planned;
 }
 
+export function projectPermissionWritesForResolvedScope(resolvedScope) {
+  const roots = [
+    ...resolvedScope.writable.directories,
+    ...resolvedScope.writable.files.map((file) => parentDirectoryForScopeEntry(file))
+  ];
+  return [...new Set(roots)];
+}
+
+export async function planResolvedWritableDirectories(repo, resolvedScope) {
+  const planned = [];
+  for (const directory of resolvedScope.writable.directories) {
+    try {
+      await lstat(path.join(repo, directory));
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      planned.push({ scope_entry: directory, directory });
+    }
+  }
+  return planned;
+}
+
 async function assertMissingWriteRootParentContained(repoReal, target, displayDirectory, role) {
   let current = target;
   while (true) {

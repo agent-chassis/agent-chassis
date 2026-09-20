@@ -2,34 +2,17 @@ import assert from "node:assert/strict";
 
 import { z } from "zod";
 
-import {
-  TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
-  TERMINAL_REVIEW_VERIFY_PARTS
-} from "../../../agent-launch-cli/src/lib/terminal-review-materialization.mjs";
 import { registerDispatchTools } from "./dispatch-tools.mjs";
-import {
-  runPostWorkerSliceLifecycle,
-  TERMINAL_REVIEW_EVIDENCE_MODES
-} from "./dispatch-run-monitor-routes.mjs";
+import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
 import { resolveLauncherOwnedLifecycleDeps } from "./dispatch-launch-runtime.mjs";
 import { errorContent, jsonContent } from "./mcp-response.mjs";
-
-export function terminalReviewAttestation(args) {
-  return Object.freeze({
-    schema_version: TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
-    worktree_path: args.worktreePath,
-    wk_ref: args.wkRef,
-    reviewed_sha: args.frozenSha,
-    reviewed_tree: "e".repeat(40),
-    verified: true,
-    verified_parts: TERMINAL_REVIEW_VERIFY_PARTS
-  });
-}
 
 export function createDispatchToolRegistry({
   backend = {},
 
-  runStatusCallBudgetMs = undefined
+  runStatusCallBudgetMs = undefined,
+
+  responseEnv = undefined
 } = {}) {
   const tools = new Map();
   const registerTool = (name, config, handler) => {
@@ -64,7 +47,8 @@ export function createDispatchToolRegistry({
       ...backend
     },
     dispatchSessionIdentity: "session-123",
-    runStatusCallBudgetMs
+    runStatusCallBudgetMs,
+    responseEnv
   });
 
   return tools;
@@ -79,12 +63,20 @@ export function parseStructuredTextResponse(result) {
   return structured;
 }
 
+export const RETIRED_POST_WORKER_REVIEW_SEAMS = Object.freeze([
+  "resolveCanonicalReviewUnit",
+  "bindFrozenReviewContext",
+  "resolveCanonicalSliceReviewUnit",
+  "bindFrozenSliceReviewContext",
+  "hostSliceReviewPreparationAdapter",
+  "materializeTerminalReviewWorktree",
+  "setWorkRecordStatusByUnit"
+]);
+
 export function createResumableLifecycleHarness({
-  bindFailures = 0,
+  integrationFailures = 0,
   integrationGate = null,
-  materialize,
-  sliceReviewAccepted = true,
-  acceptedSha = null
+  declaredTerminalReviewUnit = null
 } = {}) {
   const base = "a".repeat(40);
   const commit = "b".repeat(40);
@@ -135,19 +127,15 @@ export function createResumableLifecycleHarness({
   });
   let canonicalStatus = "in_progress";
   let integrationCalls = 0;
-  let bindCalls = 0;
+  let declaredUnitCalls = 0;
+  const reviewSeamCalls = [];
 
-  let sliceCanonicalStatus = "in_progress";
-  let sliceBindCalls = 0;
-  const frozenSliceTargets = [];
-  const statusWrites = [];
-  const materializeCalls = [];
-  const provisioning = {
+  const provisioningFor = (observed = status) => ({
     record_id: "WK-1537",
     slice_id: "SLICE-001",
     slice_binding: {
-      launch_ref: status.monitor_handle,
-      run_id: `${status.run_id}.slice`,
+      launch_ref: observed.monitor_handle ?? status.monitor_handle,
+      run_id: `${observed.run_id ?? status.run_id}.slice`,
       retry_id: 0,
       unit_address: "IN-0021/WK-1537/SLICE-001",
       output_branch: sliceRef,
@@ -155,70 +143,20 @@ export function createResumableLifecycleHarness({
       base_sha: base
     },
     wk_binding: {
+      launch_ref: observed.monitor_handle ?? status.monitor_handle,
+      run_id: `${observed.run_id ?? status.run_id}.wk`,
+      retry_id: 0,
       unit_address: "IN-0021/WK-1537",
       output_branch: wkRef,
       worktree_path: wkWorktree,
       base_sha: base
     },
     validation_worktree_path: wkWorktree
-  };
+  });
+  const provisioning = provisioningFor();
   const deps = {
-    resolveManagedRunBinding: () => provisioning,
-
-    hostSliceReviewPreparationAdapter: async (request) => {
-      const retained = deps.resolveManagedRunBinding().slice_binding;
-      const normalizedSliceRef = retained.output_branch.startsWith("refs/heads/")
-        ? retained.output_branch
-        : `refs/heads/${retained.output_branch}`;
-      const boundRunId = retained.run_id.endsWith(".slice")
-        ? retained.run_id.slice(0, -".slice".length)
-        : null;
-      const expectedRequest = {
-        assigned_unit: status.subject,
-        launch_ref: retained.launch_ref,
-        run_id: boundRunId,
-        retry_id: retained.retry_id
-      };
-      assert.deepEqual(request, expectedRequest);
-      const reviewedShaResult = deps.runGit({
-        repo: retained.worktree_path,
-        args: ["rev-parse", "--verify", `${normalizedSliceRef}^{commit}`]
-      });
-      assert.equal(reviewedShaResult.ok, true);
-      const reviewedSha = String(reviewedShaResult.stdout ?? "").trim();
-      const reviewedTreeResult = deps.runGit({
-        repo: retained.worktree_path,
-        args: ["rev-parse", "--verify", `${reviewedSha}^{tree}`]
-      });
-      assert.equal(reviewedTreeResult.ok, true);
-      const reviewedTree = String(reviewedTreeResult.stdout ?? "").trim();
-      return {
-        accepted: true,
-        preparation: {
-          ...expectedRequest,
-          worktree_path: retained.worktree_path,
-          slice_ref: normalizedSliceRef,
-          base_sha: retained.base_sha,
-          reviewed_sha: reviewedSha,
-          reviewed_tree: reviewedTree
-        }
-      };
-    },
-    resolveCanonicalReviewUnit: () => ({
-      record_id: "WK-1537",
-      slice_id: "SLICE-003",
-      subject: "WK-1537#SLICE-003",
-      unit_contract: "canonical-review",
-      parent_status: canonicalStatus
-    }),
+    resolveManagedRunBinding: (observed) => provisioningFor(observed ?? status),
     runGit: ({ repo, args }) => {
-      if (args[0] === "symbolic-ref") {
-        return { ok: true, stdout: `${repo === sliceWorktree ? sliceRef : wkRef}\n` };
-      }
-      if (args[0] === "status") return { ok: true, stdout: "" };
-      if (args[0] === "rev-list") return { ok: true, stdout: `${commit} ${base}\n` };
-      if (args[0] === "merge-base" && args[1] === "--is-ancestor") return { ok: true, stdout: "" };
-      if (args[0] === "merge-base") return { ok: true, stdout: `${base}\n` };
       if (args[0] === "rev-parse") {
         const value = args.at(-1);
         if (repo === sliceWorktree || String(value).includes("slice/")) {
@@ -227,85 +165,40 @@ export function createResumableLifecycleHarness({
         if (repo === wkWorktree || String(value).includes("wk/")) {
           return { ok: true, stdout: `${canonicalStatus === "review" ? commit : base}\n` };
         }
-        if (String(value).includes("main")) return { ok: true, stdout: `${base}\n` };
       }
       return { ok: false, status: 128, stderr: `unexpected git call: ${args.join(" ")}` };
     },
 
     reconcileIntegratedSliceRecord: () =>
-      canonicalStatus === "review" ? { ...integrationResult, recovered: true } : null,
-    setWorkRecordStatusByUnit: async ({ unitAddress, status: nextStatus }) => {
-      statusWrites.push({ unitAddress, status: nextStatus });
-      if (unitAddress === "WK-1537#SLICE-001" && nextStatus === "review") {
-        sliceCanonicalStatus = "review";
-      }
-      return { valid: true, written: true };
-    },
+      canonicalStatus === "review"
+        ? { ...integrationResult, recovered: true, integrated_state: "final", review_target: null }
+        : null,
+    resolveCommittedSliceIntegrationContinuation: () => null,
 
-    resolveCanonicalSliceReviewUnit: ({ subject }) => {
-      if (sliceCanonicalStatus !== "review") {
-        throw new Error(`canonical slice ${subject} is not an implementation slice under slice-level review`);
-      }
-      return {
-        record_id: "WK-1537",
-        slice_id: "SLICE-001",
-        subject: "WK-1537#SLICE-001",
-        initiative: "IN-0021",
-        parent_status: canonicalStatus,
-        canonical_parent_wk_contract: "canonical-parent",
-        review_unit_contract: "canonical-slice"
-      };
+    verifyDeliveredProofs: async () => Object.freeze({ verified: [] }),
+    resolveDeclaredTerminalReviewUnit: () => {
+      declaredUnitCalls += 1;
+      return declaredTerminalReviewUnit;
     },
-    bindFrozenSliceReviewContext: ({ sliceTarget }) => {
-      sliceBindCalls += 1;
-      frozenSliceTargets.push(sliceTarget);
-      return Object.freeze({
-        schema_version: "workspace-agent-frozen-slice-review-context.v1",
-        worktree_path: sliceWorktree
-      });
-    },
-    resolveCommittedSliceIntegrationContinuation: () => sliceReviewAccepted
-      ? {
-          schema_version: "workspace-agent-committed-slice-integration-continuation.v1",
-          completed: true,
-          subject: "WK-1537#SLICE-001",
-          reviewed_sha: acceptedSha ?? commit,
-          integration: integrationResult
-        }
-      : null,
-    bindFrozenReviewContext: () => {
-      bindCalls += 1;
-      if (bindCalls <= bindFailures) throw new Error("injected post-integration context failure");
-      return { schema_version: "workspace-agent-frozen-wk-review-context.v1" };
-    },
+    ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, (...args) => {
+      reviewSeamCalls.push({ name, args });
+      throw new Error(`retired post-worker review seam ${name} was called`);
+    }]))
   };
 
   const launcherOwned = resolveLauncherOwnedLifecycleDeps({
-
     worktreeProvisioning: { mainRepo: "/tmp/main-repo-IN-0021-WK-1537" },
     directSliceIntegrationAdapter: async () => {
       integrationCalls += 1;
       if (integrationGate) await integrationGate;
+      if (integrationCalls <= integrationFailures) {
+        return { accepted: false, refusal: { code: "injected_integration_refusal" } };
+      }
       canonicalStatus = "review";
       return { accepted: true, integration: integrationResult };
-    },
-
-    hostSliceReviewPreparationAdapter: deps.hostSliceReviewPreparationAdapter
+    }
   });
-  assert.equal(
-    launcherOwned.terminalReviewEvidenceMode,
-    TERMINAL_REVIEW_EVIDENCE_MODES.LIVE_MATERIALIZER,
-    "the direct composition must resolve to the live materializer branch"
-  );
   Object.assign(deps, launcherOwned);
-
-  if (materialize === null) delete deps.materializeTerminalReviewWorktree;
-  else {
-    deps.materializeTerminalReviewWorktree = (args) => {
-      materializeCalls.push(args);
-      return (materialize ?? terminalReviewAttestation)(args);
-    };
-  }
   const invoke = ({ workspace, status: lifecycleStatus }) =>
     runPostWorkerSliceLifecycle({ workspace, status: lifecycleStatus, deps });
   return {
@@ -316,15 +209,10 @@ export function createResumableLifecycleHarness({
     wkWorktree,
     wkRef,
     reviewedSha: commit,
-    materializeCalls,
-    frozenSliceTargets,
-    statusWrites,
     sliceRef,
     sliceWorktree,
-
-    counts: () => ({ integrationCalls, bindCalls }),
-    sliceBindCalls: () => sliceBindCalls,
-    sliceStatus: () => sliceCanonicalStatus,
+    counts: () => ({ integrationCalls, declaredUnitCalls, reviewSeamCalls: reviewSeamCalls.length }),
+    reviewSeamCalls: () => [...reviewSeamCalls],
     setCanonicalStatus(value) { canonicalStatus = value; }
   };
 }

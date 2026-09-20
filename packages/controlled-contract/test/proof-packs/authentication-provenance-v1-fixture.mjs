@@ -339,7 +339,7 @@ function buildAuthenticationProvenanceProfile() {
     const verificationId = `verify-${patternId}`;
     return [{
       pattern_id: patternId,
-      required_by_stage: "post_delivery",
+
       claim_kind: "behavior",
       allowed_modalities: ["MUST"],
       proposition_template: propositionTemplate(
@@ -347,7 +347,7 @@ function buildAuthenticationProvenanceProfile() {
       )
     }, {
       pattern_id: verificationId,
-      required_by_stage: "post_delivery",
+
       claim_kind: "verification",
       allowed_modalities: ["MUST"],
       proposition_template: propositionTemplate(
@@ -364,7 +364,7 @@ function buildAuthenticationProvenanceProfile() {
   });
   const relationPatterns = behaviors.map(([patternId], index) => ({
     pattern_id: `verification-targets-${patternId}`,
-    required_by_stage: "post_delivery",
+
     role: "verifies",
     source_claim_pattern_id: `verify-${patternId}`,
     target_claim_pattern_id: patternId
@@ -402,9 +402,9 @@ function buildAuthenticationProvenanceProfile() {
     ...relationPatterns.map(({ pattern_id: patternId }) => patternId)
   ];
   return {
-    schema_version: "controlled-contract-verification-profile.v1",
+    schema_version: "controlled-contract-verification-profile.v2",
     profile_id: "proof.authentication.direct-source-provenance",
-    profile_version: "2.0.0",
+    profile_version: "3.0.0",
     contract_schema_version: "controlled-acceptance-contract.v1",
     vocabulary_version: "controlled-contract-vocabulary.v1",
     vocabulary_signature_digest: VOCABULARY_DIGESTS.signature,
@@ -412,7 +412,7 @@ function buildAuthenticationProvenanceProfile() {
     vocabulary_definitions_digest: VOCABULARY_DIGESTS.definitions,
     vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
     verification_falsifier_policy: "controlled_complement_per_target",
-    evaluation_stages: ["post_delivery"],
+
     reference_roles: referenceRoles,
     number_roles: [],
     distinct_reference_role_sets: [{
@@ -424,13 +424,13 @@ function buildAuthenticationProvenanceProfile() {
     }],
     reference_binding_patterns: [{
       pattern_id: "complete-selected-target-population",
-      required_by_stage: "post_delivery",
+
       comparison: "complete_population",
       roles: ["target_population", "target"],
       applicability_context: structuredClone(duringAttempt)
     }, {
       pattern_id: "complete-selected-source-population",
-      required_by_stage: "post_delivery",
+
       comparison: "complete_population",
       roles: ["source_population", "source"],
       applicability_context: structuredClone(duringAttempt)
@@ -607,8 +607,8 @@ function buildAuthenticationProvenanceFixture({
     annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const input = {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "post_delivery",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: Object.entries(roleIds).map(([roleName, referenceId]) => ({
       role: roleName,
       reference_ids: [referenceId]

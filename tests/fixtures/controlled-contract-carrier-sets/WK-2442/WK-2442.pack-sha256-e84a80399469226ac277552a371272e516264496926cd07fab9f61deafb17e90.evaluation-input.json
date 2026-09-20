@@ -1,0 +1,31 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "component-exists",
+      "claim_id": "claim-agent-completes-authoring"
+    },
+    {
+      "pattern_id": "suite-covers-component",
+      "claim_id": "claim-verify-task-matrix"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-verification-test-validity-component"
+      ],
+      "role": "component"
+    },
+    {
+      "reference_ids": [
+        "ref-verification-test-validity-suite"
+      ],
+      "role": "suite"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

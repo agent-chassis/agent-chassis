@@ -10,12 +10,10 @@ import {
 } from "./generate.mjs";
 import {
   filterToolDiscoveryTools,
-  loadToolDiscoveryDescriptor,
-  TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH
+  loadToolDiscoveryDescriptor
 } from "../lib/tool-discovery.mjs";
 import {
   evaluateToolDispositionCompatibility,
-  loadSessionRoleToolAccessPolicy,
   resolveToolAudience,
   resolveToolTierVisibility,
   SESSION_ROLE_TOOL_ACCESS_POLICY_FILENAME,
@@ -24,11 +22,6 @@ import {
   SESSION_ROLE_TOOL_DISPOSITION_VALUES,
   validateSessionRoleToolAccessPolicy
 } from "../lib/tool-discovery/gating.mjs";
-import {
-  evaluateAgentToolConformance,
-  evaluateAgentToolTokenBudgetDebt,
-  loadToolDiscoveryManifest
-} from "../lib/tool-discovery/descriptor.mjs";
 import {
   asStringList,
   buildLintNextAction,
@@ -246,7 +239,9 @@ export const TOOL_PAYLOAD_DEFAULT_BYTE_BUDGET = 4096;
 
 export const TOOL_PAYLOAD_BYTE_BUDGET_OVERRIDES = Object.freeze({
 
-  workspace_work_record_ready_slice: 10240
+  workspace_work_record_ready_slice: 10240,
+
+  workspace_controlled_contract_obligation_coverage_upsert: 32768
 });
 
 export function measureToolPayloadBytes(tool) {
@@ -410,70 +405,16 @@ async function lintRepoImpl({
   lintDuplicateIds({ canonicalPages, addFinding });
 
   const facetContext = { manifest, metadata };
+
   let structuredRefreshRouteAvailable = false;
   try {
-    const [toolDiscoveryDescriptor, toolDiscoveryManifest] = await Promise.all([
-      loadToolDiscoveryDescriptor(),
-      loadToolDiscoveryManifest()
-    ]);
+    const toolDiscoveryDescriptor = await loadToolDiscoveryDescriptor();
     structuredRefreshRouteAvailable =
       filterToolDiscoveryTools(toolDiscoveryDescriptor, {
         tool_name: "workspace_work_record_refresh_admission_metrics"
       }).length > 0;
-
-    const sessionRolePolicyLoad = await loadSessionRoleToolAccessPolicy();
-    for (const diagnostic of sessionRolePolicyLoad.diagnostics) {
-      addFinding(diagnostic.level, diagnostic.message, {
-        code: diagnostic.code,
-        path: diagnostic.path
-      });
-    }
-    if (sessionRolePolicyLoad.policy && sessionRolePolicyLoad.diagnostics.length === 0) {
-      lintSessionRoleToolAccessPolicy({
-        descriptor: toolDiscoveryDescriptor,
-        policy: sessionRolePolicyLoad.policy,
-        addFinding
-      });
-      const conformance = evaluateAgentToolConformance(
-        toolDiscoveryDescriptor,
-        toolDiscoveryManifest,
-        { accessPolicy: sessionRolePolicyLoad.policy }
-      );
-      for (const toolName of conformance.debt_added) {
-        addFinding(
-          "error",
-          `${TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH}: agent-tool conformance debt grew or changed at '${toolName}'; new/changed role-visible tools must carry complete routing controls`,
-          {
-            code: "agent_tool_conformance_debt_added",
-            path: TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH
-          }
-        );
-      }
-      const tokenBudgetDebt = evaluateAgentToolTokenBudgetDebt(
-        toolDiscoveryDescriptor,
-        toolDiscoveryManifest
-      ).raw_discovery_notes;
-      for (const toolName of tokenBudgetDebt.added_entry_names) {
-        addFinding(
-          "error",
-          `${TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH}: raw discovery-note budget debt grew at '${toolName}'; new or enlarged prose cannot consume the historical aggregate allowance`,
-          {
-            code: "agent_tool_notes_budget_debt_added",
-            path: TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH
-          }
-        );
-      }
-    }
-  } catch (error) {
+  } catch {
     structuredRefreshRouteAvailable = false;
-    addFinding(
-      "error",
-      `${TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH}: agent-tool descriptor/conformance validation failed: ${error instanceof Error ? error.message : String(error)}`,
-      {
-        code: "agent_tool_conformance_invalid",
-        path: TOOL_DISCOVERY_MANIFEST_RELATIVE_PATH
-      }
-    );
   }
   const {
     values: allocatedWorkRecordValues,

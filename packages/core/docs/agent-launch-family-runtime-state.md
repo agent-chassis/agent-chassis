@@ -87,7 +87,7 @@ Agy is unsupported for confined worker, reviewer, redteam, and orchestrator
 launches. Selection fails closed before model spawn. The launcher creates no
 wiki-MCP transport, repository write bind, Gemini credential/config bind, broad
 `~/.gemini` writable state, or result-capture lifecycle for Agy. Future support
-must reuse the same host-server and named-FIFO conduit interface; it cannot add a
+must reuse the same host-server and local socket conduit interface; it cannot add a
 second transport.
 
 ### State-class summary

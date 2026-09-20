@@ -8,8 +8,6 @@ import {
 } from "./deterministic-projection-primitives.mjs";
 import { validateObligationCoverageCarrier }
   from "./obligation-coverage-carrier.mjs";
-import { resolveObligationGuaranteeSelector }
-  from "./obligation-coverage-guarantee-selectors.mjs";
 
 const ACCEPTANCE_COVERAGE_STATES = Object.freeze([
   "covered", "uncovered", "duplicate", "unknown", "stale", "outside_pack",
@@ -24,9 +22,7 @@ const GAP_WARNING = Object.freeze({
 });
 const RESULT_PRECEDENCE = Object.freeze(["stale", "duplicate", "infeasible", "retained_residue", "unknown", "outside_pack", "uncovered", "covered"]);
 const OBLIGATION_COVERAGE_OUTCOMES = Object.freeze([
-  "stale", "unmapped", "explicit_gap", "guarantee_incompatible",
-  "mapped_input_missing", "mapped_pack_not_evaluated",
-  "profile_proven_exact_binding_missing", "mechanically_proven"
+  'stale', 'explicit_gap', 'design_invalid', 'selected'
 ]);
 
 class AcceptanceCoverageError extends Error {
@@ -134,110 +130,27 @@ function exactStringPopulation(value, name) {
   return values;
 }
 
-function obligationOutcome(row, position, selectedPackIds, staleObligationIds,
-  guaranteeSelectorIndex) {
-  let outcome;
-  let resolution = null;
-  if (staleObligationIds.has(row.obligation_id)) outcome = "stale";
-  else if (row.proof.kind === "pack_mapping" &&
-      !selectedPackIds.has(row.proof.pack_id)) outcome = "unmapped";
-  else if (row.proof.kind === "explicit_gap") outcome = "explicit_gap";
-  else {
-    try {
-      resolution = resolveObligationGuaranteeSelector({
-        index: guaranteeSelectorIndex,
-        mapping: row.proof,
-        nodeIds: row.controlled_contract_node_ids
-      });
-    } catch (error) {
-      throw new AcceptanceCoverageError(
-        "acceptance_coverage_guarantee_selector_invalid",
-        error.message,
-        { obligation_id: row.obligation_id, cause: error.code }
-      );
-    }
-    outcome = resolution.status === "compatible"
-      ? "mechanically_proven"
-      : resolution.status === "incompatible"
-        ? "guarantee_incompatible"
-        : resolution.status;
-  }
-  return Object.freeze({
-    obligation_id: row.obligation_id,
-    position,
-    source_locator: row.source_locator,
-    controlled_contract_node_ids: Object.freeze([
-      ...row.controlled_contract_node_ids
-    ]),
-    mechanism: Object.freeze(clone(row.mechanism)),
-    proof: deepFreeze(clone(row.proof)),
-    outcome,
-    reason: resolution?.reason ??
-      (outcome === "explicit_gap" ? row.proof.gap_kind : null)
-  });
-}
-
 function evaluateObligationCoverage(input) {
-  exactKeys(input, [
-    "obligationCoverage", "guaranteeSelectorIndex", "selectedPackIds",
-    "staleObligationIds"
-  ], "input");
+  exactKeys(input, ['obligationCoverage', 'staleObligationIds'], 'input');
   const validation = validateObligationCoverageCarrier(input.obligationCoverage);
   if (!validation.valid) throw new AcceptanceCoverageError(
-    "acceptance_coverage_obligation_carrier_invalid",
-    "obligationCoverage must be a valid canonical obligation carrier",
-    { schema_errors: validation.schema_errors, diagnostics: validation.diagnostics }
-  );
-  const selectedPackIds = new Set(exactStringPopulation(
-    input.selectedPackIds, "selectedPackIds"
-  ));
-  const staleObligationIds = new Set(exactStringPopulation(
-    input.staleObligationIds ?? [], "staleObligationIds"
-  ));
-  const knownObligationIds = new Set(validation.carrier.obligations.map(
-    ({ obligation_id: id }) => id
-  ));
-  const unknownStale = [...staleObligationIds].filter(
-    (id) => !knownObligationIds.has(id)
-  );
-  if (unknownStale.length > 0) throw new AcceptanceCoverageError(
-    "acceptance_coverage_stale_obligation_unknown",
-    "staleObligationIds must identify admitted obligations",
-    { obligation_ids: unknownStale }
-  );
-  const mappedPackIds = new Set(validation.carrier.obligations
-    .filter(({ proof }) => proof.kind === "pack_mapping")
-    .map(({ proof }) => proof.pack_id));
-  const orphanSelectedPackIds = [...selectedPackIds]
-    .filter((id) => !mappedPackIds.has(id)).sort();
-  const diagnostics = orphanSelectedPackIds.map((packId) => Object.freeze({
-    code: "acceptance_coverage_orphan_selected_pack",
-    severity: "blocking",
-    pack_id: packId,
-    message: "Selected proof pack is not mapped by any admitted obligation."
+    'acceptance_coverage_obligation_carrier_invalid',
+    'obligationCoverage must be a resolved saved-selection carrier',
+    { schema_errors: validation.schema_errors, diagnostics: validation.diagnostics });
+  const stale = new Set(exactStringPopulation(input.staleObligationIds ?? [], 'staleObligationIds'));
+  const known = new Set(validation.carrier.obligations.map(row => row.obligation_id));
+  if ([...stale].some(id => !known.has(id))) throw new AcceptanceCoverageError(
+    'acceptance_coverage_stale_obligation_unknown', 'Stale IDs must name resolved saved obligations');
+  const outcomes = validation.carrier.obligations.map((row, position) => deepFreeze({
+    ...clone(row), position, controlled_contract_node_ids: row.controlled_contract_node_ids ?? [],
+    outcome: stale.has(row.obligation_id) ? 'stale' : row.gap ? 'explicit_gap'
+      : row.design_status === 'valid' ? 'selected' : 'design_invalid',
+    reason: row.diagnostics[0]?.code ?? null
   }));
-  const obligationOutcomes = validation.carrier.obligations
-    .map((row, position) => obligationOutcome(
-      row, position, selectedPackIds, staleObligationIds,
-      input.guaranteeSelectorIndex
-    ))
-    .sort((left, right) => left.obligation_id < right.obligation_id ? -1
-      : left.obligation_id > right.obligation_id ? 1 : left.position - right.position);
-  const complete = diagnostics.length === 0 && obligationOutcomes.every(
-    ({ outcome }) => outcome === "mechanically_proven"
-  );
-  return Object.freeze({
-    mode: "obligation_coverage",
-    schema_version: validation.carrier.schema_version,
-    wk_id: validation.carrier.wk_id,
-    focus: validation.carrier.focus ?? null,
-    obligation_outcomes: Object.freeze(obligationOutcomes),
-    outcome_precedence: Object.freeze([...OBLIGATION_COVERAGE_OUTCOMES]),
-    diagnostics: Object.freeze(diagnostics),
-    orphan_selected_pack_ids: Object.freeze(orphanSelectedPackIds),
-    warnings: Object.freeze(complete ? [] : [clone(GAP_WARNING)]),
-    complete
-  });
+  return deepFreeze({ mode: 'obligation_coverage', schema_version: validation.carrier.schema_version,
+    wk_id: validation.carrier.wk_id, focus: validation.carrier.focus,
+    obligation_outcomes: outcomes, outcome_precedence: OBLIGATION_COVERAGE_OUTCOMES,
+    diagnostics: [], warnings: [clone(GAP_WARNING)], complete: false });
 }
 
 function evaluateAcceptanceCoverage(input) {

@@ -1,26 +1,16 @@
 
 
 import {
-  HISTORICAL_DELIVERY_INDEX_RECOVERY,
-  projectAuthenticatedSliceReviewMaterializationFailure,
-  SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES,
-  SLICE_REVIEW_MATERIALIZATION_FAILURE_PROJECTION_KIND,
-  SLICE_REVIEW_MATERIALIZATION_FAILURE_PROJECTION_SCHEMA_VERSION,
-  SLICE_REVIEW_MATERIALIZATION_PUBLIC_MESSAGE,
-  SLICE_REVIEW_MATERIALIZATION_PUBLIC_PREDICATES,
-  SLICE_REVIEW_POSTCHECK_STATE_BUDGET
-} from "@agent-chassis/agent-launch-cli/src/lib/slice-review-materialization.mjs";
-import {
   CLOSED_CANDIDATE_FAILURE_KINDS,
-  projectClosedLifecycleFailure
+  closedContinuationFailure,
+  captureLifecycleFailureEvidence,
+  closedFailureCause,
+  projectClosedLifecycleFailure,
+  summarizeLifecycleFailureEvidence
 } from "./dispatch-lifecycle-failure-projection.mjs";
 import {
   POST_WORKER_LIFECYCLE_PHASES
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
-import {
-  projectSafePostcheckMismatchField,
-  SAFE_POSTCHECK_MISMATCH_FIELDS
-} from "./dispatch-tool-helpers.mjs";
 
 const GENERIC_LIFECYCLE_FAILURE_CODE = "agent_launch.slice_lifecycle.failed.v1";
 const GENERIC_LIFECYCLE_FAILURE_MESSAGE = "post-worker slice lifecycle invocation failed";
@@ -51,81 +41,6 @@ function publishableCandidateFailure(candidateFailure) {
   });
 }
 
-const APPROVED_MATERIALIZATION_CODES = Object.freeze(
-  new Set(Object.values(SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES))
-);
-const APPROVED_MATERIALIZATION_PREDICATES = Object.freeze(
-  new Set(SLICE_REVIEW_MATERIALIZATION_PUBLIC_PREDICATES)
-);
-const MATERIALIZATION_REFUSED_PSEUDOREFS =
-  SLICE_REVIEW_POSTCHECK_STATE_BUDGET.refused_pseudorefs;
-const MATERIALIZATION_MAX_SUFFIX_DEPTH =
-  HISTORICAL_DELIVERY_INDEX_RECOVERY.max_suffix_commits;
-
-function publishableMaterializationDetail(detail) {
-  if (typeof detail !== "object" || detail === null || Array.isArray(detail)) return null;
-  const predicate = typeof detail.predicate === "string" &&
-    APPROVED_MATERIALIZATION_PREDICATES.has(detail.predicate)
-    ? detail.predicate
-    : null;
-  const enumField = (key, allowed) =>
-    (typeof detail[key] === "string" && allowed.includes(detail[key]) ? detail[key] : null);
-  const integerField = (key, minimum, maximum) =>
-    (Number.isInteger(detail[key]) && detail[key] >= minimum && detail[key] <= maximum
-      ? detail[key]
-      : null);
-  return Object.freeze({
-    predicate,
-    field: enumField("field", SAFE_POSTCHECK_MISMATCH_FIELDS),
-    pseudoref: enumField("pseudoref", MATERIALIZATION_REFUSED_PSEUDOREFS),
-    config_key: null,
-    config_scope: null,
-    suffix_depth: integerField("suffix_depth", 0, MATERIALIZATION_MAX_SUFFIX_DEPTH),
-    traversal_bound: integerField("traversal_bound", 0, MATERIALIZATION_MAX_SUFFIX_DEPTH),
-    git_exit_status: integerField("git_exit_status", 0, 255)
-  });
-}
-
-function publishableMaterializationProjection(projected) {
-  if (typeof projected !== "object" || projected === null || Array.isArray(projected)) {
-    return null;
-  }
-  if (projected.schema_version !== SLICE_REVIEW_MATERIALIZATION_FAILURE_PROJECTION_SCHEMA_VERSION ||
-      projected.kind !== SLICE_REVIEW_MATERIALIZATION_FAILURE_PROJECTION_KIND ||
-      projected.message !== SLICE_REVIEW_MATERIALIZATION_PUBLIC_MESSAGE ||
-      typeof projected.code !== "string" ||
-      !APPROVED_MATERIALIZATION_CODES.has(projected.code)) {
-    return null;
-  }
-  const detail = publishableMaterializationDetail(projected.detail);
-  if (detail === null) return null;
-  return Object.freeze({
-    schema_version: SLICE_REVIEW_MATERIALIZATION_FAILURE_PROJECTION_SCHEMA_VERSION,
-    kind: SLICE_REVIEW_MATERIALIZATION_FAILURE_PROJECTION_KIND,
-    code: projected.code,
-    message: SLICE_REVIEW_MATERIALIZATION_PUBLIC_MESSAGE,
-    detail
-  });
-}
-
-function publishableMaterializationFailure(error) {
-  let projected;
-  try {
-    projected = projectAuthenticatedSliceReviewMaterializationFailure(error);
-  } catch {
-    return null;
-  }
-  return projected === null ? null : publishableMaterializationProjection(projected);
-}
-
-function safePostcheckMismatchField(error) {
-  try {
-    return projectSafePostcheckMismatchField(error);
-  } catch {
-    return null;
-  }
-}
-
 export function buildLifecycleFailure(checkpoint, error) {
   const closed = projectClosedLifecycleFailure(error);
   const failure = {
@@ -137,42 +52,38 @@ export function buildLifecycleFailure(checkpoint, error) {
     error_message: closed?.message ?? GENERIC_LIFECYCLE_FAILURE_MESSAGE,
     error_message_truncated: false
   };
-  if (closed === null) {
-
-    const mismatchField = safePostcheckMismatchField(error);
-    if (mismatchField !== null) failure.postcheck_mismatch_field = mismatchField;
-
-    const materializationFailure = publishableMaterializationFailure(error);
-    if (materializationFailure !== null) {
-      failure.materialization_failure = materializationFailure;
-    }
-  } else {
+  const evidence = closed?.evidence ?? captureLifecycleFailureEvidence(error);
+  failure.evidence_summary = summarizeLifecycleFailureEvidence(evidence);
+  failure.evidence = evidence;
+  if (closed !== null) {
     const candidateFailure = publishableCandidateFailure(closed.candidate_failure);
     if (candidateFailure !== null) failure.candidate_failure = candidateFailure;
+
+    const continuationFailure = closedContinuationFailure(closed.continuation_failure);
+    if (continuationFailure !== null) failure.continuation_failure = continuationFailure;
+
+    const failureCause = closedFailureCause(closed.failure_cause);
+    if (failureCause !== null) failure.failure_cause = failureCause;
   }
   if (checkpoint.integration) failure.integration = checkpoint.integration;
   return Object.freeze(failure);
 }
 
+const CLOSED_ADDITIVE_FAILURE_FACTS = Object.freeze([
+  ["continuation_failure", closedContinuationFailure],
+  ["failure_cause", closedFailureCause]
+]);
+
 export function publishableLifecycleFailure(lifecycle) {
   if (lifecycle === null || typeof lifecycle !== "object") return lifecycle ?? null;
-  const strip = [];
-  const rebuild = new Map();
-  if (Object.hasOwn(lifecycle, "postcheck_mismatch_field")) {
-    const value = lifecycle.postcheck_mismatch_field;
-    if (typeof value !== "string" || !SAFE_POSTCHECK_MISMATCH_FIELDS.includes(value)) {
-      strip.push("postcheck_mismatch_field");
-    }
-  }
-  if (Object.hasOwn(lifecycle, "materialization_failure")) {
-    const rebuilt = publishableMaterializationProjection(lifecycle.materialization_failure);
-    if (rebuilt === null) strip.push("materialization_failure");
-    else rebuild.set("materialization_failure", rebuilt);
-  }
-  if (strip.length === 0 && rebuild.size === 0) return lifecycle;
+  const present = CLOSED_ADDITIVE_FAILURE_FACTS.filter(([key]) => Object.hasOwn(lifecycle, key));
+  if (present.length === 0) return lifecycle;
   const bounded = { ...lifecycle };
-  for (const key of strip) delete bounded[key];
-  for (const [key, value] of rebuild) bounded[key] = value;
+  for (const [key, rebuild] of present) {
+    const rebuilt = rebuild(lifecycle[key]);
+    if (rebuilt === null) delete bounded[key];
+    else bounded[key] = rebuilt;
+  }
   return Object.freeze(bounded);
 }
 

@@ -399,3 +399,76 @@ export function validateWorkerAdmissionDerivedEvidence(
 }
 
 export { validateWorkerAdmissionDerivedEvidenceStructure };
+
+export function validateControlledContractReferenceCandidateEvidenceStructure(
+  diagnostics, evidence, path, recordId
+) {
+  if (typeof evidence.record_id === "string" && recordId &&
+      evidence.record_id !== recordId) {
+    addDiagnostic(diagnostics, "invalid_record",
+      `${path}.record_id must be ${recordId}`, { path: `${path}.record_id` });
+  }
+  if (Object.hasOwn(evidence, "focus") && evidence.focus !== null &&
+      typeof evidence.focus !== "string") {
+    addDiagnostic(diagnostics, "invalid_record",
+      `${path}.focus must be a string or null`, { path: `${path}.focus` });
+  }
+  if (typeof evidence.source_record_digest !== "string" ||
+      !DIGEST_RE.test(evidence.source_record_digest)) {
+    addDiagnostic(diagnostics, "invalid_record",
+      `${path}.source_record_digest must match ${DIGEST_RE}`,
+      { path: `${path}.source_record_digest` });
+  }
+  const pack = evidence.selected_pack;
+  if (pack === null || typeof pack !== "object" || Array.isArray(pack) ||
+      typeof pack.profile_id !== "string" ||
+      typeof pack.profile_version !== "string" ||
+      !Array.isArray(pack.requested_intents) ||
+      pack.requested_intents.length === 0 ||
+      pack.requested_intents.some((intent) => typeof intent !== "string")) {
+    addDiagnostic(diagnostics, "invalid_record",
+      `${path}.selected_pack must name one exact admitted proof pack`,
+      { path: `${path}.selected_pack` });
+  }
+  if (!Array.isArray(evidence.candidates) || evidence.candidates.length === 0) {
+    addDiagnostic(diagnostics, "invalid_record",
+      `${path}.candidates must be a non-empty array`,
+      { path: `${path}.candidates` });
+    return;
+  }
+  const seen = new Set();
+  for (const [index, candidate] of evidence.candidates.entries()) {
+    const candidatePath = `${path}.candidates[${index}]`;
+    if (candidate === null || typeof candidate !== "object" ||
+        Array.isArray(candidate)) {
+      addDiagnostic(diagnostics, "invalid_record",
+        `${candidatePath} must be an object`, { path: candidatePath });
+      continue;
+    }
+    if (typeof candidate.candidate_id !== "string" ||
+        candidate.candidate_id.length === 0) {
+      addDiagnostic(diagnostics, "invalid_record",
+        `${candidatePath}.candidate_id must be a non-empty string`,
+        { path: `${candidatePath}.candidate_id` });
+    } else if (seen.has(candidate.candidate_id)) {
+      addDiagnostic(diagnostics, "invalid_record",
+        `${candidatePath}.candidate_id must be unique`,
+        { path: `${candidatePath}.candidate_id` });
+    } else {
+      seen.add(candidate.candidate_id);
+    }
+    if (typeof candidate.type_term !== "string" ||
+        !candidate.type_term.startsWith("cc:")) {
+      addDiagnostic(diagnostics, "invalid_record",
+        `${candidatePath}.type_term must be one controlled vocabulary term`,
+        { path: `${candidatePath}.type_term` });
+    }
+    if (candidate.identity === null || typeof candidate.identity !== "object" ||
+        Array.isArray(candidate.identity) ||
+        typeof candidate.identity.kind !== "string") {
+      addDiagnostic(diagnostics, "invalid_record",
+        `${candidatePath}.identity must declare one canonical identity kind`,
+        { path: `${candidatePath}.identity` });
+    }
+  }
+}

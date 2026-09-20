@@ -57,14 +57,55 @@ export function validateTestProofRuntimeEvidenceV2(
   evidence: Record<string, unknown>
 ): TestProofValidationResult;
 export function describeStableTestProofAuthoring(): Readonly<Record<string, unknown>>;
+export function buildStableTestProofRecoveryCall(input: {
+  readonly wkId: string;
+  readonly focus?: string | null;
+}): Readonly<{
+  readonly tool: "workspace_controlled_contract_obligation_coverage_query";
+  readonly arguments: Readonly<{
+    readonly unit: string;
+    readonly focus?: string;
+  }>;
+}>;
 
 export const VERIFICATION_BUNDLE_SCHEMA_VERSION:
   "controlled-contract-verification-bundle.v1";
 export const VERIFICATION_BUNDLE_FIELDS: readonly string[];
 export const VERIFICATION_BUNDLE_VOCABULARY: Readonly<Record<string, unknown>>;
+/** node:test specialization: exact test name and nesting inside the declared node_test target. */
+export interface NodeTestProofSelector {
+  readonly name: string;
+  readonly nesting: number;
+}
+/** Provider-qualified native selector: installed candidate provider plus one literal node identity. */
+export interface NativeTestProofSelector {
+  readonly provider_id: string;
+  readonly provider_version: string;
+  readonly node_id: string;
+}
+export type TestProofSelector = NodeTestProofSelector | NativeTestProofSelector;
+export interface ProjectedNativeTestProofSelector extends NativeTestProofSelector {
+  readonly selector_kind: string;
+  /** Normalized repository-relative source path the literal node identity names. */
+  readonly path: string;
+}
 export function buildStableTestProofBindingTemplate(input: {
   contract?: Readonly<Record<string, unknown>> | null;
   verificationId: string;
+  /**
+   * The strategy and the selector kind together select the provider family
+   * whose falsifier descriptor implements the strategy. The kind may be omitted
+   * only when exactly one family implements the strategy.
+   */
+  strategy?: 'dependency_failure' | 'forced_invocation' | 'result_inversion';
+  selectorKind?: string;
+  /**
+   * Whether this installation runs a falsifier provider for the proof.
+   * `registry_unsupported` declares that it does not: the template then carries
+   * no falsifier and names its family through `selectorKind`, which is required
+   * because no strategy exists to select one.
+   */
+  falsificationSupport?: 'provider' | 'registry_unsupported';
 }): {
   binding: Record<string, unknown>;
   author_semantics: Array<Record<string, unknown>>;
@@ -98,6 +139,42 @@ export function replaceStableTestProofBindings(input: {
   contract: Record<string, unknown>;
   changed_verification_ids: readonly string[];
   semantic_judgment: "not_performed_coordinator_owned";
+}>;
+export const CURRENT_DEFINITION_REAUTHORING_SCHEMA:
+  "controlled-contract-current-definition-reauthoring.v1";
+export const RETIRED_CURRENT_DEFINITION_FIELDS:
+  readonly ["coverage_disposition", "runtime_test_identity"];
+export interface StableCurrentDefinitionQualification {
+  readonly schema_version: "controlled-contract-current-definition-reauthoring.v1";
+  readonly source_shape: "stable_v1_retired_definition_fields";
+  readonly affected_definition_count: number;
+  readonly definitions: readonly Readonly<{
+    definition_pointer: string;
+    test_proof_id: string;
+    verification_claim_id: string;
+    unexpected_fields: readonly string[];
+    missing_fields: readonly string[];
+  }>[];
+  readonly selector: Readonly<Record<string, unknown>>;
+  readonly required_confirmation: "exact_unexpected_fields";
+}
+export function qualifyStableCurrentDefinitionReauthoring(input: {
+  contract: Record<string, unknown>;
+  diagnosticDetails: readonly Readonly<Record<string, unknown>>[];
+}): StableCurrentDefinitionQualification | null;
+export function reauthorStableCurrentDefinitionBindings(input: {
+  contract: Record<string, unknown>;
+  qualification: StableCurrentDefinitionQualification;
+  replacements: readonly Readonly<{
+    op: "replace";
+    verification_id: string;
+    binding: Readonly<Record<string, unknown>>;
+  }>[];
+}): Readonly<{
+  contract: Record<string, unknown>;
+  contract_digest: `sha256:${string}`;
+  changed_verification_ids: readonly string[];
+  semantic_judgment: "not_performed_authoring_only";
 }>;
 export function resolveTestProofProviderCompatibility(
   input: Record<string, unknown>
@@ -180,3 +257,6 @@ export interface ControlledContractAssessmentV3 {
     readonly message?: string;
   }>[];
 }
+
+/** Known-field native validation; never grants execution credit. */
+export function validateNativeTestProofAuthoringContract(contract: Record<string, unknown>): TestProofValidationResult;

@@ -11,8 +11,13 @@ import {
   resolveControlledContractRepository,
   resolveCanonicalControlledContractCarrierSet
 } from "../../lib/controlled-contract-tools.mjs";
-import { ACCEPTANCE_COVERAGE_STATES } from
+import {
+  ACCEPTANCE_COVERAGE_STATES,
+  deriveControlledContractAcceptanceCoverage,
+  deriveCriterionIdentitySet
+} from
   "../../lib/controlled-contract-acceptance-coverage.mjs";
+import { criterionIdentityInputs } from "./criterion-identity-projection.mjs";
 import { assertPackageValidContract, loadControlledContractPackage } from
   "./package-runtime.mjs";
 
@@ -20,8 +25,8 @@ const ACCEPTANCE_COVERAGE_CARRIER_VERSION =
   "wiki-core-controlled-contract-acceptance-coverage.v1";
 const ACCEPTANCE_COVERAGE_MAX_ROWS = 4096;
 const ACCEPTANCE_COVERAGE_MAX_BYTES = 1048576;
-const OBLIGATION_COVERAGE_MAX_ROWS = ACCEPTANCE_COVERAGE_MAX_ROWS;
-const OBLIGATION_COVERAGE_MAX_BYTES = ACCEPTANCE_COVERAGE_MAX_BYTES;
+import { OBLIGATION_COVERAGE_MAX_ROWS, OBLIGATION_COVERAGE_MAX_BYTES }
+  from "@agent-chassis/controlled-contract";
 const ACCEPTANCE_COVERAGE_BINDING_KEYS = Object.freeze([
   "workRecordLocatorDigest", "contractDigest", "contractNodeDigest",
   "proofPlanDigest", "selectedPackDigest", "mappingDigest",
@@ -214,8 +219,8 @@ async function readCanonicalObligationSource(input, { optional = false } = {}) {
   });
   if (content === null) return null;
 
-  const { validateObligationCoverageCarrier } = await loadControlledContractPackage();
-  const validation = validateObligationCoverageCarrier(content);
+  const { validateObligationCoverageDraft } = await loadControlledContractPackage();
+  const validation = validateObligationCoverageDraft(content);
   if (!validation.valid) throw new ControlledContractToolError(
     "acceptance_coverage_canonical_source_invalid",
     "canonical obligation-coverage carrier failed package validation",
@@ -223,13 +228,13 @@ async function readCanonicalObligationSource(input, { optional = false } = {}) {
       diagnostics: validation.diagnostics }
   );
   if (validation.carrier.wk_id !== input.wkId ||
-      (validation.carrier.focus ?? null) !== selectedUnit) {
+      validation.carrier.selected_unit !== selectedUnit || validation.carrier.focus !== focus) {
     throw new ControlledContractToolError(
       "acceptance_coverage_canonical_source_mismatch",
       "canonical obligation source selected-unit identity mismatched",
       { expected_wk_id: input.wkId, actual_wk_id: validation.carrier.wk_id ?? null,
         expected_selected_unit: selectedUnit,
-        actual_selected_unit: validation.carrier.focus ?? null }
+        actual_selected_unit: validation.carrier.selected_unit, expected_focus: focus, actual_focus: validation.carrier.focus }
     );
   }
   return Object.freeze({
@@ -240,27 +245,151 @@ async function readCanonicalObligationSource(input, { optional = false } = {}) {
   });
 }
 
+function contractReferenceMeaning(reference) {
+  if (reference === undefined) return null;
+  return Object.freeze({
+    reference_id: reference.reference_id,
+    type_term: reference.type_term,
+    identity: Object.freeze(structuredClone(reference.identity))
+  });
+}
+
+function contractPropositionMeaning(proposition, referencesById) {
+  if (proposition === undefined) return null;
+  return Object.freeze({
+    proposition_id: proposition.proposition_id,
+    operator: proposition.operator,
+    subject_reference_id: proposition.subject_reference_id,
+    subject: contractReferenceMeaning(referencesById.get(
+      proposition.subject_reference_id
+    )),
+    operands: Object.freeze((proposition.operands ?? []).map((operand) =>
+      operand.kind === "reference" ? Object.freeze({
+        ...structuredClone(operand),
+        reference: contractReferenceMeaning(referencesById.get(operand.reference_id))
+      }) : Object.freeze(structuredClone(operand)))),
+    applicability_context: Object.freeze({
+      ...structuredClone(proposition.applicability_context),
+      operand_references: Object.freeze(
+        (proposition.applicability_context?.operand_reference_ids ?? []).map(
+          (referenceId) => contractReferenceMeaning(referencesById.get(referenceId))
+        )
+      )
+    })
+  });
+}
+
+function contractTestDefinitionMeaning(proof, referencesById) {
+  const declared = (field, project = (value) => structuredClone(value)) =>
+    proof[field] === undefined ? {} : { [field]: Object.freeze(project(proof[field])) };
+  return Object.freeze({
+    edge_kind: "test_definition_for_verification_claim",
+    test_proof_id: proof.test_proof_id,
+    verification_claim_id: proof.verification_claim_id,
+    ...declared("test_selector"),
+    ...declared("system_under_test_boundary", (boundary) => ({
+      ...structuredClone(boundary),
+      ...(boundary.subject_reference_ids === undefined ? {} : {
+        subject_references: Object.freeze(boundary.subject_reference_ids.map(
+          (referenceId) => contractReferenceMeaning(referencesById.get(referenceId))
+        ))
+      })
+    })),
+    ...declared("observable_result"),
+    ...declared("falsifiers"),
+    evidence_status: "declared_not_executed"
+  });
+}
+
 function contractNodeFacts(contract) {
   const claims = Array.isArray(contract.claims) ? contract.claims : [];
   const references = Array.isArray(contract.references) ? contract.references : [];
-  return [...claims.map((claim) => ({
+  const referencesById = new Map(references.map(
+    (reference) => [reference.reference_id, reference]
+  ));
+  const propositions = new Map((contract.propositions ?? []).map(
+    (proposition) => [proposition.proposition_id, proposition]
+  ));
+  const relationsBySource = new Map();
+  for (const relation of contract.relations ?? []) {
+    if (relation.role !== "verifies") continue;
+    const sourceRelations = relationsBySource.get(relation.source_claim_id) ?? [];
+    sourceRelations.push(Object.freeze({
+      edge_kind: "claim_verifies_claim",
+      relation_id: relation.relation_id,
+      role: relation.role,
+      source_claim_id: relation.source_claim_id,
+      target_claim_id: relation.target_claim_id,
+      evidence_status: "declared_not_executed"
+    }));
+    relationsBySource.set(relation.source_claim_id, sourceRelations);
+  }
+  const definitionsByClaim = new Map();
+  for (const proof of contract.test_proofs ?? []) {
+    const definitions = definitionsByClaim.get(proof.verification_claim_id) ?? [];
+    definitions.push(contractTestDefinitionMeaning(proof, referencesById));
+    definitionsByClaim.set(proof.verification_claim_id, definitions);
+  }
+  const claimFacts = claims.map((claim) => ({
     id: claim.claim_id,
-    mandatory: claim.modality === "MUST"
-  })), ...references.map((reference) => ({
+    mandatory: claim.modality === "MUST",
+    semantic: Object.freeze({
+      node_kind: "claim",
+      claim_kind: claim.kind,
+      modality: claim.modality,
+      proposition: contractPropositionMeaning(
+        propositions.get(claim.proposition_id), referencesById
+      ),
+      ...(claim.falsifying_proposition_id === undefined ? {} : {
+        falsifying_proposition: contractPropositionMeaning(
+          propositions.get(claim.falsifying_proposition_id), referencesById
+        )
+      }),
+      ...(claim.verification_method === undefined ? {} : {
+        verification_method: claim.verification_method
+      })
+    }),
+    declared_verification: Object.freeze({
+      relationships: Object.freeze(relationsBySource.get(claim.claim_id) ?? []),
+      test_definitions: Object.freeze(definitionsByClaim.get(claim.claim_id) ?? []),
+      executed_outcomes_included: false
+    })
+  }));
+  const referenceFacts = references.map((reference) => ({
     id: reference.reference_id,
-    mandatory: false
-  }))].filter(({ id }) => typeof id === "string" && id.length > 0);
+    mandatory: false,
+    semantic: Object.freeze({
+      node_kind: "reference",
+      reference: contractReferenceMeaning(reference)
+    }),
+    declared_verification: Object.freeze({
+      relationships: Object.freeze([]),
+      test_definitions: Object.freeze([]),
+      executed_outcomes_included: false
+    })
+  }));
+  return [...claimFacts, ...referenceFacts]
+    .filter(({ id }) => typeof id === "string" && id.length > 0)
+    .map(Object.freeze);
 }
 
-async function selectedPackFacts({ repoRoot, wkId, focus, canonicalSet, plan }) {
+async function selectedPackFacts({ repoRoot, wkId, focus, canonicalSet, plan,
+  contractOverride = null, requestContent = undefined,
+  evaluationInputOverrides = null }) {
   if (plan === null) throw new ControlledContractToolError(
     "controlled_contract_proof_plan_missing",
     "canonical proof plan is required to resolve selected-pack coverage",
     { changed: false }
   );
-  const loaded = await readCanonicalProofPlanInputs({
-    repoRoot, wkId, focus, canonicalSet
+  const canonicalInputs = await readCanonicalProofPlanInputs({
+    repoRoot, wkId, focus, canonicalSet, requestContent
   });
+
+  const loaded = evaluationInputOverrides === null ? canonicalInputs : {
+    ...canonicalInputs,
+    evaluationInputs: { ...canonicalInputs.evaluationInputs,
+      ...evaluationInputOverrides }
+  };
   const selectedPaths = plan.content?.packs?.map(
     (pack) => pack?.evaluation_input?.path
   ) ?? [];
@@ -274,7 +403,7 @@ async function selectedPackFacts({ repoRoot, wkId, focus, canonicalSet, plan }) 
   );
   const pkg = await loadControlledContractPackage();
   const currentPlan = await pkg.buildProofPlan({
-    contract: loaded.contract.content,
+    contract: contractOverride?.content ?? loaded.contract.content,
     request: loaded.request.content,
     evaluationInputs: loaded.evaluationInputs
   });
@@ -287,15 +416,31 @@ async function selectedPackFacts({ repoRoot, wkId, focus, canonicalSet, plan }) 
   );
   const nodeIds = new Set();
   const selectedPacks = [];
+  const claimParticipation = [];
   for (const [index, filename] of selectedPaths.entries()) {
     const evaluationInput = loaded.evaluationInputs[filename];
     for (const binding of evaluationInput.reference_bindings ?? []) {
       for (const referenceId of binding.reference_ids ?? []) nodeIds.add(referenceId);
     }
-    for (const binding of evaluationInput.claim_pattern_bindings ?? []) {
-      if (typeof binding.claim_id === "string") nodeIds.add(binding.claim_id);
-    }
     const plannedPack = plan.content.packs[index];
+
+    const participation = await pkg.evaluateSelectedPackClaimParticipation({
+      contract: contractOverride?.content ?? loaded.contract.content,
+      evaluationInput,
+      profileId: plannedPack.profile_id,
+      profileVersion: plannedPack.profile_version
+    });
+    for (const claimId of participation.claim_ids) nodeIds.add(claimId);
+    claimParticipation.push(Object.freeze({
+      pack_id: plannedPack.profile_id,
+      profile_id: participation.profile_id,
+      profile_version: participation.profile_version,
+      profile_digest: participation.profile_digest,
+      evaluation_input_path: filename,
+      satisfaction: participation.satisfaction,
+      covered_claims: participation.covered_claims,
+      claim_ids: participation.claim_ids
+    }));
     const authoring = await pkg.describeProofPackAuthoring({
       profileId: plannedPack.profile_id,
       profileVersion: plannedPack.profile_version,
@@ -315,7 +460,7 @@ async function selectedPackFacts({ repoRoot, wkId, focus, canonicalSet, plan }) 
         selectors.push(Object.freeze({
           kind,
           component_id: pattern.pattern_id,
-          evaluation_stage: pattern.required_by_stage
+
         }));
       }
     }
@@ -332,27 +477,52 @@ async function selectedPackFacts({ repoRoot, wkId, focus, canonicalSet, plan }) 
   }
   return Object.freeze({
     nodeIds: Object.freeze([...nodeIds].sort()),
-    selectedPacks: Object.freeze(selectedPacks)
+    selectedPacks: Object.freeze(selectedPacks),
+    claimParticipation: Object.freeze(claimParticipation)
   });
 }
 
-async function resolveCanonicalCoverageFacts(input, { sourceOptional = false } = {}) {
+async function resolveCanonicalCoverageFacts(input, { sourceOptional = false,
+  canonicalOverride = null, savedApplications = false } = {}) {
   const focus = input.focus ?? null;
   const selectedUnit = normalizeAcceptanceCoverageSelectedUnit(input.selectedUnit);
   const repository = await resolveControlledContractRepository(input.repoRoot);
   const { record, unit } = await readCanonicalWorkRecord(
     repository.repository, input.wkId, selectedUnit
   );
-  const canonicalSet = await resolveCanonicalControlledContractCarrierSet({
-    repoRoot: repository.repository, wkId: input.wkId, focus
-  });
-  const contract = await readControlledContractCarrierFile({
-    repoRoot: repository.repository, wkId: input.wkId, focus, carrierKind: "contract",
-    canonicalSet
-  });
+  const canonicalSet = canonicalOverride?.canonicalSet ??
+    await resolveCanonicalControlledContractCarrierSet({
+      repoRoot: repository.repository, wkId: input.wkId, focus
+    });
+  const canonicalContract = canonicalOverride?.contract ??
+    await readControlledContractCarrierFile({
+      repoRoot: repository.repository, wkId: input.wkId, focus, carrierKind: "contract",
+      canonicalSet
+    });
   const pkg = await loadControlledContractPackage();
-  assertPackageValidContract(pkg.validateStableTestProofContract(contract.content));
-  const plan = await (async () => {
+  const source = Object.hasOwn(canonicalOverride ?? {}, "obligationSource")
+    ? canonicalOverride.obligationSource
+    : await readCanonicalObligationSource({
+      ...input, repoRoot: repository.repository
+    }, { optional: sourceOptional });
+  const caseSource = selectedUnit === null ? source : await readCanonicalObligationSource({
+    ...input, repoRoot: repository.repository, selectedUnit: null
+  }, { optional: true });
+  const cases = caseSource?.content.cases ?? [];
+  const { resolveDerivedProofAuthoringContract } = await import(
+    "./proof-authoring-source.mjs"
+  );
+  const contract = await resolveDerivedProofAuthoringContract({
+    repoRoot: repository.repository,
+    wkId: input.wkId,
+    focus,
+    canonicalContract,
+    cases
+  });
+
+  assertPackageValidContract(pkg.validateNativeTestProofAuthoringContract(contract.content));
+  const plan = savedApplications ? null : Object.hasOwn(canonicalOverride ?? {}, "proofPlan")
+    ? canonicalOverride.proofPlan : await (async () => {
     try {
       return await readControlledContractCarrierFile({
         repoRoot: repository.repository, wkId: input.wkId, focus,
@@ -363,12 +533,15 @@ async function resolveCanonicalCoverageFacts(input, { sourceOptional = false } =
       throw error;
     }
   })();
-  const packFacts = await selectedPackFacts({
-    repoRoot: repository.repository, wkId: input.wkId, focus, canonicalSet, plan
+  const packFacts = savedApplications
+    ? { nodeIds: [], selectedPacks: [], claimParticipation: [] }
+    : await selectedPackFacts({
+    repoRoot: repository.repository, wkId: input.wkId, focus, canonicalSet, plan,
+    contractOverride: contract,
+    requestContent: canonicalOverride?.proofPlanRequest?.content,
+    evaluationInputOverrides: canonicalOverride?.evaluationInputs ?? null
   });
-  const source = await readCanonicalObligationSource({
-    ...input, repoRoot: repository.repository
-  }, { optional: sourceOptional });
+  const contractNodeSemantics = contractNodeFacts(contract.content);
   return Object.freeze({
     repoRoot: repository.repository,
     contractsRoot: repository.contracts,
@@ -378,16 +551,24 @@ async function resolveCanonicalCoverageFacts(input, { sourceOptional = false } =
     record,
     unit,
     canonicalSet,
+    canonicalContract,
     contract,
-    contractNodes: Object.freeze(contractNodeFacts(contract.content)),
+    caseSource,
+    cases,
+    contractNodes: Object.freeze(contractNodeSemantics.map(({ id, mandatory }) =>
+      Object.freeze({ id, mandatory }))),
+    contractNodeSemantics: Object.freeze(contractNodeSemantics),
     selectedPackNodeIds: packFacts.nodeIds,
     selectedPacks: packFacts.selectedPacks,
+
+    selectedPackClaimParticipation: packFacts.claimParticipation,
     plan,
     source
   });
 }
 
-function identityBindings({ unit, contract, contractNodes, plan, source, scopeRecord }) {
+function identityBindings({ unit, contract, contractNodeSemantics, plan, source,
+  scopeRecord }) {
   const criteria = Array.isArray(unit.acceptance?.criteria) ? unit.acceptance.criteria : [];
   const packs = Array.isArray(plan?.content?.packs) ? plan.content.packs : [];
   const bindings = {
@@ -395,7 +576,7 @@ function identityBindings({ unit, contract, contractNodes, plan, source, scopeRe
       locator: `/acceptance/criteria/${index}`, criterion
     }))),
     contractDigest: contract.content_digest,
-    contractNodeDigest: controlledContractContentDigest(contractNodes),
+    contractNodeDigest: controlledContractContentDigest(contractNodeSemantics),
     proofPlanDigest: plan?.content_digest ?? "sha256:absent",
     selectedPackDigest: controlledContractContentDigest(packs),
     assessmentDigest: null,
@@ -412,40 +593,21 @@ function identityBindings({ unit, contract, contractNodes, plan, source, scopeRe
     verificationDigest: controlledContractContentDigest(unit.acceptance?.validation ?? []),
     optionalScopeDigest: scopeRecord === null
       ? null : controlledContractContentDigest(scopeRecord),
-    sourceDigest: source.content_digest,
-    sourceKind: source.source_kind
+    sourceDigest: source?.content_digest ?? "sha256:absent",
+    sourceKind: source?.source_kind ?? "obligation-coverage"
   };
   bindings.mappingDigest = controlledContractContentDigest(bindings);
   return Object.freeze(bindings);
 }
 
-function coverageAuthoringApplicability({
-  rows = [],
-  criteria,
-  criterionIdentityDigest,
-  rowCurrentness
-}) {
-  const currentCriteriaByLocator = new Map(criteria.map((criterion) => [
-    criterion.source_locator, criterion
-  ]));
-  const criterionRelationships = rows.flatMap((row) => {
-    const criterion = currentCriteriaByLocator.get(row?.source_locator);
-    if (criterion === undefined || rowCurrentness(row) !== null ||
-        !Array.isArray(row.controlled_contract_node_ids) ||
-        row.mechanism === undefined || row.proof === undefined) return [];
-    return [{
-      source_locator: row.source_locator,
-      criterion_identity: criterion.identity,
-      criterion_identity_digest: criterionIdentityDigest,
-      obligation_id: row.obligation_id,
-      controlled_contract_node_ids: structuredClone(row.controlled_contract_node_ids),
-      mechanism: structuredClone(row.mechanism),
-      proof: structuredClone(row.proof)
-    }];
-  });
+function coverageAuthoringApplicability(rows) {
   return Object.freeze({
-    mode: "shared_admitted_alternatives",
-    criterion_relationships: Object.freeze(criterionRelationships.map(Object.freeze)),
+    mode: 'saved_selections',
+    selection_relationships: Object.freeze(rows.map(row => Object.freeze({
+      obligation_id: row.obligation_id, selection: structuredClone(row.selection),
+      controlled_contract_node_ids: structuredClone(row.controlled_contract_node_ids ?? []),
+      design_status: row.design_status
+    }))),
     inferred_relationship_count: 0,
     caller_selects_mapping: true
   });
@@ -455,7 +617,7 @@ async function currentObligationCoverageContext(base) {
   const pkg = await loadControlledContractPackage();
   const { bindings } = obligationCoverageCriterionIdentities(base);
   const identitySet = pkg.deriveCriterionIdentitySet({
-    criteria: structuredClone(base.unit.acceptance?.criteria ?? []),
+    criteria: criterionIdentityInputs(base.unit.acceptance?.criteria ?? []),
     selectedUnitDigest: bindings.selectedUnitDigest,
     bindings
   });
@@ -467,10 +629,107 @@ async function currentObligationCoverageContext(base) {
   return Object.freeze({ bindings, identitySet, criteria: Object.freeze(criteria) });
 }
 
-async function resolveAcceptanceCoverageFacts(input, { requireCarrier = false } = {}) {
-  const base = await resolveCanonicalCoverageFacts(input);
+function acceptanceCoverageUnitDigest(resolved) {
+  return controlledContractContentDigest({
+    selected_unit: controlledContractContentDigest(resolved.unit),
+    bindings: resolved.bindings
+  });
+}
+
+function acceptanceCoverageAuthoringIdentity(resolved) {
+  return controlledContractContentDigest({
+    unit_digest: acceptanceCoverageUnitDigest(resolved),
+    source_identity: {
+      source_kind: resolved.source?.source_kind ?? "obligation-coverage",
+      content_digest: resolved.source?.content_digest ?? null
+    }
+  });
+}
+
+function changedAcceptanceCoverageBindings(bound, current) {
+  if (!bound) return [];
+  return ACCEPTANCE_COVERAGE_BINDING_KEYS.filter((key) => bound[key] !== current[key]);
+}
+
+export function rebindAcceptanceCoverageFactsToObligationSource(resolved, content) {
+  const source = Object.freeze({ source_kind: "obligation-coverage",
+    content: structuredClone(content),
+    content_digest: controlledContractContentDigest(content), file: null });
+  const withoutMapping = Object.fromEntries(ACCEPTANCE_COVERAGE_BINDING_KEYS.filter(
+    (key) => key !== "mappingDigest").map((key) => [key,
+    key === "sourceDigest" ? source.content_digest
+      : key === "sourceKind" ? source.source_kind : resolved.bindings[key]]));
+  const bindings = Object.freeze({ ...withoutMapping,
+    mappingDigest: controlledContractContentDigest(withoutMapping) });
+  return Object.freeze({ ...resolved, source, bindings,
+    changed_bindings: Object.freeze(changedAcceptanceCoverageBindings(
+      resolved.carrier?.content.source_bindings, bindings)) });
+}
+
+function acceptanceCoverageFactsFromRows(resolved, rows) {
+  const normalizedRows = acceptanceCoverageRows(rows);
+  const changedBindings = changedAcceptanceCoverageBindings(
+    resolved.carrier?.content.source_bindings, resolved.bindings
+  );
+  const stale = changedBindings.length > 0;
+  const unitDigest = acceptanceCoverageUnitDigest(resolved);
+  const currentIdentities = deriveCriterionIdentitySet({
+    criteria: criterionIdentityInputs(resolved.criteria),
+    selectedUnitDigest: unitDigest,
+    bindings: resolved.bindings
+  }).identities;
+  const rowByCriterion = new Map(normalizedRows.map((row) => [
+    row.criterion_identity, row
+  ]));
+  return {
+    unit: {
+      id: resolved.selectedUnit === null
+        ? resolved.wkId : `${resolved.wkId}#${resolved.selectedUnit}`,
+      kind: resolved.selectedUnit === null ? "wk" : "slice",
+      digest: unitDigest
+    },
+
+    criteria: criterionIdentityInputs(resolved.criteria),
+    bindings: structuredClone(resolved.bindings),
+    ...(resolved.carrier?.content.criterion_identities === undefined
+      ? {}
+      : { priorCriterionIdentities: structuredClone(
+          resolved.carrier.content.criterion_identities) }),
+    mappings: normalizedRows.map(({ criterion_identity, node_ids }) => ({
+      criterionIdentity: criterion_identity,
+      nodeIds: structuredClone(node_ids)
+    })),
+
+    contractNodes: structuredClone(resolved.contractNodes),
+    selectedPackNodeIds: structuredClone(resolved.selectedPackNodeIds),
+    criterionAxes: currentIdentities.map(({ identity }) => {
+      const axes = rowByCriterion.get(identity)?.axes;
+      return {
+        criterionIdentity: identity,
+        structuralVerification: stale ? "stale" : axes?.structural_verification ?? "unknown",
+        implementationOwnership: stale ? "stale" : axes?.implementation_ownership ?? "unknown",
+        verificationOwnership: stale ? "stale" : axes?.verification_ownership ?? "unknown",
+        scopeFeasibility: stale ? "stale" : axes?.scope_feasibility ?? "unknown"
+      };
+    }),
+    ...(resolved.scope_facts === undefined ? {} : { scopeFacts: resolved.scope_facts }),
+    proofCoverage: stale
+      ? structuredClone((resolved.proof_coverage ?? []).map((fact) => ({
+          ...fact, state: "stale"
+        })))
+      : structuredClone(resolved.proof_coverage ?? []),
+    resultFacts: structuredClone(resolved.result_facts ?? null)
+  };
+}
+
+async function resolveAcceptanceCoverageFacts(input, { requireCarrier = false,
+  canonicalOverride = null, savedApplications = false, obligationFacts: suppliedObligationFacts = null } = {}) {
+  const base = await resolveCanonicalCoverageFacts(input, { canonicalOverride, savedApplications,
+    sourceOptional: savedApplications });
   const { repoRoot, wkId, focus, selectedUnit, record, unit, canonicalSet,
-    contract, contractNodes, selectedPackNodeIds, selectedPacks, plan, source } = base;
+    contract, contractNodes, contractNodeSemantics, selectedPackNodeIds,
+    selectedPacks, plan, source,
+    selectedPackClaimParticipation } = base;
   const carrier = await readAcceptanceCoverageCarrier(input);
   if (requireCarrier && carrier === null) throw new ControlledContractToolError(
     "acceptance_coverage_carrier_not_found", "canonical acceptance-coverage carrier is absent",
@@ -480,10 +739,13 @@ async function resolveAcceptanceCoverageFacts(input, { requireCarrier = false } 
     path.resolve(repoRoot, "wiki", "work-records", "WK-2025.json"),
     { optional: true, source: "optional scope work record" }
   );
-  const bindings = identityBindings({ unit, contract, contractNodes, plan, source, scopeRecord });
+  const bindings = identityBindings({
+    unit, contract: base.canonicalContract, contractNodeSemantics, plan, source,
+    scopeRecord
+  });
   const pkg = await loadControlledContractPackage();
   const acceptanceIdentitySet = pkg.deriveCriterionIdentitySet({
-    criteria: structuredClone(unit.acceptance?.criteria ?? []),
+    criteria: criterionIdentityInputs(unit.acceptance?.criteria ?? []),
     selectedUnitDigest: controlledContractContentDigest({
       selected_unit: controlledContractContentDigest(unit), bindings
     }),
@@ -493,19 +755,13 @@ async function resolveAcceptanceCoverageFacts(input, { requireCarrier = false } 
     ...structuredClone(entry),
     source_locator: obligationCoverageCriterionLocator(index)
   }));
-  const obligationContext = await currentObligationCoverageContext(base);
-  const obligationCurrentness = (row) => obligationCoverageRowCurrentness(row, {
-    criteria: obligationContext.criteria,
-    criterionIdentities: obligationContext.identitySet,
-    contractNodes,
-    selectedPacks: base.selectedPacks
-  });
+  const obligationFacts = suppliedObligationFacts ?? await resolveObligationCoverageFacts(input, { canonicalOverride, allowIncomplete: true, savedApplications });
   const unitDigest = controlledContractContentDigest({
     selected_unit: controlledContractContentDigest(unit),
     carrier: carrier?.content_digest ?? null,
     bindings
   });
-  return Object.freeze({
+  const resolved = {
     wkId,
     focus,
     selectedUnit,
@@ -513,27 +769,39 @@ async function resolveAcceptanceCoverageFacts(input, { requireCarrier = false } 
     unit,
     unit_digest: unitDigest,
     criteria: structuredClone(unit.acceptance?.criteria ?? []),
+    criteria_with_locators: Object.freeze(acceptanceCriteria.map(Object.freeze)),
     contract,
     contractNodes: Object.freeze(contractNodes),
+    contractNodeSemantics: Object.freeze(contractNodeSemantics),
     selectedPackNodeIds,
     selectedPacks,
+    selectedPackClaimParticipation,
     plan,
     carrier,
     source,
     bindings,
-    authoringApplicability: coverageAuthoringApplicability({
-      rows: source?.content?.obligations ?? [],
-      criteria: acceptanceCriteria,
-      criterionIdentityDigest: acceptanceIdentitySet.digest,
-      rowCurrentness: obligationCurrentness
-    }),
+    changed_bindings: Object.freeze(changedAcceptanceCoverageBindings(
+      carrier?.content.source_bindings, bindings
+    )),
+    authoringApplicability: coverageAuthoringApplicability(obligationFacts.rows),
     rows: structuredClone(carrier?.content.rows ?? []),
     scope_facts: scopeRecord === null
       ? undefined
       : { status: "available", source: "WK-2025", facts: { digest: bindings.optionalScopeDigest } },
     proof_coverage: [],
+    obligationResolution: obligationFacts.resolution,
     result_facts: null
-  });
+  };
+  const facts = {
+    ...resolved,
+    authoring_identity: acceptanceCoverageAuthoringIdentity(resolved),
+    ...deriveControlledContractAcceptanceCoverage(
+      acceptanceCoverageFactsFromRows(resolved, resolved.rows)
+    )
+  };
+
+  return Object.freeze({ ...facts,
+    selected_unit_digest: acceptanceCoverageUnitDigest(facts) });
 }
 
 function obligationCoverageCriterionLocator(index) {
@@ -543,7 +811,6 @@ function obligationCoverageCriterionLocator(index) {
 function obligationCoverageSourceLocatorDigest({
   criterion,
   criterionIdentity,
-  criterionSetDigest,
   obligationId,
   sourceLocator,
   statement
@@ -551,7 +818,6 @@ function obligationCoverageSourceLocatorDigest({
   return controlledContractContentDigest({
     source_locator: sourceLocator,
     criterion_identity: criterionIdentity,
-    criterion_identity_set_digest: criterionSetDigest,
     criterion,
     obligation_id: obligationId,
     statement
@@ -563,8 +829,8 @@ function obligationCoverageCriterionIdentities(base) {
     workRecordDigest: controlledContractContentDigest(base.record),
     selectedUnitDigest: controlledContractContentDigest(base.unit),
     contractGeneration: base.canonicalSet.generation,
-    contractDigest: base.contract.content_digest,
-    contractNodeDigest: controlledContractContentDigest(base.contractNodes),
+    contractDigest: base.canonicalContract.content_digest,
+    contractNodeDigest: controlledContractContentDigest(base.contractNodeSemantics),
     proofPlanDigest: base.plan?.content_digest ?? "sha256:absent",
     selectedPackDigest: controlledContractContentDigest(base.selectedPacks),
     sourceLocatorDigest: controlledContractContentDigest({
@@ -612,15 +878,16 @@ function obligationCoverageRowCurrentness(row, resolved) {
     pack.requested_intents.includes(row.proof.requested_intent) &&
     pack.selectors.some((selector) =>
       selector.kind === row.proof.selector.kind &&
-      selector.component_id === row.proof.selector.component_id &&
-      selector.evaluation_stage === row.proof.evaluation_stage
+      selector.component_id === row.proof.selector.component_id
     ));
   return matchingPack ? null : "selected_pack_mapping";
 }
 
-async function resolveObligationCoverageFacts(input, { requireSource = false } = {}) {
+async function resolveObligationCoverageFacts(input, { requireSource = false,
+  canonicalOverride = null, allowIncomplete = false, savedApplications = false } = {}) {
   await assertObligationCoverageSourcePathIntegrity(input, { requireSource });
-  const base = await resolveCanonicalCoverageFacts(input, { sourceOptional: true });
+  const base = await resolveCanonicalCoverageFacts(input, { sourceOptional: true,
+    canonicalOverride, savedApplications });
   if (requireSource && base.source === null) throw new ControlledContractToolError(
     "obligation_coverage_source_not_found",
     "canonical obligation-coverage source is absent",
@@ -650,27 +917,27 @@ async function resolveObligationCoverageFacts(input, { requireSource = false } =
     work_record_digest: bindings.workRecordDigest,
     controlled_contract_generation: base.canonicalSet.generation,
     controlled_contract_manifest_digest: base.canonicalSet.manifest_content_digest ?? null,
-    contract_digest: base.contract.content_digest,
+    contract_digest: base.canonicalContract.content_digest,
     proof_plan_digest: base.plan?.content_digest ?? null,
     selected_pack_digest: bindings.selectedPackDigest,
     source_locator_digest: sourceLocator.digest,
     source_content_digest: base.source?.content_digest ?? null
   });
-  const staleReasons = base.source === null ? [] : (() => {
-    const currentLocators = new Set();
-    const reasons = base.source.content.obligations.map((row) => {
-      const reason = obligationCoverageRowCurrentness(row, {
-        criteria, criterionIdentities: identitySet,
-        contractNodes: base.contractNodes, selectedPacks: base.selectedPacks
+  const { resolveProofAuthoringContext } = await import('./proof-authoring-source.mjs');
+  const { resolveProofAuthoring } = await import('@agent-chassis/controlled-contract/proof-authoring');
+  const resolution = base.source === null ? null : await resolveProofAuthoring(
+    base.source.content, await resolveProofAuthoringContext(base));
+  if (!allowIncomplete && base.source !== null && resolution.mapping === null) {
+    throw new ControlledContractToolError('obligation_coverage_resolution_required',
+      'Complete obligation consumers require a resolved mapping', {
+        changed: false, limb: 'mechanical_failure', resolution
       });
-      if (reason === null) currentLocators.add(row.source_locator);
-      return reason;
-    }).filter(Boolean);
-    if (criteria.some(({ source_locator: locator }) => !currentLocators.has(locator))) {
-      reasons.push("criterion_population_incomplete");
-    }
-    return [...new Set(reasons)].sort();
-  })();
+  }
+
+  const resolvedRows = resolution?.mapping?.obligations ??
+    resolution?.obligation_facts ?? [];
+
+  const staleReasons = [];
   return Object.freeze({
     ...base,
     bindings,
@@ -679,18 +946,12 @@ async function resolveObligationCoverageFacts(input, { requireSource = false } =
     sourceLocator,
     prospectiveIdentity,
     authoringIdentity,
-    authoringApplicability: coverageAuthoringApplicability({
-      rows: base.source?.content?.obligations ?? [],
-      criteria,
-      criterionIdentityDigest: identitySet.digest,
-      rowCurrentness: (row) => obligationCoverageRowCurrentness(row, {
-        criteria, criterionIdentities: identitySet,
-        contractNodes: base.contractNodes, selectedPacks: base.selectedPacks
-      })
-    }),
+    authoringApplicability: coverageAuthoringApplicability(resolvedRows),
     sourceCurrent: staleReasons.length === 0,
     staleReasons: Object.freeze(staleReasons),
-    rows: Object.freeze(structuredClone(base.source?.content.obligations ?? []))
+    resolution,
+    draftRows: Object.freeze(structuredClone(base.source?.content.obligations ?? [])),
+    rows: Object.freeze(structuredClone(resolvedRows))
   });
 }
 
@@ -731,13 +992,18 @@ export {
   OBLIGATION_COVERAGE_MAX_BYTES,
   OBLIGATION_COVERAGE_MAX_ROWS,
   acceptanceCoverageCarrierPath,
+  acceptanceCoverageAuthoringIdentity,
+  acceptanceCoverageFactsFromRows,
   acceptanceCoverageSourcePath,
   acceptanceCoverageRows,
+  acceptanceCoverageUnitDigest,
+  changedAcceptanceCoverageBindings,
   exactObject,
   assertObligationCoverageSourcePathIntegrity,
   obligationCoverageSourceLocatorDigest,
   readAcceptanceCoverageCarrier,
   readCanonicalObligationSource,
+  readCanonicalWorkRecord, normalizeAcceptanceCoverageSelectedUnit,
   resolveAcceptanceCoverageFacts,
   resolveObligationCoverageFacts
 };

@@ -229,15 +229,11 @@ function parseAlternates(text, objectDirectory, label) {
   return out;
 }
 
-export function normalizeFindingsGitMetadataRole(role) {
-  if (role === null || role === undefined) return null;
-  if (role === "review" || role === "reviewer") return "reviewer";
-  if (role === "redteam") return "redteam";
-  refuseInvalid(`findings Git metadata support requires reviewer or redteam role, got: ${String(role)}`);
-  return null;
-}
-
-function resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole }) {
+export function resolveRepositoryGitMetadataProjection({
+  repoReal,
+  expectedCommonGitDir = null,
+  expectedHeadCommit = null
+} = {}) {
   const checkout = assertAbsoluteSafePath(repoReal, "findingsGitMetadata.repoReal");
   const gitPointerFile = path.join(checkout, ".git");
   const gitEntry = maybeLstat(gitPointerFile, "findings checkout .git");
@@ -292,6 +288,12 @@ function resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole }
     "findings checkout common Git directory"
   );
   addPin(pins, seenPins, commonGitDir);
+  if (expectedCommonGitDir !== null && commonGitDir.path !== expectedCommonGitDir) {
+    refuseInvalid("findings checkout does not belong to the authenticated repository", {
+      common_git_dir: commonGitDir.path,
+      expected_common_git_dir: expectedCommonGitDir
+    });
+  }
 
   if (commonGitDir.path !== worktreeGitDir.path) {
     const worktreesDir = inspectExactPath(
@@ -321,6 +323,20 @@ function resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole }
       backlink_target: backlinkTarget,
       expected: gitPointerFile
     });
+  }
+  if (expectedHeadCommit !== null) {
+    const head = readPinnedTextFile(
+      path.join(worktreeGitDir.path, "HEAD"),
+      "findings checkout worktree HEAD"
+    );
+    addPin(pins, seenPins, head.pin);
+    const observedHead = parseSingleLine(head.text, "findings checkout worktree HEAD");
+    if (observedHead !== expectedHeadCommit) {
+      refuseInvalid("findings checkout HEAD does not name the authenticated commit", {
+        expected_head: expectedHeadCommit,
+        observed_head: observedHead
+      });
+    }
   }
 
   const objectDirectories = [];
@@ -388,7 +404,6 @@ function resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole }
 
   return Object.freeze({
     schemaVersion: "findings-role-git-metadata.v1",
-    role: normalizedRole,
     checkout,
     gitPointerFile,
     worktreeGitDir: worktreeGitDir.path,
@@ -401,17 +416,84 @@ function resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole }
   });
 }
 
-export function resolveRepositoryGitMetadataProjection({ repoReal } = {}) {
-  return resolveRepositoryGitMetadataProjectionImpl({
-    repoReal,
-    normalizedRole: null
-  });
+function canonicalDirectory(value, label) {
+  if (typeof value !== "string" || !path.isAbsolute(value)) {
+    refuseInvalid(`${label} must be an absolute path`);
+  }
+  try {
+    return realpathSync(value);
+  } catch (error) {
+    refuseInvalid(`${label} could not be canonically resolved: ${value}`, {
+      path: value,
+      errno: error?.code ?? null
+    });
+  }
+  return null;
 }
 
-export function resolveFindingsRoleGitMetadata({ repoReal, role } = {}) {
-  const normalizedRole = normalizeFindingsGitMetadataRole(role);
-  if (normalizedRole === null) return null;
-  return resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole });
+export function resolveAuthenticatedCheckoutGitMetadata({ checkout, repository, headCommit } = {}) {
+  if (typeof headCommit !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(headCommit)) {
+    refuseInvalid("authenticated checkout Git metadata requires the authenticated commit");
+  }
+  const repositoryReal = canonicalDirectory(repository, "authenticated repository");
+  const repositoryGit = path.join(repositoryReal, ".git");
+  const repositoryEntry = maybeLstat(repositoryGit, "authenticated repository .git");
+  const expectedCommonGitDir = repositoryEntry?.isDirectory() === true
+    ? inspectExactPath(repositoryGit, "directory", "authenticated repository Git directory").path
+    : resolveRepositoryGitMetadataProjection({ repoReal: repositoryReal })?.commonGitDir ?? null;
+  if (expectedCommonGitDir === null) {
+    refuseInvalid("authenticated repository has no Git directory", { repository: repositoryReal });
+  }
+  const metadata = resolveRepositoryGitMetadataProjection({
+    repoReal: canonicalDirectory(checkout, "authenticated checkout"),
+    expectedCommonGitDir,
+    expectedHeadCommit: headCommit
+  });
+  if (metadata === null) {
+    refuseInvalid("authenticated checkout is not a launcher-created linked worktree", { checkout });
+  }
+  return metadata;
+}
+
+function gitMetadataTopology(metadata) {
+  return JSON.stringify([
+    metadata?.gitPointerFile,
+    metadata?.worktreeGitDir,
+    metadata?.commonGitDir,
+    metadata?.readOnlyBinds,
+    metadata?.namespaceDirectories
+  ]);
+}
+
+export function assertCheckoutDerivedGitMetadata(metadata, repoReal) {
+  assertFindingsRoleGitMetadataUnchanged(metadata);
+  const fresh = metadata.checkout === repoReal
+    ? resolveRepositoryGitMetadataProjection({ repoReal })
+    : null;
+  if (fresh === null || gitMetadataTopology(fresh) !== gitMetadataTopology(metadata)) {
+    refuseInvalid("supplied Git metadata does not match the checkout-derived topology", {
+      checkout: repoReal,
+      projected_checkout: metadata.checkout ?? null
+    });
+  }
+  return metadata;
+}
+
+export function assertGitMetadataProjectionComposed(plan, { checkout } = {}) {
+  const metadata = plan?.findingsRoleGitMetadata ?? null;
+  const args = Array.isArray(plan?.bwrapArgs) ? plan.bwrapArgs : [];
+  const emitted = (flag, src, dst = null) => args.some((entry, index) =>
+    entry === flag && args[index + 1] === src && (dst === null || args[index + 2] === dst));
+  const expectedCheckout = canonicalDirectory(checkout, "authenticated checkout");
+  if (metadata === null || metadata.checkout !== expectedCheckout ||
+      plan.repo !== expectedCheckout ||
+      !metadata.readOnlyBinds.every(({ src, dst }) => emitted("--ro-bind", src, dst)) ||
+      !metadata.namespaceDirectories.every((dir) => emitted("--dir", dir))) {
+    refuseInvalid("required Git metadata did not survive launch composition", {
+      checkout: expectedCheckout,
+      projected_checkout: metadata?.checkout ?? null
+    });
+  }
 }
 
 export function assertFindingsRoleGitMetadataUnchanged(metadata) {

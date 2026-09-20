@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { constants as fsConstants } from "node:fs";
+import { isDeclaredClosureBoundary } from "./executable-dependency-closure.mjs";
+import { constants as fsConstants, readFileSync } from "node:fs";
 import {
   access,
   mkdir,
@@ -35,16 +36,22 @@ import {
 } from "./proof-pack-adequacy-constants.mjs";
 
 const PROOF_PACK_ADEQUACY_VERSION =
-  "controlled-contract-proof-pack-adequacy.experimental.v0.1";
+  "controlled-contract-proof-pack-adequacy.experimental.v0.2";
 const PROOF_PACK_ADEQUACY_TOOL_VERSION =
-  "controlled-contract-proof-pack-adequacy-check.experimental.v0.1";
+  "controlled-contract-proof-pack-adequacy-check.experimental.v0.2";
 const NEGATIVE_FIXTURE_VERSION =
-  "controlled-contract-proof-pack-negative-fixture.experimental.v0.1";
+  "controlled-contract-proof-pack-negative-fixture.experimental.v0.2";
 const COVERAGE_WITNESS_INDEX_VERSION =
-  "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1";
+  "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.2";
 const VARIATION_INDEX_VERSION =
-  "controlled-contract-proof-pack-variation-index.experimental.v0.1";
+  "controlled-contract-proof-pack-variation-index.experimental.v0.2";
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+
+const PROFILE_SCHEMA_V1 = JSON.parse(readFileSync(new URL(
+  "../../schema/controlled-contract-verification-profile.v2.schema.json",
+  import.meta.url
+), "utf8"));
+
 const DEFAULT_REPOSITORY_ROOT = path.resolve(moduleDirectory, "../../../..");
 const sha256Pattern = "^[a-f0-9]{64}$";
 const loadedProofPackSnapshots = new WeakSet();
@@ -192,7 +199,7 @@ const PROOF_PACK_ADEQUACY_SCHEMA = {
                     "binding_constraint_weakening",
                     "verification_method_broadening", "proposition_weakening",
                     "falsifier_weakening", "policy_weakening",
-                    "population_membership_weakening", "stage_weakening"
+                    "population_membership_weakening"
                   ]
                 },
                 negative_fixture_ids: {
@@ -227,7 +234,6 @@ const PROOF_PACK_ADEQUACY_SCHEMA = {
               "artifact_binding_not_guarantee_semantics",
               "empty_optional_mechanism",
               "schema_singleton_constant",
-              "extension_only_stage_set",
               "redundant_with_contract_validity_invariant",
               "redundant_with_distinct_role_set",
               "independent_alternatives_schema_or_semantics_invalid",
@@ -298,7 +304,7 @@ const NEGATIVE_FIXTURE_SCHEMA = {
               "binding_constraint_weakening",
               "verification_method_broadening", "proposition_weakening",
               "falsifier_weakening", "policy_weakening",
-              "population_membership_weakening", "stage_weakening"
+              "population_membership_weakening"
             ]
           }
         }
@@ -388,7 +394,7 @@ const COVERAGE_WITNESS_INDEX_SCHEMA = {
         "collection_weakening", "satisfaction_branch_broadening",
         "binding_constraint_weakening", "verification_method_broadening",
         "proposition_weakening", "falsifier_weakening", "policy_weakening",
-        "population_membership_weakening", "stage_weakening"
+        "population_membership_weakening"
       ]
     },
     patch: {
@@ -573,7 +579,6 @@ function contractValidityRedundancyIsProven(profile, pointer) {
 }
 
 const claimKinds = ["behavior", "evidence", "verification"];
-const evaluationStages = ["pre_dispatch", "post_delivery"];
 const verificationMethods = NATIVE_CONTRACT_SCHEMA_V1.$defs.verification_claim
   .properties.verification_method.enum;
 
@@ -588,7 +593,6 @@ function claimNestedSemanticDescriptors(profile) {
     ...extra
   });
   profile.claim_patterns.forEach((claim, claimIndex) => {
-    add(claim, claimIndex, "required-stage", "required_by_stage", "required_stage");
     add(claim, claimIndex, "claim-kind", "claim_kind", "claim_kind");
     add(claim, claimIndex, "modalities", "allowed_modalities", "modalities");
     for (const [property, prefix] of [
@@ -675,8 +679,7 @@ function profileWithSemanticAlternative(profile, descriptor, value) {
 function independentAlternativeValues(profile, descriptor, current) {
   const roleIds = profile.reference_roles.map(({ role }) => role);
   let values;
-  if (descriptor.kind === "required_stage") values = evaluationStages;
-  else if (descriptor.kind === "claim_kind") values = claimKinds;
+  if (descriptor.kind === "claim_kind") values = claimKinds;
   else if (descriptor.kind === "modalities") {
     values = ["MUST", "MUST_NOT", "SHOULD", "SHOULD_NOT", "MAY"]
       .filter((modality) => !current.includes(modality))
@@ -871,7 +874,7 @@ function noValidWeakerProfileValue(profile, pointer, selectedValue) {
     });
   }
   const collectionLeaf = pointer.match(
-    /^\/collection_patterns\/(\d+)\/(match_mode|required_by_stage)$/u
+    /^\/collection_patterns\/(\d+)\/(match_mode)$/u
   );
   if (!collectionLeaf) return false;
   const collection = profile.collection_patterns[Number(collectionLeaf[1])];
@@ -880,9 +883,7 @@ function noValidWeakerProfileValue(profile, pointer, selectedValue) {
     return collection.match_mode === "subsequence" ||
       collection.collection_kind === "closed_set";
   }
-  return profile.evaluation_stages.every(
-    (stage) => stage === collection.required_by_stage
-  );
+  return false;
 }
 
 function genericMechanismCoverageRequirements(profile) {
@@ -1121,16 +1122,6 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
         { surface_id: surface.surface_id, reason: surface.reason }
       );
     }
-    if (surface.reason === "extension_only_stage_set" &&
-        (surface.profile_json_pointer !== "/evaluation_stages" ||
-          !Array.isArray(selected.value) || selected.value.length !== 1 ||
-          !["pre_dispatch", "post_delivery"].includes(selected.value[0]))) {
-      throw new ProofPackAdequacyError(
-        "noncritical_surface_reason_invalid",
-        "stage-set reason requires one immutable current evaluation stage",
-        { surface_id: surface.surface_id, reason: surface.reason }
-      );
-    }
     if (surface.reason === "empty_optional_mechanism" &&
         (!optionalMechanismPointers.has(surface.profile_json_pointer) ||
           !Array.isArray(selected.value) || selected.value.length !== 0)) {
@@ -1176,7 +1167,7 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
     }
   }
   const semanticTopLevel = [
-    "evaluation_stages", "reference_roles", "number_roles", "distinct_reference_role_sets",
+    "reference_roles", "number_roles", "distinct_reference_role_sets",
     "binding_constraint_patterns", "reference_binding_patterns",
     "reference_role_count_bindings", "claim_patterns", "relation_patterns",
     "falsifier_condition_bindings", "falsifier_occurrence_bindings",
@@ -1246,7 +1237,7 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
     const index = Number(match[1]);
     const role = profile.reference_roles[index];
     if (!role) return false;
-    const typeTerms = validateProfileSchemaV1.schema.properties.reference_roles
+    const typeTerms = PROFILE_SCHEMA_V1.properties.reference_roles
       .items.properties.allowed_type_terms.items.enum;
     return typeTerms.filter((term) => !role.allowed_type_terms.includes(term)).every(
       (term) => {
@@ -1356,7 +1347,6 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
       `/collection_patterns/${index}/member_claim_pattern_ids`,
       "population_membership_weakening"
     );
-    requireCoverage(`/collection_patterns/${index}/required_by_stage`, "stage_weakening");
   });
   if (profile.reference_binding_patterns.length > 0 &&
       !noncriticalPointers.has("/reference_binding_patterns")) requireCoverage(
@@ -1824,10 +1814,13 @@ function tokenizeModuleSource(source, declaredPath) {
         "executable_module_syntax_unsupported", "unterminated template literal", start
       );
       index += 1;
-      if (/\bimport\s*\(/u.test(source.slice(start, index))) {
+
+      const embedded = source.slice(start, index)
+        .matchAll(/\bimport\s*\(\s*(["'])(\.[^"']*)\1\s*\)/gu);
+      for (const _ of embedded) {
         fail(
           "executable_dynamic_import_unsupported",
-          "adequacy executable closure must not contain dynamic import expressions",
+          "adequacy executable closure must not embed a local dynamic import specifier",
           start
         );
       }
@@ -1855,12 +1848,19 @@ function staticModuleSpecifiers(source, declaredPath) {
     if (token.type !== "identifier" || !["import", "export"].includes(token.value)) continue;
     const next = tokens[index + 1];
     if (token.value === "import" && next?.value === ".") continue;
+
     if (token.value === "import" && next?.value === "(") {
-      throw new ProofPackAdequacyError(
-        "executable_dynamic_import_unsupported",
-        "adequacy executable closure must not contain dynamic import expressions",
-        { declared_path: declaredPath, source_offset: token.offset }
-      );
+      const specifier = tokens[index + 2];
+      if (specifier?.type !== "string" || tokens[index + 3]?.value !== ")") {
+        throw new ProofPackAdequacyError(
+          "executable_dynamic_import_unsupported",
+          "a dynamic import specifier must be one string literal to be declarable",
+          { declared_path: declaredPath, source_offset: token.offset }
+        );
+      }
+      specifiers.push(specifier.value);
+      index += 3;
+      continue;
     }
     if (token.value === "import" && next?.type === "string") {
       specifiers.push(next.value);
@@ -2027,6 +2027,8 @@ async function captureExecutableModuleClosure(repositoryRoot, executableSnapshot
     const capture = pending.shift();
     const source = Buffer.from(capture.source_base64, "base64").toString("utf8");
     for (const specifier of staticModuleSpecifiers(source, capture.path)) {
+
+      if (isDeclaredClosureBoundary(capture.path, specifier)) continue;
       const importedPath = resolveLocalModuleSpecifier(capture.path, specifier);
       if (importedPath === null || captures.has(importedPath)) continue;
       const declaration = declarations.get(importedPath);
@@ -3124,6 +3126,7 @@ export {
   profileDigest,
   runLoadedProofPackAdequacy,
   runProofPackAdequacy,
+  staticModuleSpecifiers,
   validateGenericCoverageDeclaration,
   validateCoverageWitnessIndex,
   validateProofPackAdequacy,

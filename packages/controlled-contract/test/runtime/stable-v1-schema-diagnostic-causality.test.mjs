@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { loadStableContractSchemaV1 } from "../../lib/stable-contract-schema-v1.mjs";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 import { selectCausalSchemaDiagnostics } from
   "../../lib/bounded-diagnostic-projection.mjs";
@@ -19,22 +18,17 @@ import { buildStableTestProofPopulation } from
   "../support/stable-v1-proof-pack-runtime.mjs";
 
 const CONTRACT_GROUP = "controlled-contract.native-contract-carrier-v1";
-const SCHEMA_PATH = fileURLToPath(new URL(
-  "../../schema/controlled-acceptance-contract.v1.schema.json", import.meta.url
-));
-const COVERAGE_POINTER = "/test_proofs/0/coverage_disposition";
-const TEST_ID_POINTER = `${COVERAGE_POINTER}/items/0/test_id`;
-const TEST_ID_PATTERN = "^test-[a-z0-9]+(?:-[a-z0-9]+)*$";
+const TRAVERSAL_POINTER = "/test_proofs/0/traversal_provider";
+const PROVIDER_VERSION_POINTER = `${TRAVERSAL_POINTER}/provider_version`;
+const PROVIDER_VERSION_PATTERN = "^[0-9]+\\.[0-9]+\\.[0-9]+$";
 
-const COVERAGE_DEFS_DIGEST =
-  "aa425419892df197a665241f368d2f37bb3c5313eaffcc0b559efa8d8b066575";
+const TEST_PROOF_DEFS_DIGEST =
+  "a8c6bfb4c39fd4e7b6be234c9dcae263dafd522ca2cb684e12a877e246e88d4e";
 
-function buildSilentCoverageContract(testId) {
+function buildTraversalProviderContract(providerVersion) {
   const { contract } = buildAuthenticationProvenanceFixture();
   contract.test_proofs = buildStableTestProofPopulation(contract);
-  const disposition = contract.test_proofs[0].coverage_disposition;
-  disposition.baseline_state = "complete_executed_inventory";
-  disposition.items = [{ test_id: testId, disposition: "preserved" }];
+  contract.test_proofs[0].traversal_provider.provider_version = providerVersion;
   return contract;
 }
 
@@ -57,23 +51,23 @@ function oneOfError(instancePath, schemaPath) {
   };
 }
 
-function patternError(instancePath, schemaPath) {
+function patternError(instancePath, schemaPath, pattern = PROVIDER_VERSION_PATTERN) {
   return {
-    instancePath, schemaPath, keyword: "pattern", params: { pattern: TEST_ID_PATTERN },
-    message: `must match pattern "${TEST_ID_PATTERN}"`
+    instancePath, schemaPath, keyword: "pattern", params: { pattern },
+    message: `must match pattern "${pattern}"`
   };
 }
 
-test("an invalid coverage test_id reports its own pattern failure alone", () => {
-  const contract = buildSilentCoverageContract("npm-test-silent");
+test("an invalid provider version reports its own pattern failure alone", () => {
+  const contract = buildTraversalProviderContract("not-a-version");
   const validation = validateAndResolveNativeContractV1(contract);
 
   assert.equal(validation.schema_valid, false);
   assert.deepEqual(validation.schema_errors, [{
     code: "stable_contract_schema_invalid",
-    pointer: TEST_ID_POINTER,
+    pointer: PROVIDER_VERSION_POINTER,
     keyword: "pattern",
-    message: `must match pattern "${TEST_ID_PATTERN}"`,
+    message: `must match pattern "${PROVIDER_VERSION_PATTERN}"`,
     expected_identity: null,
     actual_identity: null
   }]);
@@ -84,18 +78,18 @@ test("an invalid coverage test_id reports its own pattern failure alone", () => 
   assert.equal(family.diagnostics.returned_count, 1);
   assert.equal(family.diagnostics.omitted_count, 0);
   assert.equal(family.diagnostics.truncated, false);
-  assert.equal(family.diagnostics.diagnostics[0].pointer, TEST_ID_POINTER);
+  assert.equal(family.diagnostics.diagnostics[0].pointer, PROVIDER_VERSION_POINTER);
   assert.equal(family.diagnostics.diagnostics[0].keyword, "pattern");
-  assert.ok(family.diagnostics.diagnostics[0].message.includes(TEST_ID_PATTERN));
+  assert.ok(family.diagnostics.diagnostics[0].message.includes(PROVIDER_VERSION_PATTERN));
 
-  for (const keyword of ["oneOf", "const", "required", "maxItems"]) {
+  for (const keyword of ["oneOf", "const", "required", "additionalProperties"]) {
     assert.equal(validation.schema_errors.some((error) => error.keyword === keyword),
       false, keyword);
   }
 });
 
-test("restoring the declared coverage test_id validates without diagnostics", () => {
-  const contract = buildSilentCoverageContract("test-npm-silent");
+test("restoring the declared provider version validates without diagnostics", () => {
+  const contract = buildTraversalProviderContract("1.0.0");
   const validation = validateAndResolveNativeContractV1(contract);
 
   assert.equal(validation.schema_valid, true);
@@ -200,15 +194,14 @@ test("independent errors survive a proven selection at the same pointer", () => 
 });
 
 test("causal selection is independent of raw error order", async () => {
-  const contract = buildSilentCoverageContract("npm-test-silent");
+  const contract = buildTraversalProviderContract("not-a-version");
   const { validateSchema } = await compiledValidators(CONTRACT_GROUP, {
     validators: { validateSchema: NATIVE_CONTRACT_SCHEMA_V1 }
   });
   assert.equal(validateSchema(contract), false);
   const raw = [...validateSchema.errors];
   const families = [
-    { pointer: COVERAGE_POINTER, keyword: "oneOf", branch_count: 2 },
-    { pointer: `${COVERAGE_POINTER}/items/0`, keyword: "oneOf", branch_count: 3 }
+    { pointer: TRAVERSAL_POINTER, keyword: "oneOf", branch_count: 2 }
   ];
 
   const forward = selectCausalSchemaDiagnostics({ errors: raw, branch_families: families });
@@ -221,9 +214,9 @@ test("causal selection is independent of raw error order", async () => {
 });
 
 test("repeated end-to-end validation returns the identical projection", () => {
-  const first = validateStableV1ContractFamily(buildSilentCoverageContract("npm-test-silent"));
-  const second = validateStableV1ContractFamily(buildSilentCoverageContract("npm-test-silent"));
-  const third = validateStableV1ContractFamily(buildSilentCoverageContract("npm-test-silent"));
+  const first = validateStableV1ContractFamily(buildTraversalProviderContract("not-a-version"));
+  const second = validateStableV1ContractFamily(buildTraversalProviderContract("not-a-version"));
+  const third = validateStableV1ContractFamily(buildTraversalProviderContract("not-a-version"));
 
   assert.deepEqual(first.diagnostics, second.diagnostics);
   assert.deepEqual(second.diagnostics, third.diagnostics);
@@ -232,24 +225,23 @@ test("repeated end-to-end validation returns the identical projection", () => {
 
 test("the schema, raw Ajv validity, and accepted-carrier semantics are untouched",
   async () => {
-    const onDisk = JSON.parse(await readFile(SCHEMA_PATH, "utf8"));
+    const onDisk = loadStableContractSchemaV1();
     assert.deepEqual(onDisk, NATIVE_CONTRACT_SCHEMA_V1);
     assert.equal(canonicalDigest({
-      coverage_disposition: onDisk.$defs.coverage_disposition,
-      coverage_item: onDisk.$defs.coverage_item,
-      test_id: onDisk.$defs.test_id
-    }), COVERAGE_DEFS_DIGEST);
+      traversal_provider_binding: onDisk.$defs.traversal_provider_binding,
+      test_selector: onDisk.$defs.test_selector
+    }), TEST_PROOF_DEFS_DIGEST);
 
     const { validateSchema } = await compiledValidators(CONTRACT_GROUP, {
       validators: { validateSchema: NATIVE_CONTRACT_SCHEMA_V1 }
     });
-    const invalid = buildSilentCoverageContract("npm-test-silent");
+    const invalid = buildTraversalProviderContract("not-a-version");
     assert.equal(validateSchema(invalid), false);
 
-    assert.equal(validateSchema.errors.length, 11);
+    assert.equal(validateSchema.errors.length, 12);
     assert.equal(validateAndResolveNativeContractV1(invalid).schema_errors.length, 1);
 
-    const valid = buildSilentCoverageContract("test-npm-silent");
+    const valid = buildTraversalProviderContract("1.0.0");
     assert.equal(validateSchema(valid), true);
     const resolved = validateAndResolveNativeContractV1(valid);
     assert.equal(resolved.valid, true);

@@ -71,8 +71,8 @@ const INTEGRATION_CAPTURE_PROFILE = Object.freeze({
   profileVersion: "1.0.0"
 });
 
-export function carrierSetFailure(code, message, details = {}) {
-  fail(`controlled_contract_carrier_set_${code}`, message, details);
+export function carrierSetFailure(code, message, details = {}, cause = undefined) {
+  fail(`controlled_contract_carrier_set_${code}`, message, details, cause);
 }
 
 function validatedCarrierSetManifest(value, expected) {
@@ -438,7 +438,7 @@ async function validateCanonicalAuthoringEntries({ wkId, focus, entries }) {
   const pkg = await loadControlledContractPackage();
   const contract = byKind.get("contract")?.[0]?.content ?? null;
   if (contract !== null) {
-    const validation = pkg.validateStableTestProofContract(contract);
+    const validation = pkg.validateNativeTestProofAuthoringContract(contract);
     if (!validation.valid) carrierSetFailure("contract_invalid",
       "canonical authoring contract failed package validation", {
         diagnostics: validation.diagnostics
@@ -486,6 +486,28 @@ async function validateCanonicalAuthoringEntries({ wkId, focus, entries }) {
   void focus;
 }
 
+export async function projectControlledContractCanonicalAuthoringPopulation(input) {
+  if (!isPlainObject(input) || typeof input.repository !== "string" ||
+      input.repository.length === 0) carrierSetFailure("input_invalid",
+    "canonical authoring projection requires one durable repository identity");
+  normalizeControlledContractIdentity({ wkId: input.wkId,
+    focus: input.focus ?? null });
+  const entries = canonicalAuthoringEntries(input);
+  await validateCanonicalAuthoringEntries({ wkId: input.wkId,
+    focus: input.focus ?? null, entries });
+  const generation = canonicalAuthoringGeneration({ input, entries });
+  const generationPath = path.posix.join(".carrier-generations", generation);
+  const manifest = canonicalAuthoringManifest({ input, entries,
+    generation, generationPath });
+  const manifestBytes = canonicalControlledContractCarrierSetManifestBytes(manifest);
+  return deepFreezePlainData({
+    generation,
+    manifest_digest: manifest.manifest_digest,
+    manifest_content_digest: digestBytes(manifestBytes),
+    carrier_count: entries.length
+  });
+}
+
 function canonicalAuthoringGeneration({ input, entries }) {
   return createHash("sha256").update(canonicalJsonBytes({
     repository: input.repository,
@@ -523,14 +545,22 @@ async function validateCanonicalAuthoringDirectory({ directory, entries, manifes
     "canonical authoring generation contains a missing or extra member");
   for (const entry of entries) {
     const inspected = await inspectCarrierSetMember(
-      path.join(directory, entry.filename), CONTROLLED_CONTRACT_MAX_JSON_BYTES
+      path.join(directory, entry.filename), CONTROLLED_CONTRACT_MAX_JSON_BYTES, {
+        filename: entry.filename,
+        generation: manifest.generation.id,
+        generation_path: manifest.generation.path
+      }
     );
     if (inspected.digest !== digestBytes(entry.bytes) ||
         !inspected.bytes.equals(entry.bytes)) carrierSetFailure("digest_mismatch",
       "canonical authoring generation member bytes differ", { filename: entry.filename });
   }
   const embedded = await inspectCarrierSetMember(
-    path.join(directory, "manifest.json"), CONTROLLED_CONTRACT_MAX_JSON_BYTES
+    path.join(directory, "manifest.json"), CONTROLLED_CONTRACT_MAX_JSON_BYTES, {
+      filename: "manifest.json",
+      generation: manifest.generation.id,
+      generation_path: manifest.generation.path
+    }
   );
   const expectedManifest = canonicalControlledContractCarrierSetManifestBytes(manifest);
   if (!embedded.bytes.equals(expectedManifest)) carrierSetFailure("manifest_mismatch",
@@ -933,20 +963,6 @@ async function validateCarrierSetPopulation({
     pack?.profile_id === profile.profileId && pack?.profile_version === profile.profileVersion);
   if (selected.length !== 1) carrierSetFailure("wrong_profile",
     "proof-plan request must select the exact carrier-set profile once");
-  const exactCapture = selected[0].exact_capture;
-  const expectedSources = Object.fromEntries([...CONTROLLED_CONTRACT_CARRIER_SET_ARTIFACT_ROLES].sort()
-    .map((role) => [role, {
-      kind: "artifact_file",
-      relative_path: artifacts.get(role).filename
-    }]));
-  if (!isPlainObject(exactCapture) || exactCapture.capture_root !== "." ||
-      exactCapture.contract_path !== core.get("contract").filename ||
-      exactCapture.evaluation_input_path !== selected[0].evaluation_input_path ||
-      !samePlainData(exactCapture.sources, expectedSources)) {
-    carrierSetFailure("artifact_unresolvable",
-      "exact capture does not resolve the material generation member population");
-  }
-
   const pkg = await loadControlledContractPackage();
   const resolved = pkg.validateStableTestProofContract(core.get("contract").content);
   if (!resolved.valid) {
@@ -977,23 +993,48 @@ async function validateCarrierSetPopulation({
   return { core, evaluations, artifacts };
 }
 
-export async function inspectCarrierSetMember(file, maximumBytes) {
-  try {
-    const entry = await lstat(file);
-    if (!entry.isFile() || entry.isSymbolicLink() || await realpath(file) !== file) {
-      carrierSetFailure("member_mismatch", "generation member is not one exact regular file");
+export async function inspectCarrierSetMember(file, maximumBytes, context = {}) {
+  const member = {
+    ...structuredClone(context),
+    filename: context.filename ?? path.basename(file),
+    path: file
+  };
+  const inspect = async (operation, read) => {
+    try {
+      return await read();
+    } catch (error) {
+      carrierSetFailure("partial_generation", "generation member is absent or unreadable", {
+        ...member,
+        operation,
+        cause_code: typeof error?.code === "string" ? error.code : null
+      }, error);
     }
-    const bytes = await readFile(file);
-    if (bytes.byteLength === 0 || bytes.byteLength > maximumBytes) {
-      carrierSetFailure("member_mismatch", "generation member exceeds its exact byte boundary");
-    }
-    return { bytes, digest: digestBytes(bytes) };
-  } catch (error) {
-    if (error instanceof ControlledContractToolError) throw error;
-    carrierSetFailure("partial_generation", "generation member is absent or unreadable", {
-      cause_code: error?.code ?? null
+  };
+  const entry = await inspect("lstat", () => lstat(file));
+  if (!entry.isFile() || entry.isSymbolicLink()) {
+    carrierSetFailure("member_mismatch", "generation member is not one exact regular file", {
+      ...member,
+      operation: "validate_file_identity"
     });
   }
+  const resolved = await inspect("realpath", () => realpath(file));
+  if (resolved !== file) {
+    carrierSetFailure("member_mismatch", "generation member is not one exact regular file", {
+      ...member,
+      operation: "validate_file_identity",
+      resolved_path: resolved
+    });
+  }
+  const bytes = await inspect("readFile", () => readFile(file));
+  if (bytes.byteLength === 0 || bytes.byteLength > maximumBytes) {
+    carrierSetFailure("member_mismatch", "generation member exceeds its exact byte boundary", {
+      ...member,
+      operation: "validate_byte_boundary",
+      observed_byte_length: bytes.byteLength,
+      maximum_bytes: maximumBytes
+    });
+  }
+  return { bytes, digest: digestBytes(bytes) };
 }
 
 async function validateCarrierSetDirectory({ directory, entries, profile }) {
@@ -1007,7 +1048,8 @@ async function validateCarrierSetDirectory({ directory, entries, profile }) {
     const observed = await inspectCarrierSetMember(
       path.join(directory, entry.filename),
       entry.member_kind === "artifact"
-        ? CONTROLLED_CONTRACT_MAX_ARTIFACT_BYTES : CONTROLLED_CONTRACT_MAX_JSON_BYTES
+        ? CONTROLLED_CONTRACT_MAX_ARTIFACT_BYTES : CONTROLLED_CONTRACT_MAX_JSON_BYTES,
+      { filename: entry.filename }
     );
     if (observed.digest !== digestBytes(entry.bytes) ||
         observed.bytes.byteLength !== entry.bytes.byteLength) {
@@ -1026,17 +1068,16 @@ async function validateCarrierSetDirectory({ directory, entries, profile }) {
     });
     const result = assessed.assessment.per_pack.find((entry) =>
       entry.profile_id === profile.profileId && entry.profile_version === profile.profileVersion);
-    if (result?.profile_discrimination !== "proven" || result?.exact_binding !== "proven") {
+    if (result?.profile_discrimination !== "proven") {
       carrierSetFailure("artifact_unresolvable",
-        "staged exact-capture population did not prove the selected profile", {
-          profile_discrimination: result?.profile_discrimination ?? null,
-          exact_binding: result?.exact_binding ?? null
+        "staged artifact population did not prove the selected profile", {
+          profile_discrimination: result?.profile_discrimination ?? null
         });
     }
   } catch (error) {
     if (error instanceof ControlledContractToolError) throw error;
     carrierSetFailure("artifact_unresolvable",
-      "exact-binding consumer could not resolve the staged artifact population", {
+      "assessment consumer could not resolve the staged artifact population", {
         cause_code: error?.code ?? null
       });
   }
@@ -1137,8 +1178,9 @@ export async function settleControlledContractRefactorTransaction({
     if (failures.length > 0) carrierSetFailure("write_failed",
       "refactor settlement compensation could not prove fully uncommitted state", {
         cause_code: error?.code ?? null,
-        compensation_failures: failures
+        compensation_failures: failures, commit_state: 'indeterminate', retry_safe: false
       });
+    error.details = { ...error.details, changed: false, settlement_status: 'compensated' };
     throw error;
   }
 }
@@ -1205,6 +1247,16 @@ async function publishCanonicalAuthoringGenerationUnderAuthority({
   await validateCanonicalAuthoringEntries({
     wkId: input.wkId, focus: input.focus ?? null, entries
   });
+  const { inspectNativePublicationProofParameters } = await import('../operations/controlled-contract/proof-authoring-source.mjs');
+  const native = entries.find(entry => entry.carrier_kind === 'contract');
+  const assessParameters = async () => native === undefined ? null : inspectNativePublicationProofParameters({
+    repoRoot: store.repository, wkId: input.wkId, focus: input.focus ?? null, contract: JSON.parse(native.bytes) });
+  const parameterIdentity = await assessParameters();
+  const assertParameterSources = async () => {
+    if (await assessParameters() !== parameterIdentity) carrierSetFailure('source_stale',
+      'Proof source, owning targets or exact definition changed before native publication');
+  };
+
   const generation = canonicalAuthoringGeneration({ input, entries });
   const generationPath = path.posix.join(".carrier-generations", generation);
   const generationDir = path.join(store.contracts, generationPath);
@@ -1334,30 +1386,41 @@ async function publishCanonicalAuthoringGenerationUnderAuthority({
       no_op: false
     });
   } catch (error) {
-    await rm(staging, { recursive: true, force: true }).catch(() => {});
-    await rm(temporaryManifest, { force: true }).catch(() => {});
-    if (manifestSwitched) {
-      if (priorManifestBytes === null) await unlink(manifestPath).catch(() => {});
+    const compensationFailures = [];
+    const compensate = async (phase, action) => {
+      try { await action(); } catch (failure) {
+        compensationFailures.push({ phase, code: failure.code ?? null, message: failure.message });
+      }
+    };
+    await compensate('staging_cleanup', () => rm(staging, { recursive: true, force: true }));
+    await compensate('temporary_manifest_cleanup', () => rm(temporaryManifest, { force: true }));
+    if (manifestSwitched) await compensate('manifest_restore', async () => {
+      const current = await inspectCarrierFile(manifestPath, { required: false });
+      if (!current?.bytes.equals(manifestBytes)) carrierSetFailure('stale_manifest',
+        'Compensation cannot replace a concurrently selected manifest');
+      if (priorManifestBytes === null) await unlink(manifestPath);
       else {
         const rollback = `${manifestPath}.rollback-${operationToken}`;
-        await writeFile(rollback, priorManifestBytes, { flag: "wx", mode: 0o600 })
-          .then(() => rename(rollback, manifestPath))
-          .catch(() => {});
+        await writeFile(rollback, priorManifestBytes, { flag: 'wx', mode: 0o600 });
+        await rename(rollback, manifestPath);
       }
-    }
-    if (generationCreated) {
-      const current = await inspectCarrierFile(manifestPath, { required: false })
-        .catch(() => null);
-      const currentManifest = current === null
-        ? null : parseControlledContractCarrierSetManifest(current.bytes);
-      if (currentManifest?.generation?.id !== generation) {
-        await rm(generationDir, { recursive: true, force: true }).catch(() => {});
+      const restored = await inspectCarrierFile(manifestPath, { required: false });
+      if (priorManifestBytes === null ? restored !== null : !restored?.bytes.equals(priorManifestBytes)) {
+        carrierSetFailure('write_failed', 'Manifest compensation did not restore exact prior bytes');
       }
-    }
-    if (error instanceof ControlledContractToolError) throw error;
-    carrierSetFailure("write_failed", "canonical carrier set could not be published", {
-      cause_code: error?.code ?? null
     });
+    if (generationCreated) await compensate('generation_cleanup', async () => {
+      const current = await inspectCarrierFile(manifestPath, { required: false });
+      const currentManifest = current === null ? null : parseControlledContractCarrierSetManifest(current.bytes);
+      if (currentManifest?.generation?.id !== generation) await rm(generationDir, { recursive: true, force: true });
+    });
+    if (compensationFailures.length) carrierSetFailure('write_failed', 'Publication compensation could not prove prior state', {
+      cause_code: error.code ?? null, compensation_failures: compensationFailures,
+      commit_state: 'indeterminate', retry_safe: false });
+    error.details = { ...error.details, changed: false, settlement_status: 'compensated' };
+    if (error instanceof ControlledContractToolError) throw error;
+    carrierSetFailure('write_failed', 'Canonical carrier set could not be published', {
+      cause_code: error.code ?? null, changed: false, settlement_status: 'compensated' });
   } finally {
     await releaseCarrierSetPublicationLock(locked);
   }
@@ -1585,7 +1648,13 @@ export async function validateControlledContractCarrierSetManifest({
     const inspected = await inspectCarrierSetMember(
       path.join(generationDir, member.filename),
       member.member_kind === "artifact"
-        ? CONTROLLED_CONTRACT_MAX_ARTIFACT_BYTES : CONTROLLED_CONTRACT_MAX_JSON_BYTES
+        ? CONTROLLED_CONTRACT_MAX_ARTIFACT_BYTES : CONTROLLED_CONTRACT_MAX_JSON_BYTES, {
+        filename: member.filename,
+        generation: generationId,
+        generation_path: generationPath,
+        wk_id: wkId,
+        focus: focus ?? null
+      }
     );
     if (inspected.digest !== member.content_digest ||
         inspected.bytes.byteLength !== member.byte_length) carrierSetFailure("digest_mismatch",

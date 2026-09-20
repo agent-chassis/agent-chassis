@@ -2,7 +2,9 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { canonicalizeWorkRecordJson } from "@agent-chassis/wiki-core";
+import {
+  canonicalizeWorkRecordJson
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
   isPlainObject,
   createTrustedFrozenReviewContract
@@ -34,10 +36,13 @@ import {
 } from "./terminal-review-materialization.mjs";
 import {
   assertTerminalWkCandidateVersionDecision,
+  deriveRecoveredTerminalWkCandidateIdentity,
+  freezeRecoveredTerminalWkCandidateInputs,
   inspectTerminalWkCandidateVersion,
   TERMINAL_WK_CANDIDATE_CODES,
   TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3,
   observeExactDirectCommitRef,
+  readTerminalCandidateCurrentRef,
   verifyTerminalWkCandidateObjectBinding
 } from "./terminal-wk-candidate.mjs";
 import {
@@ -249,8 +254,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     runs,
     wholeReviewTargetKey,
     terminalReviewAttemptContracts,
-    terminalReviewAttemptContractBySubject,
-    exactSliceReviewReceiptStore
+    terminalReviewAttemptContractBySubject
   } = ctx;
 
   function terminalCandidateExclusionRefusal(reason) {
@@ -442,11 +446,11 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     return Object.freeze(subjects);
   }
 
-  function lifecycleDecisionWithReceipt(inputs, receipt) {
+  function lifecycleDecisionWithIntegrationEvidence(inputs, subject) {
     const proof = authenticateCanonicalIntegratedDeliveryTransition(
       worktreeProvisioningConfig.mainRepo,
-      receipt.unit_address,
-      receipt
+      subject,
+      { historicalParentContract: inputs.historicalParentContract }
     );
     return decideAuthenticatedTerminalReviewLifecycleDelta({
       ...inputs,
@@ -467,57 +471,37 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     );
   }
 
-  async function resolveAuthenticatedTerminalReviewLifecycleDecision(inputs, retainedReceipt = null) {
+  function resolveTerminalReviewLifecycleDecision(inputs, retainedSubject = null) {
     try {
       return Object.freeze({
         decision: decideAuthenticatedTerminalReviewLifecycleDelta(inputs),
-        integrated_delivery_receipt: null
+        integrated_delivery_subject: null
       });
     } catch (error) {
       if (error?.terminal_review_lifecycle?.reason !== "integrated_delivery_receipt_required") {
         throw error;
       }
-      if (retainedReceipt !== null) {
-        try {
-          return Object.freeze({
-            decision: lifecycleDecisionWithReceipt(inputs, retainedReceipt),
-            integrated_delivery_receipt: retainedReceipt
-          });
-        } catch (receiptError) {
-          if (isTerminalReviewLifecycleRefusal(receiptError)) throw receiptError;
-          throw producerReceiptLifecycleRefusal(receiptError);
-        }
-      }
-      if (typeof exactSliceReviewReceiptStore?.loadAll !== "function") throw error;
-      const subjects = integratedDeliveryTransitionSubjects(inputs);
+      const subjects = retainedSubject !== null
+        ? [retainedSubject]
+        : integratedDeliveryTransitionSubjects(inputs);
       const candidates = [];
       let lastAuthenticationError = null;
       for (const subject of subjects) {
-        const receipts = await exactSliceReviewReceiptStore.loadAll({ unit_address: subject });
-        for (const receipt of receipts) {
-          try {
-            candidates.push(Object.freeze({
-              decision: lifecycleDecisionWithReceipt(inputs, receipt),
-              integrated_delivery_receipt: receipt
-            }));
-          } catch (receiptError) {
-            if (isTerminalReviewLifecycleRefusal(receiptError)) {
-              lastAuthenticationError = receiptError;
-              continue;
-            }
-            lastAuthenticationError = receiptError;
-          }
+        try {
+          candidates.push(Object.freeze({
+            decision: lifecycleDecisionWithIntegrationEvidence(inputs, subject),
+            integrated_delivery_subject: subject
+          }));
+        } catch (evidenceError) {
+          lastAuthenticationError = evidenceError;
         }
       }
       if (candidates.length === 0) {
-        if (lastAuthenticationError !== null &&
-            !isTerminalReviewLifecycleRefusal(lastAuthenticationError)) {
-          throw producerReceiptLifecycleRefusal(lastAuthenticationError);
-        }
+        if (lastAuthenticationError === null) throw error;
         if (isTerminalReviewLifecycleRefusal(lastAuthenticationError)) {
           throw lastAuthenticationError;
         }
-        throw error;
+        throw producerReceiptLifecycleRefusal(lastAuthenticationError);
       }
       const identities = new Set(candidates.map(({ decision }) => canonicalizeWorkRecordJson({
         integrated_delivery: decision.integrated_delivery,
@@ -536,25 +520,16 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     }
   }
 
+  async function resolveAuthenticatedTerminalReviewLifecycleDecision(inputs, retainedSubject = null) {
+    return resolveTerminalReviewLifecycleDecision(inputs, retainedSubject);
+  }
+
   async function decideTerminalReviewLifecycle(inputs) {
     return (await resolveAuthenticatedTerminalReviewLifecycleDecision(inputs)).decision;
   }
 
-  function decideTerminalReviewLifecycleWithRetainedReceipt(inputs, retainedReceipt) {
-    try {
-      return decideAuthenticatedTerminalReviewLifecycleDelta(inputs);
-    } catch (error) {
-      if (error?.terminal_review_lifecycle?.reason !== "integrated_delivery_receipt_required" ||
-          retainedReceipt === null) {
-        throw error;
-      }
-      try {
-        return lifecycleDecisionWithReceipt(inputs, retainedReceipt);
-      } catch (receiptError) {
-        if (isTerminalReviewLifecycleRefusal(receiptError)) throw receiptError;
-        throw producerReceiptLifecycleRefusal(receiptError);
-      }
-    }
+  function decideTerminalReviewLifecycleWithRetainedDelivery(inputs, retainedSubject) {
+    return resolveTerminalReviewLifecycleDecision(inputs, retainedSubject).decision;
   }
 
   function isReconstructedCurrentRecordProjection(binding, unit) {
@@ -594,7 +569,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     checkoutPath,
     historicalEvidence,
     address,
-    integratedDeliveryReceipt = null
+    integratedDeliverySubject = null
   }) {
     if (worktreeProvisioningConfig?.mainRepo == null) {
       throw terminalReviewLifecycleRefusal("launcher_owned_canonical_repository_unavailable");
@@ -619,12 +594,12 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     }
     const transitions = historicalEvidence === null
       ? null
-      : decideTerminalReviewLifecycleWithRetainedReceipt({
+      : decideTerminalReviewLifecycleWithRetainedDelivery({
           historicalParentContract: historicalEvidence.canonical_parent_wk_contract,
           liveParentContract: liveUnit.canonical_parent_wk_contract,
           recordId: address.record_id,
           reviewSliceId: address.slice_id
-        }, integratedDeliveryReceipt);
+        }, integratedDeliverySubject);
     const liveStatuses = transitions === null
       ? assertAdmissibleLiveTerminalReviewCoordination({
           liveParentContract: liveUnit.canonical_parent_wk_contract,
@@ -677,7 +652,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
   function registerTerminalReviewAttemptContract({
     contract,
     rederive,
-    integratedDeliveryReceipt
+    integratedDeliverySubject
   }) {
     const existing = terminalReviewAttemptContracts.get(contract.contract_identity) ?? null;
     if (existing !== null) return existing;
@@ -687,7 +662,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     }
     terminalReviewAttemptContracts.set(
       contract.contract_identity,
-      Object.freeze({ contract, rederive, integratedDeliveryReceipt })
+      Object.freeze({ contract, rederive, integratedDeliverySubject })
     );
     terminalReviewAttemptContractBySubject.set(contract.review_subject, contract.contract_identity);
     return terminalReviewAttemptContracts.get(contract.contract_identity);
@@ -698,20 +673,20 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     checkoutPath,
     historicalEvidence,
     address,
-    integratedDeliveryReceipt = null
+    integratedDeliverySubject = null
   }) {
     const derivation = () => authenticateTerminalReviewCoordination({
       binding,
       checkoutPath,
       historicalEvidence,
       address,
-      integratedDeliveryReceipt
+      integratedDeliverySubject
     });
     const authenticated = derivation();
     const retained = registerTerminalReviewAttemptContract({
       contract: authenticated.contract,
       rederive: () => derivation().contract,
-      integratedDeliveryReceipt
+      integratedDeliverySubject
     });
     return {
       liveUnit: authenticated.liveUnit,
@@ -725,7 +700,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     historicalEvidence,
     address
   }) {
-    let integratedDeliveryReceipt = null;
+    let integratedDeliverySubject = null;
     if (historicalEvidence !== null) {
       const live = resolveCanonicalTerminalReviewCoordinationStateForInvariantDecision(
         worktreeProvisioningConfig.mainRepo,
@@ -738,15 +713,46 @@ export function createBackendTerminalCandidateCoordination(ctx) {
         recordId: address.record_id,
         reviewSliceId: address.slice_id
       });
-      integratedDeliveryReceipt = resolved.integrated_delivery_receipt;
+      integratedDeliverySubject = resolved.integrated_delivery_subject;
     }
     return deriveRetainedTerminalReviewAttemptContract({
       binding,
       checkoutPath,
       historicalEvidence,
       address,
-      integratedDeliveryReceipt
+      integratedDeliverySubject
     });
+  }
+
+  async function authenticateTerminalCandidatePreparation({
+    historicalReviewUnit
+  } = {}) {
+    const reviewUnit = isPlainObject(historicalReviewUnit) &&
+        typeof historicalReviewUnit.record_id === "string" &&
+        typeof historicalReviewUnit.slice_id === "string"
+      ? resolveCanonicalTerminalReviewCoordinationStateForInvariantDecision(
+        worktreeProvisioningConfig.mainRepo,
+        historicalReviewUnit.record_id,
+        historicalReviewUnit.slice_id
+      ).unit
+      : null;
+    if (!isPlainObject(historicalReviewUnit) || !isPlainObject(reviewUnit) ||
+        historicalReviewUnit.contract_source !== "exact_candidate_tree" ||
+        typeof historicalReviewUnit.canonical_parent_wk_contract !== "string" ||
+        typeof historicalReviewUnit.review_unit_contract !== "string" ||
+        typeof reviewUnit.canonical_parent_wk_contract !== "string" ||
+        typeof reviewUnit.review_unit_contract !== "string" ||
+        !sameTerminalReviewAddress(historicalReviewUnit, reviewUnit)) {
+      throw terminalReviewLifecycleRefusal(
+        "terminal_candidate_prepublication_review_contract_identity_mismatch"
+      );
+    }
+    return (await resolveAuthenticatedTerminalReviewLifecycleDecision({
+      historicalParentContract: historicalReviewUnit.canonical_parent_wk_contract,
+      liveParentContract: reviewUnit.canonical_parent_wk_contract,
+      recordId: reviewUnit.record_id,
+      reviewSliceId: reviewUnit.slice_id
+    })).decision;
   }
 
   function verifyRetainedTerminalReviewAttemptContract(contract) {
@@ -810,7 +816,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
         checkoutPath: context.terminal_candidate_materialization?.checkout_path ?? null,
         historicalEvidence: context.historical_terminal_review_evidence ?? null,
         address,
-        integratedDeliveryReceipt: retained?.integratedDeliveryReceipt ?? null
+        integratedDeliverySubject: retained?.integratedDeliverySubject ?? null
       });
     } catch (error) {
       if (!isTerminalReviewLifecycleRefusal(error)) throw error;
@@ -843,7 +849,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     integration,
     reviewUnit,
     terminalCandidate = null,
-    terminalCandidateValidations = null,
     recoveredTerminalCandidate = false,
     runGit = reviewContextRunGit
   }) {
@@ -985,13 +990,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
           ),
         reviewer_dependency_binds: Object.freeze([
           ...(terminalCandidate.dependency_proof?.reviewer_read_only_binds ?? [])
-        ]),
-        reviewer_validation_evidence: Object.freeze([
-          ...(Array.isArray(terminalCandidateValidations)
-            ? terminalCandidateValidations
-            : Array.isArray(terminalCandidate.validation_evidence)
-              ? terminalCandidate.validation_evidence
-              : [])
         ])
       } : {}),
       diff_base_sha: target.diff_base_sha,
@@ -1072,7 +1070,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
           }) },
           reviewUnit: terminalCandidate.review_unit,
           terminalCandidate,
-          terminalCandidateValidations: terminalCandidate.validation_evidence,
           recoveredTerminalCandidate: true
         });
       })();
@@ -1113,12 +1110,99 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     }
   }
 
+  async function resolveTerminalCandidateReviewMaterial({ subject, record_id: recordId } = {}) {
+    const refuse = (reason, detail = {}) => Object.freeze({
+      ok: false,
+      refusal: managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
+        capability: "wk_context_review", reason, subject: subject ?? null, ...detail
+      })
+    });
+    if (worktreeProvisioningConfig?.mainRepo == null) {
+      return refuse("terminal_candidate_recovery_unavailable");
+    }
+    let published;
+    try {
+      published = await readTerminalCandidateCurrentRef({
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        canonicalWkId: recordId,
+        runGit: reviewContextRunGit
+      });
+    } catch (error) {
+      return refuse("terminal_candidate_current_ref_unreadable", {
+        recovery_code: error?.code ?? null
+      });
+    }
+    if (published === null) return refuse("terminal_candidate_unpublished");
+    const recovered = await recoverTerminalReviewContext({ subject, record_id: recordId });
+    if (recovered.ok !== true) return Object.freeze({ ok: false, refusal: recovered.refusal });
+    const { context } = recovered;
+    if (context.review_subject !== subject || context.candidate_sha !== published) {
+      return refuse("terminal_candidate_selection_moved");
+    }
+    return Object.freeze({
+      ok: true,
+      candidate: Object.freeze({
+        reviewed_sha: context.candidate_sha,
+        diff_base_sha: context.base_sha
+      })
+    });
+  }
+
+  async function resolveSelectedCandidatePublicationState(wkId) {
+    if (worktreeProvisioningConfig?.mainRepo == null) return null;
+    let candidate;
+    try {
+      candidate = await readTerminalCandidateCurrentRef({
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        canonicalWkId: wkId,
+        runGit: reviewContextRunGit
+      });
+    } catch {
+      return null;
+    }
+    if (candidate === null || candidate === undefined) return null;
+
+    let wkRef;
+    try {
+      const raw = await reviewContextRunGit({
+        repo: worktreeProvisioningConfig.mainRepo,
+        args: ["show", `${candidate}:wiki/work-records/${wkId}.json`]
+      });
+      const record = JSON.parse(typeof raw === "string" ? raw : raw?.stdout ?? "");
+      if (record?.id !== wkId || !/^IN-[0-9]{4}$/u.test(record?.initiative ?? "")) return null;
+      wkRef = `refs/heads/wk/${record.initiative}/${wkId}`;
+    } catch {
+      return null;
+    }
+    let binding;
+    try {
+      const frozen = await freezeRecoveredTerminalWkCandidateInputs({
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        candidate,
+        canonicalWkId: wkId,
+        wkRef,
+        runGit: reviewContextRunGit
+      });
+      binding = await deriveRecoveredTerminalWkCandidateIdentity({
+        frozen, runGit: reviewContextRunGit
+      });
+    } catch {
+      return null;
+    }
+    if (binding?.candidate !== candidate) return null;
+    const versionDecision = await inspectTerminalWkCandidateVersion({
+      binding, runGit: reviewContextRunGit
+    });
+
+    return Object.freeze({ binding, version_decision: versionDecision });
+  }
+
   async function resolveTerminalCandidatePublicationState(wkId) {
     if (typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) return null;
     const targetKey = currentTerminalReviewTargetByWk.get(wkId);
-    if (targetKey === undefined) return null;
+    if (targetKey === undefined) return resolveSelectedCandidatePublicationState(wkId);
     const context = frozenReviewContextsByTarget.get(targetKey);
-    if (context === undefined) return null;
+    if (context === undefined) return resolveSelectedCandidatePublicationState(wkId);
     if (verifyFrozenWkReviewTargetAgainstObjectStore({
       mainRepo: context.main_repo,
       context,
@@ -1141,15 +1225,31 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     });
   }
 
+  async function resolveTerminalReviewPublicationState(subject) {
+    const address = typeof subject === "string"
+      ? subject.match(/^(WK-\d{4})#SLICE-\d{3}$/u)
+      : null;
+    if (address === null) return null;
+    const targetKey = currentTerminalReviewTargetByWk.get(address[1]);
+    if (targetKey === undefined ||
+        frozenReviewContextsByTarget.get(targetKey)?.review_subject !== subject) {
+      return null;
+    }
+    return resolveTerminalCandidatePublicationState(address[1]);
+  }
+
   return {
     observeTerminalCandidateBoundState,
     decideTerminalReviewLifecycle,
+    authenticateTerminalCandidatePreparation,
     withTerminalCandidateAdvanceExclusion,
     sameTerminalReviewAddress,
     bindFrozenReviewContext,
     verifyTerminalReviewContext,
     recoverTerminalReviewContext,
     refreshTerminalReviewAttemptContract,
-    resolveTerminalCandidatePublicationState
+    resolveTerminalCandidateReviewMaterial,
+    resolveTerminalCandidatePublicationState,
+    resolveTerminalReviewPublicationState
   };
 }

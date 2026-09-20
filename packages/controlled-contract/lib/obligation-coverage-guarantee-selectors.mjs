@@ -3,14 +3,10 @@ import {
   assertAdmittedProofPackSnapshot
 } from "./admitted-proof-packs.mjs";
 import {
-  ExactBindingError,
   compareCodeUnits,
   deepFreeze,
   unsupportedObjectKeys
 } from "./deterministic-projection-primitives.mjs";
-import {
-  assertCapturedExactBindingResult
-} from "./exact-binding.mjs";
 import {
   StableVerificationError,
   assertVerificationProfileV1Result
@@ -19,9 +15,9 @@ import { recognizedObligationGuaranteeSelectorPacks } from
   "./multi-pack-assessment.mjs";
 
 const OBLIGATION_GUARANTEE_SELECTOR_INDEX_VERSION =
-  "obligation-guarantee-selector-index.v1";
+  "obligation-guarantee-selector-index.v2";
 const PROFILE_EVALUATION_RESULT_VERSION =
-  "controlled-contract-verification-profile-result.v1";
+  "controlled-contract-verification-profile-result.v2";
 const OBLIGATION_GUARANTEE_SELECTOR_KINDS = Object.freeze([
   "reference_binding", "claim", "relation", "collection", "resolver_fact",
   "evidence"
@@ -36,7 +32,7 @@ const SELECTOR_FIELDS = Object.freeze({
 });
 const RESOLUTION_STATUSES = Object.freeze([
   "compatible", "incompatible", "mapped_input_missing",
-  "mapped_pack_not_evaluated", "profile_proven_exact_binding_missing"
+  "mapped_pack_not_evaluated"
 ]);
 const SELECTOR_INDEXES = new WeakSet();
 const COMPONENT_APPLICABILITY_MODES = new WeakMap();
@@ -135,10 +131,9 @@ function admittedPackSnapshot(value, name) {
     { profile_id: profileId, profile_version: profileVersion }
   );
   const admissionVersion = value.admission_version;
-  if (![1, 2].includes(admissionVersion) ||
-      Object.hasOwn(admission, "exact_binding") !== (admissionVersion === 2)) fail(
+  if (admissionVersion !== 3) fail(
     "obligation_guarantee_selector_admission_version_conflict",
-    `${field} admission version and its exact-binding property must agree`,
+    `${field} admission version is not an admitted carrier version`,
     { profile_id: profileId, admission_version: admissionVersion ?? null }
   );
   const applicability = value.component_exclusion_applicability;
@@ -156,12 +151,6 @@ function admittedPackSnapshot(value, name) {
     admissionVersion,
     profileDigest: string(value.profile_digest, `${field}.profile_digest`),
     admissionDigest: string(value.admission_digest, `${field}.admission_digest`),
-    exactBindingDeclarationDigest: admissionVersion === 2
-      ? string(value.exact_binding_declaration_digest,
-        `${field}.exact_binding_declaration_digest`) : null,
-    exactBindingCertificationDigest: admissionVersion === 2
-      ? string(value.exact_binding_certification_digest,
-        `${field}.exact_binding_certification_digest`) : null,
     componentExclusionApplicability: applicability,
     componentExclusionApplicabilityDigest: applicabilityDigest === null ? null
       : digest(applicabilityDigest,
@@ -181,15 +170,7 @@ function patternDefinitions(profile, name) {
     for (const [index, pattern] of patterns.entries()) {
       const componentId = string(pattern?.pattern_id,
         `${name}.pack_snapshot.profile.${field}[${index}].pattern_id`);
-      const stage = string(pattern?.required_by_stage,
-        `${name}.pack_snapshot.profile.${field}[${index}].required_by_stage`);
-      if (!["pre_dispatch", "post_delivery"].includes(stage) ||
-          !profile.evaluation_stages?.includes(stage)) fail(
-        "obligation_guarantee_selector_stage_invalid",
-        "component stage must be supplied by the exact profile version",
-        { kind, component_id: componentId, evaluation_stage: stage }
-      );
-      definitions.push({ kind, componentId, stage });
+      definitions.push({ kind, componentId });
     }
   }
   const identities = definitions.map(({ kind, componentId }) => `${kind}\0${componentId}`);
@@ -201,7 +182,7 @@ function patternDefinitions(profile, name) {
 }
 
 function assessmentResults(assessment, snapshot, name) {
-  if (assessment === null) return { stage: null, results: new Map() };
+  if (assessment === null) return { results: new Map() };
   try {
     assertVerificationProfileV1Result(assessment);
   } catch (error) {
@@ -249,47 +230,8 @@ function assessmentResults(assessment, snapshot, name) {
     });
   }
   return {
-    stage: string(assessment.evaluation_stage, `${name}.assessment.evaluation_stage`),
     results
   };
-}
-
-function exactBindingStatus(result, snapshot, name, packId) {
-  if (snapshot.admissionVersion === 1) {
-    if (result !== null) fail(
-      "obligation_guarantee_selector_exact_binding_artifact_mismatch",
-      "v1 admissions require a null exact-binding artifact", { pack_id: packId }
-    );
-    return "not_applicable";
-  }
-  if (result === null) return "not_assessed";
-  try {
-    assertCapturedExactBindingResult(result);
-  } catch (error) {
-    if (!(error instanceof ExactBindingError)) throw error;
-    fail(
-      "obligation_guarantee_selector_exact_binding_artifact_unrecognized",
-      `${name}.exact_binding must be the exact package-minted captured result`,
-      { name, pack_id: packId, cause: error.code }
-    );
-  }
-  const context = result.context;
-  const expected = {
-    profile_digest: snapshot.profileDigest,
-    admission_digest: snapshot.admissionDigest,
-    exact_binding_declaration_digest: snapshot.exactBindingDeclarationDigest,
-    exact_binding_certification_digest: snapshot.exactBindingCertificationDigest
-  };
-  const mismatched = Object.entries(expected).filter(
-    ([field, value]) => context?.[field] !== value
-  ).map(([field]) => field);
-  if (mismatched.length > 0) fail(
-    "obligation_guarantee_selector_exact_binding_binding_mismatch",
-    `${name}.exact_binding was captured for another admitted pack`,
-    { name, pack_id: packId, mismatched_fields: mismatched }
-  );
-  return result.provenance?.capture_verified === true &&
-    result.satisfaction === "satisfied" ? "proven" : "not_proven";
 }
 
 function authenticatedApplicability(value, snapshot, definitions, exclusions, name) {
@@ -307,7 +249,7 @@ function authenticatedApplicability(value, snapshot, definitions, exclusions, na
     "component_exclusion_applicability_digest", "source_digests", "components"
   ], projectionName);
   if (value.projection_version !==
-      "controlled-contract-assessment-component-exclusion-applicability.v1") fail(
+      "controlled-contract-assessment-component-exclusion-applicability.v2") fail(
     "obligation_guarantee_selector_input_invalid",
     `${projectionName}.projection_version is invalid`
   );
@@ -328,9 +270,7 @@ function authenticatedApplicability(value, snapshot, definitions, exclusions, na
       `${projectionName}.component_exclusion_applicability_digest`));
   const sourceDigests = object(value.source_digests, [
     "profile", "admission", "guarantee", "adequacy_declaration",
-    "adequacy_result", "evaluation_input", "exact_binding_sources",
-    "exact_binding_declaration", "exact_binding_certification",
-    "component_exclusion_applicability"
+    "adequacy_result", "evaluation_input", "component_exclusion_applicability"
   ], `${projectionName}.source_digests`);
   for (const [field, sourceDigest] of Object.entries(sourceDigests)) {
     if (sourceDigest !== null) digest(sourceDigest,
@@ -354,7 +294,7 @@ function authenticatedApplicability(value, snapshot, definitions, exclusions, na
   const applicableByComponent = new Map();
   for (const [index, component] of value.components.entries()) {
     const componentName = `${projectionName}.components[${index}]`;
-    object(component, ["selector", "evaluation_stage", "exclusion_ids",
+    object(component, ["selector", "exclusion_ids",
       "applicable_exclusion_ids"], componentName);
     object(component.selector, ["kind", "component_id"],
       `${componentName}.selector`);
@@ -365,7 +305,7 @@ function authenticatedApplicability(value, snapshot, definitions, exclusions, na
     const definition = definitions.find((candidate) =>
       candidate.kind === kind && candidate.componentId === componentId
     );
-    if (!definition || definition.stage !== component.evaluation_stage ||
+    if (!definition ||
         applicableByComponent.has(key)) mismatches.push({
       field: "components", component: key
     });
@@ -401,7 +341,7 @@ function normalizedPack(pack, index, { recognizedAssessment = false } = {}) {
   }
   object(pack, [
     "pack_id", "requested_intents", "pack_snapshot", "assessment",
-    "evaluation_input_present", "profile_discrimination", "exact_binding",
+    "evaluation_input_present", "profile_discrimination",
     ...(recognizedAssessment
       ? ["authenticated_component_exclusion_applicability"] : [])
   ], name);
@@ -419,9 +359,6 @@ function normalizedPack(pack, index, { recognizedAssessment = false } = {}) {
   const snapshot = admittedPackSnapshot(pack.pack_snapshot, name);
   const exclusions = strings(snapshot.admission.explicit_exclusions,
     `${name}.pack_snapshot.admission.explicit_exclusions`);
-
-  const exactBindingRequired = snapshot.admissionVersion === 2;
-  const exactBinding = exactBindingStatus(pack.exact_binding, snapshot, name, packId);
   const assessment = assessmentResults(pack.assessment, snapshot, name);
   const definitions = patternDefinitions(snapshot.profile, name);
   const authenticated = recognizedAssessment
@@ -436,7 +373,7 @@ function normalizedPack(pack, index, { recognizedAssessment = false } = {}) {
     "obligation_guarantee_selector_component_absent",
     "assessment names a component absent from the exact profile version", { key }
   );
-  const components = definitions.map(({ kind, componentId, stage }) => {
+  const components = definitions.map(({ kind, componentId }) => {
     const key = `${kind}\0${componentId}`;
     const result = assessment.results.get(key) ?? null;
     const applicableExclusion = recognizedAssessment
@@ -448,17 +385,13 @@ function normalizedPack(pack, index, { recognizedAssessment = false } = {}) {
       profile_version: snapshot.profileVersion,
       requested_intents: requestedIntents,
       selector: { kind, component_id: componentId },
-      evaluation_stage: stage,
-      assessed_evaluation_stage: assessment.stage,
       guarantee_applicability_proven: applicableExclusion === false,
       applicable_exclusion: applicableExclusion,
       matched_node_ids: result?.matchedNodeIds ?? null,
       satisfaction: result?.status ?? null,
       evaluation_input_present: pack.evaluation_input_present,
       pack_evaluated: pack.assessment !== null,
-      profile_discrimination: pack.profile_discrimination,
-      exact_binding_required: exactBindingRequired,
-      exact_binding: exactBinding
+      profile_discrimination: pack.profile_discrimination
     };
     COMPONENT_APPLICABILITY_MODES.set(component,
       recognizedAssessment ? authenticated === null ? "missing" : "authenticated"
@@ -511,7 +444,7 @@ function buildObligationGuaranteeSelectorIndex(input) {
 
 function mappingShape(mapping, nodeIds) {
   object(mapping, ["kind", "pack_id", "requested_intent", "profile_id",
-    "profile_version", "selector", "evaluation_stage"], "mapping");
+    "profile_version", "selector"], "mapping");
   object(mapping.selector, ["kind", "component_id"], "mapping.selector");
   if (mapping.kind !== "pack_mapping" ||
       !OBLIGATION_GUARANTEE_SELECTOR_KINDS.includes(mapping.selector.kind)) fail(
@@ -523,7 +456,6 @@ function mappingShape(mapping, nodeIds) {
     profileId: string(mapping.profile_id, "mapping.profile_id"),
     profileVersion: string(mapping.profile_version, "mapping.profile_version"),
     requestedIntent: string(mapping.requested_intent, "mapping.requested_intent"),
-    stage: string(mapping.evaluation_stage, "mapping.evaluation_stage"),
     kind: mapping.selector.kind,
     componentId: string(mapping.selector.component_id,
       "mapping.selector.component_id"),
@@ -553,10 +485,6 @@ function resolveObligationGuaranteeSelector(input) {
     [status, reason] = ["incompatible", "profile_identity_mismatch"];
   } else if (!component.requested_intents.includes(value.requestedIntent)) {
     [status, reason] = ["incompatible", "incompatible_intent"];
-  } else if (component.evaluation_stage !== value.stage ||
-      component.assessed_evaluation_stage !== null &&
-      component.assessed_evaluation_stage !== value.stage) {
-    [status, reason] = ["incompatible", "stage_mismatch"];
   } else if (COMPONENT_APPLICABILITY_MODES.get(component) === "authenticated" &&
       component.applicable_exclusion !== false) {
     [status, reason] = ["incompatible",
@@ -572,9 +500,6 @@ function resolveObligationGuaranteeSelector(input) {
     [status, reason] = ["incompatible", "unmatched_node"];
   } else if (component.satisfaction !== "satisfied") {
     [status, reason] = ["incompatible", "component_not_satisfied"];
-  } else if (component.exact_binding_required && component.exact_binding !== "proven") {
-    [status, reason] = ["profile_proven_exact_binding_missing",
-      "required_exact_binding_not_proven"];
   } else if (!component.guarantee_applicability_proven) {
     [status, reason] = ["incompatible", "component_applicability_unproven"];
   }

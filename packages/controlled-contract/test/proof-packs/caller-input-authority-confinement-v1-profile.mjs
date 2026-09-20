@@ -9,10 +9,9 @@ import { sha256 } from "../../lib/exact-binding-common.mjs";
 import { VOCABULARY_DIGESTS } from "../../vocabulary/controlled-contract-vocabulary.v1.mjs";
 
 const PROFILE_ID = "proof.input.caller-authority-confinement";
-const PROFILE_VERSION = "2.0.0";
+const PROFILE_VERSION = "3.0.0";
 const GRAPH_PROJECTION_ID = "caller-input-authority-contract";
 const RESULT_REQUIREMENT_ID = "caller-input-projection";
-const STAGE = "post_delivery";
 const UNCONDITIONAL = Object.freeze({ mode: "unconditional", operand_roles: [] });
 const MEMBER_TYPES = Object.freeze(["cc:configuration"]);
 const COORDINATE_TYPES = Object.freeze([
@@ -68,7 +67,6 @@ function referenceRole(role, allowedTypeTerms, cardinality) {
 function completePopulation(patternId, populationRole, memberRole, scope) {
   return {
     pattern_id: shortPatternId(patternId),
-    required_by_stage: STAGE,
     comparison: "complete_population",
     roles: [populationRole, memberRole],
     applicability_context: scope
@@ -78,7 +76,6 @@ function completePopulation(patternId, populationRole, memberRole, scope) {
 function requiredBinding(role, minimum, maximum = null) {
   return {
     pattern_id: shortPatternId(`${role.replaceAll("_", "-")}-binding-required`),
-    required_by_stage: STAGE,
     role_kind: "reference",
     role,
     minimum,
@@ -115,7 +112,6 @@ function association({
 function claim(patternId, kind, propositionTemplate, forEach = null, modalities = ["MUST"]) {
   return {
     pattern_id: shortPatternId(patternId),
-    required_by_stage: STAGE,
     claim_kind: kind,
     allowed_modalities: modalities,
     ...(forEach === null ? {} : { for_each: structuredClone(forEach) }),
@@ -167,7 +163,6 @@ function verifiedObligation({
     claims: [target, verification],
     relation: {
       pattern_id: relationId,
-      required_by_stage: STAGE,
       role: "verifies",
       source_claim_pattern_id: verification.pattern_id,
       target_claim_pattern_id: target.pattern_id
@@ -458,7 +453,7 @@ function buildCallerInputAuthorityConfinementProfile() {
     ...relationPatterns
   ].map(({ pattern_id: pattern }) => ({ pattern }));
   return {
-    schema_version: "controlled-contract-verification-profile.v1",
+    schema_version: "controlled-contract-verification-profile.v2",
     profile_id: PROFILE_ID,
     profile_version: PROFILE_VERSION,
     contract_schema_version: "controlled-acceptance-contract.v1",
@@ -468,7 +463,6 @@ function buildCallerInputAuthorityConfinementProfile() {
     vocabulary_definitions_digest: VOCABULARY_DIGESTS.definitions,
     vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
     verification_falsifier_policy: "controlled_complement_per_target",
-    evaluation_stages: [STAGE],
     reference_roles: referenceRoles,
     number_roles: populationDefinitions.map(([, memberRole]) => ({
       role: `${memberRole}_count`, cardinality: "exactly_one", number_type: "integer", minimum: 0
@@ -518,8 +512,7 @@ function buildCallerInputAuthorityConfinementEvaluationInput(result) {
     roles[memberRole] = [...result.populations[populationName]];
   }
   return {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: STAGE,
+    input_version: "controlled-contract-verification-profile-input.v2",
     reference_bindings: Object.entries(roles).map(([roleName, referenceIds]) => ({
       role: roleName, reference_ids: referenceIds
     })),

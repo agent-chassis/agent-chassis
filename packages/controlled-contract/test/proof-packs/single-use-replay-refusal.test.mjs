@@ -30,7 +30,7 @@ const controlledContractRoot = path.resolve(
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.single-use.replay-refusal/2.0.0"
+  "certification/profiles/proof.single-use.replay-refusal/3.0.0"
 );
 
 async function readJson(relativePath) {

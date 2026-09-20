@@ -2,7 +2,7 @@
   "schema_version": "crash-durable-state-writer-census.v1",
   "wk": "WK-2357#SLICE-012",
   "captured_against": "pre_migration",
-  "summary": "Deny-by-default census of every production path constructor and filesystem writer beneath .agent-launch, plus the repository-wide canonical work-record store and its write lock. Each entry is keyed by an exact source identity (<repo-relative module>#<symbol>) and carries exactly one classification. Unknown or unlisted writers are denied by identity, never by directory or package allowlisting. This slice changes no production implementation.",
+  "summary": "Deny-by-default census of every production path constructor and filesystem writer beneath .agent-launch, plus the repository-wide canonical work-record store and its write lock. Each entry is keyed by an exact source identity (<repo-relative module>#<symbol>) and carries exactly one classification. Unknown or unlisted writers are denied by identity, never by directory or package allowlisting. This slice changes no production implementation. captured_against records where the census sweep originated; writer identities, routing, and abandonment references are maintained against current production source and move or retire with their writers.",
   "classifications": [
     "durable_authoritative",
     "non_authoritative_runtime_or_config",
@@ -22,6 +22,7 @@
       "packages/agent-launch-core/src/lib",
       "packages/agent-launch-cli/src/lib",
       "packages/wiki-core/src/operations/work-records-store-io.mjs",
+      "packages/wiki-core/src/operations/work-record-write-lock.mjs",
       "packages/wiki-mcp/src"
     ],
     "roots_in_scope": [
@@ -398,21 +399,48 @@
       "unresolved_blocker": null
     },
     {
-      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#withWorkRecordWriteLock",
+      "source_identity": "packages/wiki-core/src/operations/work-record-write-lock.mjs#withWorkRecordWriteLock",
       "classification": "durable_authoritative",
       "store_id": "canonical-work-record-write-lock",
       "artifact_class": "lock_artifact",
       "compatibility": "token_owned_directory_lock_migration_authorized",
       "target": "wiki/.work-record-write.lock",
       "operations": [
-        "open_exclusive",
-        "write",
+        "mkdir",
+        "delegated_lock_acquire"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-record-write-lock.mjs#releaseWorkRecordWriteLock",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record-write-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": "wiki/.work-record-write.lock",
+      "operations": [
+        "delegated_retirement_claim",
+        "delegated_tombstone_cleanup",
         "rm"
       ],
       "unresolved_blocker": null
     },
     {
-      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#breakStaleWorkRecordWriteLock",
+      "source_identity": "packages/wiki-core/src/operations/work-record-write-lock.mjs#completeWorkRecordWriteLockRetirement",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record-write-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": "wiki/.work-record-write.lock",
+      "operations": [
+        "delegated_retirement_claim",
+        "delegated_tombstone_cleanup",
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-record-write-lock.mjs#transferCrashedWorkRecordWriteLockClaim",
       "classification": "durable_authoritative",
       "store_id": "canonical-work-record-write-lock",
       "artifact_class": "lock_artifact",
@@ -420,6 +448,7 @@
       "target": "wiki/.work-record-write.lock",
       "operations": [
         "rename",
+        "delegated_tombstone_cleanup",
         "rm"
       ],
       "unresolved_blocker": null
@@ -657,6 +686,10 @@
     {
       "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#writeAtomicImmutable",
       "reason": "delegates entirely to writeAtomicPublished and performs no direct filesystem mutation of its own; the censused primitive owns the publication boundary"
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-record-write-lock.mjs#retireDeadWorkRecordWriteLockHolder",
+      "reason": "judges holder abandonment and then delegates every lock mutation to completeWorkRecordWriteLockRetirement, which is censused; it performs no direct filesystem mutation of its own"
     }
   ],
   "routing_owners": {
@@ -776,13 +809,21 @@
       "routes_through": "store_owned_exclusive_create",
       "evidence": "removes only record-owned admission sidecars, never a successor's canonical record"
     },
-    "packages/wiki-core/src/operations/work-records-store-io.mjs#withWorkRecordWriteLock": {
+    "packages/wiki-core/src/operations/work-record-write-lock.mjs#withWorkRecordWriteLock": {
       "routes_through": "crash_durable_token_lock",
-      "evidence": "token-owned directory at the established lock path; retirement requires an authoritative dead verdict over the persisted non-reusable (pid, starttime, boot_id) owner identity via the shared wiki-core process-identity mechanism, and every live, indeterminate, legacy, ownerless, and malformed state still fails closed (WK-2357#SLICE-006 as repaired)"
+      "evidence": "acquires the token-owned directory at the established lock path through planLockAcquisition + runCrashDurablePlanAsync after creating only its parent directory; retirement requires an authoritative dead verdict over the persisted non-reusable (pid, starttime, boot_id) owner identity via the shared wiki-core process-identity mechanism, and every live, indeterminate, legacy, ownerless, and malformed state still fails closed (WK-2357#SLICE-006 as repaired). The legacy bare-PID and wall-clock reclaimer breakStaleWorkRecordWriteLock was retired and is no current writer"
     },
-    "packages/wiki-core/src/operations/work-records-store-io.mjs#breakStaleWorkRecordWriteLock": {
+    "packages/wiki-core/src/operations/work-record-write-lock.mjs#releaseWorkRecordWriteLock": {
       "routes_through": "crash_durable_token_lock",
-      "evidence": "retired with the legacy reclaimer; the symbol no longer performs bare-PID or wall-clock recovery"
+      "evidence": "exact-token release: proves ownership through decideRelease, moves the canonical directory to its own token-bound tombstone through planRetirementClaim, cleans only that tombstone through planTombstoneCleanup, and removes only its own claimant marker; a foreign token releases nothing"
+    },
+    "packages/wiki-core/src/operations/work-record-write-lock.mjs#completeWorkRecordWriteLockRetirement": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "runs only after decideRetirement accepts an authoritative dead verdict for the persisted owner identity; the single-winner planRetirementClaim frees the canonical name, then only this contender's token-bound tombstone and marker are removed"
+    },
+    "packages/wiki-core/src/operations/work-record-write-lock.mjs#transferCrashedWorkRecordWriteLockClaim": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "completes an interrupted retirement only when a sibling marker's embedded claimant identity has an authoritative dead verdict; the rename to this contender's own token-bound tombstone has one winner, and only that tombstone and the dead claimant's marker are removed. An empty canonical directory with no dead-claimant marker stays failed closed"
     },
     "packages/agent-launch-cli/src/lib/worktree-reaper-wk-terminal-proof.mjs#wkTerminalDispositionProofPath": {
       "routes_through": "unresolved_authoritative_writer",
@@ -808,7 +849,8 @@
       "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#defaultAcquireWkProvisioningLock",
       "packages/agent-launch-cli/src/lib/managed-run-process-identity-assessment.mjs#assessManagedRunProcessIdentityRecord",
       "packages/agent-launch-cli/src/lib/managed-run-process-identity-retirement.mjs#retireManagedRunProcessIdentity",
-      "packages/wiki-core/src/operations/work-records-store-io.mjs#withWorkRecordWriteLock"
+      "packages/wiki-core/src/operations/work-record-write-lock.mjs#retireDeadWorkRecordWriteLockHolder",
+      "packages/wiki-core/src/operations/work-record-write-lock.mjs#transferCrashedWorkRecordWriteLockClaim"
     ],
     "never_reclaims": [
       {

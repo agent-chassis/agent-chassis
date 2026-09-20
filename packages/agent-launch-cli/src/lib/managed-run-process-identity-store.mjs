@@ -9,12 +9,19 @@ import {
   runCrashDurablePlanSync
 } from "@agent-chassis/wiki-core/src/lib/crash-durable-state.mjs";
 import {
+  ATTEMPT_EVENT_KINDS,
   ATTEMPT_JOURNAL_REFUSALS,
+  admitAttemptCommand,
   attemptJournalFilePath,
   attemptJournalRefusal,
   attemptPartitionLockPath,
+  pageManagedAttemptDetail,
   parseAttemptJournal,
-  serializeAttemptJournal
+  projectManagedAttemptObservations,
+  resultDigest,
+  selectManagedAttempt,
+  serializeAttemptJournal,
+  validateAttemptJournal
 } from "@agent-chassis/agent-launch-core";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -43,6 +50,7 @@ import {
   MANAGED_RUN_PROCESS_IDENTITY_STATES,
   MANAGED_RUN_PROCESS_IDENTITY_VERDICTS,
   RETIREMENT_REASON_VALUES,
+  deriveManagedRunIdentityTupleFromBindingPair,
   fail,
   hasExactKeys,
   isPlainObject,
@@ -149,6 +157,159 @@ export function withAttemptPartitionLock({ mainRepo, repository, subject }, muta
       rmSync(canonicalPath, { recursive: true, force: true });
     } catch {   }
   }
+}
+
+function readValidatedAttemptJournal(mainRepo, subject) {
+  const repository = mainRepo;
+  const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+  if (read.refusal !== null) {
+    return { ok: false, refusal: read.refusal, repository, events: read.events };
+  }
+  const validated = validateAttemptJournal({ repository, subject, events: read.events });
+  if (!validated.valid) {
+    return { ok: false, refusal: validated.refusal, repository, events: read.events };
+  }
+  return { ok: true, repository, events: validated.events };
+}
+
+export function readManagedRunObservation({ mainRepo, subject, attemptId = null, detail = null }) {
+  const read = readValidatedAttemptJournal(mainRepo, subject);
+  if (!read.ok) return read;
+  if (detail !== null) {
+    return pageManagedAttemptDetail({
+      repository: read.repository,
+      subject,
+      events: read.events,
+      attemptId,
+      kind: detail.kind,
+      cursor: detail.cursor ?? null,
+      limit: detail.limit ?? 20,
+      invocationId: detail.invocation_id ?? null
+    });
+  }
+  return selectManagedAttempt({
+    repository: read.repository,
+    subject,
+    events: read.events,
+    attemptId
+  });
+}
+
+function appendManagedRunObservation({ mainRepo, subject, runId, kind, payload }) {
+  const repository = mainRepo;
+  const locked = withAttemptPartitionLock({ mainRepo, repository, subject }, () => {
+    const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+    if (read.refusal !== null) return { ok: false, refusal: read.refusal };
+    const selection = selectManagedAttempt({
+      repository,
+      subject,
+      events: read.events,
+      attemptId: runId
+    });
+    if (!selection.ok || selection.selected?.dispatch_tuple === null) {
+      return {
+        ok: false,
+        code: selection.code ?? "attempt_binding_unavailable",
+        refusal: selection.refusal ?? null
+      };
+    }
+    const resolvedPayload = typeof payload === "function"
+      ? payload(selection.selected.dispatch_tuple)
+      : payload;
+    if (resolvedPayload === null) return { ok: false, code: "attempt_binding_mismatch" };
+    const admitted = admitAttemptCommand({
+      repository,
+      subject,
+      events: read.events,
+      attempt: selection.selected.attempt,
+      kind,
+      payload: resolvedPayload
+    });
+    if (!admitted.admitted) return { ok: false, refusal: admitted.refusal };
+    if (admitted.appended !== false) {
+      publishAttemptJournalEvents({ mainRepo, repository, subject, events: admitted.events });
+    }
+    return { ok: true, appended: admitted.appended !== false, event: admitted.event };
+  });
+  if (!locked.acquired) return { ok: false, code: "attempt_partition_contended" };
+  return locked.result;
+}
+
+export function recordManagedRunResult({ mainRepo, subject, dispatchTuple, result }) {
+  return appendManagedRunObservation({
+    mainRepo,
+    subject,
+    runId: dispatchTuple.run_id,
+    kind: ATTEMPT_EVENT_KINDS.RUN_RESULT_RECORDED,
+    payload: {
+      dispatch_tuple: dispatchTuple,
+      result_digest: resultDigest(result),
+      result
+    }
+  });
+}
+
+export function recordManagedLifecycleFailure({
+  mainRepo,
+  subject,
+  dispatchTuple,
+  invocationId,
+  failure
+}) {
+  return appendManagedRunObservation({
+    mainRepo,
+    subject,
+    runId: dispatchTuple.run_id,
+    kind: ATTEMPT_EVENT_KINDS.LIFECYCLE_FAILURE_RECORDED,
+    payload: {
+      dispatch_tuple: dispatchTuple,
+      invocation_id: invocationId,
+      failure
+    }
+  });
+}
+
+export function recordManagedProofVerification({
+  mainRepo,
+  subject,
+  sliceBinding,
+  invocationId,
+  verification
+}) {
+  const repository = mainRepo;
+  const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+  if (read.refusal !== null) return { ok: false, refusal: read.refusal };
+  const projected = projectManagedAttemptObservations({ repository, subject, events: read.events });
+  if (!projected.ok) return { ok: false, refusal: projected.refusal };
+  const matches = projected.attempts.filter((item) =>
+    item.dispatch_tuple?.assigned_unit === subject &&
+    item.dispatch_tuple.launch_ref === sliceBinding?.launch_ref);
+  if (matches.length !== 1) {
+    return { ok: false, code: matches.length === 0 ? "attempt_binding_unavailable" : "attempt_selection_ambiguous" };
+  }
+  const retained = matches[0].dispatch_tuple;
+  let derived;
+  try {
+    derived = deriveManagedRunIdentityTupleFromBindingPair({
+      assignedUnit: subject,
+      launchRef: retained.launch_ref,
+
+      wkBinding: {},
+      sliceBinding,
+      expectedRunId: retained.run_id
+    });
+  } catch (error) {
+    return { ok: false, code: "attempt_binding_mismatch", cause_code: error?.code ?? null };
+  }
+  return appendManagedRunObservation({
+    mainRepo,
+    subject,
+    runId: retained.run_id,
+    kind: ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED,
+    payload: (current) => (sameTuple(current, derived)
+      ? { dispatch_tuple: current, invocation_id: invocationId, verification }
+      : null)
+  });
 }
 
 const PENDING_BRAND = Symbol("managed-run-process-identity.PendingPublication");

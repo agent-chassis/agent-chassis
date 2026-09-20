@@ -54,7 +54,7 @@ test("the primitive declares the exact stable-v1 carrier grammar and bounds", ()
   assert.deepEqual(CARRIER_TARGETS.evaluation_input, {
     reference_bindings: "role", number_bindings: "role",
     claim_pattern_bindings: "claim_pattern", resolver_facts: "resolver_fact",
-    delivered_evidence: "delivered_evidence", evaluation_stage: "scalar"
+    delivered_evidence: "delivered_evidence"
   });
   assert.deepEqual(CARRIER_TARGETS.proof_plan_request, {
     requested_intents: "value", selected_packs: "pack"
@@ -81,8 +81,6 @@ test("stable selectors are resolved by the identity rule of each target", () => 
     { pattern_id: "p", claim_id: "c" }), "p=>c");
   assert.equal(carrierValueId("delivered_evidence", "delivered_evidence",
     { evidence_kind: "k", verification_claim_id: "v" }), "k=>v");
-  assert.equal(carrierValueId("evaluation_stage", "scalar", "pre_dispatch"),
-    "evaluation_stage");
   assert.equal(carrierValueId("resolver_facts", "resolver_fact", {
     resolver_kind: "r", fact_key: "f", argument_reference_ids: ["ref-a"]
   }), Buffer.from(JSON.stringify(["r", "f", ["ref-a"]])).toString("base64url"));
@@ -273,40 +271,13 @@ test("a typed domain target that is not a JSON array refuses with its target", (
   assert.equal(error.details.target, "annotations");
 });
 
-test("a scalar target upserts by its own selector and removes its key", () => {
-  const upserted = applyControlledContractCarrierPatch({
-    content: { reference_bindings: [] },
-    carrierKind: "evaluation_input",
-    operations: [{ op: "upsert", target: "evaluation_stage",
-      value: "pre_dispatch" }]
-  });
-  assert.equal(upserted.content.evaluation_stage, "pre_dispatch");
-
-  const removed = applyControlledContractCarrierPatch({
-    content: { evaluation_stage: "pre_dispatch" },
-    carrierKind: "evaluation_input",
-    operations: [{ op: "remove", target: "evaluation_stage",
-      id: "evaluation_stage" }]
-  });
-  assert.equal(Object.hasOwn(removed.content, "evaluation_stage"), false);
-  assert.equal(refusal(() => applyControlledContractCarrierPatch({
-    content: { evaluation_stage: "pre_dispatch" },
-    carrierKind: "evaluation_input",
-    operations: [{ op: "remove", target: "evaluation_stage" }]
-  })).code, "controlled_contract_patch_identity_invalid");
-
-  assert.equal(refusal(() => applyControlledContractCarrierPatch({
-    content: {},
-    carrierKind: "evaluation_input",
-    operations: [{ op: "upsert", target: "evaluation_stage",
-      id: "evaluation_stage" }]
-  })).code, "controlled_contract_patch_value_invalid");
-  assert.equal(refusal(() => applyControlledContractCarrierPatch({
-    content: {},
-    carrierKind: "evaluation_input",
-    operations: [{ op: "upsert", target: "evaluation_stage", id: "elsewhere",
-      value: "pre_dispatch" }]
-  })).code, "controlled_contract_patch_value_invalid");
+test("retired classification targets are rejected", () => {
+  for (const op of ["upsert", "remove"]) {
+    assert.equal(refusal(() => applyControlledContractCarrierPatch({
+      content: { reference_bindings: [] }, carrierKind: "evaluation_input",
+      operations: [{ op, target: "evaluation_stage", id: "evaluation_stage", value: "pre_dispatch" }]
+    })).code, "controlled_contract_patch_operation_invalid");
+  }
 });
 
 test("an absent typed domain is created and an existing identity is replaced in place", () => {

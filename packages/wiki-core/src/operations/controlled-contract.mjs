@@ -10,10 +10,27 @@ export {
   writeControlledContractCarrierOperation
 } from "./controlled-contract/carrier-operations.mjs";
 export {
+  applyControlledContractDesignSemanticResponse,
   continueControlledContractAuthoringOperation,
-  controlledContractAuthoringStateOperation,
-  describeControlledContractAuthoringOperation
+  describeControlledContractAuthoringOperation,
+  controlledContractAuthoringStateOperation
 } from "./controlled-contract/authoring-operations.mjs";
+export { reauthorControlledContractCurrentDefinitions } from
+  "./controlled-contract/current-definition-reauthoring.mjs";
+export {
+  CONTROLLED_ACCEPTANCE_DECISION_CODES,
+  classifyControlledAcceptanceStateOperation
+} from "./controlled-contract/controlled-acceptance-state-operations.mjs";
+export {
+  CONTROLLED_ACCEPTANCE_CURRENTNESS_STATES,
+  CONTROLLED_ACCEPTANCE_EVALUATED_SNAPSHOT_SCHEMA_VERSION,
+  CONTROLLED_ACCEPTANCE_REPAIR_QUALIFICATIONS,
+  bindControlledAcceptanceEvaluatedSnapshot,
+  deriveControlledAcceptanceEvaluatedSnapshot,
+  projectControlledAcceptanceEvaluatedSnapshot
+} from "./controlled-contract/controlled-acceptance-evaluated-snapshot.mjs";
+export { persistControlledAcceptanceProofPostureOperation } from
+  "./controlled-contract/proof-posture-operations.mjs";
 export { buildProofAuthoringSkeletonOperation } from
   "./controlled-contract/proof-authoring-skeleton-operations.mjs";
 export { continueControlledContractProofGraphOperation } from
@@ -21,6 +38,7 @@ export { continueControlledContractProofGraphOperation } from
 export {
   buildProofPlanOperation,
   describeProofPackOperation,
+  discoverCompleteControlledProofIntentsOperation,
   discoverControlledProofIntentsOperation,
   inspectProofPackBindingsOperation,
   projectProofPackSelectionTaskContext,
@@ -50,20 +68,14 @@ export { persistControlledContractGenerationOperation } from
   "./controlled-contract/generation-persistence-operations.mjs";
 export {
   createControlledContractAcceptanceCoverageOperation,
-  createControlledContractObligationCoverageOperation,
   describeControlledContractAcceptanceCoverageOperation,
-  describeControlledContractObligationCoverageOperation,
   queryControlledContractAcceptanceCoverageOperation,
   queryControlledContractObligationCoverageOperation,
   rebaseControlledContractAcceptanceCoverageOperation,
-  rebaseControlledContractObligationCoverageOperation,
   removeControlledContractAcceptanceCoverageOperation,
   removeControlledContractObligationCoverageOperation,
   upsertControlledContractAcceptanceCoverageOperation,
   upsertControlledContractObligationCoverageOperation
 } from "./controlled-contract/acceptance-coverage-operations.mjs";
-export {
-  assessControlledContractIntegrationTestDesignOperation,
-  consumeControlledContractIntegrationAssessmentSnapshot,
-  refuseMalformedControlledContractIntegrationTestDesignRequest
-} from "./controlled-contract/integration-test-design-assessment-operations.mjs";
+
+export { validateProofOperation } from "./controlled-contract/proof-authoring-operations.mjs";

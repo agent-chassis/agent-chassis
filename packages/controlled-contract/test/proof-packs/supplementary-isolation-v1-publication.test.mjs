@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+
+import { buildStableTestProofPopulation } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import test from "node:test";
 
 import {
@@ -14,11 +17,17 @@ import { buildSupplementaryIsolationEvaluationInput } from
 
 const intentId = "controlled-proof-intent.supplementary-failure-isolation";
 const profileId = "proof.failure.supplementary-isolation";
-const profileVersion = "2.0.0";
+const profileVersion = "3.0.0";
 
 function fixture() {
   const source = buildSupplementaryIsolationSources({ branch: "omitted" });
-  const contract = JSON.parse(source.projectionBytes);
+  const projected = JSON.parse(source.projectionBytes);
+
+  const contract = {
+    ...projected,
+    test_proof_version: TEST_PROOF_VERSION_V1,
+    test_proofs: buildStableTestProofPopulation(projected)
+  };
   return { contract, evaluationInput: buildSupplementaryIsolationEvaluationInput(contract) };
 }
 
@@ -56,10 +65,8 @@ test("binding assistance validates projection-authored exact roles", async () =>
   assert.equal(assistance.summary.incompatible_binding_count, 0);
 });
 
-test("published admission binds semantic adequacy and exact certification", async () => {
+test("published admission binds semantic adequacy", async () => {
   const pack = await loadAdmittedProofPack(profileId);
   assert.equal(pack.admission.certification.method, "executable_semantic_adequacy");
   assert.equal(pack.admission.certification.executable_control_count, 39);
-  assert.equal(pack.admission.exact_binding.executable_control_count, 12);
-  assert.equal(pack.admission.exact_binding.binding_kinds.includes("artifact_bytes"), true);
 });

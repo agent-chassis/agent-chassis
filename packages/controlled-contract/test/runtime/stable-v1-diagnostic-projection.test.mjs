@@ -32,23 +32,24 @@ function assertProjectionBounds(projection) {
   assert.ok(canonicalJsonBytes(projection).byteLength <= MAX_PROJECTION_BYTES);
   assert.ok(projection.returned_count <= MAX_DIAGNOSTIC_COUNT);
   for (const diagnostic of projection.diagnostics) {
-    for (const field of textualFields) if (diagnostic[field] !== null) assert.ok(
+    for (const field of textualFields) if (diagnostic[field] !== undefined) assert.ok(
       Buffer.byteLength(JSON.stringify(diagnostic[field]), "utf8") <=
         MAX_DIAGNOSTIC_FIELD_BYTES,
       field
     );
-    for (const reason of diagnostic.reasons) assert.ok(
+
+    for (const reason of diagnostic.reasons ?? []) assert.ok(
       Buffer.byteLength(JSON.stringify(reason), "utf8") <= MAX_DIAGNOSTIC_FIELD_BYTES,
       "reasons"
     );
-    assert.equal(diagnostic.total_reason_count,
+    if (diagnostic.reasons !== undefined) assert.equal(diagnostic.total_reason_count,
       diagnostic.returned_reason_count + diagnostic.omitted_reason_count);
   }
 }
 
 test("shared diagnostic projection is deterministic, bounded, and loss-aware", () => {
   assert.deepEqual(projectBoundedDiagnostics([]), {
-    diagnostic_projection_version: "controlled-contract.bounded-diagnostic-projection.v1",
+    diagnostic_projection_version: "controlled-contract.bounded-diagnostic-projection.v2",
     total_count: 0, returned_count: 0, omitted_count: 0,
     truncated: false, diagnostics: []
   });
@@ -64,11 +65,9 @@ test("shared diagnostic projection is deterministic, bounded, and loss-aware", (
   assert.equal(first.returned_count, MAX_DIAGNOSTIC_COUNT);
   assert.equal(first.omitted_count, 20);
   assert.equal(first.truncated, true);
+
   assert.deepEqual(Object.keys(first.diagnostics[0]), [
-    "code", "pointer", "claim_id", "keyword", "reason_code", "reason", "reason_truncated",
-    "reasons", "total_reason_count", "returned_reason_count", "omitted_reason_count",
-    "reasons_truncated", "expected_identity", "actual_identity", "message",
-    "content_truncated"
+    "code", "pointer", "keyword", "reason_code", "expected_identity", "actual_identity"
   ]);
   assertProjectionBounds(first);
 });
@@ -97,6 +96,9 @@ test("claim-bearing diagnostics retain bounded identities in deterministic order
   const digest = createHash("sha256").update("c".repeat(10_000), "utf8").digest("hex");
   assert.equal(bounded.diagnostics[0].claim_id.endsWith(`-sha256-${digest}`), true);
   assert.equal(bounded.diagnostics[0].content_truncated, true);
+
+  assert.equal(Object.hasOwn(bounded.diagnostics[0], "message"), false);
+  assert.equal(Object.hasOwn(bounded.diagnostics[0], "reasons"), false);
   assertProjectionBounds(bounded);
 });
 
@@ -166,18 +168,18 @@ test("structured singular and plural semantic reasons remain deterministic", () 
   );
 
   const none = projectBoundedDiagnostics([{ code: "none" }]).diagnostics[0];
-  assert.equal(none.reason, "");
-  assert.deepEqual(none.reasons, []);
-  assert.deepEqual([
-    none.total_reason_count, none.returned_reason_count, none.omitted_reason_count
-  ], [0, 0, 0]);
-  assert.equal(none.reasons_truncated, false);
+  assert.deepEqual(Object.keys(none), ["code", "pointer"]);
+  for (const slot of ["reason", "reasons", "total_reason_count",
+    "returned_reason_count", "omitted_reason_count", "reasons_truncated"]) {
+    assert.equal(Object.hasOwn(none, slot), false, slot);
+  }
 
   const singular = projectBoundedDiagnostics([{
     code: "singular", reason: "opposed_modality"
   }]).diagnostics[0];
   assert.equal(singular.reason, "opposed_modality");
-  assert.equal(singular.reason_truncated, false);
+
+  assert.equal(Object.hasOwn(singular, "reason_truncated"), false);
 
   const one = projectBoundedDiagnostics([{
     code: "one", reasons: ["target_condition_differs"]
@@ -196,7 +198,9 @@ test("structured singular and plural semantic reasons remain deterministic", () 
     multiple.returned_reason_count,
     multiple.omitted_reason_count
   ], [4, 4, 0]);
+
   assert.equal(multiple.reasons_truncated, false);
+  assert.equal(Object.hasOwn(multiple, "content_truncated"), false);
 });
 
 test("one oversized diagnostic retains a useful bounded cause", () => {
@@ -233,6 +237,7 @@ test("encoded field and envelope bounds include escaping, Unicode, and truncatio
   assert.equal(one.truncated, true);
   assert.ok(Buffer.byteLength(JSON.stringify(one), "utf8") <= 65536);
   for (const field of textualFields) {
+    if (one.diagnostics[0][field] === undefined) continue;
     assert.ok(Buffer.byteLength(JSON.stringify(one.diagnostics[0][field]), "utf8") <= 4096,
       field);
   }
@@ -278,7 +283,7 @@ test("reason populations report exact nested omission without losing the cause",
 
 test("production authentication refusal retains target_condition_differs", async () => {
   const profile = JSON.parse(await readFile(new URL(
-    "../../profiles/proof.authentication.direct-source-provenance/2.0.0/profile.json",
+    "../../profiles/proof.authentication.direct-source-provenance/3.0.0/profile.json",
     import.meta.url
   )));
   const weakened = structuredClone(profile);

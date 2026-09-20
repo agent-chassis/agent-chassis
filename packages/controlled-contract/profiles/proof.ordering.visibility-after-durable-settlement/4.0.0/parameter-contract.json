@@ -1,0 +1,956 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.ordering.visibility-after-durable-settlement",
+  "profile_version": "4.0.0",
+  "profile_digest": "ff03e0a4dce59b8ecdf7b811f5f383b3fbe3380509c8e3aa7e46df823c750cbd",
+  "description": "For one caller-declared effect population, declared success or visibility cannot precede durable settlement of every declared effect; failure visibility is empty, and a selected post-visibility observation of that declared population equals the caller-declared expected durable state.",
+  "parameters": [
+    {
+      "name": "durable_effect_population",
+      "purpose": "Declare durable effect population for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "durable_effect_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/claim_patterns/6",
+        "/claim_patterns/7",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "durable_effects",
+      "purpose": "Declare durable effects for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "durable_effects"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "settled_effect_population",
+      "purpose": "Declare settled effect population for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "settled_effect_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "settled_effects",
+      "purpose": "Declare settled effects for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "settled_effects"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/3",
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "allowed_settled_state_population",
+      "purpose": "Declare allowed settled state population for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "allowed_settled_state_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/15",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "allowed_settled_states",
+      "purpose": "Declare allowed settled states for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "allowed_settled_states"
+      ],
+      "refinement_refs": [
+        "/reference_roles/5"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "selected_settled_state",
+      "purpose": "Declare selected settled state for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "selected_settled_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/15",
+        "/claim_patterns/2",
+        "/claim_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "settlement_event",
+      "purpose": "Declare settlement event for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "settlement_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/16",
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "visibility_event",
+      "purpose": "Declare visibility event for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "visibility_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "post_visibility_observation",
+      "purpose": "Declare post visibility observation for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "post_visibility_observation"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/17",
+        "/claim_patterns/5",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "expected_durable_state",
+      "purpose": "Declare expected durable state for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "expected_durable_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/10"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/18",
+        "/claim_patterns/6",
+        "/claim_patterns/9"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "observed_durable_state",
+      "purpose": "Declare observed durable state for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "observed_durable_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/11"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/18",
+        "/claim_patterns/8",
+        "/claim_patterns/9"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_event",
+      "purpose": "Declare failure event for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failure_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_visibility_population",
+      "purpose": "Declare failure visibility population for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "failure_visibility_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12",
+        "/claim_patterns/19",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_visibility_events",
+      "purpose": "Declare failure visibility events for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "failure_visibility_events"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/16"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/claim_patterns/15",
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "durable_not_settled_condition",
+      "purpose": "Declare durable not settled condition for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "durable_not_settled_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/17"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/13",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "settled_not_durable_condition",
+      "purpose": "Declare settled not durable condition for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "settled_not_durable_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/18"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/14",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "disallowed_settled_state_condition",
+      "purpose": "Declare disallowed settled state condition for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "disallowed_settled_state_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/19"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/15",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "premature_visibility_condition",
+      "purpose": "Declare premature visibility condition for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "premature_visibility_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/20"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/16",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_visibility_condition",
+      "purpose": "Declare failure visibility condition for proof.ordering.visibility-after-durable-settlement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failure_visibility_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/23"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/19",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/6"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "durable_effect_population",
+      "kind": "semantic_parameter",
+      "parameter": "durable_effect_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/claim_patterns/6",
+        "/claim_patterns/7",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "durable_effects",
+      "kind": "semantic_parameter",
+      "parameter": "durable_effects",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "settled_effect_population",
+      "kind": "semantic_parameter",
+      "parameter": "settled_effect_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "settled_effects",
+      "kind": "semantic_parameter",
+      "parameter": "settled_effects",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/3",
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "allowed_settled_state_population",
+      "kind": "semantic_parameter",
+      "parameter": "allowed_settled_state_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/15",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "allowed_settled_states",
+      "kind": "semantic_parameter",
+      "parameter": "allowed_settled_states",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "selected_settled_state",
+      "kind": "semantic_parameter",
+      "parameter": "selected_settled_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/15",
+        "/claim_patterns/2",
+        "/claim_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "settlement_event",
+      "kind": "semantic_parameter",
+      "parameter": "settlement_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/16",
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "visibility_event",
+      "kind": "semantic_parameter",
+      "parameter": "visibility_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "post_visibility_observation",
+      "kind": "semantic_parameter",
+      "parameter": "post_visibility_observation",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/17",
+        "/claim_patterns/5",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "expected_durable_state",
+      "kind": "semantic_parameter",
+      "parameter": "expected_durable_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/18",
+        "/claim_patterns/6",
+        "/claim_patterns/9"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "observed_durable_state",
+      "kind": "semantic_parameter",
+      "parameter": "observed_durable_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/18",
+        "/claim_patterns/8",
+        "/claim_patterns/9"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_event",
+      "kind": "semantic_parameter",
+      "parameter": "failure_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_visibility_population",
+      "kind": "semantic_parameter",
+      "parameter": "failure_visibility_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12",
+        "/claim_patterns/19",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_visibility_events",
+      "kind": "semantic_parameter",
+      "parameter": "failure_visibility_events",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_visibility_count_signal",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/19"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire failure_visibility_count_signal for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.ordering.visibility-after-durable-settlement/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/claim_patterns/15",
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "durable_not_settled_condition",
+      "kind": "semantic_parameter",
+      "parameter": "durable_not_settled_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "settled_not_durable_condition",
+      "kind": "semantic_parameter",
+      "parameter": "settled_not_durable_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/14",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "disallowed_settled_state_condition",
+      "kind": "semantic_parameter",
+      "parameter": "disallowed_settled_state_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/15",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "premature_visibility_condition",
+      "kind": "semantic_parameter",
+      "parameter": "premature_visibility_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/16",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "premature_observation_condition",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/17",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/4"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire premature_observation_condition for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.ordering.visibility-after-durable-settlement/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "stale_observation_condition",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/18",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/5"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire stale_observation_condition for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.ordering.visibility-after-durable-settlement/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "failure_visibility_condition",
+      "kind": "semantic_parameter",
+      "parameter": "failure_visibility_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/19",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/6"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "effect_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "durable_effects",
+        "settled_effects"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/0",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "zero_visibility_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/19",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "durable_effect_population",
+      "durable_effects",
+      "settled_effect_population",
+      "settled_effects",
+      "allowed_settled_state_population",
+      "allowed_settled_states",
+      "selected_settled_state",
+      "settlement_event",
+      "visibility_event",
+      "post_visibility_observation",
+      "expected_durable_state",
+      "observed_durable_state",
+      "failure_event",
+      "failure_visibility_population",
+      "failure_visibility_events",
+      "verification",
+      "durable_not_settled_condition",
+      "settled_not_durable_condition",
+      "disallowed_settled_state_condition",
+      "premature_visibility_condition",
+      "failure_visibility_condition"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [
+      "failure_visibility_count_signal",
+      "premature_observation_condition",
+      "stale_observation_condition"
+    ],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.ordering.visibility-after-durable-settlement.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.ordering.visibility-after-durable-settlement constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.ordering.visibility-after-durable-settlement.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

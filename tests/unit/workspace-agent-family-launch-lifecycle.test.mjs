@@ -4,31 +4,21 @@ import assert from "node:assert/strict";
 import {
   launchWorkspaceAgentFamilyLaunchLifecycle
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-family-launch-lifecycle.mjs";
+import * as postWorkerLifecycleRun from
+  "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-run.mjs";
 import {
-  MODEL_REGISTRY_BY_NAME,
-  resolveModelRuntime
-} from "../../packages/agent-launch-cli/src/lib/agent-launch-model-registry.mjs";
-import {
-  REVIEWER_CLOSURE_TRANSPORTS,
-  planReviewerClosure,
-  planTerminalWholeWkClosure,
   runPostWorkerSliceLifecycleBody
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-run.mjs";
-import {
-  freezeSliceReviewSurface
-} from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-review.mjs";
 import {
   createLifecycleCheckpoint,
   POST_WORKER_LIFECYCLE_CHECKPOINT,
   POST_WORKER_LIFECYCLE_PHASES
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
+import * as terminalReviewEvidence from
+  "../../packages/wiki-mcp/src/lib/dispatch-terminal-review-evidence.mjs";
 import {
-  TERMINAL_REVIEW_EVIDENCE_MODES
-} from "../../packages/wiki-mcp/src/lib/dispatch-terminal-review-evidence.mjs";
-import {
-  TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
-  TERMINAL_REVIEW_VERIFY_PARTS
-} from "../../packages/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
+  RETIRED_POST_WORKER_REVIEW_SEAMS
+} from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 
 function requiredCallbacks(overrides = {}) {
   return {
@@ -404,284 +394,16 @@ test("verification is not run or attached for non-terminal probes or probes miss
   assert.equal(attachCount, 0);
 });
 
-test("every registry member reaches the same typed managed-reviewer closure decision", () => {
-  const members = [...MODEL_REGISTRY_BY_NAME.keys()];
-  assert.equal(members.length > 0, true, "the authoritative registry must be non-empty");
-
-  const decisions = new Map();
-  for (const model of members) {
-    const runtime = resolveModelRuntime(model);
-    assert.notEqual(runtime, null, model);
-
-    const plan = planReviewerClosure({
-      transport: REVIEWER_CLOSURE_TRANSPORTS.MANAGED_TERMINAL_RESULT,
-      repository: "/repo",
-      role: "reviewer",
-      purpose: "terminal_whole_wk_candidate",
-      subject: "WK-2356#SLICE-001",
-      reviewed_sha: "a".repeat(40),
-      diff_base_sha: "b".repeat(40),
-      controlled_generation: `sha256:${"c".repeat(64)}`,
-      receipt_identity: "workspace-agent-exact-slice-review-receipt.v4",
-      provenance_shape: "terminal_candidate"
-    });
-    decisions.set(runtime.app, [...(decisions.get(runtime.app) ?? []), plan]);
-    assert.equal(plan.transport, "managed_terminal_result", model);
-    assert.equal(plan.supported_continuation, "workspace_agent_run_status", model);
-    assert.equal(plan.receipt_identity, "workspace-agent-exact-slice-review-receipt.v4", model);
-  }
-
-  const apps = new Set([...members].map((model) => resolveModelRuntime(model).app));
-  assert.deepEqual([...decisions.keys()].sort(), [...apps].sort());
-  for (const plans of decisions.values()) {
-    for (const plan of plans) assert.deepEqual(plan, plans[0]);
-  }
-});
-
-test("a standalone technical redteam freezes only its submit-for-review facts", () => {
-  let reference = null;
-  for (const model of MODEL_REGISTRY_BY_NAME.keys()) {
-    const plan = planReviewerClosure({
-      transport: REVIEWER_CLOSURE_TRANSPORTS.STANDALONE_SUBMIT_FOR_REVIEW,
-      repository: "/repo",
-      role: "redteam",
-      purpose: "technical_redteam",
-      subject: "WK-2356#SLICE-003"
-    });
-    assert.equal(plan.transport, "standalone_submit_for_review", model);
-    assert.equal(plan.supported_continuation, "workspace_submit_for_review", model);
-
-    assert.equal(plan.receipt_identity, null, model);
-    assert.equal(plan.provenance_shape, null, model);
-    assert.equal(Object.hasOwn(plan, "reviewed_sha"), false, model);
-    assert.equal(Object.hasOwn(plan, "controlled_generation"), false, model);
-
-    reference = reference ?? plan;
-    assert.deepEqual(plan, reference, model);
-  }
-  assert.notEqual(reference, null);
-});
-
-test("no transport may mint a fact it does not own", () => {
-  const refusal = (facts) => {
-    try {
-      planReviewerClosure(facts);
-      return null;
-    } catch (error) {
-      return error;
-    }
-  };
-  const overreaching = refusal({
-    transport: REVIEWER_CLOSURE_TRANSPORTS.STANDALONE_SUBMIT_FOR_REVIEW,
-    repository: "/repo",
-    role: "redteam",
-    purpose: "technical_redteam",
-    subject: "WK-2356#SLICE-003",
-    receipt_identity: "workspace-agent-exact-slice-review-receipt.v4"
-  });
-  assert.equal(overreaching.code, "agent_launch.reviewer_closure_plan.incomplete.v1");
-  assert.equal(overreaching.detail.correctable_field, "receipt_identity");
-  assert.equal(overreaching.detail.transport, "standalone_submit_for_review");
-});
-
-test("a structurally impossible closure refuses before spawn and names the correctable field", () => {
-  const complete = {
-    transport: REVIEWER_CLOSURE_TRANSPORTS.MANAGED_TERMINAL_RESULT,
-    repository: "/repo",
-    role: "reviewer",
-    purpose: "terminal_whole_wk_candidate",
-    subject: "WK-2356#SLICE-001",
-    reviewed_sha: "a".repeat(40),
-    diff_base_sha: "b".repeat(40),
-    controlled_generation: `sha256:${"c".repeat(64)}`,
-    receipt_identity: "workspace-agent-exact-slice-review-receipt.v4",
-    provenance_shape: "terminal_candidate"
-  };
-
-  for (const field of Object.keys(complete).filter((key) => key !== "transport")) {
-    let refused = null;
-    try {
-      planReviewerClosure({ ...complete, [field]: null });
-    } catch (error) {
-      refused = error;
-    }
-    assert.notEqual(refused, null, field);
-    assert.equal(refused.code, "agent_launch.reviewer_closure_plan.incomplete.v1", field);
-    assert.equal(refused.detail.correctable_field, field, field);
-  }
-  let unsupported = null;
-  try {
-    planReviewerClosure({ ...complete, transport: "submit_via_shell" });
-  } catch (error) {
-    unsupported = error;
-  }
-  assert.equal(unsupported.detail.correctable_field, "transport");
-});
-
-const SLICE_SHA = "1".repeat(40);
-const SLICE_BASE = "2".repeat(40);
-const GENERATION = `sha256:${"e".repeat(64)}`;
-
-function sliceFreezeArgs(overrides = {}) {
-  const { deps: depsOverrides = {}, ...rest } = overrides;
-  return {
-    workspaceDir: "/repo",
-    status: { subject: "WK-2377#SLICE-001", run_id: "run-worker", monitor_handle: "mon-worker" },
-    bindings: { provisioning: { record_id: "WK-2377", slice_id: "SLICE-001" } },
-    binding: { base_sha: SLICE_BASE, worktree_path: "/worktrees/slice", retry_id: 0 },
-    sliceRef: "refs/heads/slice/IN-0042/WK-2377/SLICE-001",
-    wkId: "WK-2377",
-    sliceId: "SLICE-001",
-    commit: SLICE_SHA,
-
-    planReviewerClosure,
-    deps: {
-      resolveCanonicalSliceReviewUnit: () => ({
-        record_id: "WK-2377",
-        slice_id: "SLICE-001",
-        subject: "WK-2377#SLICE-001",
-        initiative: "IN-0042",
-        parent_status: "in_progress",
-        canonical_parent_wk_contract: "canonical-parent",
-        review_unit_contract: "canonical-slice"
-      }),
-      bindFrozenSliceReviewContext: () => Object.freeze({
-        schema_version: "workspace-agent-frozen-slice-review-context.v1",
-        worktree_path: "/worktrees/slice"
-      }),
-      readCanonicalContractGenerationIdentity: () => ({ digest: GENERATION }),
-      ...depsOverrides
-    },
-    ...rest
-  };
-}
-
-test("the exact-slice pre-spawn seam plans its managed closure before the reviewer dispatch exists", async () => {
-  const surface = await freezeSliceReviewSurface(sliceFreezeArgs());
-  const plan = surface.reviewer_dispatch.closure_plan;
-
-  assert.equal(plan.transport, "managed_terminal_result");
-  assert.equal(plan.supported_continuation, "workspace_agent_run_status");
-  assert.equal(plan.receipt_identity, "workspace-agent-exact-slice-review-receipt.v4");
-  assert.equal(plan.subject, "WK-2377#SLICE-001");
-
-  assert.equal(plan.reviewed_sha, surface.reviewed_sha);
-  assert.equal(plan.diff_base_sha, surface.diff_base_sha);
-  assert.equal(plan.controlled_generation, GENERATION);
-  assert.notEqual(plan.controlled_generation, "workspace-agent-frozen-slice-review-context.v1");
-  assert.equal(plan.repository, "/worktrees/slice");
-});
-
-test("mutation witness: an exact-slice seam with no composed planner refuses before spawn", async () => {
-  const transitions = [];
-  await assert.rejects(
-    () => freezeSliceReviewSurface({
-      ...sliceFreezeArgs({
-        deps: { setWorkRecordStatusByUnit: async (write) => {
-          transitions.push(write);
-          return { valid: true, written: true };
-        } }
-      }),
-      planReviewerClosure: undefined
-    }),
-    /requires the composed reviewer closure planner/u
-  );
-
-  assert.deepEqual(transitions, []);
-});
-
-test("a structurally impossible exact-slice closure refuses with the existing stable code", async () => {
-  let refused = null;
-  try {
-    await freezeSliceReviewSurface(sliceFreezeArgs({
-
-      deps: { readCanonicalContractGenerationIdentity: () => ({ digest: null }) }
-    }));
-  } catch (error) {
-    refused = error;
-  }
-  assert.notEqual(refused, null);
-  assert.equal(refused.code, "agent_launch.reviewer_closure_plan.incomplete.v1");
-  assert.equal(refused.detail.correctable_field, "controlled_generation");
-  assert.equal(refused.detail.transport, "managed_terminal_result");
-});
-
-const WHOLE_WK_TARGET = Object.freeze({
-  candidate_sha: "3".repeat(40),
-  sha: "4".repeat(40),
-  diff_base_sha: "5".repeat(40)
-});
-
-function reviewUnitContract(workKind) {
-  return {
-    subject: "WK-2377#SLICE-002",
-    review_unit_contract: JSON.stringify({ id: "SLICE-002", work_kind: workKind })
-  };
-}
-
-test("the terminal whole-WK closure binds the selected controlled generation, not a schema label", () => {
-  const reviewContext = Object.freeze({
-    schema_version: "workspace-agent-frozen-wk-review-context.v1",
-    terminal_candidate_version_decision: Object.freeze({
-      version_identity: "version-1",
-      controlled_generation: GENERATION
-    })
-  });
-  const plan = planTerminalWholeWkClosure({
-    repository: "/repo",
-    reviewUnit: reviewUnitContract("review"),
-    reviewTarget: WHOLE_WK_TARGET,
-    reviewContext,
-    terminalCandidate: { binding: { candidate: WHOLE_WK_TARGET.candidate_sha } }
-  });
-  assert.equal(plan.transport, "managed_terminal_result");
-  assert.equal(plan.purpose, "terminal_whole_wk_candidate");
-  assert.equal(plan.controlled_generation, GENERATION);
-
-  assert.notEqual(plan.controlled_generation, reviewContext.schema_version);
-  assert.equal(plan.reviewed_sha, WHOLE_WK_TARGET.candidate_sha);
-  assert.equal(plan.diff_base_sha, WHOLE_WK_TARGET.diff_base_sha);
-});
-
-test("a terminal candidate whose version decision is absent refuses before spawn", () => {
-  let refused = null;
-  try {
-    planTerminalWholeWkClosure({
-      repository: "/repo",
-      reviewUnit: reviewUnitContract("review"),
-      reviewTarget: WHOLE_WK_TARGET,
-
-      reviewContext: { schema_version: "workspace-agent-frozen-wk-review-context.v1" },
-      terminalCandidate: { binding: { candidate: WHOLE_WK_TARGET.candidate_sha } }
-    });
-  } catch (error) {
-    refused = error;
-  }
-  assert.notEqual(refused, null);
-  assert.equal(refused.code, "agent_launch.reviewer_closure_plan.incomplete.v1");
-  assert.equal(refused.detail.correctable_field, "controlled_generation");
-});
-
-test("a whole-WK findings unit with no terminal candidate plans the standalone submit closure", () => {
-  for (const [workKind, purpose] of [
-    ["redteam", "technical_redteam"],
-    ["review", "whole_wk_findings"]
+test("the post-worker lifecycle exports no reviewer closure planner or evidence mode", () => {
+  for (const retired of [
+    "planReviewerClosure",
+    "planTerminalWholeWkClosure",
+    "REVIEWER_CLOSURE_TRANSPORTS"
   ]) {
-    const plan = planTerminalWholeWkClosure({
-      repository: "/repo",
-      reviewUnit: reviewUnitContract(workKind),
-      reviewTarget: WHOLE_WK_TARGET,
-      reviewContext: { schema_version: "workspace-agent-frozen-wk-review-context.v1" },
-      terminalCandidate: null
-    });
-
-    assert.equal(plan.transport, "standalone_submit_for_review", workKind);
-    assert.equal(plan.supported_continuation, "workspace_submit_for_review", workKind);
-    assert.equal(plan.purpose, purpose, workKind);
-    assert.equal(plan.receipt_identity, null, workKind);
-    assert.equal(plan.provenance_shape, null, workKind);
-    assert.equal(Object.hasOwn(plan, "controlled_generation"), false, workKind);
+    assert.equal(Object.hasOwn(postWorkerLifecycleRun, retired), false, retired);
   }
+  assert.deepEqual(Object.keys(terminalReviewEvidence), ["verifyTerminalCandidateCycle"]);
+  assert.equal(Object.values(POST_WORKER_LIFECYCLE_PHASES).includes("awaiting-slice-review"), false);
 });
 
 const WK_SHA = "6".repeat(40);
@@ -709,17 +431,7 @@ const WHOLE_WK_INTEGRATION = Object.freeze({
   })
 });
 
-const WHOLE_WK_MATERIALIZATION = Object.freeze({
-  schema_version: TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
-  worktree_path: WK_WORKTREE,
-  wk_ref: WK_REF,
-  reviewed_sha: WK_SHA,
-  reviewed_tree: "8".repeat(40),
-  verified: true,
-  verified_parts: TERMINAL_REVIEW_VERIFY_PARTS
-});
-
-async function finalizeWholeWkNoCandidate(workKind) {
+async function finalizeWholeWk(workKind) {
   const checkpoint = createLifecycleCheckpoint();
   checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
   checkpoint.integration = WHOLE_WK_INTEGRATION;
@@ -732,7 +444,8 @@ async function finalizeWholeWkNoCandidate(workKind) {
     monitor_handle: "worker-handle"
   };
   Object.defineProperty(status, POST_WORKER_LIFECYCLE_CHECKPOINT, { value: checkpoint });
-  return await runPostWorkerSliceLifecycleBody({
+  const calls = [];
+  const finalized = await runPostWorkerSliceLifecycleBody({
     workspace: { dir: "/repo" },
     status,
     deps: {
@@ -744,59 +457,36 @@ async function finalizeWholeWkNoCandidate(workKind) {
         wk_binding: { output_branch: "wk/IN-0042/WK-2383", worktree_path: WK_WORKTREE },
         validation_worktree_path: WK_WORKTREE
       }),
-
-      resolveCanonicalReviewUnit: () => ({
-        record_id: "WK-2383",
-        initiative: "IN-0042",
-        subject: "WK-2383#SLICE-002",
-        review_unit_contract: JSON.stringify({ id: "SLICE-002", work_kind: workKind })
-      }),
-      terminalReviewEvidenceMode: TERMINAL_REVIEW_EVIDENCE_MODES.LIVE_MATERIALIZER,
-      materializeTerminalReviewWorktree: () => WHOLE_WK_MATERIALIZATION,
-      bindFrozenReviewContext: () => Object.freeze({
-        schema_version: "workspace-agent-frozen-wk-review-context.v1"
-      })
+      resolveDeclaredTerminalReviewUnit: () => {
+        calls.push("resolveDeclaredTerminalReviewUnit");
+        return {
+          record_id: "WK-2383",
+          initiative: "IN-0042",
+          subject: "WK-2383#SLICE-002",
+          review_unit_contract: JSON.stringify({ id: "SLICE-002", work_kind: workKind })
+        };
+      },
+      ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, () => {
+        calls.push(name);
+        throw new Error(`retired review seam ${name} was called`);
+      }]))
     }
   });
+  return { finalized, calls };
 }
 
-test("a canonical redteam whole-WK unit plans AND dispatches the redteam role", async () => {
-  const finalized = await finalizeWholeWkNoCandidate("redteam");
-  const dispatch = finalized.reviewer_dispatch;
-
-  assert.equal(dispatch.closure_plan.transport, "standalone_submit_for_review");
-  assert.equal(dispatch.closure_plan.supported_continuation, "workspace_submit_for_review");
-  assert.equal(dispatch.closure_plan.purpose, "technical_redteam");
-
-  assert.equal(dispatch.closure_plan.role, "redteam");
-  assert.equal(dispatch.args.role, "redteam");
-  assert.equal(dispatch.tool, "workspace_agent_dispatch");
-  assert.equal(dispatch.args.subject, "WK-2383#SLICE-002");
-
-  assert.equal(dispatch.closure_plan.receipt_identity, null);
-  assert.equal(dispatch.closure_plan.provenance_shape, null);
-});
-
-test("an ordinary whole-WK findings unit still plans AND dispatches the reviewer role", async () => {
-  const finalized = await finalizeWholeWkNoCandidate("review");
-  const dispatch = finalized.reviewer_dispatch;
-
-  assert.equal(dispatch.closure_plan.transport, "standalone_submit_for_review");
-  assert.equal(dispatch.closure_plan.supported_continuation, "workspace_submit_for_review");
-  assert.equal(dispatch.closure_plan.purpose, "whole_wk_findings");
-  assert.equal(dispatch.closure_plan.role, "reviewer");
-  assert.equal(dispatch.args.role, "reviewer");
-});
-
-test("mutation witness: the dispatched role is the planned role and the two canonical kinds do not collapse", async () => {
-  const roles = {};
+test("a final whole-WK integration finalizes with no reviewer dispatch for either findings kind", async () => {
   for (const workKind of ["redteam", "review"]) {
-    const dispatch = (await finalizeWholeWkNoCandidate(workKind)).reviewer_dispatch;
+    const { finalized, calls } = await finalizeWholeWk(workKind);
+    assert.equal(finalized.phase, POST_WORKER_LIFECYCLE_PHASES.FINALIZED, workKind);
+    assert.equal(finalized.integrated, true, workKind);
+    assert.equal(finalized.wk_transitioned_to_review, true, workKind);
+    assert.equal(finalized.integration, WHOLE_WK_INTEGRATION, workKind);
+    for (const key of ["reviewer_dispatch", "slice_review", "terminal_review_materialization",
+      "terminal_candidate", "terminal_candidate_validations"]) {
+      assert.equal(Object.hasOwn(finalized, key), false, `${workKind}: ${key}`);
+    }
 
-    assert.equal(dispatch.args.role, dispatch.closure_plan.role, workKind);
-    roles[workKind] = dispatch.args.role;
+    assert.deepEqual(calls, [], workKind);
   }
-
-  assert.notEqual(roles.redteam, roles.review);
-  assert.deepEqual(roles, { redteam: "redteam", review: "reviewer" });
 });

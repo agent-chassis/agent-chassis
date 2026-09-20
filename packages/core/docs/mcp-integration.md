@@ -27,6 +27,35 @@ lengths and the 28,000-character paid/operator aggregate target are CI/lint debt
 accounting and reduction evidence only; neither is consulted to admit server
 startup, initialize, or `tools/list`.
 
+Registration conformance is also exercised end to end by a three-task
+integration composition over the production stdio server: an ordinary
+work-record task edit, exact recovery of an independently seeded search passage
+through unchanged ranked and source continuations, and a schema-invalid editor
+request followed by the correction route its refusal returns. Requests are
+classified by provenance. A call a delivered server response emitted executes
+unchanged and is bound to the captured stdout frame that offered it and the
+captured stdin frame that carried it. Initial queries, the invalid request, its
+caller-authored correction, spill-page retrieval and protocol requests are
+counted separately and are not emitted-call evidence. Both result carriers are
+read. Comparisons use the incumbent owners:
+`evaluateMcpCallableContractConformance` for schema, discovery, population and
+corrected-call facts, with continuation facts taken from transmitted request
+bytes; the ordinary fixture's record and namespace oracles for effects,
+including the complete root record and unrelated namespace around the final
+correction; the fixture's `accounting(trace)` recount for calls, frames, bytes,
+setup/discovery/journey/recovery/shutdown phases, the named lost-response
+restart and invalid-request correction recovery sequences, and latency, with
+explicit source, client and role identities on each report; and source bytes
+fixed before any fixture child executes, compared with the observed child
+scripts, registration data and fixture modules. Child servers inherit the
+ordinary environment but not the parent's `NODE_OPTIONS` or Node test-runner
+identity. Same-process calls to the search, source-read, summary and work-record
+store owners are reported separately from the public stdio witnesses. Raw
+stdin, stdout and stderr captures are owner-private fixture state, verified by
+byte count and SHA-256 and removed with the fixture. Model token usage, external
+client capture, authenticated entitlement and launcher provenance are reported
+as unavailable, never derived from byte counts.
+
 The launcher owns one host-side `@agent-chassis/wiki-mcp` process for each
 confined Claude or Codex dispatch. The model sandbox never contains a Node
 interpreter, package tree, dependency installation, or wiki-MCP runtime.
@@ -73,6 +102,46 @@ through `workspace_read_mcp_content_reference` reconstructs the original envelop
 byte-for-byte. A spill or refusal envelope is terminal — it is never spilled a
 second time.
 
+### The spill envelope names two different byte quantities
+
+`total_bytes` and `inline_byte_limit` are **not comparable**, and an envelope in
+which `total_bytes` is smaller than `inline_byte_limit` is not a contradiction:
+
+- `inline_byte_limit` is compared against the complete two-channel
+  `CallToolResult` described above — `structuredContent`, the text channel that
+  repeats it as an escaped JSON string, and the frame keys. That is roughly twice
+  the payload plus escaping.
+- `total_bytes` measures the **retained payload alone**, as persisted: one
+  two-space-indented JSON document, with no frame and no second channel.
+
+The envelope therefore carries `measurement`, an
+`mcp-response-spill-measurement.v1` block that states both quantities and which
+one admission compared:
+
+```json
+{
+  "schema_version": "mcp-response-spill-measurement.v1",
+  "compared": "complete_frame_bytes_exceeded_inline_byte_limit",
+  "complete_frame_bytes": 181432,
+  "inline_byte_limit": 131072,
+  "retained_payload_bytes": 84167,
+  "retained_payload_encoding": "application/json; charset=utf-8; indent=2",
+  "meaning": "inline admission compares complete_frame_bytes … against inline_byte_limit."
+}
+```
+
+`complete_frame_bytes` is the measurement admission actually made, so it always
+exceeds `inline_byte_limit` when `compared` is
+`complete_frame_bytes_exceeded_inline_byte_limit`. A payload the producer
+retained deliberately — a selected-response source or an evidence bundle — was
+never offered for inline admission, so it reports `compared:
+"not_compared_retention_forced"` with `complete_frame_bytes: null` rather than
+claiming a comparison it did not make. Normalization is different: when it
+measures an already formed complete result, finds that result oversized, and
+then uses the retention path, it carries that measured frame size into the same
+block and reports `complete_frame_bytes_exceeded_inline_byte_limit`. This block
+explains the arithmetic; it changes no threshold and no admission decision.
+
 When persistence itself fails, the boundary returns one deterministic bounded
 refusal through both channels rather than the oversized original or a generic
 unstructured fallback:
@@ -108,16 +177,15 @@ omitted, and accounted totals. When `sections` is omitted, the ledger enumerates
 each `sections.<member>` identity in its source, omitted, accounted, and recovered
 populations; the member values remain omitted from the compact result.
 
-The compact result advertises the route-local acknowledged complete-read call.
-Following it with the same ID or path plus `include_record: true` and
-`accept_full_read: true` returns the complete canonical record, including all
-omitted top-level members and `sections`. Compatibility continuation tokens are
-bound to the route, repository, identity, selector, and source digest. A token
-that cannot be decoded or fails the structural shape checks returns
-`compact_read_token_malformed`. A structurally valid token with an altered
-binding returns the corresponding wrong-schema, wrong-tool-family, wrong-scope,
-wrong-selector, stale-source-digest, or expired diagnostic; a changed canonical
-source specifically returns `compact_read_token_stale_source_digest`.
+There is no complete-record read. The compact result advertises the same
+route's member call, `member: {path: []}`, which lists the record's immediate
+members; each listed member carries its own exact member call. Every omitted
+top-level member and every `sections.<member>` is recovered by following those
+calls, one bounded page or string range at a time, with the canonical
+`source_digest` that each emitted call pins. `include_record`, `include_raw`,
+`verbose`, `accept_full_read`, and `compact_read_token` are not route arguments
+and fail schema validation for records of every size. The member route is
+described in [MCP operation reference](mcp-operation-reference.md#compact-first-work-record-reads).
 
 Admission and loading fail loudly. Missing, unreadable, invalid JSON, and
 record-identity-mismatched canonical sources retain their mechanical
@@ -135,6 +203,324 @@ input schemas; see [Tool discovery](tool-discovery.md). The broader canonical
 record ownership model remains in [Operating model](operating-model.md), so this
 section neither defines another route nor restates those owners' algorithms or
 schemas.
+
+## Bounded search and selected-source reads
+
+`workspace_search_repo` returns ranked pages with a default limit of 8 and a
+maximum of 50. Exact totals remain visible, while complete ranked traversal uses
+only the executable `next_calls` continuation; callers do not supply offsets or
+bulk-expansion switches. Every page frame fits the compact complete-frame class:
+the route trims only a contiguous suffix of served hits, and its continuation
+resumes at the first unserved hit. A page whose first hit or continuation alone
+exceeds that class is retained once and answered with a bounded summary whose
+`detail` reads recover every hit, token, and call exactly through scalar ranges;
+see [MCP Selected Response Details](mcp-selected-response-details.md). A search
+refusal whose recovery calls exceed the class keeps its code and recovers those
+calls the same way. Canonical WK/IN/DEC JSON and the
+supported Markdown source classes are captured and hashed from the bytes fed to
+their incumbent parsers. Persisted index publication remains a separate
+operator-owned operation. It publishes only through real cache directories
+inside the repository and refuses a symbolic-link or non-regular index
+destination instead of writing through it.
+Registered searches also index addressable work-record entries: one rendered
+source per current root or slice entry version, or per retained version with
+`history:true`, independent of how many assignments reference it.
+
+Every file hit supplies a strict `workspace_read_page` search-selection call near
+its match, and a separate source-start call only when that call differs; without
+one, the targeted call already begins at the first scalar.
+That branch returns exact 512-default/1024-maximum Unicode-scalar pages of one
+selected Markdown section or JSON scalar, with EOF, range metadata, positive
+progress, a continuation, and a source-start call. It cannot mix with ordinary
+full/raw/profile/namespace/slice reads. Every entry hit instead supplies the
+entry owner's `workspace_work_record_entry_read` body calls, near the match and,
+when different, from the version start, bound to that immutable version. Search, selected
+reads, work-record summary reads, and entry reads use the same frozen-aware
+repository resolver for reviewer and redteam sessions, so those sessions read
+only their launcher-bound materialization, and navigation calls emitted by a
+lean WK read never redirect them to the live repository.
+
+## One-call closeout with forge-owned completion and truthful check results
+
+Closing a WK is one call. Recording the closure or the status transition, and the
+generated-view and lint work that transition requires, are mechanics of that same
+request rather than a chore handed back to the caller.
+
+- **One explicit request, one canonical write.** `workspace_work_record_set_closure`
+  accepts an optional explicit `status: "done"`. Supplied, the authored closure
+  patch and that final transition are composed into a single validated canonical
+  write through the same CAS, persistence and completion-policy owners, so a stale
+  digest, an invalid field or a persistence conflict leaves neither of them
+  applied. Omitted, the same route records closure information and changes no
+  status: authoring closure and completing a unit stay distinct requests.
+  Completion is never inferred from authored prose, a completing slice never
+  closes its parent, and `workspace_work_record_set_status` remains the route for
+  a status change on its own.
+
+- **One call, one executor.** A closeout mutation that lands runs
+  `generateAndLint` once, against the workspace it just wrote, and reports that
+  executor's actual result. `generateAndLint` remains the sole executor of those
+  checks; the closeout route decides only when they apply. A completed check
+  emits no follow-up generate/lint instruction, and no second report is authored.
+- **Not every transition has something to check.** When nothing was written, when
+  what was written is invalid, or when the transition is not a closeout one, the
+  checks do not apply and the result says which of those it was instead of
+  running anything.
+- **No canonical mutation, no checks.** A valid request that changes no canonical
+  bytes leaves the repository in exactly the state its last verification already
+  observed. It preserves those bytes and their digest, executes zero post-write
+  checks, and reports them as not run; only a mutation that actually changed the
+  canonical record runs `generateAndLint`, and it runs it exactly once.
+- **Input validation precedes classification.** A malformed expected digest, a
+  digest that does not match the loaded record, or an invalid field is answered
+  before the request is classified, so a stale or malformed assertion can never
+  ride an otherwise identical unchanged request to a reported success. Storage's
+  under-lock compare-and-set remains the authority over a race that lands between
+  the read and the write.
+- **Uncertainty stays uncertain.** Where canonical publication could not be
+  established, the result says so. It is never degraded into a write that was not
+  applied, a rollback, or a safe retry.
+- **Results are truthful, including the bad ones.** A lint that ran and failed is
+  reported as a failing lint with its exact error and warning totals. An executor
+  that could not run at all is reported as not run, with its own cause code, and
+  never as a passing check. Neither claims the completed write was rolled back:
+  the record was written, that stays true, and the result says so.
+- **Nothing is invented.** No waiver, accepted risk, follow-on, disposition or
+  proof credit is added by a closeout call, and unknown effects stay unknown.
+- **Ordinary completion and forge confirmation have distinct authority.**
+  An ordinary status or composed closure/status write must not be refused solely
+  because the record has `completion_policy: forge_confirmed_merge` and the
+  requested status is `done`. This applies to both edit composition and shared
+  validated persistence. Completion policy is enforced only through an actual
+  returned CCE decision; absent a decision, mechanically valid writes proceed.
+  Schema, CAS, identity, integrity and publication checks remain in force, and
+  each refusal identifies its mechanical failure or returned policy decision.
+  Marking a record `done` supplies no evidence that a forge merge occurred.
+- **Forge confirmation remains authenticated.** The trusted forge helper retains
+  its exact candidate, pull-request head and mergeability checks, two
+  work-record-only closeout commits, confirmed merge and exact reconciliation.
+  An unconfirmed merge remains unconfirmed regardless of local record status;
+  reconciliation failure after a confirmed merge remains typed partial success.
+  Ordinary edits neither invoke those operations nor manufacture their evidence.
+  Non-forge and operator-authorized direct-`main` paths require no fabricated
+  candidate, forge or proof dependency.
+- **A bounded result still leads to the whole one.** A run with more findings
+  than the compact preview reports exact totals and names its own complete
+  retrieval, preserving every error class and its selected evidence. No internal
+  task or hidden helper is needed to continue.
+- **The original result is retained, not replayed.** A closeout call asks its
+  executor for the complete result, not a default page of it, and retains the
+  complete permitted receipt once through the same response owner an oversized
+  result already uses. The bounded frame carries that retained answer's
+  authenticated content reference in `full_result`, and
+  `workspace_read_mcp_content_reference` reads it back. Retrieval is a read: it
+  performs no second write and runs no second check. Re-calling the mutation is
+  never the route to the detail, because the mutation has already landed and
+  repeating it is a no-op that runs nothing and returns no findings. The
+  generator's own target directory and build never appear in what is retained or
+  returned.
+- **A retained original that could not be kept is disclosed.** When retention
+  fails, the call still reports exactly the effects it had and the checks it ran,
+  and says the original detail is unavailable. It never advertises a reference
+  that cannot be read, and it never converts a transport failure into a claim
+  about the write.
+- **An unknown publication stays unknown.** Where storage could not establish
+  canonical publication, the response says so and keeps the cause: `written` is
+  null, `publication_state` is `unknown`, and the closeout half reports
+  `publication_unknown` without running checks over an indeterminate tree. It is
+  never reported as a write that was not applied, a rollback, or a safe retry,
+  and the caller is told to inspect the canonical record rather than repeat the
+  write.
+- **A publication outcome is reported only where one exists.** `written` and
+  `publication_state` are forwarded from the storage result through one shared
+  projection, so every write receipt states the same facts the same way. A
+  request that never entered persistence — a genuine no-op, or a refusal
+  answered before the record is loaded — declares no publication outcome at all
+  rather than a null one, because there is no attempted write to describe.
+
+## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+
+Every forge publication publishes the same thing, whichever delivery workflow the
+repository selected.
+
+- **One candidate.** For the selected integrated WK tip `W` and the fixed
+  authenticated fork `B`, the existing trusted constructor builds the squash
+  candidate `C` with `tree(C) = tree(W)` and sole parent `B`, and handoff
+  publishes `C` unchanged. The current base tip is not a construction input.
+  There is no direct-`W` alternative, no second constructor and no additional
+  candidate store or ref family.
+- **Terminal review is conditional; candidate authentication is not.** Terminal
+  review belongs to the repository's selected workflow, not to construction. A
+  workflow that selects it hands publication a reviewer materialization, and that
+  checkout is authenticated. A workflow that does not select it hands publication
+  no materialization: no terminal-review unit is invented, no review evidence is
+  fabricated and no reviewer checkout is required. The candidate object binding,
+  its tree and sole-parent topology, its version selection and the controlled
+  generation authority are authenticated on every publication alike, and the
+  published result names which workflow it ran under.
+- **A selected candidate is publishable on its own terms.** When no terminal
+  review target exists, publication state is recovered from the candidate already
+  selected on its durable current ref: its base, tree and sole parent come from
+  the candidate object itself, and the WK ref is named by the canonical record
+  that candidate carries. Recovery consults no current landing state.
+- **The fence holds before any external effect.** Repository, WK, fork, tip,
+  candidate identity, tree, parent and controlled generation are rechecked under
+  the existing exclusion before the branch or the proposal is touched. A moved or
+  foreign input, an inconsistent candidate identity, tree or parent, or
+  generation drift refuses with zero publication. Configured CCE denial is
+  enacted; the absence of a configured decision is not a local denial.
+- **Publication is create-or-observe and nothing more.** The result reports the
+  exact candidate and proposal identity and the truthful effects. Repeating a
+  handoff recovers the same proposal rather than opening a duplicate, a branch
+  already present at different bytes refuses rather than being republished, and
+  publication neither merges nor completes the WK.
+- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
+  exactly two WK-only commits carrying the actual applicable closure evidence and
+  then the parent review-to-done transition; a workflow without terminal review
+  has no terminal-review record fabricated for it. Merge takes the exact
+  authenticated pull-request head only on confirmed mergeability, and an
+  unmerged, unknown, moved or foreign state leaves the canonical parent in
+  review. The confirmed merged base record is canonical, and a reconciliation
+  failure is a typed partial success.
+
+## Recorded worker proof verification and observation
+
+Delivery settlement runs no proof verification. What a coordinator sees is what
+the managed worker explicitly ran: each authenticated worker
+`workspace_verify_proof` call is recorded for that worker's attempt.
+
+- **Each record is the call itself.** It holds the call's result or modeled
+  refusal, including timeout and cancellation, and a server-minted
+  `invocation_id`. A repeated call executes again and gets a new record.
+- **Each record is bound to identity.** It keeps:
+  - the original launcher binding identity and the retained dispatch tuple;
+  - the requested selection;
+  - the tested source snapshot, contract generation and case revisions.
+
+  A record covers only its requested selection and is worker evidence, not
+  independent verification.
+- **Observation only reads.** `workspace_agent_run_status` reports a compact
+  `proof_verification` fact (`recorded`, `none_recorded` or `unavailable`).
+  `none_recorded` is not a pass. `detail: {kind:"proof_verification"}` pages the
+  records, and `invocation_id` reads one complete recorded result. Observation,
+  settlement and restart execute nothing.
+- **It authorizes nothing.** Recorded facts grant no admission, review,
+  integration or completion authority.
+
+See
+[MCP Operation Reference](mcp-operation-reference.md#recorded-managed-worker-proof-verification).
+
+## Canonical slice start and existing readiness orchestration
+
+`workspace_agent_dispatch` starts a canonical unit. `role` is optional and, when
+omitted, is derived from that unit's `dispatch_intent.intended_agent_role` by the
+wiki-core dispatch owner; a unit declaring no agent is refused before launch with
+zero worker spawned. The assignment itself is resolved by the system from the
+canonical slice, its parent and authenticated launcher facts, so caller-authored
+`prompt`, `request`, `argv` and `env` are refused at the boundary. Readiness runs
+internally through `orchestrateAgentDispatchReadiness`, and
+`workspace_validate_dispatch` remains available as the explicit readiness
+question rather than a required pre-call. Worker namespace, role and tier,
+completion transport, launcher-resolved runtime, launcher-owned review material
+and CCE policy ownership are unchanged. Full rules are in
+[MCP Operation Reference](mcp-operation-reference.md#canonical-slice-start-and-existing-readiness-orchestration).
+
+## Ordinary selected canonical reads and authoring continuity
+
+`workspace_read_page` addresses one read by repo-relative `path`, canonical `id`
+or `unit`, and delegates `entry:{...}` to the entry owner and
+`content_reference:{...}` to the retained-spill owner. Exactly one of the three
+identities is required; a canonical identity is served by the same id-addressed
+reader `workspace_get_record` uses, so no storage address is derived to reach a
+record. Emitted calls repeat the caller's identity form, and a delegated entry's
+calls come back addressed to this reader.
+
+Each delegated owner keeps its own contract, refusals and grants, and the
+dedicated `workspace_work_record_entry_read` and
+`workspace_read_mcp_content_reference` routes stay registered unchanged.
+Identity, source digest, version, entitlement, Unicode and byte ranges and
+complete traversal are preserved, `decision`'s retained-entry exception is
+preserved exactly as written, and every ordinary authoring route remains
+reachable with incomplete requirement drafts still saveable. The complete rules
+are in
+[MCP Operation Reference](mcp-operation-reference.md#ordinary-selected-canonical-reads-and-authoring-continuity).
+
+## Code-index query preparation boundary
+
+Workspace code-index file context, consolidated impact, and the four SCIP
+navigation routes automatically consume one committed-HEAD SQLite publication
+through the shared core preparation owner. Adapters do not implement their own
+refresh loop. Preparation may write the ignored derived cache, but dirty
+worktree state is only disclosed and never enters the committed pair, its
+source bytes, or its inference.
+
+`workspace_code_index_impact` is the ordinary code question over three of those
+owners. Its documented selectors decide which one answers, in a fixed published
+precedence: a change subject (exactly one of `paths`, `patchText`, `diffRecords`
+or `liveGit:true`) asks impact and a compatible `path` or `symbol` narrows that
+subject; `symbol`, or `path` with `line` and optional `character`, asks the
+definition, reference, caller and callee owners, narrowed by `relationship`; `path`
+alone asks file context. Selection has one owner in wiki-core, the registered
+schema validates selector shape only, and a conflicting, empty or undeclared
+selection returns a correction naming every reachable question. The dedicated
+file-context and navigation routes stay registered and unchanged, and role and
+tier grants for all six are identical, so the question adds no capability. The
+complete rules are in
+[MCP Operation Reference](mcp-operation-reference.md#ordinary-code-question-selectors-grounding-and-complete-retrieval).
+
+Before any compact omission, each of those six routes retains its complete
+original answer through the authenticated content-reference owner; a retention
+failure is returned as that owner's failure. File context and the four
+navigation routes bind that answer at `full_result`, as does the composed
+symbol answer the code question returns. Impact retains it as a
+route-bound selected-response source: its compact response is a bounded summary
+with exact counts, the committed identity, `impact_state`, leading affected-file
+paths with relationship counts, and an executable `selected_detail` call.
+`workspace_code_index_impact` with `detail` reads the retained answer's rows,
+fields, and ranges without evaluating, preparing, or rebuilding anything, and
+refuses query arguments beside it. Its pages label the retained observation
+`current`, `changed`, or `unavailable` against the committed HEAD; see
+[MCP Selected Response Details](mcp-selected-response-details.md).
+`verbose:true` is a new evaluation, not recovery of an earlier answer.
+
+The prepared cache is `.cache/repo-code-index/graph.sqlite`. Fixed selected
+queries capture publication identity, rows, counts, and independent provider
+coverage in one read transaction and return copied data after closing SQLite
+and lifecycle handles. Responses carry that captured identity as
+`graph_snapshot`; adapters preserve it unchanged rather than restamping it.
+Stored graph-impact evidence certifies only the publication it captured: when
+dispatch readiness knows the current publication, evidence with a missing or
+different `graph_snapshot` is not consumed as current, and the current graph
+state and existing recovery classification decide instead. Historical evidence
+keeps its recorded snapshot.
+
+`workspace_code_index_status` is strictly read-only and reports independent
+base and `scip_state` freshness without running the builder or providers.
+Provider execution is a backend setup boundary: preparation resolves the fixed
+installed `scip-typescript` and `scip-python` names to absolute executable paths
+and spawns them with `shell:false` in the committed snapshot. Query arguments do
+not select executables, install or acquire packages, or alter environment
+authority. The Python invocation receives the validated captured commit as its
+explicit `--project-version`; it does not infer a version from archive metadata,
+guess one, or add `.git` to the snapshot. Provider failures remain explicit and
+may coexist with independent partial evidence.
+
+The shared SCIP decoder uses the official `@scip-code/scip` generated bindings.
+Its provider publication stores native `symbol_occurrences` independently of
+aggregate graph edges, retaining repeated positions, same-line candidates,
+document-local identities, roles, resolution, and coarse one-based inclusive
+whole-line source/enclosing regions. End-exclusive multiline ranges ending at
+column zero exclude that final producer line. Coverage reports invalid or
+unsupported ranges; adapters must not treat these regions as precise cursor
+selection or synthesize relationships from proximity.
+
+Provider availability is independent of committed-input freshness. A partial or
+unavailable overlay remains fresh and reusable while its committed HEAD and
+generator identity match, so provisioning followed only by a normal query does
+not replace it. After provisioning, an operator must request a one-time rebuild
+with SCIP enabled through a runtime surface that exposes that capability, then
+retry. The current role may not expose such a rebuild route; status remains
+read-only and cannot perform this recovery.
 
 ## Authoring-ergonomics evidence boundary
 
@@ -180,113 +566,27 @@ This compact report/query contract is owned by `work record`.
 
 ## Controlled-contract adapter boundary
 
-Test-proof authoring uses three dedicated package-backed operations. Use
-`workspace_controlled_test_proof_authoring_describe` for the current binding
-schema and closed vocabulary, `workspace_controlled_test_proof_query` with exact
-same-WK verification identities for bounded selective reads, and
-`workspace_controlled_test_proof_patch` for typed digest-CAS mutation. The core
-and MCP layers resolve canonical carriers and transport package results; they do
-not define test-proof fields, enums, defaults, migration rules, or validity.
-Valid v0.2 carriers remain readable and return `migration_required`; mutation
-does not perform implicit migration.
+The MCP adapter registers the semantic proof surface from one authoritative
+registry. Production registration, discovery, role policy, and routing must
+contain the same names. Removed public names are unknown to `tools/call`.
 
-Structured validation graph authoring uses the separate
-`workspace_controlled_verification_bundle_patch`, whose accepted bundle schema
-version and complete required-field population are owned by
-`packages/controlled-contract/lib/test-proof-contract-v1.mjs` and derived by both
-the MCP schema and the authoring state's emitted template. Its input contains only the
-resolved WK identity, optional focus, current carrier digest, and at most 64
-strict upsert/remove operations over complete
-`controlled-contract-verification-bundle.v1` values. The package applies the
-entire operation population to one private clone, validates and canonicalizes
-only the complete prospective stable-v1 carrier, and returns bounded typed
-diagnostics. Wiki-core performs at most one CAS write, so claim-only and
-proof-only intermediate state is neither returned nor persisted. This route
-cannot replace an existing proof; exact proof replacement remains the dedicated
-test-proof patch operation.
+Ordinary proof authoring uses obligation-coverage upsert, query, and remove.
+Upsert validates complete request input before invoking the semantic owner and
+can atomically combine obligation edits, contract requirements, and explicit
+controlled-acceptance disposition. Query returns saved meaning and currentness;
+validation reports problems without executing providers. Named-proof discovery
+and exact-candidate verification remain separate read and execution operations.
 
-The structured controlled-contract routes are thin repository adapters over
-the public `@agent-chassis/controlled-contract` library. Wiki-core resolves
-canonical `wiki/contracts` carriers and the fixed ignored assessment store;
-wiki-MCP supplies only the configured repository and existing role, schema,
-response, error-envelope, compact/spill, and discovery machinery. The adapters
-do not spawn package CLIs or reproduce vocabulary, validation, intent, pack,
-binding, proof-plan, assessment, exact-binding, capture, or digest semantics.
+The design-preparation route is temporarily registered during its contract-input
+cutover. It exposes no former construction or publication response kinds and is
+not required by ordinary save, validation, or verification. Once cutover
+evidence is complete, the registry contains only the six durable semantic
+operations.
 
-Upstream obligation-source authoring and downstream acceptance-coverage mapping
-authoring/inspection use the same registration and response boundary. Their
-selected-unit/currentness, CAS, failure, independent row/byte bounds, pagination,
-fail-loud no-spill behavior, authority, and role contract is owned by
-[Acceptance-coverage MCP](acceptance-coverage-mcp.md).
-That protocol also owns the two current-carrier-only atomic public mutations,
-`workspace_controlled_contract_acceptance_coverage_patch` and
-`workspace_controlled_contract_obligation_coverage_patch`; this integration
-surface adds no handler-local role grant, operation ceiling, persistence
-primitive, or fallback.
-
-Proof-pack selection and coverage describe have no confidentiality posture.
-Server resolution owns canonical identity, currentness, continuation integrity,
-and atomic persistence, not secrecy or caller authorization. Those workflows
-return all task-required semantic context, share reusable facts once, and page
-losslessly at the active MCP transport ceiling. Opaque continuations bind the
-task and current source state for ownership, freshness, replay handling, and
-cross-session noninterference; they are not an adversarial security mechanism.
-Neither workflow
-has a raw-carrier, generic content-reference, operator-recovery, or shell
-fallback. An enforced confinement backend applies the documented filesystem
-scope projection; direct or otherwise unenforced execution does not. Neither
-mode establishes a separate AgentChassis confidentiality posture.
-
-The same boundary exposes the experimental read-only
-`workspace_controlled_contract_integration_test_design_assess` operation. Its
-strict public request contains only `{repo?, unit, focus?,
-axis_applicability, declared_integration_tests, integration_scenarios,
-interaction_requirements, review_questions}`. The registered schema owns that
-exact accepted-key census. Any extra authority-bearing key—including carrier
-digests or generations, requirements, obligations, acceptance mappings,
-census populations/counts/completeness, provider identity/currentness,
-outcomes, assessment state, or authority claims—is refused before repository
-resolution or evaluation.
-
-Wiki-core reuses the acceptance/obligation-coverage resolver and its canonical
-currentness decisions to select the repository, WK/unit, work record,
-manifest-selected controlled-contract generation, proof-plan generation and
-pack, 63-row-or-current canonical obligation source, and current acceptance
-mapping population. It then invokes only the registered route, exact
-role/tool-profile, result-schema-state, and manifest-selected mutant census
-providers. Each provider supplies its own identity, generation/digest, exact
-population/count, completeness, omissions, and currentness. Unsupported axes
-remain visible and non-pass; no caller population is treated as canonical.
-
-The package evaluator is pure and preserves the five states `pass`, `fail`,
-`incomplete`, `unevaluable`, and `review_only`, exact set/join denominators, and
-deterministic diagnostics. One wiki-MCP response materializer owns each complete
-assessment envelope for both assessment families. It reserves every adapter
-field—including proof `workspaceRepo` and both families' 256-bit
-`assessment_identity`—then gives wiki-core only the remaining summary
-allowance. MCP returns descriptor-owned task-relevant semantic summaries and
-pages: 8,192-byte final summaries and 16,384-byte/64-item detail deliveries.
-These are delivery bounds, not source-row or scalar-content caps. A projection,
-identity, exact count, field path, range, cursor, or currentness state that
-cannot satisfy the contract fails loudly; it is never byte-cut, spilled, or
-replaced by a content-reference envelope. The
-operation writes no carrier, scenario, question, cursor, draft, or assessment
-state and grants no proof, requirement, admission, dispatch, review,
-integration, publication, or completion authority. It never substitutes for
-the existing proof-plan `workspace_controlled_contract_assess` operation or the
-post-integration runtime-proof operation.
-
-Every caller input is typed and bounded. Repository roots, canonical carrier
-paths, evaluation-input filenames named by a canonical proof-plan request,
-package resources, profiles, capture roots, and bundle publication locations
-are resolved server-side. Canonical contract/evaluation-input authoring and
-package-produced proof-plan publication use exact content-digest CAS. Normal
-agent authoring uses expected-absence create, bounded selective query, and typed
-server-side patch; fresh sessions first request only the needed package-backed
-schema target, page/filter identities, query exact nodes, patch by returned
-identity, recover proof-plan metadata, rebuild by its current digest, assess,
-and retrieve only targeted proof/artifact detail. Complete-carrier
-read/replacement is operator recovery only.
+The adapter preserves structured semantic responses, bounded continuation,
+strict errors, CAS/currentness, and response serialization. It does not compile
+a second schema, translate old payloads, infer missing author intent, or expose
+internal carrier, assessment, graph-refactor, or runtime-capture owners.
 
 ### Controlled-contract generation-persistence lifecycle
 
@@ -376,14 +676,11 @@ writes, byte comparison, and publication content digests, so an owner-level
 canonicalization change reaches authoring and integration-capture publication
 without a publication-side algorithm change. Carrier-set resolution remains
 the owner of filesystem selection, and a published manifest is an absolute read
-fence for the whole record: managed persistence, semantic controlled-contract query, `workspace_controlled_test_proof_query`, and
-`workspace_controlled_contract_assess` all consume the same
-manifest-selected generation that `workspace_controlled_contract_authoring_state`
-reports, and none of them scans, materializes, binds, or assesses the legacy
-top-level `wiki/contracts/<WK>.*` copies.
-`workspace_controlled_contract_runtime_prove` reads that same manifest-selected
-root generation, but from the private detached checkout it materializes at the
-authenticated integrated WK tip rather than from the landing checkout. The manifest names the exact bytes;
+fence for the whole record. Managed persistence, semantic obligation query,
+validation, and verification consume the same manifest-selected generation,
+and none scans, materializes, binds, or assesses legacy top-level
+`wiki/contracts/<WK>.*` copies. Verification reads that generation from the
+exact candidate selected by its runtime authority. The manifest names the exact bytes;
 `wiki/contracts/<basename>` remains the canonical repository identity those bytes
 are persisted under on the WK ref. The legacy top-level population is read only
 while no manifest is published for the record, and a malformed, incomplete, or
@@ -427,13 +724,11 @@ application success. A valid exact-winner convergence may return the verified
 winner receipt; a no-op without that proof fails typed.
 
 The empty-corpus boundary is owned by wiki-core because it is reached before a
-launcher attachment request exists. It keeps its `contract_required` stage and
-its exact
-`workspace_controlled_contract_authoring_describe({carrier_kind:"contract"})`
-continuation, but carries them inside a typed
-`controlled_contract_generation_empty` refusal: a persistence call never returns
-authoring state as its normal result, and neither launcher binding nor
-persistence is invoked. The launcher primitive owns only persistent-ref
+launcher attachment request exists. It reports the missing canonical contract
+source as a typed `controlled_contract_generation_empty` refusal without
+inventing a callable correction whose required authored meaning is unknown. A
+persistence call never returns authoring state as its normal result, and neither
+launcher binding nor persistence is invoked. The launcher primitive owns only persistent-ref
 resolution after a non-empty validated generation reaches it. A confirmed absent
 or dangling lifecycle ref exposes the typed prerequisite facts plus the supported
 operator recovery route, now additionally typed as
@@ -455,153 +750,37 @@ form before any path or carrier resolution. Slice identities, WK/slice
 addresses, paths, uppercase values, and noncanonical slugs never become
 launcher or filesystem selectors.
 
-Ordinary proof authoring starts with
-`workspace_controlled_contract_authoring_state({wk_id, focus?})`. The compact
-result exposes its stage, selected resource identities, unresolved decision
-identities/count, disclosed non-authorizing `authoring_evidence`, and exactly one
-directly callable `next_calls` entry or one `stop_condition`. Every nonterminal
-state's action already binds every server-known argument and leaves only genuine
-author semantics open, each enumerated with its exact pointer, target type, and
-server-known compatible candidates, so no stage is advanced by guessing a shape
-or by retrying a schema-discovery call.
+Ordinary proof authoring starts with the obligation-coverage query or upsert.
+Callers can save incomplete typed case meaning, amend it under the current
+digest, read it after restart, validate it explicitly, and remove one selection
+without entering a separate preparation or publication session.
 
-Once the caller has explicitly selected a pack, intents, and bindings,
-`workspace_controlled_proof_authoring_skeleton` returns the separately measured
-evaluation-input and COMPOSED proof-plan-request skeleton. The composed request
-carries the canonical selected-pack population with each pack's exact
-evaluation-input basename, not just the pack being authored. Supplying the
-optional `proposal_draft` alongside `requested_intents` and exactly one of
-`bindings` or `evaluation_input` issues the server-held continuation; without it
-the result reports `continuation_issued: false` and names the re-issue call in
-`next_action`. `digests.continuation` is the package identity digest, never a
-server continuation. No accepted semantic choice is sent again after skeleton
-generation.
+The same upsert accepts contract-level requirements and an explicit
+controlled-acceptance disposition. It compiles and settles those inputs through
+the incumbent owners. Query returns the saved projection, and validation reports
+actual missing or invalid inputs. A required disposition needs no inferred
+rationale; an explicit exemption requires a nonempty authored rationale.
 
-When authoring reaches `proof_graph_required`, the returned proof-graph
-continuation binds the coordinator-authored proposal server-side. Executing its
-published next call delegates canonical-generation composition, the live source
-lease, one atomic carrier-set publication, manifest validation, replay, and
-owner-local recovery to wiki-core. An incomplete proposal advances only the
-server-held continuation and returns its state-derived recovery call; a stale
-lease, conflicting carrier set, failed publication, or indeterminate manifest
-never becomes a partial success. The MCP adapter neither reconstructs the
-proposal nor writes an individual carrier. See
-[Controlled-contract Operations](mcp-controlled-contract-operations.md)
-for the exact route contract.
+Named-proof discovery supplies package-owned proof identities and parameter
+contracts. `workspace_verify_proof` resolves the saved map against the exact
+candidate and is the only public proof operation that executes providers.
+Authoring and validation remain nonexecuting.
 
-Before that sequence can converge, the authoring state resolves every
-structured acceptance-validation identity and its actual canonical method. An
-absent, inspection, or analysis identity yields `verification_graph_required`
-with the exact identity, observed method, required `test_execution` method,
-bounded missing bundle pointers, and a closed atomic-bundle argument skeleton.
-The skeleton is explicitly non-executable until the caller supplies every
-semantic value. A `test_execution` claim with a missing or invalid stable proof
-yields `stable_test_proof_required` with the exact describe, targeted query, and
-complete-replacement patch order. Neither state advertises generic carrier patch
-or operator complete-carrier recovery. These checks use the canonical work-record
-binding facts and stable proof evaluator shared with strict dispatch, whose
-fail-closed admission behavior is unchanged.
+Preparation refusals keep semantic classification and original diagnostics as
+separate facts. A recognized refusal remains `not_executable` when a nested
+cause is unknown; the first diagnostic node's `details.evidence` contains the
+plain-JSON `agent_launch.diagnostic_evidence.v1` capture made before traversal.
+The encoder contract is owned by
+[MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md) and
+[Launch and admission](mcp-dispatch-launch-and-admission.md), not restated here.
+Inline delivery, retained refusal readback, and oversized ranged
+`workspace_read_mcp_content_reference` delivery preserve the same evidence.
+None of those paths retries provider preparation, repairs a validator cache, or
+turns an unclassified cause into execution or recovery authority.
 
-The fixed real-MCP comparison uses these complete sequences:
-
-```text
-low level: intent discover -> pack select -> pack describe -> binding inspect ->
-           evaluation-input describe/create -> request describe/create ->
-           plan metadata -> plan build -> assess
-task-directed: authoring state -> intent discover -> pack select -> skeleton ->
-               continue evaluation input -> continue request -> plan build -> assess
-```
-
-The comparison holds the scenario fixed and varies only the call sequence: the
-fixed work record low-level sequence against the task-directed sequence, both driven
-over the same shared authoring scenario. That shared scenario is the work record
-carriers projected under the work record workflow identity, so the benchmark does not
-read or measure the canonical work record carriers. Both paths consume the identical
-input, which is what makes the difference attributable to the trajectory.
-
-The reduction comes from the trajectory itself — fewer round trips, and no
-accepted semantic choice retransmitted after the continuation — not from any
-response-size ceiling. Bounded projections cap individual responses; they are
-not the mechanism being measured here.
-
-`tests/controlled-contract-authoring-workflow.test.mjs` emits these
-measurements. The low-level sequence measures 11 calls, 2,502 request bytes,
-44,467 result bytes, 46,969 combined bytes, and zero refusals. The task-directed
-sequence measures 8 calls, 1,925 request bytes, 41,573 result bytes, 43,498
-combined bytes, and zero refusals. Its separately counted skeleton result is
-1,764 bytes and its initial state result is 449 bytes. Both paths produce
-byte-identical canonicalized carrier meaning and the same exact proof-plan pack
-selection.
-
-Result-byte totals track the proof-intent catalog, since both sequences begin
-with intent discovery; the call counts and the direction of the comparison do
-not. Reproduce the totals from a checkout whose `@agent-chassis/*` workspace
-links resolve inside the tree under test, because those links otherwise resolve
-into the surrounding checkout and measure code other than the committed state.
-
-For structured proof-plan-request create and selected-pack upsert, callers omit
-`evaluation_input_path`. Exact-pack evaluation-input create, query, patch,
-operator recovery, and binding inspection use canonical `wk_id`, optional
-`focus`, and the indivisible `profile_id`/`profile_version` pair. Creation
-derives a disjoint basename by applying `sha256-canonical-json-v1` to the exact
-profile object:
-
-```text
-WK-####.pack-sha256-<64-lowercase-hex>.evaluation-input.json
-WK-####-<focus>.pack-sha256-<64-lowercase-hex>.evaluation-input.json
-```
-
-The dot-separated pack namespace cannot collide with root or focused carrier
-grammar. Wiki-core validates an addressed input against only that pack. Reads,
-queries, patches, inspection, and recovery prefer an exact canonical request
-binding, then an existing exact-pack carrier, then the compatible legacy
-root/focused carrier. Expected-absence exact-pack creation always selects the
-digest namespace, which permits input-first one-pack adoption.
-
-Request persistence composes bindings server-side. A new one-pack request
-adopts a pre-existing exact-pack carrier and otherwise retains its legacy
-basename. Extending a legacy request preserves its original binding and assigns
-only added packs disjoint basenames; a fresh multi-pack request assigns every
-pack its own basename. Existing legacy root/focused requests remain readable
-and buildable without migration. Caller-supplied paths are never resolution
-authority and must equal the server result when present; absolute, traversal,
-alias, cross-WK, differently focused, wrong-pack, duplicate, missing, and
-substrate-selecting values refuse before persistence.
-
-Proof-plan metadata remains bounded. Missing per-pack input returns the total
-missing count and the first deterministic exact-pack skeleton-description call;
-the caller repeats metadata recovery after authoring that input. Absent or stale
-plans return the exact build call and current plan CAS digest. Build reloads the
-canonical request and all request-bound inputs, validates complete isolated role
-sets, and deterministically CAS-replaces the plan, including request-only
-changes. No recovery result exposes or accepts a filesystem path.
-
-Bounded controlled-contract projections use the package-owned ceilings: 4,096
-bytes for index/list results, 8,192 bytes for the complete materialized
-assessment summary, 16,384 bytes for detail and census deliveries, and 64 items
-per collection or structured-field page. Opaque assessment snapshots are random
-256-bit identities, live for 30 minutes, use capacity 32 with expired-first LRU
-eviction, and confer no path or persistence authority. They retain every
-complete task-relevant public row. The existing server-authenticated cursor
-owner binds collection and typed structured-field continuation to assessment
-identity, exact row selector, source currentness, limits, ordinal, and expiry;
-oversized scalars use identity-bound UTF-8-byte `offset`/`length` retrieval with
-an exact `total`. Registered handlers forward the bounded result through the
-common MCP response guard, which validates descriptor fields, exact counts,
-typed continuation, and shared non-authority. An unexpected exception from
-either assessment handler reaches that same boundary's common complete internal-
-exception diagnostic unchanged; its eleven-field contract is defined once in
-the controlled-contract operations page.
-
-The role profile remains the sole exposure policy. All five canonical profiles
-(orchestrator, reviewer, worker, redteam, and operator) expose the bounded
-assessment queries and private-scope census. No profile exposes a complete
-carrier, proof artifact, persistence, raw recovery, shell, CLI, filename,
-JSON-pointer, filesystem path, or caller-selected raw-mode route. Assessment
-scalar ranges are typed semantic continuation within the existing query routes,
-not a raw byte-offset route. See
-[Controlled-contract Operations](mcp-controlled-contract-operations.md)
-for the exact operation population.
+The temporary design-preparation registration remains only for the contract-input
+cutover and accepts no retired workflow response kinds. It is not a prerequisite
+for ordinary authoring or verification.
 
 ## Controlled-contract validator startup
 
@@ -609,7 +788,7 @@ The wiki MCP server's controlled-contract surfaces compile no JSON Schema of
 their own, and exactly one wiki-core module loads that validator.
 `packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs` is
 the sole owner of controlled-contract package resolution and evaluation-input
-validator loading; it resolves the validator from the package-owned
+validator loading; it resolves the validator from the repository-local
 compiled-validator cache exported as
 `@agent-chassis/controlled-contract/validator-cache`, which is the single owner
 of Ajv construction, schema compilation, cache identity, regeneration, and
@@ -652,10 +831,14 @@ digest; no source-tree digest participates, so editing a module that declares no
 schemas invalidates nothing. A miss runs one generation pass in a worker that
 compiles only the groups whose artifacts are absent or invalid, publishes each
 atomically under the fixed `.cache/controlled-contract/validators` suffix of the
-package's own installation or repository root, and loads those exact artifacts.
-Caller input, prompt text, MCP request content, `HOME`, `XDG_*`, and environment
-policy never select executable cache content, and no cached code runs before its
-identity, containment, file type, and code digest are verified.
+writing repository root, and loads those exact artifacts. The process working
+context supplies its enclosing `.git` root once; package schema and runtime
+bytes determine identity but the installed package and its `node_modules` tree
+own no mutable cache state. Caller input, prompt text, MCP request content,
+`HOME`, `XDG_*`, `TMPDIR`, and environment policy never select executable cache
+content. Retired package-installation caches are not read or migrated, and no
+cached code runs before its identity, containment, file type, and code digest are
+verified.
 
 Managed dispatch ensures that same cache immediately before it invokes the
 family executor, so a launch never pays schema compilation inside the spawn.
@@ -669,12 +852,22 @@ in `the project documentation`.
 
 ## Transport
 
-The only model-to-server transport is transparent stdio over one launcher-minted
-named-FIFO pair. The launcher creates exactly two mode-0600 FIFOs in a fresh
-mode-0700 directory outside repositories and worktrees. It verifies ownership,
-type, mode, directory membership, object identity, and dispatch association,
-then holds Linux `O_PATH|O_NOFOLLOW` references. Bubblewrap binds those two
-objects read-only at fixed launcher paths in the role's one namespace.
+MCP clients receive a stdio command. For confined Claude and Codex roles,
+[decision](../wiki/decisions/decision.md) requires a launcher-owned private
+Unix-domain socket adapter. Each command invocation opens one independent
+connection and, after authentication, receives one fresh host wiki-MCP process,
+protocol session, readiness observer, and lifecycle settlement. Connections may
+overlap; they do not share a protocol byte stream. This is a server per MCP
+command invocation, not per tool call or per whole dispatch. Direct unconfined
+stdio may connect to a directly spawned server. Named-FIFO relays are not a
+supported confined transport.
+
+The launcher establishes admission before the confined client starts. It creates
+the socket and mode-0600 credential file beneath a private mode-0700 root outside
+repositories and worktrees. Bubblewrap projects the endpoint and credential at
+`/run/agent-launch/mcp.sock` and `/run/agent-launch/mcp.token`, together with the
+launcher-pinned connector and the exact Node executable running the launcher.
+The host wiki-MCP server and its dependencies remain outside the namespace.
 
 The client registration is frozen by family:
 
@@ -683,35 +876,28 @@ The client registration is frozen by family:
 - Codex receives only launcher-authored `mcp_servers.wiki` command and args
   overrides in an isolated runtime home.
 
-Both registrations run the same pinned base-system copy relay. The relay opens
-the fixed bound FIFO paths; it does not inherit conduit descriptors. The host
-wiki-MCP process directly owns the opposite FIFO ends. There is no listener,
-endpoint discovery, proxy, intermediary, credential, or alternative transport.
+Both registrations run the same pinned stdio connector. It connects to the fixed
+socket path, proves possession of the launcher-minted credential, and waits for
+the admission acknowledgement before reading and forwarding client stdin.
+Admission spawns a server only after authentication and acknowledges only after
+that generation registers and becomes ready. It forwards bytes between that
+connection and the server's independent stdin/stdout pipes. The credential
+authenticates the already-bound launch and carries no role or routing authority.
+There is no TCP, HTTP, remote listener, or URL-based MCP registration.
 
-The host process also receives one launcher-private, inherited common-proof
-resolver descriptor at fixed descriptor 5. This descriptor is not part of the
-model-to-server transport: `stdio-mcp-conduit-core` creates it from the
-launcher-resolved workspace/store binding, unlinks its mode-private bounded
-carrier, and passes only the open descriptor to the wiki-MCP process. The
-versioned carrier contains only the canonical workspace directory and repository
-alias. Arguments, environment, MCP input, prompts, caller paths, and generic IPC
-cannot mint or retarget it. The wiki-MCP direct entrypoint consumes it once,
-constructs the exact read-only resolver, and injects that function through
-`startWikiMcpServer` and `registerControlledContractTools`. A standalone or
-explicitly unbound server has no resolver and returns
-`common_proof_capture_launcher_resolver_unavailable` for launcher-derived
-capture.
-
-The server reports its exact registered tool surface on a launcher-only pipe.
+Each server reports its exact registered tool surface on a launcher-only pipe.
 The real client must then complete MCP `initialize`, send `initialized`, and
-request `tools/list`. Only after the client has opened both bound objects does
-the launcher close anchors and unlink both FIFO names. Timeout, early EOF,
-client/relay/server exit, type or identity mismatch, tool-surface mismatch,
-cancellation, cleanup failure, and reaping failure are typed and fail closed.
+request `tools/list`. Admission remains available for independent connections
+until teardown. Rejected authentication creates no server generation; a failed
+generation is settled through its own lifecycle. Conduit teardown closes
+admission, settles every owned generation once, reaps owned processes, and
+removes endpoint and credential state. Readiness, expected transport EOF,
+abnormal server loss, and cleanup classification are detailed in the
+[conduit lifecycle](agent-launch-confinement-mcp-conduit.md).
 
 For reviewer and redteam, the expected set comes only from the launcher role
-profile. It retains `workspace_tools_list`, `workspace_tools_describe`, and
-`workspace_tools_query` but excludes the operator-only
+profile. It retains `workspace_tools_list` and `workspace_tools_describe` but
+excludes the operator-only
 `workspace_frozen_review_contract_query`. Readiness compares the real confined
 client's returned `tools/list` exactly: missing and extra tools both fail before
 inference. The reduced population does not make any tool optional. Host
@@ -737,23 +923,15 @@ before conduit construction, and refuses a mismatched or unreadable producer
 there — before the family executor can spawn a confined worker, reviewer,
 redteam, or orchestrator.
 
-That same fresh-process probe imports the installed common-proof capability
-consumer and compares its version with the launcher's producer version. A
-version mismatch or unreadable consumer refuses before host spawn; the runtime
-never attempts a permissive descriptor parse or an unbound fallback for a
-present malformed capability.
-
 Only equality permits initialize and exact `tools/list`. Old, missing,
 malformed, unknown, or incompatible generation evidence returns the existing
 `stdio_mcp_lifecycle_protocol_incompatible` blocker and bounded
 coherent-build/restart detail. The projection preserves that originating modeled
 startup identity; it does not replace it with `operator_recovery_needed`.
 It authenticates no delivery, creates no review or integration transition, and
-opens no retry or fallback. A legacy consumer may instead return its existing
-unknown-lifecycle readiness blocker for the v2 registration, still before child
-spawn.
+opens no retry or fallback.
 
-After registration, the launcher enforces a single-generation phase machine:
+For each generation, the launcher enforces its own phase machine:
 await server registration/generation, server compatible, await initialize,
 await exact `tools/list`, ready, client closed, and terminal (or failed).
 Duplicates, close-before-readiness, evidence after close, unknown schemas, and
@@ -768,8 +946,9 @@ records no usable verdict, consumes no review obligation, changes no
 implementation state, and cannot veto a later independently authenticated
 attempt.
 
-The public dispatch-facing taxonomy is producer-complete. Construction and
-binding failures use `stdio_mcp_conduit_input_invalid`,
+The public dispatch-facing taxonomy is registered in
+`packages/wiki-core/data/runtime-blocker-codes.v1.json`. Construction and
+binding codes include `stdio_mcp_conduit_input_invalid`,
 `stdio_mcp_conduit_family_unsupported`,
 `stdio_mcp_conduit_private_root_unavailable`,
 `stdio_mcp_conduit_directory_invalid`,
@@ -792,9 +971,22 @@ Host-server failures use `stdio_mcp_host_server_unavailable`,
 Namespace and teardown failures use
 `stdio_mcp_conduit_requires_bubblewrap`, `stdio_mcp_conduit_cancelled`,
 `stdio_mcp_conduit_cleanup_failed`, `stdio_mcp_conduit_reap_failed`, and the
-family-neutral terminal projection `stdio_mcp_cleanup_failed`. Every code is
-registered in `packages/wiki-core/data/runtime-blocker-codes.v1.json`, has a
-production producer, and is a blocking dispatch-facing failure.
+family-neutral terminal projection `stdio_mcp_cleanup_failed`. Some retained
+identifiers contain `fifo` or `relay`; their names do not establish a supported
+FIFO transport. Production composition selects the local socket channel.
+
+## Anonymous metrics
+
+The registration boundary wraps every registered handler exactly once. When the
+host setting `AGENT_CHASSIS_MCP_METRICS_ROOT` names a valid destination, that
+wrapper records anonymous numeric metrics — registered tool name, UTC hour,
+outcome, handler duration, and handler-JSON byte counts — into compressed local
+files, and otherwise forwards calls unchanged. It never records arguments,
+results, errors, or caller, session, or repository identity, and it never changes
+a tool's result or thrown value. There is no MCP route for reading metrics; the
+files are the interface. The server's existing shutdown close hook flushes them.
+See [Anonymous MCP metrics](mcp-telemetry.md) for the format, retention, limits,
+and crash-loss behavior.
 
 ## Role authority
 
@@ -806,9 +998,10 @@ Orchestrators receive the coordinator tool profile. Agy is unsupported for this
 confinement contract and is refused before launch.
 
 The frozen per-run binding covers family, assigned unit, role profile, worktree
-identity, R union W visibility, write authority, host-server process, both FIFO
-objects, exact relay registration, and lifecycle owner. A binding is immutable
-and cannot be reconstructed or replayed across runs or families.
+identity, R union W visibility, write authority, host-server factory, local
+admission endpoint and credential, exact connector registration, and lifecycle
+owner. Each admitted connection has its own server generation. A binding is
+immutable and cannot be reconstructed or replayed across runs or families.
 
 ## Trusted mutations
 
@@ -830,6 +1023,19 @@ are policy facts for the configured CCE boundary, not local chassis vetoes.
 After a successful integration, current-slice cleanup uses the launcher-proven
 path/ref binding and tolerates checkout dirt; a cleanup failure is reported as a
 separate post-integration outcome and does not undo or relabel the integration.
+
+The submission outcome is reported as truthfully as the write it depends on.
+`commit_slice` and `workspace_submit_for_review` share one response owner, and
+its `submitted` field (surfaced by the commit response as
+`submitted_for_review`) carries the same three outcomes as `written`: true where
+the canonical implementation-to-review transition demonstrably landed or was
+already in place, false where it demonstrably did not, and null where storage
+could not establish canonical publication. A null is not a success and not a
+demonstrated failure; it is the same uncertainty the receipt beside it reports,
+and the caller inspects the canonical record rather than repeating the
+submission. Reporting an outcome truthfully grants no additional authority:
+the route still moves only the assigned unit to review and still advances no WK
+ref and authorizes no integration or completion.
 
 When no trusted conduit plan is supplied, the generic bubblewrap planner and
 spawn primitive retain their ordinary behavior.
@@ -862,11 +1068,11 @@ value and chooses its actions; wiki-core mechanically validates it once and owns
 the typed result plus the independently retained diagnostic carrier. wiki-MCP
 consumes only that typed result. It does not parse or revalidate the raw CCE
 member, define a parallel recovery vocabulary, select another action, or change
-the returned effect. Ordinary `workspace_validate_dispatch` output carries only
-bounded diagnostic metadata; those presentation bounds do not affect
-conformance. The `verbose:true` projection and ranged content-reference
-transport carry the complete typed result, reasons, response provenance, and
-retained recovery carrier value-identically and in producer order.
+the returned effect. The sole ordinary `workspace_validate_dispatch` response
+and ranged content-reference transport carry the complete relevant typed result,
+reasons, response provenance, and retained recovery carrier value-identically
+and in producer order. The normative request, response, recovery, detail-owner,
+and size contract is in [MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md).
 
 The existing `jsonContent` boundary serializes that complete envelope before it
 decides whether to inline or spill. A spilled response is therefore lossless:
@@ -902,7 +1108,7 @@ by `authority_binding_unratified` or another worker-only condition.
 
 ## Work-record allocation in an orchestrator session
 
-Use `workspace_create_record` for allocator-backed record creation in a configured workspace. Creating a `WK-*` produces the canonical inbox template only; the route accepts no caller filesystem root and no birth-time controlled contract, proof bundle, slice graph, readiness claim, or lifecycle status.
+Use `workspace_create_record` for allocator-backed record creation in a configured workspace. Creating a `WK-*` produces the canonical inbox template only; the route accepts no caller filesystem root and no birth-time controlled contract, proof bundle, slice graph, readiness claim, or lifecycle status. Its response names ordinary obligation-coverage query as the next call so the caller can obtain the combined revision before authoring contract requirements and explicit controlled-acceptance disposition through ordinary upsert.
 
 Continue through the [design-first operating model](../AGENTS.md#wk-first-work): design and review disposition precede semantic controlled-contract/proof authoring, and `workspace_work_record_ready_slice` shapes independently executable units. CCE alone owns lifecycle sequencing and admissibility. The MCP server does not implement a local readiness gate or recovery protocol for an unregistered creation operation.
 
@@ -948,10 +1154,15 @@ before any canonical write, so authors can see the projection in advance.
 
 The route is non-mutating with respect to canonical records and admission
 sidecars. It may write only the git-ignored code-index derived cache authorized
-by accepted decision section 5: the artifact and its directory, the lease
-directory, and the lock, candidate-slot, lease, heartbeat, publication, and
-release files. Those files may be produced on any `index_action` rebuild
-verdict, not only when HEAD is stale.
+by accepted decision section 5: `graph.sqlite`, the owned same-directory
+`.graph-candidate-*.sqlite` preparation file and its rollback journal, and the
+small `lifecycle.sqlite` updater lock. Publication identity is recorded in the
+graph database, and an update publishes by renaming a complete candidate over
+`graph.sqlite`; there are no lease rows or filesystem lock, candidate-slot,
+heartbeat, or release files. A publication already tagged with the captured
+commit is reused without writing; these cache files are produced only when
+automatic preparation finds the committed index missing, stale, incompatible, or
+without complete provider coverage.
 
 The route reports whatever admission returns and defines none of it: it sets no
 thresholds, verdicts, or remedy selection, and does not duplicate admission
@@ -961,18 +1172,36 @@ reason.
 ## Advisory tool-router continuations
 
 `workspace_tool_router_recommend` is a compact read-only selector, not an
-authority boundary. A matched result contains exactly one recommended canonical
-`next_calls` entry, all server-known arguments, explicit
-`required_authored_fields`, and `next_calls_completeness`. It does not append a
-family inventory, disallowed catalog, or unrelated alternative. The result does
-not decide readiness, admission, mutation, dispatch, lifecycle, or policy; the
-named operation independently validates its request and owns every such
-decision.
+authority boundary. A matched result names its `suggested_arguments`, explicit
+`required_authored_fields`, and `next_calls_completeness`. When the proposal is
+complete it contains exactly one recommended canonical `next_calls` entry. When
+a route-authored field or an unconditionally required request property is
+missing, the result stays `matched`, names the `operation`, and returns an empty
+`next_calls` with zero completeness counts: an incomplete proposal is guidance,
+never an executable partial call. A missing field that the route declares as
+server state is not an authored choice. It appears in `server_state_fields` with
+the `result_field` of its declared read, and when that read is visible and its
+arguments are complete, `next_calls` contains the read as the one recommended
+call. For example, proof-obligation authoring names the obligation-coverage
+upsert, requires authored `obligations[]` items that each carry their
+`obligation_id`, and recommends
+`workspace_controlled_contract_obligation_coverage_query({unit})`, whose
+`content_digest` is the upsert's `expected_content_digest`. Obligation removal
+reports the same server state. An explicitly supplied supported `focus` is
+carried into both the proposed write and that digest read, so the digest always
+belongs to the selected focus; an unsupported focus is dropped rather than
+proposed. A hidden read is
+not named, and its field stays in `required_authored_fields`. It does not append a family inventory,
+disallowed catalog, or unrelated alternative. The result does not decide
+readiness, admission, mutation, dispatch, lifecycle, or policy; the named
+operation independently validates its request and owns every such decision.
 
 An ambiguous result recommends no operation. It returns ordered
 `clarification_choices`; each visible choice names the exact operation, known
-arguments, and missing authored fields. The unflagged calls are alternatives,
-not recommendations.
+arguments, and missing authored fields. Only a complete choice also appears in
+`next_calls`, as an unflagged alternative rather than a recommendation;
+`candidate_count_total` counts choices and `next_calls_completeness` counts only
+emitted callable entries.
 `candidate_intents` and `clarification_choices` normally show at most the
 configured bound, while `candidate_count_total` always reports
 the exact task-selected population. If the bounded view omits candidates,
@@ -985,11 +1214,75 @@ counts distinguish the bounded projection from the complete result.
 
 An unknown result has exactly one operative limb. When the caller already
 supplied an exact discovery selector (`known_resources.task_id` or
-`known_resources.tool_name`) or a docs/wiki path, `next_calls` contains one
-bounded executable recovery and `recovery.state` is `callable`. Otherwise the
-list is empty and `no_supported_route`, `stop_condition`, and `recovery.state`
-all explicitly report `no_supported_route`; prose guidance is never the only
-termination signal.
+`known_resources.tool_name`) or a docs/wiki path, and that recovery operation is
+visible, `next_calls` contains one bounded executable recovery
+(`workspace_tools_list({task_id})`, `workspace_tools_describe({tool_name,
+limit:1})`, or `workspace_search_repo({query})`) and `recovery.state` is
+`callable`. Otherwise the list is empty and `no_supported_route`,
+`stop_condition`, and `recovery.state` all explicitly report
+`no_supported_route`; prose guidance is never the only termination signal.
+
+Every executable call the router emits, including ambiguous alternatives, the
+complete-candidate continuation, recovery calls, and their nested copies, is
+checked against the named tool's registered request contract before it is
+built. The published request schema of that tool must accept the exact
+arguments under the shared next-calls request-contract check, and the tool's
+original full input schema must accept them too, so an undeclared field, a
+union member, a pattern, or a refinement that a compact declaration cannot
+express still decides. Emitted arguments are never replaced by parser output.
+A missing registration, an unprojectable schema, or server-authored arguments
+that fail either check are producer defects: the route fails visibly with
+`tool_router_request_schema_unavailable` or
+`tool_router_request_contract_invalid`, naming only the selected tool and the
+failing stage. Neither error nor any ordinary response carries a schema, a
+schema registry, field values, or validator trees, and no automatic verbose
+discovery is added; a caller that wants a tool's complete contract uses
+`workspace_tools_describe` with that `tool_name` and `verbose: true`.
+
+Role and subject routing follows the current target contracts. A worker start
+or dispatch request recommends `workspace_validate_dispatch` with
+`dispatch_role: "implementation"`. An explicit reviewer or redteam dispatch
+recommends `workspace_agent_dispatch({subject, role})` directly and never enters
+worker readiness; an explicitly known `diff_base_sha` and `reviewed_sha` are
+forwarded from `known_resources` unchanged, and a selected initiative is an
+eligible subject only for redteam. A readiness question maps worker or
+implementation to `dispatch_role: "implementation"`, explicit `read_only` to
+`read_only`, and omits the role when it is role-agnostic; a reviewer or redteam
+readiness question selects compact `workspace_tools_describe` for
+`workspace_agent_dispatch`, whose findings operation assesses its own material.
+A missing or unsupported role is an authored choice and is never remapped.
+Monitoring recommends `workspace_agent_run_status({subject})` from an explicit
+canonical WK, slice, or IN subject or the selected context; a monitor handle is
+never a status argument, and a proof identity never becomes an agent-run
+subject. List editing uses the ordinary editor with the known `unit` and
+`kind: "list"` and requires the authored `field`, `action`, and `value`.
+Replacing a summary uses the same editor with `kind: "scalar"`,
+`field: "sections.summary"`, and `action: "replace"` and requires the authored
+`value`; descriptive task text is never used as replacement content. A request
+to read one known entry recommends
+`workspace_work_record_entry_read({unit, entry_id, include_body: true})`, and a
+request to list a unit's entries recommends it with the unit alone. Other
+selected-context requests, such as acceptance criteria or write scope, keep the
+compact summary route. A request for a unit's contract requirements and claims
+recommends `workspace_controlled_contract_obligation_coverage_query({unit})`.
+
+Phrases match as normalized substrings, or when their words occur in order
+separated only by articles, possessives, prepositions, run-role qualifiers such
+as `reviewer`, and parts of durable identifiers. "Replace the summary of
+WK-0001" therefore matches the phrase "replace summary", and "Monitor the
+reviewer run" matches "monitor run". A task that uses a write verb without
+asking for an explanation is a write request; explanatory guidance and entry
+reads do not match it. A field name such as `write_scope` is not a write verb.
+A request for the initiative or unit status lens selects
+`workspace_initiative_status` rather than run monitoring, and a slice address
+inside a monitoring request is that run's subject rather than a request for the
+slice record; a genuinely additional request keeps the result ambiguous.
+
+A task that asks for an explanation and also asks to write is not answered as
+pure help. The result is ambiguous, states that reading the guidance alone would
+drop the requested write, and offers the explanation as an unflagged
+alternative; no save is synthesized, and the authoring operation's missing
+authored fields stay the caller's to supply.
 
 Routing uses the checked-in intent vocabulary and module-relative discovery
 metadata. The intent vocabulary alone owns match phrases, semantic intent
@@ -998,7 +1291,10 @@ assembled descriptor owns task identities, recommended-first-call metadata,
 availability, and broad ordering. The generic next-calls descriptor constructs
 and validates the resulting call list. The MCP adapter scopes the descriptor by
 the launcher/server-minted role and tier before selection; request fields,
-prompt text, argv, and ambient caller data cannot widen it. A matched but hidden
+prompt text, argv, and ambient caller data cannot widen it. The adapter also
+passes the request-contract lookup of the registrar it was registered through
+(see Registered request contracts below); a hidden operation is withheld before
+any lookup. A matched but hidden
 operation returns `visibility_withheld` with the closed reason
 `operation_not_visible_in_session_profile`, no operation identity, no recovery,
 and no refusal claim.
@@ -1007,18 +1303,26 @@ The router neither reads nor derives authority from repository-root
 `AGENTS.md`, so construction is identical when that file is present, empty, or
 absent. Responses remain task-selected and do not expose a flat tool catalog.
 
+The router is optional. A caller that already knows the exact supported
+operation calls it directly, and that operation's registered request contract,
+refusals, and results remain authoritative. The router serves requests whose
+tool choice is uncertain. Neither the router nor `workspace_tools_list` or
+`workspace_tools_describe` discovery is a prerequisite for a known call.
+Discovery answers actual discovery needs, such as an unknown capability,
+availability, or a tool's complete contract.
+
 ### work record live routing baseline
 
-The complete delivered regression population contains eleven cases: WK
-allocation, acceptance editing, controlled authoring entry, obligation and
-acceptance coverage describes, explicit proof-pack selection, unknown proof
-intent discovery, known-unit review dispatch readiness, known-handle
-monitoring, documentation lookup, and one role-invisible operation. The
-2026-09-02 baseline is classification accuracy `11/11`, first-operation/outcome
-accuracy `11/11` (including the expected withheld outcome), recommended-call
-count `10/11`, duplicate count `0/10`, populated server-known argument rate
-`15/15`, and calls before the owning operation `0/10`. The compact JSON results
-total 5,926 UTF-8 bytes under the test's sum-of-serialized-results measurement.
+The current regression population contains nine cases: WK allocation,
+acceptance editing (guidance with required authored fields and no executable
+call), controlled authoring entry, obligation coverage query, unknown proof
+intent discovery, known-unit reviewer dispatch, known-handle monitoring by
+canonical subject, documentation lookup, and one role-invisible operation. The
+baseline is classification accuracy `9/9`, first-operation/outcome accuracy
+`9/9` (including the expected guidance and withheld outcomes), recommended-call
+count `7/9`, duplicate count `0/7`, populated server-known argument rate
+`10/10`, and calls before the owning operation `0/7`. The compact JSON results
+total 4,599 UTF-8 bytes under the test's sum-of-serialized-results measurement.
 That byte value is trajectory evidence, not a content limit or acceptance
 threshold.
 
@@ -1046,10 +1350,79 @@ rejected before (the offending field is still identified; only the rejection lay
 may move from schema to handler). Plain `ZodObject`, raw-shape, and genuine
 no-argument (`z.object({})`) inputSchemas are untouched, and because the fix is at
 the shared boundary a future tool authored with `.refine()` / `.superRefine()` is
-normalized automatically. Tool authors may therefore use refinements freely. The
-`$schema`-absent empty-object sentinel on `tools/list` is the symptom to watch
-for; `tests/mcp-startup-regression.test.mjs` fails on any argument-accepting tool
-that publishes it.
+normalized automatically. A refined route that also declares an input-failure
+projector registers that inner object as a declaration-only view, so the full
+schema in the handler is the one validator and its unknown-field and type
+refusals reach the projector too. Tool authors may therefore use refinements
+freely. The `$schema`-absent empty-object sentinel on `tools/list` is the
+symptom to watch for; `tests/mcp-startup-regression.test.mjs` fails on any
+argument-accepting tool that publishes it.
+
+A request the enforced schema refuses inside that wrapper fails unchanged as a
+typed input failure, not as an internal handler exception. The result is
+`isError: true` with `ok: false` and a `diagnostic` whose `code` is
+`tool_input_validation_failed` and whose `authority_limb` is
+`mechanical_failure`. The diagnostic is generated from the validator itself:
+`message` is the tool name followed by the complete validator message,
+`validator_diagnostics` is the complete issue list (issue codes, paths, expected
+and received types, enum options, bounds, and every nested union branch), and
+`rejected_field_paths` renders each issue path. An owner projection carried on an
+issue, or a route's input-failure projector result, keeps precedence. Route details
+passed to `createToolInputValidationError` may add facts but cannot overwrite its
+generated diagnostic fields. Proof
+discovery adds `allowed_field_sets`, the fields each alternative of its request
+union permits, read from that union. `workspace_read_page` adds
+`digest_placement` for a misplaced top-level `expected_source_digest`. The
+failure carries `next_calls` only when a route names a call it checked against
+its own complete schema; `workspace_read_page` offers the same read without the
+misplaced digest. The server does not retry, reduce a bound, substitute a value,
+or require a discovery call first, and an oversized diagnostic spills through
+the same content-reference transport as any other result. A validator,
+projector, or handler that throws is still an unexpected internal failure, and
+a plain object schema is still refused by the SDK with `-32602` before any
+handler runs. Proof discovery defines each request field once and composes both
+its strict alternatives and its compact advertisement from those definitions.
+
+A compact registration declares `advertisedInputSchema` beside its authoritative
+`inputSchema` and may declare `inputContractSchemaSource`: `authoritative`, the
+default, or `advertised`. The boundary consumes both declarations and neither
+reaches the SDK. The SDK receives a declaration-only view of the advertised
+schema, the compact declaration register keeps the advertised schema itself, and
+the source selects only which of the two schemas verbose discovery projects as
+the complete input contract. The handler enforces the authoritative schema
+whichever source is selected. An unrecognized source refuses registration with
+`agent_tool_input_contract_schema_source_invalid`, and `advertised` without an
+advertised schema refuses with
+`agent_tool_input_contract_schema_source_without_advertised_schema`; both fail
+before the SDK registers the tool.
+
+### Registered request contracts
+
+The same boundary retains, per registrar, the request contract of every tool it
+actually registers, in `packages/wiki-mcp/src/lib/registered-tool-request-contracts.mjs`.
+`createRegisterTool` creates one store for the registrar it returns. After the
+profile and tier gates and a successful SDK registration, the store keeps a
+reference to the original `inputSchema` and to the effective schema handed to
+the SDK (the compact advertisement, the inner object of a refined schema, the
+raw shape, or no schema for a deliberately argument-free tool). Hidden, skipped,
+and failed registrations retain nothing, and a lookup for an unregistered tool
+returns nothing rather than an empty contract. A second registration of the same
+name with a different declaration is refused and withdraws the retained
+contract. `registeredToolRequestContracts(registerTool)` returns the lookup of
+exactly that registrar, so server instances never share contracts and a wrapped
+registrar has none of its own. Lookups read the live store, so a tool registered
+after a consumer obtained the lookup resolves at request time.
+
+The store is an internal handoff: it is not a tool, a protocol surface, or a
+copied argument table, and nothing in it is serialized. For one selected tool it
+projects the published JSON Schema lazily with the installed SDK's own
+`normalizeObjectSchema` and `toJsonSchemaCompat` conversion, using the same
+`strictUnions: true` and `pipeStrategy: "input"` options as `tools/list`, and
+caches it for the registrar's lifetime. Full validation uses the retained
+original schema's async parser. No handler, audit wrapper, input-failure
+projector, repository resolver, or dispatch backend runs during either check.
+Retention costs one entry per registered tool; projection and validation happen
+only for the tools a consumer selects.
 # Stable controlled-contract routes
 
 Controlled-contract MCP authoring is stable-v1 only. The supported sequence is
@@ -1086,8 +1459,8 @@ reviewer is read-only and never creates Git objects. Terminal-candidate status,
 terminal-candidate advance, and forge handoff are not part of this route.
 
 Reviewer and redteam confined clients must expose the exact policy-derived tool
-surface before inference. It includes `workspace_tools_list`,
-`workspace_tools_describe`, and `workspace_tools_query` and excludes the
+surface before inference. It includes `workspace_tools_list` and
+`workspace_tools_describe` and excludes the
 operator-only `workspace_frozen_review_contract_query`. Omission of any required
 tool, or addition of any non-profile tool, fails before inference with the
 registered stdio client/tool surface mismatch and bounded
@@ -1113,41 +1486,3 @@ capture failure cannot prevent a later dispatch. Prior actions and their roles o
 metadata cannot mechanically refuse another action. Implementation and integration
 lifecycle allocation, persistence, recovery, ref, CAS, and forge behavior remain
 independently owned and unchanged.
-
-## Refactor adapter and bounded transport
-
-The controlled-contract registrar exposes
-`workspace_controlled_contract_refactor_plan`,
-`workspace_controlled_contract_refactor_query`, and
-`workspace_controlled_contract_refactor_apply` through the
-`controlled_contract_refactor` routing intent. The adapters resolve `repo` to a
-server workspace and otherwise forward the exact wiki-core schemas and outcomes.
-They do not accept roots or paths, reconstruct carrier state, classify graph or
-coverage semantics, mint policy, or alter owner reason codes. Plan and query use
-`writeSemantics:none`; apply uses whole-field replacement semantics for its
-single opaque continuation.
-
-Wiki-core returns the exact semantic binding for each next plan or receipt page.
-The adapter passes that object unchanged to
-`createControlledContractTaskCursorCodec`, and authenticates/decodes a supplied
-cursor before invoking wiki-core. Authentication is not implemented in
-wiki-core and semantic pagination is not recomputed in wiki-MCP. Malformed,
-forged, expired, cross-kind, cross-resource, wrong-snapshot, and stale cursors
-therefore retain the task-cursor or wiki-core semantic owner that detected them.
-
-If one plan or receipt semantic item exceeds the 16 KiB inline item threshold,
-the adapter asks the existing MCP response owner to persist only that item. The
-returned `controlled-contract-refactor-item-reference.v1` embeds the existing
-`wiki_mcp_response_content_reference` descriptor. Call
-`workspace_read_mcp_content_reference` with successive bounded offsets to
-recover the exact item and verify its byte count and SHA-256. The rest of the
-page stays inline and its counts remain truthful. This helper is not available
-as a generic artifact write or query API and does not change whole-response
-spill behavior.
-
-Role policy grants plan and apply to orchestrator and operator. Query is also
-visible to reviewer, worker, and redteam. None of the three grants proof,
-evidence, acceptance, review, dispatch, integration, publication, completion,
-or CCE authority; apply's publication effect remains owned by wiki-core's
-existing source lease, canonical publisher, coverage persistence, continuation,
-reconciliation, and receipt machinery.

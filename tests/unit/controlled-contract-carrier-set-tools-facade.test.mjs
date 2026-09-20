@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +9,11 @@ import { fileURLToPath } from "node:url";
 
 import * as facade from
   "../../packages/wiki-core/src/lib/controlled-contract-carrier-set-tools.mjs";
+import { withCanonicalWorkRecordReadLease } from
+  "../../packages/wiki-core/src/operations/work-records-store-io.mjs";
+import { writeCanonicalWorkRecord } from "../helpers/controlled-contract-carrier-set-fixtures.mjs";
+import { projectVerifyProofFailure } from
+  "../../packages/wiki-mcp/src/lib/verify-proof-public-result.mjs";
 
 const TESTS_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = path.resolve(TESTS_DIR, "..");
@@ -56,10 +61,13 @@ const RESULTING_PRODUCTION_FILES = Object.freeze([
   "controlled-contract-carrier-set-evaluation.mjs",
   "controlled-contract-carrier-set-resolution.mjs",
   "controlled-contract-authoring-continuations.mjs",
+  "controlled-contract-authoring-continuation-records.mjs",
   "controlled-contract-authoring-continuation-storage.mjs",
+  "controlled-contract-continuation-encoding.mjs",
   "controlled-contract-carrier-set-authoring.mjs",
   "controlled-contract-source-lease-primitives.mjs",
   "controlled-contract-source-lease-acquisition.mjs",
+  "controlled-contract-source-lease-continuation.mjs",
   "controlled-contract-carrier-writes.mjs"
 ].map((name) => `${LIB_DIR}/${name}`));
 
@@ -208,6 +216,44 @@ test("generation selection verifies a root-only claim population", async (t) => 
     [root],
     "root-only"
   );
+});
+
+test("generation member failures preserve operation, owner context, and original exception", async (t) => {
+  const repoRoot = await createCarrierRepository(t);
+  const published = await publishClaimGeneration({
+    repoRoot, wkId: "WK-9110", claimId: "claim-root", value: "root-v1"
+  });
+  const memberPath = path.join(repoRoot, "wiki", "contracts", ".carrier-generations",
+    published.generation, published.filename);
+  await unlink(memberPath);
+  let failure;
+  await assert.rejects(resolveGeneration(repoRoot, "WK-9110"), (error) => {
+    failure = error;
+    return error?.code === "controlled_contract_carrier_set_partial_generation";
+  });
+  assert.equal(failure.details.operation, "lstat");
+  assert.equal(failure.details.filename, published.filename);
+  assert.equal(failure.details.path, memberPath);
+  assert.equal(failure.details.generation, published.generation);
+  assert.equal(failure.details.generation_path,
+    `.carrier-generations/${published.generation}`);
+  assert.equal(failure.details.wk_id, "WK-9110");
+  assert.equal(failure.details.focus, null);
+  assert.equal(failure.details.cause_code, "ENOENT");
+  assert.equal(failure.cause?.code, "ENOENT");
+  assert.equal(failure.cause?.path, memberPath);
+  assert.match(failure.cause?.stack ?? "", /ENOENT/u);
+
+  const refusal = projectVerifyProofFailure(failure, { subject: "WK-9110" });
+  assert.equal(refusal.reason_code, "controlled_contract_carrier_set_partial_generation");
+  assert.equal(refusal.status, "not_executable");
+  assert.equal(refusal.proof_results.length, 0);
+  assert.equal(refusal.diagnostics.length, 1,
+    "the unclassified filesystem cause must remain evidence, not gain semantics");
+  const evidence = refusal.diagnostics[0].details.evidence;
+  assert.equal(evidence.value.properties.details.operation, "lstat");
+  assert.equal(evidence.value.cause.properties.path, memberPath);
+  assert.equal(evidence.value.cause.properties.code, "ENOENT");
 });
 
 test("generation selection verifies a focused-only claim population", async (t) => {
@@ -371,4 +417,42 @@ test("semantic claim verification kills root-collapse and ignored-focus mutants"
       error.message.includes("ignored-focus mutant"),
     "claim verification must kill a selector that ignores a selected focused carrier"
   );
+});
+
+test("continuation leases refuse unbound records before any lock and release the record lease", async (t) => {
+  const repoRoot = await createCarrierRepository(t);
+  const wkId = "WK-9103";
+  const contracts = path.join(repoRoot, "wiki", "contracts");
+  await writeCanonicalWorkRecord(repoRoot, wkId);
+  try {
+    const workbench = await facade.rememberControlledContractAuthoringContinuation({
+      repoRoot, wkId, focus: null, contract: null, skeleton: null,
+      workbench: {
+        row_id: "contract_assessment:row-one", row_digest: sha256(Buffer.from("row")),
+        source_identity: { wk_id: wkId }, dependencies: [],
+        semantic_owner: "contract_carrier", response_kinds: ["contract_requirements"],
+        owner_context: { expected_content_digest: sha256(Buffer.from("contract")) }
+      }
+    });
+    assert.equal(workbench.proof_graph, undefined);
+    for (const continuation of [`sha256:${"0".repeat(64)}`, workbench.identity]) {
+      let called = false;
+      await assert.rejects(
+        () => facade.withCanonicalControlledContractSourceLease({
+          repoRoot, wkId, continuation
+        }, async () => { called = true; }),
+        (error) => {
+          assert.equal(error.code, "controlled_contract_source_lease_source_invalid");
+          assert.equal(error.message, "proof-graph leasing requires one bound closed proposal");
+          return true;
+        }, continuation);
+      assert.equal(called, false, continuation);
+      assert.deepEqual((await readdir(contracts)).filter((name) =>
+        name.endsWith(".cas-lock")), [], continuation);
+      assert.equal(await withCanonicalWorkRecordReadLease({ dir: repoRoot, id: wkId },
+        async ({ record }) => record.id), wkId, continuation);
+    }
+  } finally {
+    await facade.clearControlledContractAuthoringContinuationsForTest({ repoRoot });
+  }
 });

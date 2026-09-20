@@ -3,26 +3,25 @@
 Backlink: [Tool Discovery v1](tool-discovery.md).
 
 This page is the canonical reference for the discovery entrypoints and the
-per-surface projection guidance they carry: the three MCP discovery routes and
+per-surface projection guidance they carry: the two MCP discovery routes and
 the CLI fallback, the CCE worker-admission recovery projection, omitted-`repo`
-behavior, and trusted work-record edit discovery.
+behavior, and trusted work-record edit discovery. Prose on every surface follows
+the [Discovery Prose Boundary](tool-discovery-schema.md#discovery-prose-boundary).
 
 ## Discovery Surfaces
 
-In this repository the wiki-mcp server registers all three discovery routes,
-so the preferred discovery entrypoints are:
+In this repository the wiki-mcp server registers both discovery routes, so the
+preferred discovery entrypoints are:
 
 - MCP `workspace_tools_list`
 - MCP `workspace_tools_describe`
-- MCP `workspace_tools_query`
 - CLI fallback `npm run wiki -- tools-describe [--task <task_id>|--tool <tool_name>] --json`
 
-These three MCP routes are registered and supported on this repo's wiki-mcp
+These two MCP routes are registered and supported on this repo's wiki-mcp
 server — registered from `packages/wiki-mcp/src/lib/tool-discovery-tools.mjs`
 (extracted from `server.mjs`) — and are not planned or pending. The
-checked-in fragment registry already owns the `workspace_tools_list`,
-`workspace_tools_describe`, and `workspace_tools_query` entries (in the
-`mcp-tools.json` fragment), so the server does not need to inject them through
+checked-in fragment registry already owns the `workspace_tools_list` and
+`workspace_tools_describe` entries (in the `mcp-tools.json` fragment), so the server does not need to inject them through
 runtime descriptor augmentation. The runtime MCP envelope therefore reports the
 same descriptor digest as the assembled checked-in fragment registry.
 
@@ -34,10 +33,15 @@ and the CLI fallback remain the documented sources of truth for discovery
 behavior there.
 
 `workspace_tools_list` is the hard-bounded daily-use catalog scan. Its default
-rows contain only `tool_name`, `task_ids`, and `rank`, which are sufficient to
+rows contain only `tool_name` and `task_ids`, which are sufficient to
 select a targeted lookup without repeating entrypoints, prose, posture, tier,
-or descriptor detail. Both its pretty-printed structured payload and its
-complete serialized MCP result stay within 4,096 UTF-8 bytes. The two ceilings
+or descriptor detail. Rows follow the one ordering rule in
+[Tool Discovery](tool-discovery.md#ranking-and-query-behavior), and complete
+pagination remains guaranteed. Rank is available through targeted detailed
+discovery with
+`workspace_tools_describe({tool_name, verbose:true})`; ordinary list rows omit
+it. Both its pretty-printed structured payload and its complete serialized MCP
+result stay within 4,096 UTF-8 bytes. The two ceilings
 are separate: a 3,840-byte structured-payload ceiling (`byte_limit`) keeps the
 payload alone from consuming the whole frame, and the 4,096-byte
 complete-result ceiling (`result_byte_limit`) bounds what the transport
@@ -56,32 +60,47 @@ the caller has already paged past, so a final page that withheld nothing reports
 zero.
 `limit_applied`, `byte_limit`, and `result_byte_limit` report the active
 ceilings, while `count_truncated`, `byte_truncated`, and `truncated` report
-which bound removed rows. Returned ranks are contiguous from the top of the
-ranking, so a truncated response never skips over a hidden row. Increasing
-caller `limit` never relaxes either byte ceiling. A truncated response carries
-targeted `next_calls` for `workspace_tools_query` by `task_id`/`tool_name` and
-`workspace_tools_describe` by `tool_name`.
+which bound removed rows. Returned rows preserve the complete role- and
+tier-visible ordering without skipping eligible rows. Increasing
+caller `limit` never relaxes either byte ceiling. Every page reports
+`source_digest`, and a page with rows remaining carries exactly one
+`next_calls` entry: the concrete `workspace_tools_list` call for the next page,
+with the same filters, the effective `limit`, `offset: next_offset`, and
+`expected_source_digest`.
 
-Those two next calls need a `tool_name` the caller can only learn from the list
-itself, so they are targeted follow-ups, not the completeness mechanism. The
-completeness mechanism is continuation paging, in the same vocabulary
+The completeness mechanism is continuation paging, in the same vocabulary
 `workspace_search_repo` uses: `offset` echoes the zero-based cursor this
 response was served at, `has_more` reports whether any role-visible row remains
 after it, and `next_offset` is the position to resume from (`null` when nothing
-remains). Continue by repeating the call with `offset: next_offset` and the same
-filters until `has_more` is false; the union of the returned rows is then the
+remains). Continue by following that call (equivalently, repeating the request
+with `offset: next_offset`, `expected_source_digest`, and the same filters) until
+`has_more` is false; the union of the returned rows is then the
 complete role- and tier-visible set. `next_offset` resumes immediately after the
 last row the response actually carried, so a page cut short by a byte ceiling
 resumes at the first row it dropped rather than skipping the remainder of the
-count window. Ranks are positions in the complete ranking, so they stay
-contiguous across consecutive pages. `offset` is a paging input only: it selects
-which page of the already role- and tier-scoped ranking is returned, is applied
+count window. Consecutive pages preserve that ordering without gaps or
+duplicates; they do not return a rank field. `offset` is a paging input only: it
+selects which page of the already role- and tier-scoped ranking is returned, is applied
 after scoping and before both bounds, and can no more widen visibility or relax
 a byte ceiling than `limit` can. An `offset` past the end returns no rows with
 `has_more` false rather than an endless cursor.
 
+List traversal is live and version-checked, with no cursor store or time expiry.
+`source_digest` binds the normalized `task_id`/`tool_name` selector, the
+augmented descriptor identity, and the ordered role- and tier-scoped rows. It
+excludes timestamps, process identity, `offset`, and page size, so an unchanged
+source survives a server restart. A supplied `expected_source_digest` is checked
+even at offset 0. A nonzero `offset` without one refuses with
+`tool_discovery_list_source_digest_required`; a digest that no longer names the
+current source refuses with `tool_discovery_list_source_changed`. Both refusals
+state `authority_limb:"mechanical_failure"`, return no rows, report
+`current_source_digest`, and carry one callable `workspace_tools_list` restart
+at offset 0 that preserves the normalized filter and effective limit and binds
+the current digest. Every emitted next-page and restart call is checked against
+the registered list request schema.
+
 The exact losslessness enforcement is
-`tests/tool-discovery-projection-bounds.test.mjs`, test
+`tests/unit/tool-discovery-projection-bounds.test.mjs`, test
 `work record: following next_offset enumerates the complete catalog exactly once`.
 The registered-route proof is `work record: the registered workspace_tools_list
 route pages on a non-zero offset` in that same file. Together they prove exact
@@ -93,7 +112,7 @@ When the descriptor is degraded, the envelope's `diagnostics` can be large
 enough to crowd the catalog out of the budget. Descriptor health is not
 selection detail, so on that path the list sheds `diagnostics` for a
 `diagnostics_omitted` count and returns rows instead of refusing; the full
-diagnostics remain on the describe and query surfaces. A healthy catalog never
+diagnostics remain on the describe surface. A healthy catalog never
 takes that path and its response is unaffected.
 
 `packages/wiki-core/src/lib/tool-discovery/projection.mjs` is the sole owner of
@@ -111,7 +130,8 @@ visibility decision additionally composes the canonical role-access policy,
 descriptor tier visibility, install/runtime posture, and actual registration.
 `audience` is descriptive only. `workspace_tools_list` accepts exactly
 `task_id`, `tool_name`, a
-positive integer `limit`, and a non-negative integer `offset` from the caller;
+positive integer `limit`, a non-negative integer `offset`, and a string
+`expected_source_digest` from the caller;
 every other request field is ignored,
 so no request can restate the session role, re-open the tier gate, raise a byte
 ceiling, or otherwise widen the authorized role-visible projection. An
@@ -120,35 +140,72 @@ unresolvable role sees nothing rather than the full surface.
 `workspace_tools_describe` is the targeted detail surface. It is intended for
 known tools or narrow sets, and full descriptor fields remain available only
 through explicit verbose/detail behavior. Routine browsing should not start
-here unless the agent already knows it needs the deeper descriptor shape.
+here unless the agent already knows it needs the deeper descriptor shape. A
+named compact tool's verbose description returns its complete structural input
+contract with an authoring-guidance locator, whose call selects the registered
+overview, rather than the guidance body. `input_contract` `kind:"guidance"`
+returns the complete selected guidance value in one call, without paging. It
+requires one exact `tool_name` and cannot combine with `task_id`, top-level
+`limit`, or `verbose:true`; the published selector states this, and a
+conflicting request is refused with the same selection as its recommended
+correction. The editor alternatives `kind:"field"` and `kind:"fields"`
+carry the same rule and the same correction: a selector addressed to another
+tool, to no tool, alongside a `task_id`, or alongside describe's top-level
+`limit` is refused by the editor selector's own owner with
+`editor_input_contract_tool_unsupported`,
+`editor_input_contract_exact_tool_required`, or
+`editor_input_contract_limit_conflict`, and the refusal carries the one
+describe call that re-addresses the caller's own selection to
+`workspace_work_record_edit`. That correction is emitted only where the session
+role can already see the editor. Initial declarations also carry the selection rules their owners
+enforce, as in these examples:
+- the readers' Markdown-only `include_body` and its alternatives;
+- the separate top-level and `member` source-digest modes;
+- the requirement upsert's combined `requirements` and `retire_claim_ids`
+  population.
 
-`workspace_tools_query` remains the filtered task/tool lookup for finding
-tools by controlled task IDs or exact tool names without broadening into a
-catalog scan. It is the narrow lookup path for routine agent discovery when
-the caller already has a task ID or exact tool name in hand.
+The selector contract is described in
+[Tool Discovery](tool-discovery.md#ranking-and-query-behavior). A refused
+compact-route request names each failed field and the exact guidance member its
+owner declares, with the owner's reason code and authority limb unchanged; the
+same section describes that recovery shape.
 
-`workspace_agent_faq` is the read-only MCP troubleshooting surface for
-recurring agent known issues. Agents should use it to list FAQ entries or query
-by stable entry id / related blocker code before guessing at unfamiliar tool
-output or worker complaints. Its CLI parity command is
+A caller with a known task ID pages `workspace_tools_list` filtered by
+`task_id` and then describes the selected tool. A caller with an exact tool name
+calls `workspace_tools_describe` directly; no preliminary list call is needed.
+`task_id` and `tool_name` are alternative selectors, and a request naming both
+is refused.
+
+`tool_name` is the bare registered name, exactly as the registry declares it. A
+host harness may present the same tool to its model under a namespaced alias
+such as `mcp__<server>__<tool>`; that alias is not a discovery name and is never
+accepted, aliased, or parsed as a fallback. A targeted describe whose
+`tool_name` matches nothing still answers with an empty `results` array, which
+is the truthful answer for an unregistered or role-invisible name. Where the
+requested name is such an alias and its bare tail IS visible to this session,
+the same response additionally carries an `unregistered_tool_name` mechanical
+diagnostic naming `requested_tool_name` and `supported_tool_name`, plus the one
+describe call that answers the original question. A name with no visible bare
+tail adds neither, so no hidden tool is disclosed.
+
+The agent FAQ has no MCP tool. Agents follow the status, refusal, and supported
+next call returned by the originating structured operation and use discovery
+for the routes it names. The operator CLI command
 `npm run wiki -- agent-faq --json`, with `--id <entry-id>` or
-`--related-code <code>` for targeted fallback/operator inspection. The FAQ is
+`--related-code <code>`, reads the corpus for operator inspection. The FAQ is
 advisory and read-only: it does not dispatch roles, decide readiness, satisfy
 review controls, change launcher policy, or authorize any runtime behavior.
 
 `workspace_search_repo` is a ranked search surface over canonical wiki/docs
-content. Its default compact output is bounded by `limit`, but the bound is a
-page size, not the total result set: `total_count` reports the complete match
-count, while `returned_count` and `result_count` report only the results
-returned in the current response. The response also reports `limit`, `offset`,
-`has_more`, and `next_offset` so callers can continue from the next ranked
-position. When `has_more` is true, request the next page by passing
-`offset: next_offset` with the desired `limit`; repeat until `has_more` is
-false. Callers that need the entire ranked result set in one response may pass
-`unbounded: true`, subject to transport size constraints. Query refinement can
-improve relevance or narrow intent, but it is not the completeness mechanism
-for ranked search results; completeness comes from offset/continuation paging
-or the explicit unbounded retrieval mode.
+content. The default page is 8 results and the maximum is 50. `total_count` is
+the exact complete match count; `returned_count` and `has_more` describe the
+current page. Complete traversal uses only the `next_calls` continuation
+returned by the backend, and every page frame fits the compact complete-frame
+class. A continuation rejects replacement query or scope fields. Public offset arithmetic, unbounded/bulk output, `verbose`,
+`result_count`, and search-side `reindex` are absent. Each hit includes a callable
+`workspace_read_page` selection for exact original context, and a separate
+source-start selection only when it differs from that call. Search remains read-only and discloses the unavoidable
+warm-query corpus-byte hashing cost in its diagnostics.
 
 `workspace_autofix_docs_backlinks` is the explicit opt-in MCP repair route for
 `missing_docs_backlink` findings. It is write-capable and docs-only: it may add
@@ -159,17 +216,106 @@ authority, and optional path/id/comment inputs only narrow the internally
 recomputed findings. Ordinary `workspace_lint_repo`, CLI `wiki lint`, and
 `workspace_generate_and_lint` remain non-autofixing.
 
-`workspace_code_index_impact_paths` is the decision-oriented graph-impact
-query surface. Its default response is compact: it returns bounded summary
-data plus a lightweight `graph_impact_summary_ref` so agents can see the
-binding/provenance and the relevant input, validated, and invalid path
-metadata without carrying a duplicated full summary payload into context.
-When a diagnostic trace is needed, `verbose:true` restores the full
-graph-impact envelope, including the detailed evidence, debug-oriented
-metadata, and compatibility fields needed for troubleshooting. Discovery
-text should make that compact/verbose split explicit so routine agents stay
-on the bounded path and only opt into the heavier payload when they truly
-need it.
+Closeout is one call. `workspace_work_record_set_closure` and a closeout status
+transition run the generated-view and lint checks that transition requires within
+the same request, through `generateAndLint` as the sole executor, and report what
+it actually returned: a failing lint as failing, an unavailable executor as not
+run with its own cause, and neither as a rollback of the completed write.
+Discovery publishes that no follow-up generate/lint chore is returned after a
+check ran. It also publishes the closure route's explicit optional
+`status: "done"`, which composes the authored closure patch and the final
+transition into one validated canonical write; omitted, the same route records
+closure and changes no status. See
+[MCP Operation Reference](mcp-operation-reference.md#one-call-closeout-with-forge-owned-completion-and-truthful-check-results).
+
+Forge publication is workflow-independent. `workspace_wk_forge_handoff`
+publishes one squash candidate whose tree is the selected integrated WK tip's and
+whose sole parent is the fixed authenticated fork, and it publishes those bytes
+unchanged whether or not the repository's delivery workflow selects a terminal
+review. Discovery states that a workflow without terminal review needs no
+terminal-review unit, review evidence or reviewer checkout, that candidate,
+topology and generation authentication run either way, and that publication
+neither merges nor completes the WK. See
+[MCP Operation Reference](mcp-operation-reference.md#common-fixed-fork-squash-candidate-conditional-review-and-exact-forge-lifecycle).
+
+Managed run observation carries recorded explicit proof verification. For a
+managed worker slice, `workspace_agent_run_status` reports `proof_verification`:
+the attempt's recorded `workspace_verify_proof` calls, with exact counts and a
+callable `detail: {kind:"proof_verification"}` read. Discovery publishes three
+facts about it:
+
+- `none_recorded` is not a pass;
+- an `invocation_id` detail reads one complete recorded result;
+- observation never executes proofs and grants no integration, review or
+  lifecycle permission.
+
+See
+[MCP Operation Reference](mcp-operation-reference.md#recorded-managed-worker-proof-verification).
+
+Starting work has one entrypoint, `workspace_agent_dispatch`. Its `role` is
+optional: omitted, the dispatch target is derived from the canonical unit's
+declared `dispatch_intent`, and the task, scope, acceptance, validation, material
+and runtime are resolved by the system from that unit and authenticated launcher
+facts. Discovery publishes that caller-authored prompt, request, argv and env are
+refused, and that readiness is performed internally by its existing owner while
+`workspace_validate_dispatch` remains the explicit readiness question. See
+[MCP Operation Reference](mcp-operation-reference.md#canonical-slice-start-and-existing-readiness-orchestration).
+
+Selected canonical reading has one ordinary entrypoint,
+`workspace_read_page`. It addresses a page by repo-relative `path`, a canonical
+record by `id`, or a record and its slice by `unit`, and delegates one exact
+entry through `entry:{...}` and one retained spill through
+`content_reference:{...}`. Discovery publishes that exactly one of `path`, `id`
+and `unit` selects a read, so a caller addresses canonical content by the
+identity it already holds instead of reconstructing a storage path, and every
+emitted call repeats the identity form the caller used. The dedicated entry and
+content-reference routes remain registered with their own contracts and grants;
+see
+[MCP Operation Reference](mcp-operation-reference.md#ordinary-selected-canonical-reads-and-authoring-continuity).
+
+Ordinary code questions have one entrypoint, `workspace_code_index_impact`, with
+automatic index preparation. Its documented selectors choose the answer: exactly
+one of `paths`, `patchText`, `diffRecords` or `liveGit:true` asks combined path
+context and structural impact, narrowed by a compatible `path` or `symbol`;
+`symbol`, or `path` with `line` and optional `character`, asks the definition,
+reference, caller and callee owners, narrowed by `relationship`; `path` alone asks that
+file's context. Discovery publishes that precedence so a caller picks the
+information it wants rather than an engine, and a conflicting or empty selection
+returns the reachable alternatives. See the owning
+[automatic preparation contract](mcp-repository-model.md#automatic-index-preparation)
+and the full rules in
+[MCP Operation Reference](mcp-operation-reference.md#ordinary-code-question-selectors-grounding-and-complete-retrieval).
+Impact discovery discloses the possible ignored-cache writes and typed
+preparation failures; it does not label automatic preparation as strictly
+read-only or require a separate build call. The dedicated
+`workspace_code_index_context_for_path` and the four navigation routes remain
+registered with identical role, disposition, audience and tier classification,
+so the consolidation moves no entitlement.
+
+Its default response is compact: one complete frame within the compact class
+with exact totals, a truthful `impact_state`, bounded leading rows, and an
+executable `selected_detail` call over the retained complete answer. `detail`
+reads that retained answer; `verbose:true` runs a new evaluation that returns
+the complete answer. Discovery text makes that compact, detail, and verbose
+split explicit so routine agents stay on the bounded path and recover omitted
+detail from the retained answer.
+
+`workspace_code_index_context_for_path` defaults to one complete frame within
+the same compact class. It carries the committed identity, the source's
+identity, state, and line count, the scalar graph and SCIP state (arrays become
+their exact counts), and the dirty-state and overlay trust facts. `graph_paths`
+lists affected paths with a code-graph path relationship, one row per path with
+its distinct `kinds` and `path_relationship_count`, admitted in path order while
+the complete frame fits. `counts.graph_paths.total` and
+`path_relationship_total` count the whole population; they are path
+relationships aggregated from graph impacts, not symbol references or raw graph
+edges. Default kinds are `reverse_import` (imports the path directly or
+transitively), `covering_test`, `downstream_cli_command`, `downstream_mcp_tool`,
+and `schema_field_contract`. Source text, snapshots, canonical references,
+inferred related code and tests, `docs_contract` and `work_scope_owner`
+relationships, impact explanations, and update hints are omitted by default.
+The complete original answer is retained at `full_result.content_reference`;
+`verbose:true` runs a new evaluation instead of recovering it.
 
 Work-record read and summary discovery must make compact WK-level behavior
 discoverable for `workspace_get_record`, `workspace_read_page`, and
@@ -186,9 +332,12 @@ discoverable for `workspace_get_record`, `workspace_read_page`, and
   agents to `selected_slice:<id>` for `workspace_read_page` on canonical
   `wiki/work-records/WK-####.json` paths, or to slice-scoped
   `workspace_work_record_summary` units such as `WK-0001#slice-id`.
-- Full/debug opt-ins (`verbose`, `include_record`, `include_raw`, and
-  `include_full_summary` where applicable) can expose complete payloads and may
-  spill. Discovery must present those as explicit full/debug paths.
+- These ordinary routes have no whole-record, full-summary, raw, or verbose
+  mode. `verbose`, `include_record`, `include_raw`, `include_full_summary`,
+  `accept_full_read`, and `compact_read_token` are refused as unknown
+  arguments. Discovery presents only selected recovery: selected slices,
+  ordinary fields, entries and versions, and `member:{path}` pages of one
+  canonical WK, slice, IN, or DEC member pinned to `source_digest`.
 - `workspace_work_record_summary` publishes two advisory terminal-review facts,
   and discovery must make both findable from the default WK-level read rather
   than only from a selected-slice call. Every emitted findings row — in `slices`,
@@ -216,6 +365,37 @@ discoverable for `workspace_get_record`, `workspace_read_page`, and
   blocker, next-action, dispatch, admission, integration, terminal-candidate,
   handoff, or recovery authority, and must not present the designation as a
   refusal ground.
+
+## Input Schema Identity And Lossless Projection
+
+The controlled-contract proof-authoring registrations derive their Zod request
+validators from the authored JSON Schema declarations. For the compact upsert
+route only, that conversion preserves repeated source-object identity within one
+root conversion and its exact `$defs` environment. Completed conversions and
+matching whole optional wrappers may be reused during that conversion; caches do
+not cross roots, tools, or definition environments, and recursive authored
+schemas are refused explicitly. Query, remove, and proof validation deliberately
+retain fresh conversion identities so their always-served `tools/list` schemas
+remain directly readable inline.
+
+Verbose `workspace_tools_describe` projects every occurrence at its actual path
+and depth before considering reuse. A subtree with any unprojected constraint or
+depth omission stays inline, preserving both its node-local disclosure and every
+global path/reason entry. Complete occurrences may share a whole-node
+`#/$defs/<name>` reference only when they have the same schema identity and
+depth. Definitions retain wrapper semantics, constraints, descriptions,
+defaults, and declared refinements; reference objects have no sibling keywords.
+
+Hoisting remains owned by the request-contract projector. It keeps the 96-byte
+minimum, existing deterministic naming and collision behavior, then compares the
+complete encoded candidate—including the definition name and body, all emitted
+references, JSON escaping, and the `$defs` container—with the inline result.
+Uneconomic candidates remain inline and no unused definition is emitted. The
+projection therefore still visits repeated occurrences to preserve complete
+disclosure even though the delivered JSON bytes are deduplicated. Authored
+schemas and handler validation remain authoritative; projection creates no
+second request-schema source and changes neither response-channel policy nor
+byte-budget gates.
 
 Structured discovery for the findings-capable authoring routes —
 `workspace_work_record_ready_slice` and `workspace_work_record_upsert_slice` —
@@ -249,10 +429,8 @@ to:
 
 - `workspace_work_record_summary` for full WK or slice context
 - `workspace_validate_dispatch` for authoritative dispatch readiness
-- `workspace_run_validation` for work-contract-authorized Node test validation
-  (`node_test`: `node --check` then `node --test`) without raw shell
 - `workspace_agent_dispatch` for MCP-only worker/reviewer/redteam launch
-- `workspace_agent_run_status` or `workspace_agent_run_wait` for launched-run
+- `workspace_agent_run_status` for launched-run
   monitoring
 - `workspace_lint_repo` or `workspace_generate_and_lint` for repo diagnostics
 - work-record setter routes for status, closure, task, contract, acceptance, or
@@ -275,10 +453,12 @@ records or evidence sidecars, lifecycle/runtime/dispatch/backend state, or resul
 evidence, and it never launches an agent. Its existing
 orchestrator/operator-only role exposure is unchanged in both free-local and
 paid-CCE registrations.
-If bounded current-HEAD graph production fails, verbose readiness preserves the
-safe `graph_impact_failure` code and remediation; compact readiness preserves
-`graph_impact_failure_code` and uses that remediation as `next_action`, without
-forwarding raw causes.
+If bounded current-HEAD graph production fails, the sole readiness response
+preserves the typed `graph_impact_failure`, its code, and authoritative
+remediation precedence. The strict route accepts no `verbose` or replacement
+bulk alias. Its complete failure and recovery projection, selected detail owners,
+and content-reference transport are defined by the
+[MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md).
 
 Initiative status is read-only and advisory: it does not dispatch, write
 records, set statuses, run lint, refresh metrics, write graph evidence,
@@ -299,26 +479,13 @@ blockers for the coordinator's next action; it is not policy authority and must
 not be described as authorizing promotion, merge, rebase, lifecycle changes,
 worktree cleanup, or ref updates.
 
-`workspace_tool_usage_audit` is the compact read-only observability surface that
-emits a NEUTRAL usage catalog of agent tool-use. Discovery should present it as an
-operator/coordinator measurement lens over bounded historical and live audit
-facts, not as a launch, mutation, lint/generate, routing, refusal, enforcement,
-or policy-authority route. Its output is descriptive only -- counts, provenance,
-first-tool, and response-size indicators -- and renders no misuse or adherence
-verdict; assessing the catalog for misuse is an offline, out-of-band activity. The
-underlying domain tools still own read, search, work-record, dispatch, review,
-validation, and lint semantics.
-
-The audit surface reports neutral facts without duplicating owned contracts
-inline. work record owns the `tool-use-policy.v1` evidence envelopes, source and
-confidence labels, redaction posture, and audit-only interpretation; its misuse
-vocabulary remains only as offline reference data and is no longer reported by the
-runtime audit output (work record). work record owns routing-intent ids and
-replacement-call guidance through `tool-routing-intents.v1`, router output, and
-discovery metadata. The audit result does NOT report misuse codes, next-action
-adherence, or work record routing/replacement guidance -- that runtime coupling was
-removed (work record). Discovery text must not describe the audit surface as emitting
-misuse classifications or recommended-call authority.
+No MCP route reports tool-use telemetry. Live usage measurement is the
+operator-configured [anonymous MCP metrics](mcp-telemetry.md) files: numeric,
+closed-schema records with no arguments, results, or caller identity. Discovery
+must not advertise a live audit, usage-catalog, or metrics query route, and must
+not describe metrics as launch, mutation, lint/generate, routing, refusal,
+enforcement, or policy authority. The domain tools still own read, search,
+work-record, dispatch, review, validation, and lint semantics.
 
 Keep the five policy surfaces distinct:
 
@@ -329,16 +496,15 @@ Keep the five policy surfaces distinct:
 - Historical backfill measurement reports only what old artifacts can prove,
   with confidence labels and unsupported-gap markers for MCP-specific questions
   the artifacts cannot establish.
-- Live audit measurement records bounded observed usage facts going forward
-  (provenance, response size, outcome) -- a neutral catalog, with no adherence or
-  misuse verdict.
+- Live measurement is anonymous numeric metrics written to local files (tool
+  name, hour, outcome, duration, byte counts) -- no provenance, identity,
+  adherence, or misuse verdict, and no query route.
 
-`workspace_tool_usage_audit` is canonical only for the compact audit facts it
-returns. It must not be documented as a reason to scrape `.agent-runs`, broad
-logs, generated views, runtime artifacts, raw JSON work records, or shell output
-to reconstruct canonical audit state. When audit state is missing, stale, or
-unsupported, discovery should describe that as a bounded measurement gap or
-runtime availability issue, then route any actual read, dispatch, lint,
+Anonymous metric files are observability data only. They must not be documented
+as a reason to scrape `.agent-runs`, broad logs, generated views, runtime
+artifacts, raw JSON work records, or shell output to reconstruct canonical state.
+When metrics are missing, disabled, or incomplete, discovery should describe that
+as a bounded measurement gap, then route any actual read, dispatch, lint,
 generate, review, mutation, refusal, or enforcement decision to the tool that
 owns that authority.
 
@@ -384,12 +550,14 @@ guess hidden controls, synthesize review
 attestations or accepted authorities, bypass CCE, or treat absent recovery as
 permission to proceed.
 
-Discovery describes the output split explicitly: ordinary validation output is
-bounded diagnostic metadata and excludes retained recovery values; verbose
-validation transports the complete carrier through the shared MCP response-size
-boundary. When that envelope spills, the content-reference route range-reads
-the already-stored exact bytes and owns no recovery semantics. This transport
-contract creates no portfolio security posture or CCE schema authority.
+`workspace_validate_dispatch` accepts no `verbose` or replacement bulk alias.
+Its sole readiness response preserves the validator-owned complete recovery
+carrier. A carrier that fits the compact complete-frame class is returned whole;
+otherwise the response is a bounded summary whose explicitly selected `detail`
+calls read the retained carrier exactly, as described in
+[MCP Selected Response Details](mcp-selected-response-details.md). Selected
+detail reads the already-stored exact bytes and owns no recovery semantics. This
+transport contract creates no portfolio security posture or CCE schema authority.
 
 ### Findings-only reviewer validation
 
@@ -442,15 +610,37 @@ omitted `repo` work.
 Discovery queries for routine work-record editing should surface the trusted
 MCP routes first:
 
+- [`workspace_work_record_edit`](mcp-operation-reference.md#bounded-ordinary-authored-field-editor)
+  is the general facade for ordinary authored fields, including record- and
+  slice-level task completion through its `task` `mark_done` action;
+  specialized semantic routes retain excluded fields.
 - `workspace_work_record_set_status` is the agent-safe route for trusted
-  record- and slice-level status updates. A transition to `review` or `done`
-  attaches an advisory post-write `closeout_lint` summary.
-- `workspace_work_record_set_task` is the agent-safe route for trusted
-  record- and slice-level task completion.
+  record- and slice-level status updates, including a status change made on its
+  own. A landed transition to `review` or `done` runs its closeout checks and
+  reports their actual result in `closeout_lint`.
 - `workspace_work_record_set_closure` remains the closure-specific route and
-  is separate from the status/task edit family. A successful closure write
-  attaches the same advisory `closeout_lint` summary so the response shows
-  whether the unit is cleanly closeable or blocked by red repo lint.
+  is separate from the status/task edit family. Its explicit optional
+  `status: "done"` composes authored closure and completion into one validated
+  canonical write; omitted, it records closure and changes no status. A landed
+  mutation likewise runs its closeout checks and reports their actual result.
+- `workspace_work_record_entry_upsert` is the durable entry writer. The
+  router's `work_record_mutation` intent selects it for ordinary entry writes:
+  a write verb before `entry` with no entry number (such as "append a new entry
+  to WK-0001" or "add an entry titled …") is entry creation, and one that names
+  `entry <n>` (such as "update WK-0001 entry 35" or "append a version to entry
+  3") is an update of that entry. Creation suggests `unit` and any stated
+  `title`, and asks for `kind`, `title` and `content`. An update keeps the named
+  `entry_id` and asks for `content`. Neither proposal takes content from the
+  task text. `expected_source_digest` is reported in `server_state_fields` with
+  the `source_digest` of `workspace_work_record_entry_read`. When the unit is
+  known, that read (the unit's entry inventory, or the named entry) is the one
+  recommended call. The incomplete write is returned as `operation` guidance,
+  never as an executable call. Reading an entry ("read entry 40 of WK-0001"),
+  listing entries, and whole-record edits such as a summary replacement keep
+  their own routes. A request that only explains an entry write, or that names
+  no entry, selects no entry operation. Sessions without the entry writer,
+  such as reviewer and redteam, receive `visibility_withheld` without the
+  operation's identity.
 
 When querying `task_id = set-closure`, the ranked discovery result should put
 the MCP edit routes ahead of the CLI fallback rows so agents see the
@@ -468,7 +658,7 @@ safe to invoke.
 
 ### Schema-Aware Contract/Slice Edit Routes
 
-The following five MCP routes are the agent-safe recommended path for
+The following four MCP routes are the agent-safe recommended path for
 schema-aware WK contract and slice editing. Discovery queries for structured
 WK setup intents should surface these ahead of the CLI fallback rows:
 
@@ -476,29 +666,30 @@ WK setup intents should surface these ahead of the CLI fallback rows:
   slice on a `WK-####`; the `slice.id` field selects the target slice.
 - `workspace_work_record_delete_slice` — remove a tracker-local slice by
   slice-scoped `unit` (WK-#####slice-id) or explicit `slice_id`.
-- `workspace_work_record_set_list_field` — set one controlled list-valued
-  contract field (`read_scope`, `docs`, `repo_paths`, `write_scope`,
-  `depends_on`, `related`, `blocks` at record scope; `read_scope`, `docs`,
-  `repo_paths`, `write_scope`, `depends_on` at slice scope). `read_scope` is the
-  canonical read-first reference list; `docs` is a backward-compatible alias.
-- `workspace_work_record_set_acceptance` — set `acceptance.criteria` and/or
-  `acceptance.validation` at record or slice scope.
+- `workspace_work_record_edit` — edit ordinary registry-declared scalar, list,
+  task, and notes fields. List actions support whole-list replacement or one-item
+  append for record and slice fields allowed by the shared registry; `read_scope`
+  is the canonical read-first reference list. `acceptance.criteria` and the human
+  notes in `acceptance.validation` are ordinary list fields; note replacement
+  preserves stored executable `node_test` bindings, which only the
+  controlled-contract proof operations author.
 - `workspace_work_record_shape_review_unit` — shape a record or slice into a
   findings-only review contract by setting `work_kind` to `"review"`, forcing
   `write_scope` to `[]`, and pointing `dispatch_intent.intended_agent_role` at
   `"reviewer"`. Agents creating review slices should use this composite route
   rather than assembling the three field edits manually.
 
-All five routes share the same behavioral contract: output is compact by
-default (pass `verbose: true` to include the full updated record body, for
-debugging only); each validates the prospective result against work-record.v1
+All four routes share the same behavioral contract: output is compact by
+default (`verbose: true` adds complete diagnostics but never the updated record
+body; read changed state through the selected read routes); each validates the
+prospective result against work-record.v1
 before writing and refuses invalid edits with structured diagnostics; each
 accepts an optional `expected_source_digest` for stale-source protection
 against concurrent edits; and none accept caller-supplied filesystem roots —
 they resolve only through configured workspace repository aliases.
 
 The matching CLI commands (`npm run wiki -- work-records upsert-slice`,
-`delete-slice`, `set-list-field`, `set-acceptance`, `shape-review-unit`) are
+`delete-slice`, `set-list-field`, `shape-review-unit`) are
 operator-shell fallbacks only. They are not agent dispatch transports when the
 MCP surface is available. Agents must use the MCP routes above and report a
 `missing_structured_transport` blocker if those routes are unavailable rather

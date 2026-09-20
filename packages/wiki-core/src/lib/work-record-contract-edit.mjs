@@ -5,14 +5,10 @@ export {
 } from "./work-record-contract-edit-shared.mjs";
 
 export {
-  WORK_RECORD_ACCEPTANCE_REPAIR_MANAGED_PATHS,
-  assessAcceptanceRepairEligibility,
-  guardAcceptanceRepairPersistedDiff,
   guardInitiativeAssignmentPersistedDiff
 } from "./work-record-contract-edit-acceptance.mjs";
 
 export {
-  WORK_RECORD_ACCEPTANCE_CRITERIA_LIST_FIELD,
   WORK_RECORD_CONTRACT_EDIT_OPERATIONS,
   WORK_RECORD_CONTRACT_LIST_FIELDS,
   WORK_RECORD_EDIT_FIELD_REGISTRY,
@@ -24,7 +20,8 @@ export {
   deleteSlice,
   editWorkRecordByUnit,
   resolveWorkRecordEditRegistryEntry,
-  setAcceptance,
+  validateWorkRecordProseDestination,
+  workRecordProseRegistryEntries,
   setListField,
   shapeReviewUnit,
   upsertSlice

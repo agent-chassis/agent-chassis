@@ -1,0 +1,13 @@
+{
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "requested_intents": [
+    "controlled-proof-intent.implementation-readiness"
+  ],
+  "selected_packs": [
+    {
+      "profile_id": "proof.design.implementation-readiness",
+      "profile_version": "3.0.0",
+      "evaluation_input_path": "WK-2012-implementation-readiness.evaluation-input.json"
+    }
+  ]
+}

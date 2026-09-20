@@ -20,7 +20,8 @@ import {
   allocateOrAdoptExactUnitWorktree as defaultAllocateOrAdoptExactUnitWorktree,
   allocateFullSliceExactUnitWorktree as defaultAllocateFullSliceExactUnitWorktree,
   classifyExistingSliceTipForDispatch as defaultClassifyExistingSliceTipForDispatch,
-  deriveExactUnitName
+  deriveExactUnitName,
+  SLICE_TIP_RECONCILE_STATES
 } from "./worktree-substrate-exact-unit.mjs";
 import { bindingFilePath } from "./worktree-substrate-identity.mjs";
 import {
@@ -45,6 +46,14 @@ import {
   resolveControlledContractAttachmentGeneration as defaultResolveControlledContractGeneration
 } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+
+const loadDefaultClassifyControlledAcceptanceState = async () => (
+  await import("@agent-chassis/wiki-core/src/operations/controlled-contract.mjs")
+).classifyControlledAcceptanceStateOperation;
+import { assertControlledAcceptanceStateProjection } from
+  "@agent-chassis/wiki-core/src/lib/work-record-proof-posture.mjs";
+import { coverageUnitAddress } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-unit-address.mjs";
 import {
   admitVerifiedReceipt,
   defaultControlledContractGenerationRunGit,
@@ -55,13 +64,164 @@ import {
 const WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2 = "worktree-identity-binding.v2";
 const FULL_CHECKOUT_MODE = "full";
 
+function exactGitOutput(result) {
+  return result?.ok === true && typeof result.stdout === "string"
+    ? result.stdout.trim()
+    : null;
+}
+
+function gitFailureDetail(result) {
+  return {
+    status: result?.status ?? null,
+    signal: result?.signal ?? null,
+    error: result?.error ?? null,
+    stderr: result?.stderr ?? null
+  };
+}
+
+function failedGitProbes(probes) {
+  return Object.entries(probes)
+    .filter(([, result]) => result?.ok !== true || typeof result.stdout !== "string")
+    .map(([probe, result]) => ({ probe, ...gitFailureDetail(result) }));
+}
+
+function observeRetainedWorktreeStatus(runGit, worktreePath, stage) {
+  const status = runGit({
+    repo: worktreePath,
+    args: ["status", "--porcelain=v1", "--untracked-files=all"]
+  });
+  if (status?.ok !== true || typeof status.stdout !== "string") {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.GIT_FAILED,
+      `failed to observe the retained slice worktree status ${stage} current-tip reconciliation`,
+      { issue: "retained_slice_worktree_status_failed", stage, ...gitFailureDetail(status) }
+    );
+  }
+}
+
+function registeredWorktreeForBranch(runGit, repo, worktreePath, branch) {
+  const listed = runGit({ repo, args: ["worktree", "list", "--porcelain", "-z"] });
+  if (listed?.ok !== true || typeof listed.stdout !== "string") {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.GIT_FAILED,
+      "failed to verify the retained slice worktree registration",
+      { issue: "retained_slice_worktree_registration_failed", ...gitFailureDetail(listed) }
+    );
+  }
+  const expectedRef = `refs/heads/${branch}`;
+  let observedPath = null;
+  let observedBranch = null;
+  for (const token of listed.stdout.split("\0")) {
+    if (token.startsWith("worktree ")) {
+      if (observedPath === worktreePath && observedBranch === expectedRef) return true;
+      observedPath = token.slice("worktree ".length);
+      observedBranch = null;
+    } else if (token.startsWith("branch ")) {
+      observedBranch = token.slice("branch ".length);
+    }
+  }
+  return observedPath === worktreePath && observedBranch === expectedRef;
+}
+
+function reconcileContainedSliceWorktreeToCurrentW({
+  runGit,
+  repo,
+  worktreePath,
+  branch,
+  retainedTip,
+  wkRef,
+  currentWkTip
+}) {
+  if (!existsSync(worktreePath) ||
+      !registeredWorktreeForBranch(runGit, repo, worktreePath, branch)) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "the retained slice branch is not attached to its expected managed worktree",
+      { issue: "retained_slice_worktree_not_attached" }
+    );
+  }
+  const expectedRef = `refs/heads/${branch}`;
+  const identityProbes = {
+    association: runGit({ repo: worktreePath, args: ["symbolic-ref", "--quiet", "HEAD"] }),
+    branch_tip: runGit({ repo, args: ["show-ref", "--verify", "--hash", expectedRef] }),
+    head: runGit({ repo: worktreePath, args: ["rev-parse", "--verify", "HEAD"] })
+  };
+  if (exactGitOutput(identityProbes.association) !== expectedRef ||
+      exactGitOutput(identityProbes.branch_tip) !== retainedTip ||
+      exactGitOutput(identityProbes.head) !== retainedTip) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "the retained slice worktree no longer equals its observed pre-reconciliation tip",
+      { issue: "retained_slice_tip_mismatch", git_probe_failures: failedGitProbes(identityProbes) }
+    );
+  }
+  observeRetainedWorktreeStatus(runGit, worktreePath, "before");
+  const observedWResult = runGit({
+    repo,
+    args: ["show-ref", "--verify", "--hash", `refs/heads/${wkRef}`]
+  });
+  if (exactGitOutput(observedWResult) !== currentWkTip) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BASE_SHA_RACED,
+      "the authenticated WK tip moved before retained-slice reconciliation",
+      { issue: "current_wk_tip_moved", git_probe_failures: failedGitProbes({ wk_tip: observedWResult }) }
+    );
+  }
+
+  const recheckedRResult = runGit({
+    repo,
+    args: ["show-ref", "--verify", "--hash", expectedRef]
+  });
+  if (exactGitOutput(recheckedRResult) !== retainedTip) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BASE_SHA_RACED,
+      "the retained slice tip moved immediately before reconciliation",
+      { issue: "retained_slice_tip_moved", git_probe_failures: failedGitProbes({ branch_tip: recheckedRResult }) }
+    );
+  }
+  const merged = runGit({
+    repo: worktreePath,
+    args: ["merge", "--ff-only", "--no-edit", currentWkTip]
+  });
+  if (merged?.ok !== true) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.GIT_FAILED,
+      "the retained slice worktree could not fast-forward to the authenticated WK tip",
+      { issue: "retained_slice_fast_forward_failed", ...gitFailureDetail(merged) }
+    );
+  }
+  const settledProbes = {
+    branch_tip: runGit({ repo, args: ["show-ref", "--verify", "--hash", expectedRef] }),
+    head: runGit({ repo: worktreePath, args: ["rev-parse", "--verify", "HEAD"] })
+  };
+  if (exactGitOutput(settledProbes.branch_tip) !== currentWkTip ||
+      exactGitOutput(settledProbes.head) !== currentWkTip) {
+    fail(
+      WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+      "the reconciled slice worktree did not settle at the authenticated WK tip",
+      {
+        issue: "retained_slice_fast_forward_postcondition_failed",
+        git_probe_failures: failedGitProbes(settledProbes)
+      }
+    );
+  }
+  observeRetainedWorktreeStatus(runGit, worktreePath, "after");
+  return currentWkTip;
+}
+
 export const MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES = Object.freeze({
 
   RECORD_UNREADABLE:
     "agent_launch.worktree_provisioning_dispatch.controlled_contract_record_unreadable.v1",
 
   GENERATION_REQUIRED_ABSENT:
-    "agent_launch.worktree_provisioning_dispatch.controlled_contract_generation_required_absent.v1"
+    "agent_launch.worktree_provisioning_dispatch.controlled_contract_generation_required_absent.v1",
+  DISPOSITION_MISSING:
+    "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_disposition_missing.v1",
+  CONTROLLED_ACCEPTANCE_INCOMPLETE:
+    "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_incomplete.v1",
+  PROOF_POSTURE_INVALID:
+    "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_proof_posture_invalid.v1"
 });
 
 export const FINDINGS_SNAPSHOT_DIAGNOSTIC_CODES = Object.freeze({
@@ -141,15 +301,6 @@ function readLauncherAuthenticatedWorkRecord(repo, wkId) {
       error
     );
   }
-}
-
-function controlledContractGenerationRequired(record) {
-  const posture = record?.proof_posture;
-  if (posture === null || typeof posture !== "object" || Array.isArray(posture)) return false;
-  const controlledContract = posture.controlled_contract;
-  if (controlledContract === null || typeof controlledContract !== "object" ||
-      Array.isArray(controlledContract)) return false;
-  return posture.classification === "standard" && controlledContract.required === true;
 }
 
 function captureFindingsSnapshotAuthority(repo, wkId) {
@@ -714,7 +865,7 @@ export async function provisionFindingsSnapshotAtDispatch(input = {}) {
   } catch (error) {
     const uncontrolledRepositoryAbsent =
       error?.code === "controlled_contract_repository_unavailable" &&
-      captured.manifests.size === 0 && !controlledContractGenerationRequired(record);
+      captured.manifests.size === 0;
     if (!uncontrolledRepositoryAbsent) {
       fail(
         FINDINGS_SNAPSHOT_DIAGNOSTIC_CODES.MATERIALIZATION_FAILED,
@@ -730,8 +881,7 @@ export async function provisionFindingsSnapshotAtDispatch(input = {}) {
   }
   const recordPath = captured.recordPath;
   const snapshotEntries = new Map([[recordPath, captured.recordBytes.toString("utf8")]]);
-  if (generation === null &&
-      (controlledContractGenerationRequired(record) || captured.manifests.size > 0)) {
+  if (generation === null && captured.manifests.size > 0) {
     fail(
       FINDINGS_SNAPSHOT_DIAGNOSTIC_CODES.GENERATION_REQUIRED_ABSENT,
       "the controlled findings unit has no complete carrier generation",
@@ -1066,7 +1216,7 @@ function compensateManagedAllocation({ runGit, repo, launchRef, runId, retryId, 
 }
 
 async function establishManagedWkLifecycleLocked({
-  repo, initiative, wkId, launchRef, runId, retryId, roots, deps,
+  repo, initiative, wkId, subject, launchRef, runId, retryId, roots, deps,
   runGit, allocateOrAdoptWk, bindings, receipts, createdRoots
 }) {
   const resolveGeneration = deps.resolveControlledContractGeneration
@@ -1075,21 +1225,103 @@ async function establishManagedWkLifecycleLocked({
     ?? defaultResolveControlledContractGenerationBinding;
   const persistGeneration = deps.persistControlledContractGeneration
     ?? defaultPersistControlledContractGeneration;
-  const generationRequired = controlledContractGenerationRequired(
-    readLauncherAuthenticatedWorkRecord(repo, wkId)
-  );
-  const generation = await resolveGeneration({ repoRoot: repo, wkId });
-  if (generation === null && generationRequired) {
+  const canonicalRecord = readLauncherAuthenticatedWorkRecord(repo, wkId);
+  const { sliceId } = parseSubject(subject);
+  const selectedUnit = sliceId === null ? canonicalRecord
+    : canonicalRecord.slices?.find(({ id }) => id === sliceId) ?? null;
+  if (selectedUnit === null) {
     fail(
-      MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.GENERATION_REQUIRED_ABSENT,
-      "the canonical record requires a controlled-contract generation and none resolves; managed dispatch cannot proceed without one persisted current generation",
+      MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.RECORD_UNREADABLE,
+      "the exact canonical dispatch unit is absent from the work record",
+      { issue: "controlled_acceptance_selected_unit_absent", record_id: wkId,
+        slice_id: sliceId }
+    );
+  }
+  const implementationContract = selectedUnit?.work_kind === "implementation";
+  const classifyControlledAcceptance = deps.classifyControlledAcceptanceState
+    ?? await loadDefaultClassifyControlledAcceptanceState();
+  let controlledAcceptanceState;
+  try {
+
+    controlledAcceptanceState = await classifyControlledAcceptance({ repoRoot: repo, wkId,
+      selectedUnit: sliceId, record: canonicalRecord });
+  } catch (error) {
+    fail(
+      MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
+      "the canonical controlled-acceptance proof posture is invalid",
+      { issue: "controlled_acceptance_proof_posture_invalid", record_id: wkId,
+        selected_unit: sliceId,
+        recovery: {
+          tool: "workspace_controlled_contract_obligation_coverage_query",
+          arguments: { unit: coverageUnitAddress({ wkId, selectedUnit: sliceId }) },
+          follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert"
+        },
+        source_code: error?.code ?? null,
+        source_details: structuredClone(error?.details ?? {}) },
+      error
+    );
+  }
+  try {
+    assertControlledAcceptanceStateProjection(controlledAcceptanceState, wkId, sliceId);
+  } catch {
+    fail(
+      MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
+      "the derived controlled-acceptance projection is malformed",
+      { issue: "controlled_acceptance_state_invalid", record_id: wkId,
+        selected_unit: sliceId,
+        recovery: {
+          tool: "workspace_controlled_contract_obligation_coverage_query",
+          arguments: { unit: coverageUnitAddress({ wkId, selectedUnit: sliceId }) },
+          follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert"
+        } }
+    );
+  }
+
+  if (implementationContract &&
+      !controlledAcceptanceState.semantic.admission.admits) {
+    fail(
+      controlledAcceptanceState.state === "absent"
+        ? MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.DISPOSITION_MISSING
+        : MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.CONTROLLED_ACCEPTANCE_INCOMPLETE,
+      controlledAcceptanceState.state === "absent"
+        ? "the canonical proof posture has no controlled-acceptance disposition"
+        : controlledAcceptanceState.recovery?.explanation ??
+          "the required controlled-acceptance contract is mechanically incomplete",
       {
-        issue: "controlled_contract_generation_required_absent",
+        issue: controlledAcceptanceState.state === "absent"
+          ? "controlled_acceptance_disposition_missing"
+          : "controlled_acceptance_incomplete",
         record_id: wkId,
         initiative,
-        classification: "standard",
-        controlled_contract_required: true
+        controlled_acceptance_state: controlledAcceptanceState.state,
+        controlled_acceptance_semantic: controlledAcceptanceState.semantic,
+        recovery: controlledAcceptanceState.recovery
       }
+    );
+  }
+  const generation = ["absent", "opted_out"].includes(controlledAcceptanceState.state)
+    ? null : await resolveGeneration({ repoRoot: repo, wkId });
+  if (generation === null && controlledAcceptanceState.state === "complete") {
+    fail(
+      MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.GENERATION_REQUIRED_ABSENT,
+      "the complete controlled-acceptance contract no longer resolves to its authenticated generation",
+      { issue: "controlled_contract_generation_required_absent", record_id: wkId,
+        initiative, controlled_acceptance_state: controlledAcceptanceState.state,
+        controlled_contract_required: true }
+    );
+  }
+  const resolvedAllocationGeneration = generation?.manifest_selection?.find(
+    ({ focus }) => focus === null)?.generation ?? null;
+  if (["complete", "incomplete"].includes(controlledAcceptanceState.state) &&
+      generation !== null &&
+      controlledAcceptanceState.generation !== resolvedAllocationGeneration) {
+    fail(
+      MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
+      "the derived controlled-acceptance state and resolved carrier generation disagree",
+      { issue: "controlled_acceptance_generation_identity_mismatch", record_id: wkId,
+        initiative, projected_generation: controlledAcceptanceState.generation,
+        resolved_generation: resolvedAllocationGeneration,
+        recovery: controlledAcceptanceState.recovery }
     );
   }
   if (!existsSync(roots.worktreeRoot)) {
@@ -1162,12 +1394,12 @@ async function establishManagedWkLifecycleLocked({
     repo, binding: bindings.wk, committedTip: snapshot.committed_tip,
     runGit, stage: "dispatch-time record snapshot"
   });
-  return Object.freeze({ generation, snapshot, recordCommit });
+  return Object.freeze({ controlledAcceptanceState, generation, snapshot, recordCommit });
 }
 
 function managedWkLifecycleResult({
   repo, initiative, wkId, subject, launchRef, runId, retryId, roots,
-  binding, generation, snapshot
+  binding, controlledAcceptanceState, generation, snapshot
 }) {
   return Object.freeze({
     schema_version: "managed-wk-lifecycle-allocation.v1",
@@ -1181,6 +1413,7 @@ function managedWkLifecycleResult({
     retry_id: retryId,
     worktree_root: roots.worktreeRoot,
     wk_binding: binding,
+    controlled_acceptance_state: controlledAcceptanceState,
     controlled_contract_generation: generation,
     wk_snapshot: Object.freeze({
       ref: `refs/heads/${binding.output_branch}`,
@@ -1254,13 +1487,14 @@ export async function provisionManagedWkLifecycleAtDispatch({
     let recordCommit = null;
     try {
       const established = await establishManagedWkLifecycleLocked({
-        repo, initiative, wkId, launchRef, runId, retryId, roots, deps,
+        repo, initiative, wkId, subject, launchRef, runId, retryId, roots, deps,
         runGit, allocateOrAdoptWk, bindings, receipts, createdRoots
       });
       recordCommit = established.recordCommit;
       return managedWkLifecycleResult({
         repo, initiative, wkId, subject, launchRef, runId, retryId, roots,
         binding: bindings.wk,
+        controlledAcceptanceState: established.controlledAcceptanceState,
         generation: established.generation,
         snapshot: established.snapshot
       });
@@ -1320,7 +1554,7 @@ export async function provisionManagedWorktreesAtDispatch({
     const createdRoots = [];
     try {
       const established = await establishManagedWkLifecycleLocked({
-        repo, initiative, wkId, launchRef, runId, retryId, roots, deps,
+        repo, initiative, wkId, subject, launchRef, runId, retryId, roots, deps,
         runGit, allocateOrAdoptWk, bindings, receipts, createdRoots
       });
       recordCommit = established.recordCommit;
@@ -1335,22 +1569,49 @@ export async function provisionManagedWorktreesAtDispatch({
         observeManagedWkLifecycle(managedWkLifecycleResult({
           repo, initiative, wkId, subject, launchRef, runId, retryId, roots,
           binding: bindings.wk,
+          controlledAcceptanceState: established.controlledAcceptanceState,
           generation: established.generation,
           snapshot: established.snapshot
         }));
       }
 
+      const resolveAuthenticatedCurrentWkBase = () => Object.freeze({
+        base_ref: bindings.wk.output_branch,
+        base_sha: bindings.wk.wk_tip_sha
+      });
       const earlyReconcile = classifyEarlySliceTip({
         mainRepo: repo,
         unitAddress: `${initiative}/${wkId}/${sliceId}`,
         worktreeRoot: roots.worktreeRoot,
-        deps: { ...deps, runGit }
+        deps: {
+          ...deps,
+          runGit,
+
+          resolveWkBranchTipBase: resolveAuthenticatedCurrentWkBase
+        }
       });
-      void earlyReconcile;
       const sliceName = deriveExactUnitName({
         unitAddress: `${initiative}/${wkId}/${sliceId}`,
         worktreeRoot: roots.worktreeRoot
       });
+      if (earlyReconcile.state === SLICE_TIP_RECONCILE_STATES.INTEGRATED) {
+        const settledTip = reconcileContainedSliceWorktreeToCurrentW({
+          runGit,
+          repo,
+          worktreePath: sliceName.worktree_path,
+          branch: sliceName.output_branch,
+          retainedTip: earlyReconcile.slice_tip,
+          wkRef: bindings.wk.output_branch,
+          currentWkTip: bindings.wk.wk_tip_sha
+        });
+        if (settledTip !== bindings.wk.wk_tip_sha) {
+          fail(
+            WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+            "the retained slice reconciliation returned a non-current execution binding",
+            { issue: "retained_slice_settlement_not_current" }
+          );
+        }
+      }
       const sliceBranchPresent = branchExists(runGit, repo, sliceName.output_branch);
       const sliceWorktreePresent = existsSync(sliceName.worktree_path);
       bindings.slice = allocateSlice({
@@ -1360,7 +1621,11 @@ export async function provisionManagedWorktreesAtDispatch({
         runId: bindingIdentity(runId, "slice"),
         retryId,
         worktreeRoot: roots.worktreeRoot,
-        deps: { ...deps, runGit }
+        deps: {
+          ...deps,
+          runGit,
+          resolveWkBranchTipBase: resolveAuthenticatedCurrentWkBase
+        }
       });
       receipts.slice = Object.freeze({
         branch_created: !sliceBranchPresent,
@@ -1372,6 +1637,25 @@ export async function provisionManagedWorktreesAtDispatch({
         runId: bindingIdentity(runId, "slice"), retryId, worktreeRoot: roots.worktreeRoot, sparse: true,
         runGit
       });
+      if (bindings.slice.base_ref !== bindings.wk.output_branch ||
+          bindings.slice.base_sha !== bindings.wk.wk_tip_sha) {
+        fail(
+          WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.BINDING_INCOMPLETE,
+          "the exact slice execution binding must equal the authenticated current WK tip",
+          {
+            issue: "slice_execution_binding_not_current",
+            mismatch_field: bindings.slice.base_ref !== bindings.wk.output_branch
+              ? "slice_binding.base_ref"
+              : "slice_binding.base_sha",
+            expected: bindings.slice.base_ref !== bindings.wk.output_branch
+              ? bindings.wk.output_branch
+              : bindings.wk.wk_tip_sha,
+            actual: bindings.slice.base_ref !== bindings.wk.output_branch
+              ? bindings.slice.base_ref
+              : bindings.slice.base_sha
+          }
+        );
+      }
 
       if (bindings.slice.schema_version !== WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2 ||
           bindings.slice.checkout_mode !== FULL_CHECKOUT_MODE) {

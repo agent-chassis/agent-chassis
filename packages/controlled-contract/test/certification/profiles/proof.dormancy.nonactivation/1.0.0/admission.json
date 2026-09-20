@@ -22,40 +22,5 @@
     "executable_control_count": 42,
     "negative_fixture_count": 52,
     "coverage_witness_count": 52
-  },
-  "exact_binding": {
-    "declaration_digest": "8c91248f62decfc881e20b82ca1041bec25b7900cbee001a330c36534be091ae",
-    "certification_result_digest": "002b0a37c3a94f758756b21c161ae374b610ad64cc6a501b67ba1bcfc5a57b8e",
-    "executable_control_count": 18,
-    "binding_kinds": [
-      "artifact_bytes",
-      "complete_reachability_snapshot"
-    ],
-    "relation_operators": [
-      "distinct_source_descriptor"
-    ],
-    "corpus_id": "proof-dormancy-nonactivation-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "98dfb9c1ce147613e5490bc85670998cd3e46b106a7b691d895befd5ddd42419",
-    "passed_control_ids": [
-      "activation-trace-substituted",
-      "context-admission_digest-mismatch",
-      "context-contract_digest-mismatch",
-      "context-evaluation_input_digest-mismatch",
-      "context-exact_binding_certification_digest-mismatch",
-      "context-exact_binding_declaration_digest-mismatch",
-      "context-profile_digest-mismatch",
-      "context-vocabulary_complete_digest-mismatch",
-      "context-vocabulary_version-mismatch",
-      "default-config-substituted",
-      "distinct-artifact-paths-equal-bytes",
-      "graph-node-added",
-      "graph-node-omitted",
-      "graph-subject-substituted",
-      "positive-compatibility-codec",
-      "positive-feature-gated-scheduler",
-      "positive-plugin-registry",
-      "source-descriptor-reused"
-    ]
   }
 }

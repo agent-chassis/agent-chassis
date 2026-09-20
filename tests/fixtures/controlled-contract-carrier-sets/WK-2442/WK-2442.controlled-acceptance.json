@@ -1,0 +1,4671 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-dry-disposition",
+      "kind": "provenance",
+      "text": "WK-2442#SLICE-001 DRY finding accepted once: WK-2055 retains comparative workflow measurement, reusable reporting, and regression-output ownership; WK-2442 retains quality-rubric verification and finding-specific evidence."
+    },
+    {
+      "annotation_id": "ann-decision-review",
+      "kind": "provenance",
+      "text": "WK-2442#SLICE-002 reviewed all 51 accepted decisions and returned no findings; coordinator disposition accepted once with no design change."
+    },
+    {
+      "annotation_id": "ann-quality-first",
+      "kind": "rationale",
+      "text": "Token, byte, page, call, and population counts are diagnostic denominators. Necessary usable evidence volume is not itself a failure."
+    },
+    {
+      "annotation_id": "ann-gap-boundary",
+      "kind": "note",
+      "text": "Discovered product/runtime defects require an independently scoped canonical owner and are not absorbed into WK-2442 implementation."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-agent-completes-authoring",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-agent-completes-authoring"
+    },
+    {
+      "claim_id": "claim-volume-is-diagnostic",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-volume-is-diagnostic"
+    },
+    {
+      "claim_id": "claim-state-matrix-complete",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-state-matrix-complete"
+    },
+    {
+      "claim_id": "claim-nonterminal-routes-next-call",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-nonterminal-routes-next-call"
+    },
+    {
+      "claim_id": "claim-routing-supports-authoring",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-routing-supports-authoring"
+    },
+    {
+      "claim_id": "claim-receipts-record-continuation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-receipts-record-continuation"
+    },
+    {
+      "claim_id": "claim-sequential-preserves-state",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-sequential-preserves-state"
+    },
+    {
+      "claim_id": "claim-batch-preserves-state",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-batch-preserves-state"
+    },
+    {
+      "claim_id": "claim-paths-equivalent",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-paths-equivalent"
+    },
+    {
+      "claim_id": "claim-tools-reject-unsafe-recovery",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-tools-reject-unsafe-recovery"
+    },
+    {
+      "claim_id": "claim-wk2055-authoritative",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2055-authoritative"
+    },
+    {
+      "claim_id": "claim-wk2442-docs-quality",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2442-docs-quality"
+    },
+    {
+      "claim_id": "claim-gaps-escalate",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-gaps-escalate"
+    },
+    {
+      "claim_id": "claim-fresh-session-restarts",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fresh-session-restarts"
+    },
+    {
+      "claim_id": "claim-verify-task-matrix",
+      "falsifying_proposition_id": "prop-task-matrix-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-task-matrix-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-routing-receipts",
+      "falsifying_proposition_id": "prop-routing-receipt-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-routing-receipt-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-equivalence",
+      "falsifying_proposition_id": "prop-equivalence-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-equivalence-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-ownership",
+      "falsifying_proposition_id": "prop-ownership-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-ownership-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-state-matrix-members-enumerated",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-state-matrix-members-enumerated"
+    },
+    {
+      "claim_id": "claim-complete-traversal-capture-route-unavailable",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-complete-traversal-capture-route-unavailable"
+    },
+    {
+      "claim_id": "claim-complete-traversal-capture-gap-escalates",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-complete-traversal-capture-gap-escalates"
+    },
+    {
+      "claim_id": "claim-versioned-cursor-capture-route-unavailable",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-versioned-cursor-capture-route-unavailable"
+    },
+    {
+      "claim_id": "claim-versioned-cursor-capture-gap-escalates",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-versioned-cursor-capture-gap-escalates"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-quality-behavior",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-agent-completes-authoring",
+        "claim-volume-is-diagnostic",
+        "claim-state-matrix-complete",
+        "claim-nonterminal-routes-next-call",
+        "claim-routing-supports-authoring",
+        "claim-receipts-record-continuation",
+        "claim-sequential-preserves-state",
+        "claim-batch-preserves-state",
+        "claim-paths-equivalent",
+        "claim-tools-reject-unsafe-recovery",
+        "claim-wk2055-authoritative",
+        "claim-wk2442-docs-quality",
+        "claim-gaps-escalate",
+        "claim-fresh-session-restarts",
+        "claim-state-matrix-members-enumerated",
+        "claim-complete-traversal-capture-route-unavailable",
+        "claim-complete-traversal-capture-gap-escalates",
+        "claim-versioned-cursor-capture-route-unavailable",
+        "claim-versioned-cursor-capture-gap-escalates"
+      ],
+      "purpose": "quality_behavior"
+    },
+    {
+      "collection_id": "set-verification",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-verify-task-matrix",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence",
+        "claim-verify-ownership"
+      ],
+      "purpose": "verification"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-tools"
+        }
+      ],
+      "operator": "reference:completes",
+      "proposition_id": "prop-agent-completes-authoring",
+      "subject_reference_id": "ref-agent"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-quality-diagnostic"
+        }
+      ],
+      "operator": "reference:classifies_as",
+      "proposition_id": "prop-volume-is-diagnostic",
+      "subject_reference_id": "ref-diagnostic-volume"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-state-matrix"
+        }
+      ],
+      "operator": "reference:complete_against",
+      "proposition_id": "prop-state-matrix-complete",
+      "subject_reference_id": "ref-authoring-tools"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-public-next-calls"
+        }
+      ],
+      "operator": "reference:routes_to",
+      "proposition_id": "prop-nonterminal-routes-next-call",
+      "subject_reference_id": "ref-nonterminal-states"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-tools"
+        }
+      ],
+      "operator": "reference:supports",
+      "proposition_id": "prop-routing-supports-authoring",
+      "subject_reference_id": "ref-public-next-calls"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-state"
+        }
+      ],
+      "operator": "reference:records",
+      "proposition_id": "prop-receipts-record-continuation",
+      "subject_reference_id": "ref-receipt-chain"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-state"
+        }
+      ],
+      "operator": "reference:preserves",
+      "proposition_id": "prop-sequential-preserves-state",
+      "subject_reference_id": "ref-sequential-path"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-state"
+        }
+      ],
+      "operator": "reference:preserves",
+      "proposition_id": "prop-batch-preserves-state",
+      "subject_reference_id": "ref-batch-path"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-batch-path"
+        }
+      ],
+      "operator": "reference:behaviorally_equivalent",
+      "proposition_id": "prop-paths-equivalent",
+      "subject_reference_id": "ref-sequential-path"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-unsafe-recovery"
+        }
+      ],
+      "operator": "reference:rejects",
+      "proposition_id": "prop-tools-reject-unsafe-recovery",
+      "subject_reference_id": "ref-authoring-tools"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-diagnostic-volume"
+        }
+      ],
+      "operator": "reference:authoritative_for",
+      "proposition_id": "prop-wk2055-authoritative",
+      "subject_reference_id": "ref-wk2055"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-quality-guidance"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-tool-discovery-guidance"
+        }
+      ],
+      "operator": "reference:writes",
+      "proposition_id": "prop-wk2442-docs-quality",
+      "subject_reference_id": "ref-wk2442"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-gap-owner"
+        }
+      ],
+      "operator": "reference:escalates_to",
+      "proposition_id": "prop-gaps-escalate",
+      "subject_reference_id": "ref-wk2442"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-receipt-chain"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-state"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-fresh-session-restarts",
+      "subject_reference_id": "ref-agent"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-task-matrix-verification-exists",
+      "subject_reference_id": "ref-task-matrix-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:fails_when",
+      "proposition_id": "prop-task-matrix-falsifier",
+      "subject_reference_id": "ref-task-matrix-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-routing-receipt-verification-exists",
+      "subject_reference_id": "ref-routing-receipt-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:fails_when",
+      "proposition_id": "prop-routing-receipt-falsifier",
+      "subject_reference_id": "ref-routing-receipt-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-equivalence-verification-exists",
+      "subject_reference_id": "ref-equivalence-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:fails_when",
+      "proposition_id": "prop-equivalence-falsifier",
+      "subject_reference_id": "ref-equivalence-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-ownership-verification-exists",
+      "subject_reference_id": "ref-ownership-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:fails_when",
+      "proposition_id": "prop-ownership-falsifier",
+      "subject_reference_id": "ref-ownership-suite"
+    },
+    {
+      "proposition_id": "prop-state-matrix-members-enumerated",
+      "subject_reference_id": "ref-state-matrix",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-current"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-absent"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-stale"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-invalid-selector"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-invalid-cursor"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-missing-contract"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-missing-proof-plan"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-multi-page"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-multi-row-sequential-mutation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-state-atomic-batch"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-complete-traversal-capture-route-unavailable",
+      "subject_reference_id": "ref-complete-traversal-exact-binding-capture-route",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-capture-route-unavailable"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-complete-traversal-capture-gap-escalates",
+      "subject_reference_id": "ref-complete-traversal-exact-binding-capture-route",
+      "operator": "reference:escalates_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-gap-owner"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-versioned-cursor-capture-route-unavailable",
+      "subject_reference_id": "ref-versioned-cursor-exact-binding-capture-route",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-capture-route-unavailable"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-versioned-cursor-capture-gap-escalates",
+      "subject_reference_id": "ref-versioned-cursor-exact-binding-capture-route",
+      "operator": "reference:escalates_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-gap-owner"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "domain": "work_record",
+        "kind": "durable_id",
+        "value": "WK-2442"
+      },
+      "reference_id": "ref-wk2442",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "work_record",
+        "kind": "durable_id",
+        "value": "WK-2055"
+      },
+      "reference_id": "ref-wk2055",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "fresh-session-repository-agent"
+      },
+      "reference_id": "ref-agent",
+      "type_term": "cc:actor"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "proof-obligation-and-acceptance-mapping-authoring"
+      },
+      "reference_id": "ref-authoring-tools",
+      "type_term": "cc:capability"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "advertised-public-next-calls"
+      },
+      "reference_id": "ref-public-next-calls",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-required-authoring-state-matrix"
+      },
+      "reference_id": "ref-state-matrix",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-nonterminal-authoring-states"
+      },
+      "reference_id": "ref-nonterminal-states",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "raw-call-byte-page-continuation-denominators"
+      },
+      "reference_id": "ref-diagnostic-volume",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "quality-diagnostic-not-arbitrary-ceiling"
+      },
+      "reference_id": "ref-quality-diagnostic",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "authenticated-receipt-fed-continuation-chain"
+      },
+      "reference_id": "ref-receipt-chain",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "canonical-authoring-carrier-state"
+      },
+      "reference_id": "ref-canonical-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "sequential-receipt-fed-authoring-path"
+      },
+      "reference_id": "ref-sequential-path",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "atomic-batch-authoring-path"
+      },
+      "reference_id": "ref-batch-path",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "blind-shell-or-raw-carrier-recovery"
+      },
+      "reference_id": "ref-unsafe-recovery",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "independently-scoped-gap-owner"
+      },
+      "reference_id": "ref-gap-owner",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "docs/mcp-operation-reference.md",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-quality-guidance",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "docs/tool-discovery.md",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-tool-discovery-guidance",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-mcp-tools-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-core-acceptance-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-core-tools-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-task-matrix-regression-suite"
+      },
+      "reference_id": "ref-task-matrix-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-routing-receipt-regression-suite"
+      },
+      "reference_id": "ref-routing-receipt-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-final-carrier-equivalence-suite"
+      },
+      "reference_id": "ref-equivalence-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ownership-and-docs-suite"
+      },
+      "reference_id": "ref-ownership-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-allowed-settlement-states"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-allowed-settlement-states",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-compound-operation"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-compound-operation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-constituent-effect-population"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-constituent-effect-population",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-constituent-effects-1"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-constituent-effects-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-constituent-effects-2"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-constituent-effects-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-earlier-constituent-effect"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-earlier-constituent-effect",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-earlier-effect-observation"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-earlier-effect-observation",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-earlier-effect-settled-state"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-earlier-effect-settled-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-failure-boundary"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-failure-boundary",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-forbidden-partial-state"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-forbidden-partial-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-fully-committed-state"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-fully-committed-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-fully-uncommitted-state"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-fully-uncommitted-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-injected-failure"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-injected-failure",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-later-constituent-effect"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-later-constituent-effect",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-later-effect-observation"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-later-effect-observation",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-later-effect-settled-state"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-later-effect-settled-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-operation-attempt"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-operation-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-partial-commit-condition"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-partial-commit-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-settled-result"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-settled-result",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-settlement-event"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-settlement-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-atomicity-failure-boundary-verification"
+      },
+      "reference_id": "ref-atomicity-failure-boundary-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-attempt-binding-witness"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-attempt-binding-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-authentication-verification"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-authentication-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-authentication-witness"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-authentication-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-evidence-content"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-evidence-content",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-evidence-occurrence"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-evidence-occurrence",
+      "type_term": "cc:evidence_occurrence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-observation-attempt"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-observation-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-observation-verification"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-observation-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-occurrence-capture"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-occurrence-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-provenance-verification"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-provenance-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-source"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-source",
+      "type_term": "cc:actor"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-source-authentication-witness"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-source-authentication-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-source-of-record-witness"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-source-of-record-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-source-population"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-source-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-source-record-verification"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-source-record-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-target"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-target",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-target-population"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-target-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authentication-direct-source-provenance-target-resolution-witness"
+      },
+      "reference_id": "ref-authentication-direct-source-provenance-target-resolution-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-attempt"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-authority"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-authority",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-operation"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-operation",
+      "type_term": "cc:capability"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-protected-effect-population"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-protected-effect-population",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-protected-effects-1"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-protected-effects-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-protected-effects-2"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-protected-effects-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-protected-interval"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-protected-interval",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-refusal"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-refusal",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-subject"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-subject",
+      "type_term": "cc:actor"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-authorization-refusal-before-effects-verification"
+      },
+      "reference_id": "ref-authorization-refusal-before-effects-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-compatibility-behavioral-preservation-canonical-value-mismatch-condition"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-canonical-value-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-compatibility-behavioral-preservation-left-count-mismatch-condition"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-left-count-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-compatibility-behavioral-preservation-left-count-signal"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-left-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-compatibility-behavioral-preservation-left-population"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-left-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-compatibility-behavioral-preservation-left-population-not-subset-condition"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-left-population-not-subset-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-compatibility-behavioral-preservation-left-result"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-left-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-compatibility-behavioral-preservation-left-selected-canonical-value"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-left-selected-canonical-value",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-compatibility-behavioral-preservation-logical-source"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-logical-source",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-compatibility-behavioral-preservation-right-count-mismatch-condition"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-right-count-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-compatibility-behavioral-preservation-right-count-signal"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-right-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-compatibility-behavioral-preservation-right-population"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-right-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-compatibility-behavioral-preservation-right-population-not-subset-condition"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-right-population-not-subset-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-compatibility-behavioral-preservation-right-result"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-right-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-compatibility-behavioral-preservation-right-selected-canonical-value"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-right-selected-canonical-value",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-compatibility-behavioral-preservation-verification"
+      },
+      "reference_id": "ref-compatibility-behavioral-preservation-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-accounted-members-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-accounted-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-accounted-members-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-accounted-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-accounted-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-accounted-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-allowed-reasons-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-allowed-reasons-1",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-allowed-reasons-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-allowed-reasons-2",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-completeness-lossless-projection-compact-mode"
+      },
+      "reference_id": "ref-completeness-lossless-projection-compact-mode",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-compact-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-compact-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-compact-result"
+      },
+      "reference_id": "ref-completeness-lossless-projection-compact-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-completeness-lossless-projection-complete-mode"
+      },
+      "reference_id": "ref-completeness-lossless-projection-complete-mode",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-complete-result"
+      },
+      "reference_id": "ref-completeness-lossless-projection-complete-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-complete-result-members-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-complete-result-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-complete-result-members-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-complete-result-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-complete-result-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-complete-result-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-disclosed-members-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-disclosed-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-disclosed-members-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-disclosed-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-disclosed-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-disclosed-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-disclosure-signal"
+      },
+      "reference_id": "ref-completeness-lossless-projection-disclosure-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-heavy-member-class"
+      },
+      "reference_id": "ref-completeness-lossless-projection-heavy-member-class",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-incomplete-omission-count-condition"
+      },
+      "reference_id": "ref-completeness-lossless-projection-incomplete-omission-count-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-incomplete-total-condition"
+      },
+      "reference_id": "ref-completeness-lossless-projection-incomplete-total-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-mode-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-mode-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-no-compact-omission-condition"
+      },
+      "reference_id": "ref-completeness-lossless-projection-no-compact-omission-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-omission-count-signal"
+      },
+      "reference_id": "ref-completeness-lossless-projection-omission-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-omission-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-omission-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-omission-reason"
+      },
+      "reference_id": "ref-completeness-lossless-projection-omission-reason",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-omitted-members-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-omitted-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-omitted-members-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-omitted-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-reason-catalog"
+      },
+      "reference_id": "ref-completeness-lossless-projection-reason-catalog",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-silent-omission-condition"
+      },
+      "reference_id": "ref-completeness-lossless-projection-silent-omission-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-source-members-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-source-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-source-members-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-source-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-source-population"
+      },
+      "reference_id": "ref-completeness-lossless-projection-source-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-completeness-lossless-projection-tool"
+      },
+      "reference_id": "ref-completeness-lossless-projection-tool",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-completeness-lossless-projection-tool-modes-1"
+      },
+      "reference_id": "ref-completeness-lossless-projection-tool-modes-1",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-completeness-lossless-projection-tool-modes-2"
+      },
+      "reference_id": "ref-completeness-lossless-projection-tool-modes-2",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-completeness-lossless-projection-total-count-signal"
+      },
+      "reference_id": "ref-completeness-lossless-projection-total-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-unaccounted-source-condition"
+      },
+      "reference_id": "ref-completeness-lossless-projection-unaccounted-source-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-completeness-lossless-projection-unrecoverable-loss-condition"
+      },
+      "reference_id": "ref-completeness-lossless-projection-unrecoverable-loss-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-completeness-lossless-projection-verification"
+      },
+      "reference_id": "ref-completeness-lossless-projection-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-design-unit"
+      },
+      "reference_id": "ref-design-implementation-readiness-design-unit",
+      "type_term": "cc:artifact"
+    },
+    {
+      "reference_id": "ref-design-implementation-readiness-implementation-locus",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "symbol": "registerControlledContractTools"
+      }
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-placeholder-population"
+      },
+      "reference_id": "ref-design-implementation-readiness-placeholder-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-required-warning-fields-1"
+      },
+      "reference_id": "ref-design-implementation-readiness-required-warning-fields-1",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-required-warning-fields-2"
+      },
+      "reference_id": "ref-design-implementation-readiness-required-warning-fields-2",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-required-warning-shape-population"
+      },
+      "reference_id": "ref-design-implementation-readiness-required-warning-shape-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-requirement-population"
+      },
+      "reference_id": "ref-design-implementation-readiness-requirement-population",
+      "type_term": "cc:population"
+    },
+    {
+      "reference_id": "ref-design-implementation-readiness-requirements-1",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "docs/acceptance-coverage-mcp.md"
+      }
+    },
+    {
+      "reference_id": "ref-design-implementation-readiness-requirements-2",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/work-records/WK-2442.json"
+      }
+    },
+    {
+      "reference_id": "ref-design-implementation-readiness-test-locus",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "symbol": "packageAcceptanceCoverageOracle"
+      }
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-design-implementation-readiness-validated-requirements-1"
+      },
+      "reference_id": "ref-design-implementation-readiness-validated-requirements-1",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-design-implementation-readiness-validated-requirements-2"
+      },
+      "reference_id": "ref-design-implementation-readiness-validated-requirements-2",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-validation-population"
+      },
+      "reference_id": "ref-design-implementation-readiness-validation-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-code-field"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-code-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-code-value"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-code-value",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-fields-1"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-fields-1",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-fields-2"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-fields-2",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-message-field"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-message-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-message-template"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-message-template",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-payload-field"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-payload-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-payload-schema"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-payload-schema",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-severity-field"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-severity-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-severity-value"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-severity-value",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-design-implementation-readiness-warning-shape-mismatch-condition"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-shape-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-design-implementation-readiness-warning-shape-population"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-shape-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-design-implementation-readiness-warning-signal"
+      },
+      "reference_id": "ref-design-implementation-readiness-warning-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-attempt-population"
+      },
+      "reference_id": "ref-failure-retry-convergence-attempt-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-attempts-1"
+      },
+      "reference_id": "ref-failure-retry-convergence-attempts-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-attempts-2"
+      },
+      "reference_id": "ref-failure-retry-convergence-attempts-2",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-cleanup-event"
+      },
+      "reference_id": "ref-failure-retry-convergence-cleanup-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-effect-count-signal"
+      },
+      "reference_id": "ref-failure-retry-convergence-effect-count-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-effect-resource"
+      },
+      "reference_id": "ref-failure-retry-convergence-effect-resource",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-expected-state"
+      },
+      "reference_id": "ref-failure-retry-convergence-expected-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-failure-retry-convergence-failed-accepted-condition"
+      },
+      "reference_id": "ref-failure-retry-convergence-failed-accepted-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-failed-attempt"
+      },
+      "reference_id": "ref-failure-retry-convergence-failed-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-failure-retry-convergence-failed-effect-condition"
+      },
+      "reference_id": "ref-failure-retry-convergence-failed-effect-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-failure-event"
+      },
+      "reference_id": "ref-failure-retry-convergence-failure-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-final-effect"
+      },
+      "reference_id": "ref-failure-retry-convergence-final-effect",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-final-effect-members-1"
+      },
+      "reference_id": "ref-failure-retry-convergence-final-effect-members-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-final-effect-members-2"
+      },
+      "reference_id": "ref-failure-retry-convergence-final-effect-members-2",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-final-effect-population"
+      },
+      "reference_id": "ref-failure-retry-convergence-final-effect-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-final-state"
+      },
+      "reference_id": "ref-failure-retry-convergence-final-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-final-state-observation"
+      },
+      "reference_id": "ref-failure-retry-convergence-final-state-observation",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-input"
+      },
+      "reference_id": "ref-failure-retry-convergence-input",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-failure-retry-convergence-non-single-effect-condition"
+      },
+      "reference_id": "ref-failure-retry-convergence-non-single-effect-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-failure-retry-convergence-operation"
+      },
+      "reference_id": "ref-failure-retry-convergence-operation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-residue-count-signal"
+      },
+      "reference_id": "ref-failure-retry-convergence-residue-count-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-residue-observation"
+      },
+      "reference_id": "ref-failure-retry-convergence-residue-observation",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-residue-population"
+      },
+      "reference_id": "ref-failure-retry-convergence-residue-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-failure-retry-convergence-residue-survives-condition"
+      },
+      "reference_id": "ref-failure-retry-convergence-residue-survives-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-retry-attempt"
+      },
+      "reference_id": "ref-failure-retry-convergence-retry-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-failure-retry-convergence-retry-rejected-condition"
+      },
+      "reference_id": "ref-failure-retry-convergence-retry-rejected-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-settlement-event"
+      },
+      "reference_id": "ref-failure-retry-convergence-settlement-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-failure-retry-convergence-success-event"
+      },
+      "reference_id": "ref-failure-retry-convergence-success-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-failure-retry-convergence-verification"
+      },
+      "reference_id": "ref-failure-retry-convergence-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-failure-retry-convergence-wrong-final-state-condition"
+      },
+      "reference_id": "ref-failure-retry-convergence-wrong-final-state-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-acceptance"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-acceptance",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-accepted-attempt"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-accepted-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-accepted-request"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-accepted-request",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-accepted-request-capture"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-accepted-request-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-accepted-supply-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-accepted-supply-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-allowed-members-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-allowed-members-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-authority-classes-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-authority-classes-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-capture-proof"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-capture-proof",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-coordinate-classes-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-coordinate-classes-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-declared-members-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-declared-members-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-family-classes-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-family-classes-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-forbidden-attempt"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-forbidden-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-forbidden-members-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-forbidden-members-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-forbidden-request"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-forbidden-request",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-forbidden-request-capture"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-forbidden-request-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-forbidden-supply-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-forbidden-supply-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-interface"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-interface",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-mandatory-sources-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-mandatory-sources-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-observation-cut"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-observation-cut",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-observation-evidence-capture"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-observation-evidence-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-observed-sources-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-observed-sources-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-parser"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-parser",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-path-like-control"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-path-like-control",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-policy-capture"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-policy-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-pre-refusal-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-pre-refusal-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-prohibited-families-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-prohibited-families-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-projection-result"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-projection-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-protected-effects-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-protected-effects-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-refusal"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-refusal",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-resolution-coordinates-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-resolution-coordinates-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-resolver-operations-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-resolver-operations-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-selected-forbidden-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-selected-forbidden-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-server-coordinates-pop"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-server-coordinates-pop",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-input-caller-authority-confinement-verification"
+      },
+      "reference_id": "ref-input-caller-authority-confinement-verification",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-allowed-settled-state-population"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-allowed-settled-state-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-allowed-settled-states-1"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-allowed-settled-states-1",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-allowed-settled-states-2"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-allowed-settled-states-2",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-disallowed-settled-state-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-disallowed-settled-state-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-durable-effect-population"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-durable-effect-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-durable-effects-1"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-durable-effects-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-durable-effects-2"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-durable-effects-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-durable-not-settled-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-durable-not-settled-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-expected-durable-state"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-expected-durable-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-failure-event"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-failure-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-failure-visibility-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-failure-visibility-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-failure-visibility-count-signal"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-failure-visibility-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-failure-visibility-population"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-failure-visibility-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-observed-durable-state"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-observed-durable-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-post-visibility-observation"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-post-visibility-observation",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-premature-observation-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-premature-observation-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-premature-visibility-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-premature-visibility-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-selected-settled-state"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-selected-settled-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-ordering-visibility-after-durable-settlement-settled-effect-population"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-settled-effect-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-settled-effects-1"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-settled-effects-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-settled-effects-2"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-settled-effects-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-settled-not-durable-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-settled-not-durable-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-settlement-event"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-settlement-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-ordering-visibility-after-durable-settlement-stale-observation-condition"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-stale-observation-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-verification"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-ordering-visibility-after-durable-settlement-visibility-event"
+      },
+      "reference_id": "ref-ordering-visibility-after-durable-settlement-visibility-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-aggregate-input-accounting"
+      },
+      "reference_id": "ref-pagination-complete-traversal-aggregate-input-accounting",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-attempt-binding-witness"
+      },
+      "reference_id": "ref-pagination-complete-traversal-attempt-binding-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authenticated-source"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authenticated-source",
+      "type_term": "cc:actor"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authentication-capture"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authentication-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authentication-evidence-occurrence"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authentication-evidence-occurrence",
+      "type_term": "cc:evidence_occurrence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authentication-observation-attempt"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authentication-observation-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authentication-witness"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authentication-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authoritative-occurrence-population"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authoritative-occurrence-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authoritative-population"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authoritative-population",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-canonical-result-accounting"
+      },
+      "reference_id": "ref-pagination-complete-traversal-canonical-result-accounting",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-cursor-transition-population"
+      },
+      "reference_id": "ref-pagination-complete-traversal-cursor-transition-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-equality-normalized-member-population"
+      },
+      "reference_id": "ref-pagination-complete-traversal-equality-normalized-member-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-equality-policy"
+      },
+      "reference_id": "ref-pagination-complete-traversal-equality-policy",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-exact-equality-state"
+      },
+      "reference_id": "ref-pagination-complete-traversal-exact-equality-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-exact-order-state"
+      },
+      "reference_id": "ref-pagination-complete-traversal-exact-order-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-mutation-trace"
+      },
+      "reference_id": "ref-pagination-complete-traversal-mutation-trace",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-projection-result"
+      },
+      "reference_id": "ref-pagination-complete-traversal-projection-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-resource-policy"
+      },
+      "reference_id": "ref-pagination-complete-traversal-resource-policy",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-returned-occurrence-population"
+      },
+      "reference_id": "ref-pagination-complete-traversal-returned-occurrence-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-returned-page-population"
+      },
+      "reference_id": "ref-pagination-complete-traversal-returned-page-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-returned-pages-1"
+      },
+      "reference_id": "ref-pagination-complete-traversal-returned-pages-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-returned-pages-2"
+      },
+      "reference_id": "ref-pagination-complete-traversal-returned-pages-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-snapshot"
+      },
+      "reference_id": "ref-pagination-complete-traversal-snapshot",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-source-authentication-witness"
+      },
+      "reference_id": "ref-pagination-complete-traversal-source-authentication-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-source-of-record-witness"
+      },
+      "reference_id": "ref-pagination-complete-traversal-source-of-record-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-target-resolution-witness"
+      },
+      "reference_id": "ref-pagination-complete-traversal-target-resolution-witness",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-terminal-page"
+      },
+      "reference_id": "ref-pagination-complete-traversal-terminal-page",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-traversal"
+      },
+      "reference_id": "ref-pagination-complete-traversal-traversal",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-traversal-failure-condition"
+      },
+      "reference_id": "ref-pagination-complete-traversal-traversal-failure-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-traversal-source-version"
+      },
+      "reference_id": "ref-pagination-complete-traversal-traversal-source-version",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-pagination-complete-traversal-verification"
+      },
+      "reference_id": "ref-pagination-complete-traversal-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-work-accounting"
+      },
+      "reference_id": "ref-pagination-complete-traversal-work-accounting",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-advancement-failure-condition"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-advancement-failure-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-advancement-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-advancement-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-advancements-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-advancements-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-advancements-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-advancements-2",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-advancement"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-advancement",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-after-capture"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-after-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-attempt"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-before-capture"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-before-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-cursor"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-cursor",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-cursor-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-cursor-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-cursors-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-cursors-1",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-cursors-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-cursors-2",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-return"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-return",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-returned-page"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-returned-page",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-returned-page-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-returned-page-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-returned-pages-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-returned-pages-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-returned-pages-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-returned-pages-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-source"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-source",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-source-version"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-source-version",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-control-traversal"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-control-traversal",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-current-source-version"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-current-source-version",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-cursor-advance-event"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-cursor-advance-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-cursor-state"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-cursor-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-effect-occurrence-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-effect-occurrence-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-emission-failure-condition"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-emission-failure-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-false-refusal-condition"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-false-refusal-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-live-source"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-live-source",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-mutation-failure-condition"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-mutation-failure-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-mutation-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-mutation-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-mutation-trace"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-mutation-trace",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-mutations-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-mutations-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-mutations-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-mutations-2",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-page-attempt-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-page-attempt-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-page-attempts-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-page-attempts-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-page-attempts-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-page-attempts-2",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-page-result-artifact"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-page-result-artifact",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-page-return-event"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-page-return-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-after-capture"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-after-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-before-capture"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-before-capture",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-cursor-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-cursor-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-cursors-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-cursors-1",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-cursors-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-cursors-2",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-returned-page-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-returned-page-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-returned-pages-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-returned-pages-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-primary-returned-pages-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-primary-returned-pages-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-prior-page-attempt"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-prior-page-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-projection-result"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-projection-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-protected-effect-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-protected-effect-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-protected-effects-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-protected-effects-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-protected-effects-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-protected-effects-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-refusal"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-refusal",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-relevant-mutation"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-relevant-mutation",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-return-failure-condition"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-return-failure-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-return-population"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-return-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-returns-1"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-returns-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-returns-2"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-returns-2",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-stale-attempt"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-stale-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-stale-cursor"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-stale-cursor",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-traversal"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-traversal",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-traversal-source-version"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-traversal-source-version",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-traversal-state"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-traversal-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-unrelated-mutation"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-unrelated-mutation",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-unrelated-source"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-unrelated-source",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-verification"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-versioned-cursor-refusal-write-failure-condition"
+      },
+      "reference_id": "ref-pagination-versioned-cursor-refusal-write-failure-condition",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-allowed-members-1"
+      },
+      "reference_id": "ref-result-shape-conformance-allowed-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-allowed-members-2"
+      },
+      "reference_id": "ref-result-shape-conformance-allowed-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-allowed-population"
+      },
+      "reference_id": "ref-result-shape-conformance-allowed-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-allowed-shape-population"
+      },
+      "reference_id": "ref-result-shape-conformance-allowed-shape-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-allowed-shapes-1"
+      },
+      "reference_id": "ref-result-shape-conformance-allowed-shapes-1",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-allowed-shapes-2"
+      },
+      "reference_id": "ref-result-shape-conformance-allowed-shapes-2",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-conformance-disallowed-shape-condition"
+      },
+      "reference_id": "ref-result-shape-conformance-disallowed-shape-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-forbidden-member-population"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-member-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-forbidden-members-1"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-forbidden-members-2"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-conformance-forbidden-shape-condition"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-shape-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-forbidden-shape-population"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-shape-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-forbidden-shapes-1"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-shapes-1",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-forbidden-shapes-2"
+      },
+      "reference_id": "ref-result-shape-conformance-forbidden-shapes-2",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-conformance-incorrect-count-condition"
+      },
+      "reference_id": "ref-result-shape-conformance-incorrect-count-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-conformance-missing-required-condition"
+      },
+      "reference_id": "ref-result-shape-conformance-missing-required-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-operation"
+      },
+      "reference_id": "ref-result-shape-conformance-operation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-optional-population"
+      },
+      "reference_id": "ref-result-shape-conformance-optional-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-required-members-1"
+      },
+      "reference_id": "ref-result-shape-conformance-required-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-required-members-2"
+      },
+      "reference_id": "ref-result-shape-conformance-required-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-required-population"
+      },
+      "reference_id": "ref-result-shape-conformance-required-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-result"
+      },
+      "reference_id": "ref-result-shape-conformance-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-result-count-signal"
+      },
+      "reference_id": "ref-result-shape-conformance-result-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-result-members-1"
+      },
+      "reference_id": "ref-result-shape-conformance-result-members-1",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-result-members-2"
+      },
+      "reference_id": "ref-result-shape-conformance-result-members-2",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-result-population"
+      },
+      "reference_id": "ref-result-shape-conformance-result-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-result-shape"
+      },
+      "reference_id": "ref-result-shape-conformance-result-shape",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-schema"
+      },
+      "reference_id": "ref-result-shape-conformance-schema",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-conformance-unexpected-member-condition"
+      },
+      "reference_id": "ref-result-shape-conformance-unexpected-member-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-conformance-verification"
+      },
+      "reference_id": "ref-result-shape-conformance-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-cross-representation-parity-canonical-value-mismatch-condition"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-canonical-value-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-cross-representation-parity-left-count-mismatch-condition"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-left-count-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-result-shape-cross-representation-parity-left-count-signal"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-left-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-result-shape-cross-representation-parity-left-population"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-left-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-cross-representation-parity-left-population-not-subset-condition"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-left-population-not-subset-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-cross-representation-parity-left-result"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-left-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-result-shape-cross-representation-parity-left-selected-canonical-value"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-left-selected-canonical-value",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-cross-representation-parity-logical-source"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-logical-source",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-cross-representation-parity-right-count-mismatch-condition"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-right-count-mismatch-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-result-shape-cross-representation-parity-right-count-signal"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-right-count-signal",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-result-shape-cross-representation-parity-right-population"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-right-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-result-shape-cross-representation-parity-right-population-not-subset-condition"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-right-population-not-subset-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-cross-representation-parity-right-result"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-right-result",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-result-shape-cross-representation-parity-right-selected-canonical-value"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-right-selected-canonical-value",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-result-shape-cross-representation-parity-verification"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-scope-write-confinement-authorized-scope"
+      },
+      "reference_id": "ref-scope-write-confinement-authorized-scope",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-scope-write-confinement-execution"
+      },
+      "reference_id": "ref-scope-write-confinement-execution",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-scope-write-confinement-observed-population"
+      },
+      "reference_id": "ref-scope-write-confinement-observed-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-scope-write-confinement-unauthorized-mutation-condition"
+      },
+      "reference_id": "ref-scope-write-confinement-unauthorized-mutation-condition",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "wk-2442-scope-write-confinement-verification"
+      },
+      "reference_id": "ref-scope-write-confinement-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-verification-test-validity-component"
+      },
+      "reference_id": "ref-verification-test-validity-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-verification-test-validity-suite"
+      },
+      "reference_id": "ref-verification-test-validity-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authoritative-occurrences-1"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authoritative-occurrences-1",
+      "type_term": "cc:evidence_occurrence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-authoritative-occurrences-2"
+      },
+      "reference_id": "ref-pagination-complete-traversal-authoritative-occurrences-2",
+      "type_term": "cc:evidence_occurrence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-equality-normalized-members-1"
+      },
+      "reference_id": "ref-pagination-complete-traversal-equality-normalized-members-1",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-equality-normalized-members-2"
+      },
+      "reference_id": "ref-pagination-complete-traversal-equality-normalized-members-2",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-proof-role",
+        "kind": "durable_id",
+        "value": "wk-2442-pagination-complete-traversal-cursor-transitions-1"
+      },
+      "reference_id": "ref-pagination-complete-traversal-cursor-transitions-1",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "controlled-contract-carrier-kind",
+        "kind": "durable_id",
+        "value": "contract"
+      },
+      "reference_id": "ref-scope-write-confinement-authorized-target-contract",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "controlled-contract-carrier-kind",
+        "kind": "durable_id",
+        "value": "evaluation-input"
+      },
+      "reference_id": "ref-scope-write-confinement-authorized-target-evaluation-input",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "controlled-contract-carrier-kind",
+        "kind": "durable_id",
+        "value": "proof-plan-request"
+      },
+      "reference_id": "ref-scope-write-confinement-authorized-target-proof-plan-request",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "controlled-contract-carrier-kind",
+        "kind": "durable_id",
+        "value": "proof-plan"
+      },
+      "reference_id": "ref-scope-write-confinement-authorized-target-proof-plan",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-result-member",
+        "kind": "durable_id",
+        "value": "cross-representation-member-1"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-members-1",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "wk-2442-result-member",
+        "kind": "durable_id",
+        "value": "cross-representation-member-2"
+      },
+      "reference_id": "ref-result-shape-cross-representation-parity-members-2",
+      "type_term": "cc:configuration"
+    },
+    {
+      "reference_id": "ref-authoring-state-current",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "current"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-absent",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "absent"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-stale",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "stale"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-invalid-selector",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "invalid-selector"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-invalid-cursor",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "invalid-cursor"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-missing-contract",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "missing-contract"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-missing-proof-plan",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "missing-proof-plan"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-multi-page",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "multi-page"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-multi-row-sequential-mutation",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "multi-row-sequential-mutation"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-state-atomic-batch",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2442-authoring-state",
+        "value": "atomic-batch"
+      }
+    },
+    {
+      "reference_id": "ref-proof-capture-route-unavailable",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2442-proof-capture-route-unavailable"
+      }
+    },
+    {
+      "reference_id": "ref-complete-traversal-exact-binding-capture-route",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "profile_term",
+        "term": "workspace-complete-traversal-exact-binding-capture-route"
+      }
+    },
+    {
+      "reference_id": "ref-versioned-cursor-exact-binding-capture-route",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "profile_term",
+        "term": "workspace-versioned-cursor-exact-binding-capture-route"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-task-matrix-1",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-task-matrix",
+      "target_claim_id": "claim-agent-completes-authoring"
+    },
+    {
+      "relation_id": "rel-verify-task-matrix-2",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-task-matrix",
+      "target_claim_id": "claim-volume-is-diagnostic"
+    },
+    {
+      "relation_id": "rel-verify-task-matrix-3",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-task-matrix",
+      "target_claim_id": "claim-state-matrix-complete"
+    },
+    {
+      "relation_id": "rel-verify-task-matrix-4",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-task-matrix",
+      "target_claim_id": "claim-nonterminal-routes-next-call"
+    },
+    {
+      "relation_id": "rel-verify-routing-receipts-1",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-routing-receipts",
+      "target_claim_id": "claim-routing-supports-authoring"
+    },
+    {
+      "relation_id": "rel-verify-routing-receipts-2",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-routing-receipts",
+      "target_claim_id": "claim-receipts-record-continuation"
+    },
+    {
+      "relation_id": "rel-verify-routing-receipts-3",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-routing-receipts",
+      "target_claim_id": "claim-fresh-session-restarts"
+    },
+    {
+      "relation_id": "rel-verify-routing-receipts-4",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-routing-receipts",
+      "target_claim_id": "claim-tools-reject-unsafe-recovery"
+    },
+    {
+      "relation_id": "rel-verify-equivalence-1",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-equivalence",
+      "target_claim_id": "claim-sequential-preserves-state"
+    },
+    {
+      "relation_id": "rel-verify-equivalence-2",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-equivalence",
+      "target_claim_id": "claim-batch-preserves-state"
+    },
+    {
+      "relation_id": "rel-verify-equivalence-3",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-equivalence",
+      "target_claim_id": "claim-paths-equivalent"
+    },
+    {
+      "relation_id": "rel-verify-ownership-1",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-wk2055-authoritative"
+    },
+    {
+      "relation_id": "rel-verify-ownership-2",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-wk2442-docs-quality"
+    },
+    {
+      "relation_id": "rel-verify-ownership-3",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-gaps-escalate"
+    },
+    {
+      "relation_id": "rel-verify-task-matrix-state-members",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-task-matrix",
+      "target_claim_id": "claim-state-matrix-members-enumerated"
+    },
+    {
+      "relation_id": "rel-verify-ownership-complete-traversal-route",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-complete-traversal-capture-route-unavailable"
+    },
+    {
+      "relation_id": "rel-verify-ownership-complete-traversal-escalation",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-complete-traversal-capture-gap-escalates"
+    },
+    {
+      "relation_id": "rel-verify-ownership-versioned-cursor-route",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-versioned-cursor-capture-route-unavailable"
+    },
+    {
+      "relation_id": "rel-verify-ownership-versioned-cursor-escalation",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-ownership",
+      "target_claim_id": "claim-versioned-cursor-capture-gap-escalates"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2442-equivalence",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+            "mutation_id": "mutation-wk2442-equivalence",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-equivalence-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "persisted_artifact",
+        "observable_id": "observable-wk2442-equivalence",
+        "proposition_id": "prop-equivalence-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2442-equivalence",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "subject_reference_ids": [
+          "ref-core-acceptance-module",
+          "ref-sequential-path",
+          "ref-batch-path"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2442-equivalence",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-equivalence",
+      "test_selector": {
+        "name": "wk2442 equivalence",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2442-ownership",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-wk2442-ownership",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-ownership-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk2442-ownership",
+        "proposition_id": "prop-ownership-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2442-ownership",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "subject_reference_ids": [
+          "ref-core-tools-module",
+          "ref-wk2442",
+          "ref-wk2055"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2442-ownership",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-ownership",
+      "test_selector": {
+        "name": "wk2442 ownership",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2442-routing-receipts",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-wk2442-routing-receipts",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-routing-receipt-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk2442-routing-receipts",
+        "proposition_id": "prop-routing-receipt-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2442-routing-receipts",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-mcp-tools-module",
+          "ref-public-next-calls",
+          "ref-receipt-chain"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2442-routing-receipts",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-routing-receipts",
+      "test_selector": {
+        "name": "wk2442 routing receipts",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2442-task-matrix",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-wk2442-task-matrix",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-task-matrix-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "protocol_message",
+        "observable_id": "observable-wk2442-task-matrix",
+        "proposition_id": "prop-task-matrix-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2442-task-matrix",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-mcp-tools-module",
+          "ref-state-matrix"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2442-task-matrix",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-task-matrix",
+      "test_selector": {
+        "name": "wk2442 task matrix",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

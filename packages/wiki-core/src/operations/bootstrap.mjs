@@ -164,15 +164,9 @@ export async function bootstrapRepo({
 
   const agentsBoilerplate = await ensureAgentsBoilerplateTemplate(targetDir);
 
-  const {
-    getStaticIn0001AdoptionSeed,
-    renderStaticIn0001AdoptionSeedMarkdown
-  } = await import("../index.mjs");
+  const { getStaticIn0001AdoptionSeed } = await import("../index.mjs");
   const adoptionSeed = getStaticIn0001AdoptionSeed();
-  const adoption = await ensureAdoptionInitiative(targetDir, {
-    seed: adoptionSeed,
-    body: renderStaticIn0001AdoptionSeedMarkdown(adoptionSeed)
-  });
+  const adoption = await ensureAdoptionInitiative(targetDir, { seed: adoptionSeed });
 
   const wikiMcpDeclaration = await ensureWikiMcpDeclaration(targetDir, {
     repo: resolvedRepo
@@ -218,6 +212,7 @@ export async function bootstrapRepo({
     adoptionInitiative: {
       recordId: adoption.recordId,
       path: adoption.relativePath,
+      projectionPath: adoption.projectionPath,
       created: adoption.created,
       kept: adoption.kept,
       requiredChecks: adoptionSeed.required_checks,

@@ -1,0 +1,183 @@
+{
+  "schema_version": "controlled-contract-proof-pack-adequacy.v2",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "9.0.0",
+  "profile_digest": "8c6a818c71ff2fdd41eb3b567a26f0610e0b32bfb1a9b35ffa264b9d25e4c932",
+  "guarantee": "For one exact test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, and evaluator satisfies the guarantee only when the candidate passes, the one test the binding's declarative test selector names is discovered, executed, and not skipped, every declared falsifier is present and detected, every required traversal is present and proven, and no prohibited shortcut is observed. No authored baseline inventory participates, and sibling tests observed in the same run neither earn nor withhold credit. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused.",
+  "guarantee_digest": "7d2ba6e9dadfc1c004033b05e08f74d25e0f0b430beabe4e58ed5e033c1fa9ab",
+  "explicit_exclusions": [
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "durable-receipt-retention",
+    "lifecycle-admission",
+    "provider-support-invention"
+  ],
+  "certification_population": {
+    "positive_case_count": 1,
+    "single_axis_weakening_count": 9
+  },
+  "executable_module": "packages/controlled-contract/test/support/test-validity-certification.mjs",
+  "executable_module_digest": "9effeeb2dc425e408a9e6e3b85c74ded2eeff485e06c7488f274348c9c477129",
+  "executable_dependency_digests": [
+    {
+      "path": "packages/controlled-contract/lib/bounded-diagnostic-projection.mjs",
+      "sha256": "7af8bfdd18bb47f8b41677b2f06406244cdc06cb91a2c3368d46e4345d3b52c2"
+    },
+    {
+      "path": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+      "sha256": "4615c3745a066497f67eb36b84228d3995250f354911c8f070aa7ef24224a4e4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
+      "sha256": "1b851826cd19437f44830ee3f3a00464145e75eff411f0114336e2b24cdeae41"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
+      "sha256": "2090a18c5d66ebb84008074ac06a5ae127d04cf061ea7fb826eda25b99d29f05"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v1.mjs",
+      "sha256": "eb2848ae678a33272b331bb7a741b46bdcff2a10882530172e3eabfa3d32dd1a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-common.mjs",
+      "sha256": "92eb204c95f15ed58a63080ad0f0ec4b06b81b30f44b4665308ccaf45c2552ae"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-runtime-registry.mjs",
+      "sha256": "c0aa33a3c1c0ec7977ca6f1df7f607d658fff52c3a33ca482d0d8fbec475b55a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-carrier-v1.mjs",
+      "sha256": "bc081580decd3081c70f62793b3046d4cf4f7bdf345e3f3021e06ab5aeae4ae6"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
+      "sha256": "5ae748ea3ea224ca2a0c9aa7320876d114345b3de336f1f91001f03c7427cb23"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
+      "sha256": "a72d06fb070544f9d70a558d0dcecb9e9e35ebaca804bbf4914417d7af89fd5f"
+    },
+    {
+      "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
+      "sha256": "a4b1c4877bc97a5630a4c61bff10af7155d074cb478541e4f214a4ab15110498"
+    },
+    {
+      "path": "packages/controlled-contract/lib/profile-digest.mjs",
+      "sha256": "6abee701ee068282b6f37dff287b04d1203186794b7dae3358dc2ca11bd532eb"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
+    },
+    {
+      "path": "packages/controlled-contract/lib/proof-parameter-refinements.mjs",
+      "sha256": "030c862846b34fd5a4326873824f89d8cbf9902451b0aa1386918cee073e231c"
+    },
+    {
+      "path": "packages/controlled-contract/lib/resource-policy.mjs",
+      "sha256": "0d7e7370a5745f4215ac69260fb6cfefeb048778cec1e4fd43c5da6c71448505"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-association-semantics.mjs",
+      "sha256": "45df90f5d90670fbd22908302fa0d17884faf392f17c02d2368b338906e4aee7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-contract-schema-v1.mjs",
+      "sha256": "d6bb7568dc4bc223dddf24a92ae4cceaa9430a677c25c69d9984da3dcd5e6511"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
+      "sha256": "561df8820a08ded0262afca8d9eea9b9b2b8b8ff9aaa67c265d0f8e833456e93"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-partition-semantics.mjs",
+      "sha256": "373f4ef01f740f4be2e212ed9a74caf7a500cbef77fd985a37e2099653a4a2ac"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-relation-semantics.mjs",
+      "sha256": "b0c6a10cf8ed6ca1fdad35082a487f5784c3380d1818b3e6d0863580320f068d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-v1-family-validation.mjs",
+      "sha256": "9e187e0391c9ca19608c527e3164d8076667683b3ee50066c1dcabab83a6e79d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
+      "sha256": "52b31b173ec0ca04f1fd720f2bd6ba4de869810ca43a38249b099237a479a051"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-expanded-semantics.mjs",
+      "sha256": "5722474f5e849ad621669c7c8257acc3deb717470537a9c074ac0ebca852a270"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-runtime.mjs",
+      "sha256": "289c9b332cdfac48e0de83f911d0b82b22a4e39386de69a9f2947f80a0ad22dd"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-schema-v1.mjs",
+      "sha256": "19dff50fcffb504d1d9a62eb5fa39a933e981dd17e7beb61a4a3988fa2153c76"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-semantics.mjs",
+      "sha256": "5c146658b4df10e9b28d9309aba75d0f3d3725911d2a2e32623e746c533aa8f4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
+      "sha256": "512fe162febb3e2685812be2aedc576d952558b92d0120e66d74f4d806f04a21"
+    },
+    {
+      "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
+      "sha256": "bb8f70ca8e70600cb951ec45d54a766e3f012cf7da2e6c1236ea2fe521b13e8a"
+    },
+    {
+      "path": "packages/controlled-contract/profiles/proof.verification.test-validity/9.0.0/evaluator.mjs",
+      "sha256": "8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
+      "sha256": "0997939993efd9bf6077e189169f8727e16dbc4a31a8a2992ba138f289734fdc"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
+      "sha256": "c847d736e62a645490ae83ac6b6047645d68de59e92dfe73812c56ceb8053ff7"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-input.v2.schema.json",
+      "sha256": "336e00f95110a746bb10eb7992e11258a88410c6e73ae8bd43a85911eee316b4"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-result.v2.schema.json",
+      "sha256": "8bf6d47dc896af03ed7ee713e5ea92cbbb8c7659d023d7b800a597410a6d9d63"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile.v2.schema.json",
+      "sha256": "38f5d3b86163a83c26977e36b91885942c73cb9cbb86b13ac8d9a27a16531169"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/executable-dependency-closure.mjs",
+      "sha256": "941fa3ec51f249a6698c05e657a994f267ddefafd29ddb7100abdc2a028b5549"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
+      "sha256": "d55f40522f447e2541469ff531375a149f2c78703434bbf00914ac0c19d40a55"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/proof-pack-adequacy.mjs",
+      "sha256": "b7438b3599ff0973e4e403d87801bd7d49fe242e648a7cc1017a41cbb5aa9a81"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs",
+      "sha256": "0ce9cd57dc3343339cbdfe28f15517754b99e813d1730dec104a2f64661b48fe"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/test-validity-execution-controls.mjs",
+      "sha256": "2adf0e77397f0d0307b3510e4d2fce363f6712884c1ed8bec884d3f20b48a77f"
+    },
+    {
+      "path": "packages/controlled-contract/vocabulary/controlled-contract-vocabulary.v1.mjs",
+      "sha256": "4e977d3b49644a8d2a6535387860f660280e90e3055d46204e0423e5c1a4bc92"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ notes, see [docs/local-package-install.md](local-package-install.md).
 
 ## Runtime Prerequisite
 
-Installed `@agent-chassis/*` packages support Node.js 22 or newer. Configure the
+Installed `@agent-chassis/*` packages require Node.js 24.20.0 or newer. Configure the
 runtime before installing or invoking `wiki`, `wiki-mcp`, or `agent-launch`.
 
 ## Package Access

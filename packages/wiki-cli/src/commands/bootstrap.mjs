@@ -55,6 +55,7 @@ export async function runBootstrap(argv) {
   const ai = result.adoptionInitiative;
   const adoptionState = ai.created ? "created" : "kept";
   console.log(`IN-0001 first-work placeholder: ${adoptionState} ${ai.path}`);
+  console.log(`  Generated projection: ${ai.projectionPath}`);
   console.log(
     `  Required checks: ${ai.requiredChecks.length} | Owned work items: ${ai.ownedWork.length}`
   );

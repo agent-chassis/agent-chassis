@@ -54,7 +54,9 @@ export function registerDispatchTools({
   generateGraphImpactEvidence = generateAndPersistWorkRecordGraphImpactByUnit,
   refreshAdmissionEvidence = refreshWorkRecordAdmissionDerivedEvidenceById,
   registeredTier = REGISTERED_TIER_FREE_LOCAL,
-  runStatusCallBudgetMs = undefined
+  runStatusCallBudgetMs = undefined,
+
+  responseEnv = undefined
 }) {
   registerTool = withRecordedRequestSchemas(registerTool);
   const isPaidTier = registeredTier === REGISTERED_TIER_PAID_CCE;
@@ -70,7 +72,12 @@ export function registerDispatchTools({
     jsonContent,
     isPaidTier,
     graphImpactPersistenceAvailable,
-    dispatchReviewerAvailable
+    dispatchReviewerAvailable,
+    registeredToolNames,
+    workspaceRepos,
+    resolveWorkspaceRepo,
+    dispatchBackend,
+    dispatchSessionIdentity
   });
   registerAgentDispatchRoute({
     registerTool,
@@ -126,7 +133,8 @@ export function registerDispatchTools({
     graphImpactPersistenceAvailable,
     dispatchReviewerAvailable,
     isPaidTier,
-    ...(runStatusCallBudgetMs === undefined ? {} : { runStatusCallBudgetMs })
+    ...(runStatusCallBudgetMs === undefined ? {} : { runStatusCallBudgetMs }),
+    ...(responseEnv === undefined ? {} : { responseEnv })
   };
   registerRunMonitorRoutes(ctx);
   registerDiagnosticRoutes(ctx);

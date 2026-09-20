@@ -2,7 +2,7 @@
 
 const CARRIER_TARGETS = Object.freeze({
   contract: Object.freeze({ references: "reference_id", propositions: "proposition_id", claims: "claim_id", relations: "relation_id", collections: "collection_id", residue: "residue_id", annotations: "annotation_id" }),
-  evaluation_input: Object.freeze({ reference_bindings: "role", number_bindings: "role", claim_pattern_bindings: "claim_pattern", resolver_facts: "resolver_fact", delivered_evidence: "delivered_evidence", evaluation_stage: "scalar" }),
+  evaluation_input: Object.freeze({ reference_bindings: "role", number_bindings: "role", claim_pattern_bindings: "claim_pattern", resolver_facts: "resolver_fact", delivered_evidence: "delivered_evidence" }),
   proof_plan_request: Object.freeze({ requested_intents: "value", selected_packs: "pack" }),
   obligation_coverage: Object.freeze({ obligations: "obligation_id" }),
   acceptance_coverage: Object.freeze({ rows: "criterion_identity" })
@@ -26,7 +26,7 @@ function compoundId(target, value) {
 function carrierValueId(target, rule, value) {
   if (rule === "value") return value; if (rule === "pack") return packId(value);
   if (["claim_pattern", "resolver_fact", "delivered_evidence"].includes(rule)) return compoundId(target, value);
-  if (rule === "scalar") return target; return value?.[rule];
+  return value?.[rule];
 }
 
 function carrierPatchRequestProjection(carrierKind, operations) {
@@ -48,12 +48,6 @@ function applyControlledContractCarrierPatch({ content, carrierKind, operations 
       : carrierValueId(operation.target, rule, operation.value));
     if (typeof id !== "string" || id.length === 0)
       fail("controlled_contract_patch_identity_invalid", "patch operation requires a returned stable selector");
-    if (rule === "scalar") {
-      if (operation.op === "remove") delete next[operation.target];
-      else { if (id !== operation.target || operation.value === undefined) fail("controlled_contract_patch_value_invalid",
-        "scalar upsert must use its returned selector and a value"); next[operation.target] = structuredClone(operation.value); }
-      continue;
-    }
 
     if (next[operation.target] === undefined || next[operation.target] === null) next[operation.target] = [];
     if (!Array.isArray(next[operation.target])) fail("controlled_contract_patch_operation_invalid",

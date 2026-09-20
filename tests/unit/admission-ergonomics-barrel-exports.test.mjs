@@ -19,7 +19,6 @@ const SUPPORTED_EXPORTS = Object.freeze({
   ]),
   admission: Object.freeze([
     "NODE_ENGINE_ADMISSION_RUNTIME_DIAGNOSTIC_SCHEMA_VERSION",
-    "buildCanonicalSummary",
     "buildNodeEngineAdmissionRuntimeDiagnostic",
     "buildRedactedRemoteAdmissionDiagnostic",
     "ensureNewWorkerWriteRoots",
@@ -41,6 +40,10 @@ for (const [name, moduleNamespace] of Object.entries({
     assert.deepEqual(Object.keys(moduleNamespace).sort(), [...SUPPORTED_EXPORTS[name]].sort());
   });
 }
+
+test("the admission barrel no longer re-exports the relocated canonical-summary owner", () => {
+  assert.equal(Object.hasOwn(admission, "buildCanonicalSummary"), false);
+});
 
 test("the recovery barrel exports no local CCE taxonomy or reason projector", () => {
   for (const retiredExport of [

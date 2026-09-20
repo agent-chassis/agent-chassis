@@ -41,6 +41,7 @@ import {
   ATTEMPT_NEXT_COMMANDS,
   admitAttemptCommand,
   reduceAttemptJournal,
+  selectManagedAdmissionAttempt,
   sameAttempt as sameAttemptTuple
 } from "@agent-chassis/agent-launch-core";
 
@@ -476,9 +477,21 @@ export function acquireManagedRunSubjectReservation({
     });
   }
 
-  const currentTuple = reduced.current_attempt === null
-    ? null
-    : (resolveDispatchTupleFor(events, reduced.current_attempt.attempt) ?? null);
+  const selection = selectManagedAdmissionAttempt({
+    repository: journalRepositoryFor(mainRepo),
+    subject,
+    events
+  });
+  if (!selection.ok) {
+    return Object.freeze({
+      may_launch: false,
+      verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
+      reason: "the managed-run attempt journal has ambiguous current ownership",
+      subject,
+      reservation: null
+    });
+  }
+  const currentTuple = selection.selected?.dispatch_tuple ?? null;
   const priorAttempt = assessPriorManagedAttemptsForSubject({ mainRepo, subject, currentTuple, deps });
   if (priorAttempt.may_launch !== true) {
     return Object.freeze({ ...priorAttempt, reservation: null });

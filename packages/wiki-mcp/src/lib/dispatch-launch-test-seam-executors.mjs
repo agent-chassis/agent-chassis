@@ -17,6 +17,12 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-role-mcp-env.mjs";
 
 const dispatchCodexTestSeamEvidence = [];
+
+const acceptSucceedCodexExecutorTestSeams = new WeakSet();
+
+export function isAcceptSucceedCodexExecutorTestSeams(value) {
+  return acceptSucceedCodexExecutorTestSeams.has(value);
+}
 const DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_PREFIX = "mcp_servers.wiki.env.";
 const DISPATCH_CODEX_TEST_WIKI_CHILD_ENV_ALLOWLIST = new Set([
   WIKI_MCP_WORKSPACE_ALIAS_ENV_VAR,
@@ -58,9 +64,13 @@ function captureDispatchCodexTestWikiChildEnv(childArgs) {
   return Object.freeze(wikiChildEnv);
 }
 
-export function buildAcceptSucceedCodexExecutorTestSeams() {
+export function buildAcceptSucceedCodexExecutorTestSeams({ releaseSignalPath = null } = {}) {
+  if (releaseSignalPath !== null &&
+      (typeof releaseSignalPath !== "string" || !releaseSignalPath.startsWith("/"))) {
+    throw new TypeError("accept-succeed seam releaseSignalPath must be an absolute path or null");
+  }
 
-  return {
+  const seams = Object.freeze({
 
     spawn: (plan) => {
       const childArgs = Array.isArray(plan?.childArgs) ? plan.childArgs : [];
@@ -68,7 +78,7 @@ export function buildAcceptSucceedCodexExecutorTestSeams() {
       const finalPath = finalPathIndex >= 0 && typeof childArgs[finalPathIndex + 1] === "string"
         ? childArgs[finalPathIndex + 1]
         : null;
-      const child = createCodexExecutorTestSeamChild(finalPath);
+      const child = createCodexExecutorTestSeamChild(finalPath, { releaseSignalPath });
       let stdinClosed = false;
       dispatchCodexTestSeamEvidence.push(Object.freeze({
         repo: typeof plan?.repo === "string" ? plan.repo : null,
@@ -102,18 +112,22 @@ export function buildAcceptSucceedCodexExecutorTestSeams() {
       }));
       return child.process;
     }
-  };
+  });
+  acceptSucceedCodexExecutorTestSeams.add(seams);
+  return seams;
 }
 
-function createCodexExecutorTestSeamChild(finalPath) {
+function createCodexExecutorTestSeamChild(finalPath, { releaseSignalPath = null } = {}) {
 
   const source = [
     "const fs = require('node:fs');",
     "const target = process.argv[1];",
     "if (target) fs.writeFileSync(target, 'WK-2405 advisory text from the deterministic process boundary.\\n');",
-    "process.stdin.resume();"
+    "process.stdin.resume();",
+    "const release = process.argv[2];",
+    "if (release) { const timer = setInterval(() => { if (fs.existsSync(release)) { clearInterval(timer); process.exit(0); } }, 25); }"
   ].join("");
-  const child = spawn(process.execPath, ["-e", source, finalPath ?? ""], {
+  const child = spawn(process.execPath, ["-e", source, finalPath ?? "", releaseSignalPath ?? ""], {
     stdio: ["pipe", "ignore", "ignore"]
   });
   const terminal = new Promise((resolve, reject) => {

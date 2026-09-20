@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-tools.json",
   "summary": "MCP discovery, router, read, search, package-scoped tool-doc read, wiki hygiene, docs-policy, contract-manifest, authoring-ergonomics report, and worker-delivery (commit, submit-for-review) tools.",
-  "tool_count": 31,
+  "tool_count": 29,
   "tools": [
     {
       "tool_name": "workspace_tools_list",
@@ -44,12 +44,13 @@
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/mcp-tools.json"
       ],
-      "notes": "Bounded catalog paging. total_count is the complete role/tier-visible set; returned_count is this page; truncated_count is what remains after offset. Repeat with offset:next_offset and unchanged filters until has_more:false. A caller limit never relaxes the server byte bounds. Use describe for known-tool detail and query for a known task or name.",
+      "notes": "Bounded catalog paging. total_count is the complete role/tier-visible set; returned_count is this page; truncated_count is what remains after offset. Follow next_calls: offset:next_offset with expected_source_digest and unchanged filters until has_more:false. A caller limit never relaxes the server byte bounds. Use describe for detail and rank.",
       "use_when": [
-        "Browse the complete role/tier-visible catalog from an unknown starting tool."
+        "Browse the complete role/tier-visible catalog from an unknown starting tool.",
+        "Select a tool for one known task_id."
       ],
       "do_not_use_when": [
-        "An exact tool_name or task_id is known; use workspace_tools_describe or workspace_tools_query."
+        "An exact tool_name is known; use workspace_tools_describe with verbose:true."
       ],
       "authoritative_for": [
         "current session role/tier-visible registered tool inventory"
@@ -58,7 +59,8 @@
         "operation": "page until has_more:false",
         "arguments": {
           "offset": "$next_offset_or_zero",
-          "limit": "$same_page_limit"
+          "limit": "$same_page_limit",
+          "expected_source_digest": "$previous_page_source_digest_or_omit"
         },
         "omit_null_arguments": true
       }
@@ -101,80 +103,28 @@
         "packages/wiki-core/src/lib/tool-discovery.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Targeted detail for a known tool or narrow set. Compact is the default; verbose:true restores the complete descriptor entry. Use list for catalog paging and query for a known task or name.",
+      "notes": "Details for a known tool. Compact is default; verbose:true returns complete descriptor and schema. input_contract selects editor fields or whole kind:\"guidance\" values after visibility.",
       "use_when": [
         "Inspect complete metadata for a known tool_name."
       ],
       "do_not_use_when": [
-        "The tool name is unknown; page workspace_tools_list or filter workspace_tools_query first."
+        "The tool name is unknown; page workspace_tools_list, filtered by a known task_id, first."
       ],
       "authoritative_for": [
-        "targeted complete descriptor-entry detail"
+        "targeted complete descriptor-entry detail",
+        "role-visible ordinary-editor input guidance and source-bound inventory traversal",
+        "role-visible complete selections of registered authoring guidance"
       ],
       "recommended_first_call": {
         "operation": "describe a known tool",
         "arguments": {
-          "tool_name": "$known_tool_name",
-          "verbose": true
+          "tool_name": "$known_tool_name"
         },
-        "omit_null_arguments": true
-      }
-    },
-    {
-      "tool_name": "workspace_tools_query",
-      "display_name": "Workspace tools query",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_tools_query",
-      "task_ids": [
-        "inspect-provenance"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 95,
-      "side_effects": [
-        "read_only"
-      ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-tools.json",
-        "packages/wiki-core/src/lib/tool-discovery.mjs",
-        "packages/wiki-mcp/src/server.mjs"
-      ],
-      "notes": "Filtered lookup for one known task_id or exact tool_name. It returns full entries by default; verbose:false selects compact rows. Use list when neither selector is known and describe for one tool's detail.",
-      "use_when": [
-        "Filter by one known task_id or exact tool_name."
-      ],
-      "do_not_use_when": [
-        "Neither selector is known; page workspace_tools_list first."
-      ],
-      "authoritative_for": [
-        "filtered descriptor lookup by controlled task id or exact tool name"
-      ],
-      "recommended_first_call": {
-        "operation": "query with exactly one known selector",
-        "arguments": {
-          "task_id": "$known_task_id_or_omit",
-          "tool_name": "$known_tool_name_or_omit"
-        },
-        "omit_null_arguments": true
+        "omit_null_arguments": true,
+        "routing_intents": [
+          "controlled_contract_input_guidance",
+          "dispatch_readiness"
+        ]
       }
     },
     {
@@ -218,7 +168,14 @@
         "packages/wiki-mcp/src/server.mjs"
       ],
       "summary": "Compact read-only first-tool router for uncertain repo-agent tasks.",
-      "notes": "Read-only MCP router for unsure tool choice. Given a task description and optional initiative, unit, role, monitor handle, or known resources, returns matched/ambiguous/unknown guidance with recommended first tool, suggested arguments when derivable, do-not-start-with entries, allowed next calls, and a short reason. It does not dispatch, mutate, lint, or read full records; the full routing vocabulary lives in packages/wiki-core/data/tool-routing-intents.v1.json.",
+      "notes": "Read-only advisory router for unsure tool choice. Given a task description and optional initiative, unit, role, monitor handle, or known resources, returns matched, ambiguous, visibility_withheld, or unknown guidance. Every emitted next call satisfies the named tool's registered request contract; an incomplete proposal names its operation, known arguments, and required_authored_fields without an executable call. Ambiguity lists counted choices with a complete-set continuation; unknown returns one bounded recovery or no_supported_route. Responses carry no target schemas or catalogs. It does not dispatch, mutate, lint, or read records.",
+      "recommended_first_call": {
+        "operation": "recommend the first tool for an uncertain task",
+        "arguments": {
+          "task_description": "$task_description"
+        },
+        "omit_null_arguments": true
+      },
       "use_when": [
         "The caller is unsure which repo tool to call first for a coordination, retrieval, dispatch, monitoring, lint, docs, or work-record task.",
         "A task appears to be starting with a broad search/read path but may have a compact structured first tool."
@@ -271,7 +228,24 @@
         "packages/wiki-mcp/src/lib/mcp-response.mjs",
         "packages/wiki-mcp/src/lib/tool-profile.mjs"
       ],
-      "notes": "Read-only agent-safe MCP route for byte-range reads from server-side response content references. Oversized tool results spill the complete JSON payload to the wiki-mcp runtime state directory and return a bounded preview plus a ref_id; callers use this tool with offset and length, base64-decode each data_base64 range, and concatenate bytes to reassemble the complete payload losslessly without carrying an oversized stdio frame."
+      "notes": "Reads one byte range of the content reference an oversized tool result returns with a bounded preview and ref_id. Request offset and a length within max_length, base64-decode each data_base64 range, and follow next_offset until eof to reassemble the complete payload; sha256 identifies the complete bytes.",
+      "use_when": [
+        "A tool result returned a content reference ref_id instead of its complete inline payload."
+      ],
+      "do_not_use_when": [
+        "The complete payload was already returned inline; no content-reference read is needed."
+      ],
+      "authoritative_for": [
+        "byte-range reads of returned MCP response content references"
+      ],
+      "recommended_first_call": {
+        "operation": "read the first byte range of a returned content reference",
+        "arguments": {
+          "ref_id": "$returned_ref_id",
+          "offset": 0
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "get_contract_manifest",
@@ -308,7 +282,21 @@
         "packages/wiki-core/src/lib/contract.mjs",
         "packages/wiki-core/contract/manifest.json"
       ],
-      "notes": "Read-only MCP route that returns the shared wiki contract manifest (conventions, lint, schema, taxonomy, retrieval, query, and template references) from the checked-in contract tree. Takes no caller arguments and no caller-supplied filesystem root; the manifest is provenance/reference data, not authority to act."
+      "notes": "Read-only MCP route that returns the shared wiki contract manifest (conventions, lint, schema, taxonomy, retrieval, query, and template references) from the checked-in contract tree. Takes no caller arguments and no caller-supplied filesystem root; the manifest is provenance/reference data, not authority to act.",
+      "use_when": [
+        "Inspect the shared wiki contract references this workspace publishes."
+      ],
+      "do_not_use_when": [
+        "The task needs permission to run an operation, or the content of a workspace record."
+      ],
+      "authoritative_for": [
+        "shared wiki contract reference inventory"
+      ],
+      "recommended_first_call": {
+        "operation": "get_contract_manifest",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "bootstrap_repo",
@@ -416,474 +404,474 @@
         "omit_null_arguments": true
       }
     },
-      {
-        "tool_name": "allocate_id",
-        "display_name": "Allocate identifier",
-        "kind": "mcp_tool",
-        "entrypoint": "allocate_id",
-        "task_ids": [
-          "create-work-record"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "record_write"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+    {
+      "tool_name": "allocate_id",
+      "display_name": "Allocate identifier",
+      "kind": "mcp_tool",
+      "entrypoint": "allocate_id",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/allocate-id.mjs"
-        ],
-        "notes": "Reserve the next identifier for a core wiki type in an explicitly selected directory.",
-        "use_when": [
-          "Operator must reserve a core wiki identifier for a direct-directory workflow."
-        ],
-        "do_not_use_when": [
-          "A structured workspace create route can allocate the identifier as part of creation."
-        ],
-        "authoritative_for": [
-          "operator-requested direct-directory identifier allocation"
-        ],
-        "recommended_first_call": {
-          "operation": "reserve identifier",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "create_record",
-        "display_name": "Create record",
-        "kind": "mcp_tool",
-        "entrypoint": "create_record",
-        "task_ids": [
-          "create-work-record"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "record_write"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+      ],
+      "notes": "Reserve the next identifier for a core wiki type in an explicitly selected directory.",
+      "use_when": [
+        "Operator must reserve a core wiki identifier for a direct-directory workflow."
+      ],
+      "do_not_use_when": [
+        "A structured workspace create route can allocate the identifier as part of creation."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory identifier allocation"
+      ],
+      "recommended_first_call": {
+        "operation": "reserve identifier",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "create_record",
+      "display_name": "Create record",
+      "kind": "mcp_tool",
+      "entrypoint": "create_record",
+      "task_ids": [
+        "create-work-record"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "record_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/create.mjs"
-        ],
-        "notes": "Create a wiki record in an explicitly selected directory, consuming a reserved or sequential identifier.",
-        "use_when": [
-          "Operator is using the direct-directory record-creation contract."
-        ],
-        "do_not_use_when": [
-          "A configured workspace alias is available; use workspace_create_record."
-        ],
-        "authoritative_for": [
-          "operator-requested direct-directory record creation"
-        ],
-        "recommended_first_call": {
-          "operation": "create direct-directory record",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "read_page",
-        "display_name": "Read page",
-        "kind": "mcp_tool",
-        "entrypoint": "read_page",
-        "task_ids": [
-          "read-canonical"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "read_only"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+      ],
+      "notes": "Create a wiki record in an explicitly selected directory, consuming a reserved or sequential identifier.",
+      "use_when": [
+        "Operator is using the direct-directory record-creation contract."
+      ],
+      "do_not_use_when": [
+        "A configured workspace alias is available; use workspace_create_record."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory record creation"
+      ],
+      "recommended_first_call": {
+        "operation": "create direct-directory record",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "read_page",
+      "display_name": "Read page",
+      "kind": "mcp_tool",
+      "entrypoint": "read_page",
+      "task_ids": [
+        "read-canonical"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/read.mjs"
-        ],
-        "notes": "Read a Markdown page from an explicitly selected directory and canonical path.",
-        "use_when": [
-          "Operator is using the direct-directory read contract."
-        ],
-        "do_not_use_when": [
-          "A configured workspace alias is available; use workspace_read_page."
-        ],
-        "authoritative_for": [
-          "direct-directory canonical page reads"
-        ],
-        "recommended_first_call": {
-          "operation": "read selected directory page",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "get_record",
-        "display_name": "Get record",
-        "kind": "mcp_tool",
-        "entrypoint": "get_record",
-        "task_ids": [
-          "read-canonical"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "read_only"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+      ],
+      "notes": "Read a Markdown page from an explicitly selected directory and canonical path.",
+      "use_when": [
+        "Operator is using the direct-directory read contract."
+      ],
+      "do_not_use_when": [
+        "A configured workspace alias is available; use workspace_read_page."
+      ],
+      "authoritative_for": [
+        "direct-directory canonical page reads"
+      ],
+      "recommended_first_call": {
+        "operation": "read selected directory page",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "get_record",
+      "display_name": "Get record",
+      "kind": "mcp_tool",
+      "entrypoint": "get_record",
+      "task_ids": [
+        "read-canonical"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/read.mjs"
-        ],
-        "notes": "Read a canonical record by durable identifier from an explicitly selected directory.",
-        "use_when": [
-          "Operator is using the direct-directory record-read contract."
-        ],
-        "do_not_use_when": [
-          "A configured workspace alias is available; use workspace_get_record."
-        ],
-        "authoritative_for": [
-          "direct-directory durable-record reads"
-        ],
-        "recommended_first_call": {
-          "operation": "read selected directory record",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "lint_repo",
-        "display_name": "Lint repository",
-        "kind": "mcp_tool",
-        "entrypoint": "lint_repo",
-        "task_ids": [
-          "lint-repo"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "read_only"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-          "packages/wiki-core/src/operations/lint.mjs"
-        ],
-        "notes": "Lint an explicitly selected directory against the shared wiki contract.",
-        "use_when": [
-          "Operator is linting through the direct-directory compatibility surface."
-        ],
-        "do_not_use_when": [
-          "A configured workspace alias is available; use workspace_lint_repo."
-        ],
-        "authoritative_for": [
-          "direct-directory repository lint diagnostics"
-        ],
-        "recommended_first_call": {
-          "operation": "lint selected directory",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "generate_views",
-        "display_name": "Generate wiki views",
-        "kind": "mcp_tool",
-        "entrypoint": "generate_views",
-        "task_ids": [
-          "generate-and-lint"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "workspace_write"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-          "packages/wiki-core/src/operations/generate.mjs"
-        ],
-        "notes": "Regenerate derived wiki views in an explicitly selected directory without running lint.",
-        "use_when": [
-          "Operator needs generation-only behavior through the direct-directory surface."
-        ],
-        "do_not_use_when": [
-          "The task requires generation plus lint; use workspace_generate_and_lint."
-        ],
-        "authoritative_for": [
-          "direct-directory derived-view generation"
-        ],
-        "recommended_first_call": {
-          "operation": "generate selected directory views",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "generate_and_lint",
-        "display_name": "Generate and lint",
-        "kind": "mcp_tool",
-        "entrypoint": "generate_and_lint",
-        "task_ids": [
-          "generate-and-lint"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "workspace_write"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-          "packages/wiki-core/src/operations/generate-and-lint.mjs"
-        ],
-        "notes": "Regenerate derived wiki views and lint an explicitly selected directory.",
-        "use_when": [
-          "Operator is using the direct-directory generate-and-lint contract."
-        ],
-        "do_not_use_when": [
-          "A configured workspace alias is available; use workspace_generate_and_lint."
-        ],
-        "authoritative_for": [
-          "direct-directory generation and lint"
-        ],
-        "recommended_first_call": {
-          "operation": "generate and lint selected directory",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "build_search_index",
-        "display_name": "Build search index",
-        "kind": "mcp_tool",
-        "entrypoint": "build_search_index",
-        "task_ids": [
-          "search-wiki"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "workspace_write"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-          "packages/wiki-core/src/operations/build-search-index.mjs"
-        ],
-        "notes": "Build the persisted wiki search index for an explicitly selected directory.",
-        "use_when": [
-          "Operator explicitly requested the direct-directory persisted-index writer."
-        ],
-        "do_not_use_when": [
-          "The task only needs search; use workspace_search_repo, which reads through a missing index."
-        ],
-        "authoritative_for": [
-          "direct-directory persisted search-index build"
-        ],
-        "recommended_first_call": {
-          "operation": "build selected directory search index",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
-      {
-        "tool_name": "search_repo",
-        "display_name": "Search repository",
-        "kind": "mcp_tool",
-        "entrypoint": "search_repo",
-        "task_ids": [
-          "search-wiki"
-        ],
-        "install_state": "installed",
-        "runtime_posture": "supported",
-        "recommended_route": "mcp",
-        "audience": [
-          "operator"
-        ],
-        "priority": 35,
-        "side_effects": [
-          "read_only"
-        ],
-        "authority": [
-          "checked_in_descriptor",
-          "operator_input",
-          "workspace_repo"
-        ],
-        "tier_visibility": [
-          "operator_only"
-        ],
-        "docs_refs": [
-          "docs/mcp-tool-registry-reference.md",
-          "docs/mcp-operation-reference.md"
-        ],
-        "source_files": [
-          "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
-          "packages/wiki-core/src/operations/search.mjs"
-        ],
-        "notes": "Search canonical wiki and docs content in an explicitly selected directory.",
-        "use_when": [
-          "Operator is using the direct-directory search contract."
-        ],
-        "do_not_use_when": [
-          "A configured workspace alias is available; use workspace_search_repo."
-        ],
-        "authoritative_for": [
-          "direct-directory canonical content search"
-        ],
-        "recommended_first_call": {
-          "operation": "search selected directory",
-          "arguments": {
-            "dir": "$operator_selected_target_directory"
-          },
-          "omit_null_arguments": true
-        }
-      },
+      ],
+      "notes": "Read a canonical record by durable identifier from an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory record-read contract."
+      ],
+      "do_not_use_when": [
+        "A configured workspace alias is available; use workspace_get_record."
+      ],
+      "authoritative_for": [
+        "direct-directory durable-record reads"
+      ],
+      "recommended_first_call": {
+        "operation": "read selected directory record",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "lint_repo",
+      "display_name": "Lint repository",
+      "kind": "mcp_tool",
+      "entrypoint": "lint_repo",
+      "task_ids": [
+        "lint-repo"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/lint.mjs"
+      ],
+      "notes": "Lint an explicitly selected directory against the shared wiki contract.",
+      "use_when": [
+        "Operator is linting through the direct-directory compatibility surface."
+      ],
+      "do_not_use_when": [
+        "A configured workspace alias is available; use workspace_lint_repo."
+      ],
+      "authoritative_for": [
+        "direct-directory repository lint diagnostics"
+      ],
+      "recommended_first_call": {
+        "operation": "lint selected directory",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "generate_views",
+      "display_name": "Generate wiki views",
+      "kind": "mcp_tool",
+      "entrypoint": "generate_views",
+      "task_ids": [
+        "generate-and-lint"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/generate.mjs"
+      ],
+      "notes": "Regenerate derived wiki views in an explicitly selected directory without running lint.",
+      "use_when": [
+        "Operator needs generation-only behavior through the direct-directory surface."
+      ],
+      "do_not_use_when": [
+        "The task requires generation plus lint; use workspace_generate_and_lint."
+      ],
+      "authoritative_for": [
+        "direct-directory derived-view generation"
+      ],
+      "recommended_first_call": {
+        "operation": "generate selected directory views",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "generate_and_lint",
+      "display_name": "Generate and lint",
+      "kind": "mcp_tool",
+      "entrypoint": "generate_and_lint",
+      "task_ids": [
+        "generate-and-lint"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/generate-and-lint.mjs"
+      ],
+      "notes": "Regenerate derived wiki views and lint an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory generate-and-lint contract."
+      ],
+      "do_not_use_when": [
+        "A configured workspace alias is available; use workspace_generate_and_lint."
+      ],
+      "authoritative_for": [
+        "direct-directory generation and lint"
+      ],
+      "recommended_first_call": {
+        "operation": "generate and lint selected directory",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "build_search_index",
+      "display_name": "Build search index",
+      "kind": "mcp_tool",
+      "entrypoint": "build_search_index",
+      "task_ids": [
+        "search-wiki"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/build-search-index.mjs"
+      ],
+      "notes": "Build the persisted wiki search index for an explicitly selected directory.",
+      "use_when": [
+        "Operator explicitly requested the direct-directory persisted-index writer."
+      ],
+      "do_not_use_when": [
+        "The task only needs search; use workspace_search_repo, which reads through a missing index."
+      ],
+      "authoritative_for": [
+        "direct-directory persisted search-index build"
+      ],
+      "recommended_first_call": {
+        "operation": "build selected directory search index",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "search_repo",
+      "display_name": "Search repository",
+      "kind": "mcp_tool",
+      "entrypoint": "search_repo",
+      "task_ids": [
+        "search-wiki"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 35,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-tool-registry-reference.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-core/src/operations/search.mjs"
+      ],
+      "notes": "Search canonical wiki and docs content in an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory search contract."
+      ],
+      "do_not_use_when": [
+        "A configured workspace alias is available; use workspace_search_repo."
+      ],
+      "authoritative_for": [
+        "direct-directory canonical content search"
+      ],
+      "recommended_first_call": {
+        "operation": "search selected directory",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
     {
       "tool_name": "workspace_search_repo",
       "display_name": "Workspace search repo",
@@ -923,7 +911,7 @@
         "packages/wiki-mcp/src/server.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP search surface for repo-scoped wiki and docs lookup; compact and preview-oriented by default. For a full page or canonical record body use workspace_read_page or workspace_get_record instead. CLI fallback: `npm run wiki -- search --query <query> --json`.",
+      "notes": "Bounded search of canonical repo wiki/docs sources. Default limit 8, maximum 50; follow next_calls for complete ranked traversal. Hits supply workspace_read_page calls for exact selected-source context. CLI fallback: `npm run wiki -- search --query <query> --json`.",
       "use_when": [
         "docs_lookup"
       ],
@@ -1004,7 +992,21 @@
         "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
         "packages/wiki-core/src/operations/build-search-index.mjs"
       ],
-      "notes": "Write-capable MCP route that builds or refreshes the lexical wiki/docs search index for a configured workspace repository — the explicit index-builder companion to workspace_search_repo. Pass reindex:true for a full rebuild. Resolves the repository through configured aliases and accepts no caller-supplied filesystem root. CLI fallback: `npm run wiki -- build-search-index`."
+      "notes": "Write-capable MCP route that builds or refreshes the lexical wiki/docs search index for a configured workspace repository — the explicit index-builder companion to workspace_search_repo. Pass reindex:true for a full rebuild. Resolves the repository through configured aliases and accepts no caller-supplied filesystem root. CLI fallback: `npm run wiki -- build-search-index`.",
+      "use_when": [
+        "An operator explicitly refreshes the configured repository's lexical search cache."
+      ],
+      "do_not_use_when": [
+        "Ordinary wiki or docs retrieval, which needs no rebuild first, or any canonical-data mutation."
+      ],
+      "authoritative_for": [
+        "lexical search-index build metadata"
+      ],
+      "recommended_first_call": {
+        "operation": "workspace_build_search_index",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_read_page",
@@ -1043,13 +1045,18 @@
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/mcp-tools.json",
         "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-mcp/src/lib/wiki-core-tools.mjs",
+        "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+        "packages/wiki-mcp/src/lib/work-record-entry-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP known-path read surface for repo-relative Markdown, canonical WK JSON, and exact registered IN/DEC JSON paths. Compact canonical IN/DEC results are losslessly recoverable through this existing route by requesting include_record: true with the executable acknowledgement accept_full_read: true; this does not grant arbitrary JSON or filesystem reads. Graph-evidence sidecars at wiki/work-records/evidence/WK-####.graph.json use compact format graph-evidence-sidecar and are replay/debug data, never dispatch authority; selected_slice and selected_record provide bounded detail.",
+      "notes": "The ordinary selected canonical reader. Addresses one page by repo-relative path, or a canonical record by id, or a record and its slice by unit; exactly one of path, id and unit selects the read. Reads Markdown, canonical WK JSON and registered IN/DEC JSON. A work record (optionally selected_slice, or a unit that names the slice) returns the lean {ok, unit, status, summary, next_calls} read, and every emitted call repeats the identity form the caller used. No whole-record or arbitrary JSON read: member:{path} pages one WK, slice, IN or DEC member or exact string range, pinned by source_digest. entry:{...} delegates one exact entry of that unit to the entry owner, whose emitted calls come back addressed to this reader; content_reference:{ref_id,offset,length} delegates one retained spill to its owner and takes no other selector. include_body reads Markdown page bodies only. Conflicting, missing or foreign selections return a precise selector correction.",
       "use_when": [
         "docs_lookup with known repo path",
+        "canonical record read by durable id or unit without reconstructing a storage path",
         "canonical initiative or decision read with exact registered JSON path",
-        "selected_slice_detail with selected_slice:<slice-id>"
+        "selected_slice_detail with selected_slice:<slice-id> or unit:<WK>#<slice>",
+        "one exact entry of a unit, or one retained content reference"
       ],
       "do_not_use_when": [
         "initiative_status",
@@ -1154,7 +1161,7 @@
         "omit_null_arguments": true
       },
       "requires_prior_state": [
-        "a verbose workspace_tools_describe or workspace_tools_query result carrying doc_references for the selected tool"
+        "a verbose workspace_tools_describe result carrying doc_references for the selected tool"
       ],
       "replacement_for_misuse": [
         {
@@ -1203,11 +1210,11 @@
         "packages/wiki-mcp/src/server.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP canonical-record read surface for durable WK and registered IN/DEC IDs. Compact canonical IN/DEC results are losslessly recoverable through this existing route by requesting include_record: true with the executable acknowledgement accept_full_read: true; this does not grant arbitrary JSON or filesystem reads. Tracker WK selectors remain available for bounded slice detail.",
+      "notes": "Preferred MCP canonical-record read surface for durable WK and registered IN/DEC IDs. No whole-record mode: compact IN/DEC results recover each omitted member through member:{path}, a bounded page of immediate members or one exact string range with pinned source_digest calls. No arbitrary JSON or filesystem reads. Tracker WK selectors give bounded slice detail.",
       "use_when": [
-        "canonical initiative or decision payload is needed by durable id",
-        "selected_work_record_context after compact summary needs canonical payload",
-        "selected_slice_detail after compact summary needs raw/debug payload"
+        "selected canonical initiative or decision member is needed by durable id",
+        "selected_work_record_context after compact summary needs one canonical member",
+        "selected_slice_detail after compact summary needs the bounded slice projection"
       ],
       "do_not_use_when": [
         "initiative_status",
@@ -1292,7 +1299,21 @@
         "packages/wiki-core/src/operations/generate.mjs",
         "packages/wiki-core/src/operations/lint.mjs"
       ],
-      "notes": "Write-capable agent-safe MCP route that regenerates the non-canonical wiki views and then lints the configured workspace repository; use after structural wiki changes. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer with no hard upper bound; large caps can produce large responses). The set-status/set-closure review/done transitions run this path automatically and surface its result as an advisory closeout_lint summary. CLI fallback: `npm run wiki -- generate-and-lint`."
+      "notes": "Regenerates non-canonical wiki views, then lints the configured workspace repository; canonical records and docs are untouched. Run it once after intended structural writes; a landed closeout write already runs it internally and reports its result. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer; large caps produce large responses). CLI fallback: `npm run wiki -- generate-and-lint`. It is the sole executor of closeout checks: a closeout call runs it once internally and reports its result, so this route answers an explicit verification request rather than a required post-closeout chore.",
+      "use_when": [
+        "Generated wiki views must be refreshed and the workspace linted, including once after intended structural or closeout writes."
+      ],
+      "do_not_use_when": [
+        "Only read-only validation is wanted; use workspace_lint_repo."
+      ],
+      "authoritative_for": [
+        "generated wiki view refresh followed by the workspace lint result"
+      ],
+      "recommended_first_call": {
+        "operation": "regenerate views and lint the configured workspace repository",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_lint_repo",
@@ -1346,7 +1367,9 @@
       ],
       "notes": "Read-only agent-safe MCP route that validates a configured workspace repository against the shared wiki contract without writing views, caches, or records; use workspace_generate_and_lint when views must be refreshed first. Optional max_findings bounds returned findings (omit for the compact default, 0 for counts only, or a positive integer with no hard upper bound; large caps can produce large responses).",
       "recommended_first_call": {
-        "routing_intents": ["lint_repair"],
+        "routing_intents": [
+          "lint_repair"
+        ],
         "operation": "lint configured workspace repository",
         "arguments": {},
         "omit_null_arguments": true
@@ -1391,7 +1414,22 @@
         "packages/wiki-core/src/operations/autofix-docs-backlinks.mjs",
         "packages/wiki-core/src/operations/lint.mjs"
       ],
-      "notes": "Explicit opt-in MCP route for repairing only missing docs backlink comments in canonical docs pages. It is separate from read-only workspace_lint_repo and from workspace_generate_and_lint, which remain non-autofixing. The route recomputes fresh lint findings internally, only applies structured missing_docs_backlink findings after docs-root revalidation, and never accepts caller-supplied findings as write authority; optional path/id/comment inputs are narrowing filters only."
+      "notes": "Explicit opt-in MCP route for repairing only missing docs backlink comments in canonical docs pages. It is separate from read-only workspace_lint_repo and from workspace_generate_and_lint, which remain non-autofixing. The route recomputes fresh lint findings internally, only applies structured missing_docs_backlink findings after docs-root revalidation, and never accepts caller-supplied findings as write authority; optional path/id/comment inputs are narrowing filters only.",
+      "use_when": [
+        "Repair missing canonical-doc backlink comments as a deliberate, explicitly requested write."
+      ],
+      "do_not_use_when": [
+        "The task only inspects lint findings, repairs another lint class, or offers caller-supplied findings as write authority.",
+        "The request targets only selected pages and no narrowing filters are supplied; the empty-argument recipe repairs missing backlink comments across the repository."
+      ],
+      "authoritative_for": [
+        "the missing-backlink repairs it recomputes and selects internally"
+      ],
+      "recommended_first_call": {
+        "operation": "workspace_autofix_docs_backlinks",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_docs_policy_validate",
@@ -1430,45 +1468,21 @@
         "packages/wiki-core/src/operations/docs-policy.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Structured docs-policy validator that detects agent-facing non-MCP role-dispatch authority drift; operator/internal sections classified by heading are audience-scoped and do not automatically fail. CLI fallback: `npm run wiki -- docs-policy validate --json`."
-    },
-    {
-      "tool_name": "workspace_agent_faq",
-      "display_name": "Workspace agent FAQ",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_agent_faq",
-      "task_ids": [
-        "inspect-provenance"
+      "notes": "Structured docs-policy validator that detects agent-facing non-MCP role-dispatch authority drift; operator/internal sections classified by heading are audience-scoped and do not automatically fail. CLI fallback: `npm run wiki -- docs-policy validate --json`.",
+      "use_when": [
+        "Check agent-facing documentation for role-dispatch authority drift."
       ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
+      "do_not_use_when": [
+        "The task needs general wiki lint, code validation, or authorization to dispatch."
       ],
-      "priority": 104,
-      "side_effects": [
-        "read_only"
+      "authoritative_for": [
+        "audience-scoped docs-policy diagnostics"
       ],
-      "authority": [
-        "checked_in_descriptor"
-      ],
-      "tier_visibility": [
-        "free_local",
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/agent-faq.v1.json",
-        "packages/wiki-core/src/operations/agent-faq.mjs",
-        "packages/wiki-mcp/src/lib/agent-faq-tools.mjs"
-      ],
-      "notes": "Read-only agent FAQ served from the agent-faq.v1 known-issues corpus; each entry pairs a recurring symptom and cause with the exact structured workspace_* route(s) to resolve it and the responsible actor (agent vs operator). Returns all entries by default; pass id for one entry or related_code to filter by a runtime-blocker code. Output is tier-projected: free/local responses show only source-available coordination routes and omit paid/CCE remediation routes and next actions, which appear only under a valid paid/CCE key posture. Accepts no caller-supplied filesystem root. CLI fallback is operator-only."
+      "recommended_first_call": {
+        "operation": "workspace_docs_policy_validate",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_authoring_ergonomics_report",
@@ -1632,7 +1646,21 @@
         "packages/wiki-mcp/src/lib/workspace-commit-tool.mjs",
         "packages/agent-launch-cli/src/lib/commit-tool-exposure-guard.mjs"
       ],
-      "notes": "Closed-input worker delivery primitive hosted by the launcher-owned wiki-MCP server. Accepts no caller-supplied fields; the server resolves the frozen per-run binding (write_scope, subject, worktree identity, base_sha, and output branch) from launcher-owned state. No transport credential, path, ref, branch, Git API, shell, or writer selector is exposed. Access is the central session-role-tool-access policy (worker), not this descriptor row."
+      "notes": "Closed-input worker delivery primitive hosted by the launcher-owned wiki-MCP server. Accepts no caller-supplied fields; the server resolves the frozen per-run binding (write_scope, subject, worktree identity, base_sha, and output branch) from launcher-owned state. No transport credential, path, ref, branch, Git API, shell, or writer selector is exposed. Access is the central session-role-tool-access policy (worker), not this descriptor row.",
+      "use_when": [
+        "A launcher-bound worker delivers the delta assigned to its own run."
+      ],
+      "do_not_use_when": [
+        "Choosing caller Git paths, refs, identity or scope, or integrating, merging or promoting a delivery."
+      ],
+      "authoritative_for": [
+        "launcher-bound delivery commit and review submission"
+      ],
+      "recommended_first_call": {
+        "operation": "commit",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_submit_for_review",
@@ -1663,7 +1691,21 @@
       "source_files": [
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Worker/reviewer/redteam affordance: move the launcher-assigned WIKI_MCP_ASSIGNED_UNIT to review status. Accepts no caller-supplied unit, status, or other fields. Access is the central session-role-tool-access policy, not this descriptor row."
+      "notes": "Moves the launcher-assigned unit to review status for a runtime whose session role is granted this route. Accepts no caller-supplied unit, status, or other field. Access comes from the central session-role policy, not this descriptor row.",
+      "use_when": [
+        "The launcher-assigned unit of a runtime granted this route is ready for review status."
+      ],
+      "do_not_use_when": [
+        "The caller needs to choose a unit or status, or to integrate or complete work; this route accepts neither and grants no such authority."
+      ],
+      "authoritative_for": [
+        "moving the launcher-assigned unit to review status"
+      ],
+      "recommended_first_call": {
+        "operation": "move the assigned unit to review",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     }
   ]
 }

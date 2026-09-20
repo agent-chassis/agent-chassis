@@ -55,7 +55,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
-      "sha256": "ee9ee3c347eaabd97f187360e46d667ff33cb3452b2011a4774b9baa00f9a8c6"
+      "sha256": "4615c3745a066497f67eb36b84228d3995250f354911c8f070aa7ef24224a4e4"
     },
     {
       "path": "packages/controlled-contract/lib/declared-boundary-record-consistency.mjs",
@@ -111,7 +111,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
-      "sha256": "df296e493e3f3176859c2a60988514f1eaa7dce66544f2e5ddf66bbf2213c999"
+      "sha256": "a72d06fb070544f9d70a558d0dcecb9e9e35ebaca804bbf4914417d7af89fd5f"
     },
     {
       "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
@@ -166,6 +166,10 @@
       "sha256": "fcd4bc8d88b2d9bf7b675807397be8b20a73f4e4862e2225ccf942e0f5638574"
     },
     {
+      "path": "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+      "sha256": "49c6bb526499700f41b443eb98e1c5b4b2ade5fa67a0c25c1b78c0eb7d0b81b3"
+    },
+    {
       "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
       "sha256": "8b0eaa6b19178e1edcddf03a79ce269e4d5b825a36574e088e2963a496a7787a"
     },
@@ -187,7 +191,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
-      "sha256": "83386c200d8e3ebfd9c333d2c5d3a35ef9dc382e9d03c84b630ca2234631e213"
+      "sha256": "e5c37647966248bdbf3c43b44c8c50d201ff17f4b2629e9e915e531c7bc4c5c2"
     },
     {
       "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
@@ -195,7 +199,7 @@
     },
     {
       "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
-      "sha256": "a2eea7c7cc0ffab8dc2f931ae147587ce5a350afeb7c8cde6e973e1ac6168d80"
+      "sha256": "9ae4dea4688d4e9a763e187aac89547618f39326bbdce48f0d788881bfffb502"
     },
     {
       "path": "packages/controlled-contract/schema/controlled-contract-admitted-proof-pack.v2.schema.json",

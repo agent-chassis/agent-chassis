@@ -151,8 +151,21 @@ function buildReadinessProjection({ graphImpact, summary, summaryRef }) {
   const degraded_state = isObject(summary?.graph_quality?.degraded_state)
     ? cloneJson(summary.graph_quality.degraded_state)
     : null;
+  const graph_snapshot = [
+    graphImpact?.graph_snapshot,
+    summary?.graph_snapshot,
+    summaryRef?.graph_snapshot
+  ].find((candidate) => isObject(candidate));
 
-  return { graph_state, input_paths, validated_paths, invalid_path_count, counts, degraded_state };
+  return {
+    graph_state,
+    graph_snapshot: graph_snapshot ? cloneJson(graph_snapshot) : null,
+    input_paths,
+    validated_paths,
+    invalid_path_count,
+    counts,
+    degraded_state
+  };
 }
 
 function buildSummaryRef({
@@ -257,6 +270,7 @@ export function buildGraphEvidenceSidecarEntry(input = {}) {
     source_record_digest: sourceRecordDigest,
     generated_at: normalizeEntryTimestamp(input.generated_at ?? input.generatedAt ?? graphImpact?.generated_at),
     graph_state: readiness.graph_state,
+    graph_snapshot: readiness.graph_snapshot,
     input_paths: readiness.input_paths,
     validated_paths: readiness.validated_paths,
     invalid_path_count: readiness.invalid_path_count,
@@ -528,6 +542,7 @@ export function buildCompactInlineGraphEvidenceRef(entry, { sidecarPath, sidecar
     query_kind: normalizeStringEntry(entry.query_kind) ?? null,
     source_record_digest: normalizeStringEntry(entry.source_record_digest) ?? null,
     graph_state: cloneJson(entry.graph_state) ?? null,
+    graph_snapshot: cloneJson(entry.graph_snapshot) ?? null,
     input_paths: cloneJson(entry.input_paths) ?? [],
     validated_paths: cloneJson(entry.validated_paths) ?? [],
     invalid_path_count: toNonNegativeInteger(entry.invalid_path_count) ?? 0,
@@ -583,6 +598,14 @@ export function verifyGraphSidecarEntryForInlineRef(sidecar, inlineRef) {
       message: "graph sidecar entry digest does not match its content",
       stored: actualDigest,
       recomputed
+    });
+  }
+
+  if (computeNormalizedInputDigest(inlineRef.graph_snapshot ?? null) !==
+      computeNormalizedInputDigest(entry.graph_snapshot ?? null)) {
+    diagnostics.push({
+      code: "graph_snapshot_mismatch",
+      message: "inline ref graph snapshot does not match its bound sidecar entry"
     });
   }
 

@@ -1,0 +1,33 @@
+{
+  "digests": {
+    "catalog": "9988a22893518fd1457de1ffa5301f82f913db00e4c688f74f0bb9602ba4ba78",
+    "contract": "fdfbb5446fb46dd6641df27d59688beedfc0d8c4ebe5db7b321239e7a29a3d5f",
+    "intent_artifact": "5e118e13bf801f4e0d5673aa0487e2df4190be4552bbfe89df13e2ee1877aca1",
+    "profiles": "10e9dbcd36dfbddf8e12635b6b1203973b81c487d56874b99eaff9f89c0c5bf5",
+    "vocabulary": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+  },
+  "packs": [
+    {
+      "evaluation_input": {
+        "path": "WK-2012-caller-substrate-refusal.evaluation-input.json"
+      },
+      "profile_id": "proof.authorization.refusal-before-effects",
+      "profile_version": "3.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.refusal-before-effects"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "24d3607b8e4da6e1890d17dfbbc6d9d14355a6d297b59db3ac91c8d9a4cfc3b4",
+        "adequacy_result": "44cbdf4bd87f2fd460f81343e5d8cb863f810105874def589611e5e590cc6624",
+        "admission": "4bdc0528668202d117364e313de97a6041becd41ee64dcb612c5350a03151b55",
+        "evaluation_input": "964b052ada95621ccb846e777e7e0ccc01528322ecc19b7c3b39f61698512948",
+        "guarantee": "f55adcfd21e759ad9f647d8d63aaefd8d0fc0d112d9b288ca7489077c5c508b8",
+        "profile": "2afc117b153f78ce1d4dbae8a12315288f3700898b03a1a2bff7f3af93eb479e"
+      }
+    }
+  ],
+  "requested_intents": [
+    "controlled-proof-intent.refusal-before-effects"
+  ],
+  "schema_version": "controlled-contract-proof-plan.v1"
+}

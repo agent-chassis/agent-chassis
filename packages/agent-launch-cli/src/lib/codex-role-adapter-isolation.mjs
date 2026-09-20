@@ -22,6 +22,8 @@ import {
 import { buildBubblewrapLaunchPlan } from "./launch-isolation.mjs";
 import { CODEX_BWRAP_ENV_POLICY } from "./codex-role-isolation.mjs";
 import { buildWorkerSecretMaskInputs } from "./workspace-agent-family-bwrap-plan.mjs";
+import { resolveAdvisoryReviewGitMetadataProjection } from
+  "./workspace-agent-advisory-review-contract.mjs";
 import {
   prepareLauncherOwnedDispatchWorktreeRoot
 } from "./orchestrator-launch-isolation.mjs";
@@ -187,8 +189,11 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     ?? plan.provisioned_worktree_git_identity
     ?? plan.provisioned_worktree_git_binding
     ?? null;
-  const protectGitMetadata = plan.advisory_review_input !== null &&
-    plan.advisory_review_input !== undefined;
+
+  const gitMetadataProjection = plan.advisory_review_input === null ||
+    plan.advisory_review_input === undefined
+    ? null
+    : resolveAdvisoryReviewGitMetadataProjection(plan.advisory_review_input);
   return buildBubblewrapLaunchPlan({
     repo: plan.repo,
     command: childCommand,
@@ -200,7 +205,7 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       ? [...plan.isolation.writable_files]
       : [],
     runtimeRoots: [...plan.isolation.runtime_roots],
-    protectGitMetadata,
+    gitMetadataProjection,
     readOnlyRoots: Array.isArray(plan.isolation.read_only_roots)
       ? [
           ...plan.isolation.read_only_roots,
@@ -220,6 +225,8 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       ? { reads: [...plan.isolation.home_policy_reads] }
       : null,
     shareNet: plan.isolation.share_net !== false,
+
+    installGitStatusWrapper: isCodexOrchestratorRole(plan.role),
     stdioMcpConduit,
     envPolicy
   });

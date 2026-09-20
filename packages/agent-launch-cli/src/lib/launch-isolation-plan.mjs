@@ -19,14 +19,27 @@ import {
 } from "./launch-isolation-plan-mounts.mjs";
 import { buildBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
 import {
-  assertFindingsRoleGitMetadataReadOnly,
-  normalizeFindingsGitMetadataRole,
-  resolveFindingsRoleGitMetadata
+  prepareGitStatusWrapperProjection
+} from "./launch-isolation-git-status-wrapper.mjs";
+import { prepareSparseWorkerWritableDirectories } from "./launch-isolation-worker-scope.mjs";
+import {
+  assertCheckoutDerivedGitMetadata,
+  assertFindingsRoleGitMetadataReadOnly
 } from "./launch-isolation-findings-git-metadata.mjs";
 
 import { assertTrustedStdioMcpConduitBinding } from "./stdio-mcp-conduit-contract.mjs";
 
-export function buildBubblewrapLaunchPlan({
+export function buildBubblewrapLaunchPlan(options = {}) {
+  const preparation = { rollback: () => null };
+  try {
+    return composeBubblewrapLaunchPlan(options, preparation);
+  } catch (error) {
+    preparation.rollback();
+    throw error;
+  }
+}
+
+function composeBubblewrapLaunchPlan({
   repo,
   command,
   args = [],
@@ -37,7 +50,8 @@ export function buildBubblewrapLaunchPlan({
   writableRoots = [],
   writableFiles = [],
   runtimeRoots = [],
-  findingsRole = null,
+
+  gitMetadataProjection = null,
   provisionedWorktreeGitIdentity = null,
   workerScopeAuthority = null,
   homePolicy = null,
@@ -51,27 +65,42 @@ export function buildBubblewrapLaunchPlan({
   systemReadOnlyRoots = DEFAULT_SYSTEM_READ_ONLY_ROOTS,
 
   tmpfsDirs = [],
+
+  useSystemTmp = false,
   maskTmpfsDirs = [],
   provisionedWorktreeGitBinding = null,
   shareNet = true,
 
   newSession = true,
   bwrapPath = null,
+
+  installGitStatusWrapper = false,
   stdioMcpConduit = null
-} = {}) {
-  const normalizedFindingsRole = normalizeFindingsGitMetadataRole(findingsRole);
+} = {}, preparation = { rollback: () => null }) {
   if (
-    normalizedFindingsRole !== null
+    gitMetadataProjection !== null
     && (provisionedWorktreeGitIdentity !== null || provisionedWorktreeGitBinding !== null)
   ) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_INVALID,
-      "findings-role Git metadata must be derived from the launcher-created checkout; supplied Git identity fields are forbidden"
+      "required Git metadata must be derived from the launcher-created checkout; supplied Git identity fields are forbidden"
+    );
+  }
+
+  if (gitMetadataProjection !== null && workerScopeAuthority !== null) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_INVALID,
+      "required Git metadata needs full repository read entitlement; a sparse read scope cannot receive a repository object store"
     );
   }
   const trustedStdioMcpConduit = stdioMcpConduit === null
     ? null
     : assertTrustedStdioMcpConduitBinding(stdioMcpConduit);
+  const directoryPreparation = prepareSparseWorkerWritableDirectories({
+    authority: workerScopeAuthority,
+    repo
+  });
+  preparation.rollback = directoryPreparation.rollback;
   const {
     repoReal,
     provisionedGitIsolation,
@@ -102,10 +131,19 @@ export function buildBubblewrapLaunchPlan({
     newSession
   });
 
-  const findingsRoleGitMetadata = resolveFindingsRoleGitMetadata({
+  const gitStatusWrapper = prepareGitStatusWrapperProjection({
+    requested: installGitStatusWrapper === true,
     repoReal,
-    role: normalizedFindingsRole
+    privateReadOnlyMaskDirs: privateReadOnlyMaskDirsResolved,
+    sparseWorkerNamespace,
+    env,
+    envPolicy,
+    systemRoots
   });
+
+  const findingsRoleGitMetadata = gitMetadataProjection === null
+    ? null
+    : assertCheckoutDerivedGitMetadata(gitMetadataProjection, repoReal);
   const effectiveReadOnlyRoots = Array.isArray(readOnlyRoots)
     ? [
         ...readOnlyRoots,
@@ -136,8 +174,8 @@ export function buildBubblewrapLaunchPlan({
     familyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
     familyRuntimeWritableRoots,
-    env,
-    envPolicy,
+    env: gitStatusWrapper === null ? env : gitStatusWrapper.env,
+    envPolicy: gitStatusWrapper === null ? envPolicy : gitStatusWrapper.envPolicy,
     cwd,
     repoReal,
     sparseWorkerNamespace,
@@ -174,6 +212,7 @@ export function buildBubblewrapLaunchPlan({
 
   const writableFilePreparation = prepareWritableFiles(effectiveWritableFiles, repoReal, {
     refuseSymlinks: sparseWorkerNamespace !== null,
+    preparedDirectories: directoryPreparation.entries,
     attemptBinding: sparseWorkerNamespace === null
       ? null
       : Object.freeze({
@@ -194,7 +233,7 @@ export function buildBubblewrapLaunchPlan({
       sparseWorkerNamespace,
 
       launchContext: {
-        role: normalizedFindingsRole ?? (sparseWorkerNamespace === null ? null : "worker")
+        role: sparseWorkerNamespace === null ? null : "worker"
       }
     });
   } catch (error) {
@@ -212,12 +251,14 @@ export function buildBubblewrapLaunchPlan({
     systemRoots,
     shareNet,
     newSession,
+    useSystemTmp,
     tmpfsDirsResolved,
     sparseWorkerNamespace,
     repoReal,
     maskTmpfsDirsResolved,
     privateReadOnlyMaskDirsResolved,
     inRepoSecretFileMasks,
+    gitStatusWrapperReadOnlyBinds: gitStatusWrapper?.readOnlyBinds ?? [],
     readOnly,
     homeReads,
     homeWritableFiles,
@@ -228,10 +269,7 @@ export function buildBubblewrapLaunchPlan({
     writableFileEntries,
     runtime,
     provisionedGitIsolation,
-    gitNamespaceDirectories: [
-      ...(findingsRoleGitMetadata?.namespaceDirectories ?? []),
-      ...(provisionedGitIsolation?.namespaceDirectories ?? [])
-    ].filter((entry, index, all) => all.indexOf(entry) === index),
+    gitNamespaceDirectories: findingsRoleGitMetadata?.namespaceDirectories ?? [],
     decisionsReadOnly,
     policedEnv,
     cwdNormalized,
@@ -268,6 +306,16 @@ export function buildBubblewrapLaunchPlan({
     tmpfsDirs: Object.freeze([...tmpfsDirsResolved]),
     maskTmpfsDirs: Object.freeze([...maskTmpfsDirsResolved]),
     privateReadOnlyMaskDirs: privateReadOnlyMaskDirsResolved,
+
+    gitStatusWrapper: gitStatusWrapper === null
+      ? null
+      : Object.freeze({
+          mountDir: gitStatusWrapper.mountDir,
+          asset: gitStatusWrapper.asset,
+          realGit: gitStatusWrapper.realGit,
+          repo: gitStatusWrapper.repo,
+          pathspec: gitStatusWrapper.pathspec
+        }),
     filesystemConfidentiality: Object.freeze({
       guaranteed: true,
       enforcement_backend: "bwrap",

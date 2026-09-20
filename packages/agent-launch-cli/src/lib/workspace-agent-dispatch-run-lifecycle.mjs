@@ -8,7 +8,6 @@ import { createPlanLaunch } from "./workspace-agent-dispatch-run-lifecycle-selec
 import { createMonitor } from "./workspace-agent-dispatch-run-lifecycle-monitor.mjs";
 import { createAdvisoryProcessRunner } from "./workspace-agent-advisory-process.mjs";
 import {
-  listVisibleRuns,
   snapshotRuns as snapshotRunState,
   replaceReviewerLaunchIdentityForTest as replaceReviewerLaunchIdentityState
 } from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
@@ -45,7 +44,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
 
     releaseManagedRunSubjectReservationForLaunch = null,
 
-    resolveCanonicalAdmissionReviewRecord = null
+    resolveCanonicalAdmissionReviewRecord = null,
+    publishManagedRunResult = null
   } = ctx;
 
   const { startLaunch, startReviewerReplacement } = createLaunchFlow({
@@ -69,16 +69,18 @@ export function createDispatchRunLifecycle(ctx = {}) {
     publishPendingManagedRunIdentity,
     bindManagedRunOuterIdentity,
     releaseManagedRunSubjectReservationForLaunch,
-    resolveCanonicalAdmissionReviewRecord
+    resolveCanonicalAdmissionReviewRecord,
+    publishManagedRunResult
   });
 
-  const { getRunStatus, waitForRunStatus } = createMonitor({
+  const { getRunStatus, waitForRunStatus, resolveRetainedFindingsSource } = createMonitor({
     runs,
     clock,
     sleep,
     monotonicNow,
     captureSliceReviewTerminalResult,
-    settleFormalReviewAttestation
+    settleFormalReviewAttestation,
+    publishManagedRunResult
   });
 
   const startAdvisoryProcess = createAdvisoryProcessRunner({
@@ -98,9 +100,9 @@ export function createDispatchRunLifecycle(ctx = {}) {
     startLaunch,
     startAdvisoryProcess,
     startReviewerReplacement,
-    listRuns: (input) => listVisibleRuns(runs, input),
     getRunStatus,
     waitForRunStatus,
+    resolveRetainedFindingsSource,
     planLaunch,
     snapshotRuns: () => snapshotRunState(runs),
     replaceReviewerLaunchIdentityForTest: (runId, identity) =>

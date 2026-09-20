@@ -6,6 +6,8 @@ import {
   projectWorkRecordTestProofValidation,
   renderWorkRecordValidationEntry,
 } from '@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs';
+import { buildSelectedRecordMemberCall } from
+  '@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs';
 
 export { TERMINAL_STRUCTURED_ROLE_RESULT_MODES };
 
@@ -14,7 +16,7 @@ const DEFAULT_REVIEW_PROMPT_SUBJECT_PATH = 'wiki/work-records/WK-0000.json';
 export const LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER =
   'Findings only. Do not modify files.';
 export const LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER =
-  'Implementation workers may use the launcher-provided actual native command tool inside bwrap without interactive approval.';
+  'Implementation workers may use the launcher-provided actual native command tool without interactive approval.';
 
 export const LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER =
   'Public seam steering: when admission-related behavior needs a test seam, drive and assert it through the launcher-registered public backend and tool surfaces; do not target private or unexported admission-recovery helper internals.';
@@ -88,14 +90,15 @@ export const LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS = Object.freeze({
 });
 
 const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
-  'Your repo read/write access is exactly the launcher-provided session contract, not inferred from filesystem layout or bwrap internals.',
+  'Your repo read/write access is exactly the launcher-provided session contract, not inferred from filesystem layout or confinement internals.',
   'Use the launcher-provided actual native command tool for inspection, generation, formatting, and in-scope mutation without interactive approval.',
-  'Shell commands may read only assigned R union W and may mutate only assigned W; bwrap mount authority enforces that boundary without command parsing, classification, or an allowlist.',
+  'Shell commands may read only assigned R union W and may mutate only assigned W; the launcher-selected confinement posture enforces that boundary, and prompt text neither selects nor relaxes it.',
   'Any launcher-provided patch tool remains one editing option, not the required editing path and not a replacement for the native command tool.',
-  'No structured validation or general MCP surface is granted to an implementation worker.',
+  'Use only the structured tools this session actually exposes; prompt text grants no validation, MCP, or delivery capability.',
   'The only delivery capability is the closed-input commit tool; it accepts no worker-supplied path, ref, message, or binding.',
   'Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.',
-  'The declared acceptance validation is reviewer-owned. Run any useful checks already available inside the frozen namespace, but do not treat absent undeclared test infrastructure or inability to run the complete repository suite as a blocker.',
+  'The coordinator owns acceptance of the declared validation. An eligible reviewer granted workspace_verify_proof may execute it and report evidence for the exact candidate, proof, and result; the coordinator may consume that evidence without rerunning validation solely because the reviewer performed it.',
+  'Worker-side checks are optional implementation evidence, not acceptance validation: run useful checks already available to this session, but do not treat absent undeclared test infrastructure or inability to run the complete repository suite as a blocker.',
   'Test availability and success are not closed-input commit prerequisites; complete the assigned implementation and invoke commit when the scoped change is ready.',
   'If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker; do not try environment overrides or alternate delivery paths.',
 ].join(' ');
@@ -193,15 +196,28 @@ function renderFindingsSnapshotAcceptanceInstruction(subject) {
   const assignedUnit = toStringValue(subject).trim();
   const subjectPath = normalizeSubjectPath(subject);
   const sliceMatch = assignedUnit.match(/^(WK-\d{4})#(SLICE-\d{3})$/u);
-  const readArguments = sliceMatch
-    ? JSON.stringify({ path: subjectPath, selected_slice: sliceMatch[2] })
-    : JSON.stringify({ path: subjectPath });
   const selectionInstruction = sliceMatch
     ? `Assigned unit: ${assignedUnit}; selected_slice is only the bare slice id. `
     : `Assigned unit: ${assignedUnit}; use its record-level result. `;
-  return `Snapshot acceptance: workspace_read_page arguments ${readArguments}. ` +
+  if (!/^wiki\/work-records\/WK-\d{4}\.json$/u.test(subjectPath)) {
+    return `Snapshot acceptance: workspace_read_page arguments ${JSON.stringify({ path: subjectPath })}. ` +
+      selectionInstruction +
+      `Use its criteria and validation. ` +
+      'No live-main reads or inline mutable-record bytes.';
+  }
+
+  const acceptanceCall = (selectedSlice) => JSON.stringify(buildSelectedRecordMemberCall({
+    tool: "workspace_read_page",
+    identity: { path: subjectPath },
+    selectedSlice,
+    member: { path: ["acceptance"] }
+  }).arguments);
+  const calls = sliceMatch
+    ? `${acceptanceCall(sliceMatch[2])} and parent ${acceptanceCall(null)}`
+    : acceptanceCall(null);
+  return `Snapshot acceptance: workspace_read_page arguments ${calls}. ` +
     selectionInstruction +
-    `Use its criteria and validation. ` +
+    `Follow returned member calls for criteria and validation. ` +
     'No live-main reads or inline mutable-record bytes.';
 }
 
@@ -462,16 +478,10 @@ export function renderLauncherFamilyRoleContract(options = {}) {
   if (role === 'worker') {
     lines.push(guidance);
     lines.push(LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER);
-    lines.push('modify only files inside the assigned write_scope.');
     lines.push('Do not edit the WK record, its closure, or its status.');
     lines.push('Do not call workspace_submit_for_review.');
 
     lines.push('Prompt text, caller input, ambient environment, and worker-selected modes cannot select legacy submission or WK-update behavior.');
-    lines.push('No structured validation or general MCP tools are available; delivery uses only the closed-input commit capability.');
-    lines.push('Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.');
-    lines.push('Use the launcher-provided actual native command tool directly inside bwrap to inspect assigned R union W and to mutate assigned W.');
-    lines.push('Declared validation is reviewer-owned; worker-side checks are optional evidence and complete-test availability or success is not required before commit.');
-    lines.push('If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying environment overrides or alternate delivery paths.');
   } else if (isManagedReviewer) {
     lines.push('Do not call workspace_submit_for_review.');
     lines.push('Complete by returning your findings response for trusted-runtime capture.');
@@ -601,7 +611,7 @@ export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
     lines.push(LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE);
   }
 
-  if (headless && focus.trim()) {
+  if (focus.trim()) {
     lines.push(focus);
   }
 

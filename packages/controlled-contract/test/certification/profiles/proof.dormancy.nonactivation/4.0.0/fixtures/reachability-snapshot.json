@@ -1,0 +1,24 @@
+{
+  "complete": true,
+  "subject_reference_id": "ref-production-graph",
+  "nodes": [
+    {
+      "reference_id": "ref-production-entry-a"
+    },
+    {
+      "reference_id": "ref-production-entry-b"
+    },
+    {
+      "reference_id": "ref-active-component"
+    },
+    {
+      "reference_id": "ref-dormant-component"
+    }
+  ],
+  "edges": [
+    {
+      "from_reference_id": "ref-production-entry-a",
+      "to_reference_id": "ref-active-component"
+    }
+  ]
+}

@@ -11,6 +11,9 @@ import {
   validateWorkRecordDispatch
 } from "../../packages/wiki-core/src/index.mjs";
 import {
+  buildControlledAcceptanceProofPosture
+} from "../../packages/wiki-core/src/lib/work-record-proof-posture.mjs";
+import {
   evaluateWorkRecordWrapperGate
 } from "../../packages/agent-launch-core/src/index.mjs";
 import {
@@ -33,6 +36,8 @@ async function withTempRepo(fn) {
   try {
     await mkdir(path.join(tempDir, "docs"), { recursive: true });
     await mkdir(path.join(tempDir, "wiki", "work-records"), { recursive: true });
+
+    await mkdir(path.join(tempDir, "wiki", "contracts"), { recursive: true });
     await writeFile(path.join(tempDir, "AGENTS.md"), "# AGENTS\n", "utf8");
     await fn(tempDir);
   } finally {
@@ -121,6 +126,12 @@ test("WK-0764 CW launch packet prompt carries implementation tool-surface guidan
       ...selectedSlice.dispatch_intent,
       requires_graph_impact: false
     };
+
+    record.proof_posture = buildControlledAcceptanceProofPosture({
+      wkId: record.id,
+      disposition: "opted_out",
+      rationale: "Prompt-rendering fixture; controlled acceptance is not this test's subject."
+    });
     await writeFile(
       path.join(tempDir, "wiki", "work-records", `${record.id}.json`),
       `${JSON.stringify(record, null, 2)}\n`,
@@ -176,16 +187,20 @@ test("WK-0764 CW launch packet prompt carries implementation tool-surface guidan
     );
     assert.ok(
       prompt.includes(
-        "Codex may invoke its actual exec_command tool"
+        "Implement the assigned task. Read only the listed readable paths and modify only the listed writable paths. " +
+          "Use the tools available in this session. Run workspace_verify_proof, report the result, then commit. " +
+          "If required implementation work falls outside scope, report the blocker."
       ),
-      "launch packet prompt must authorize the actual command tool"
+      "launch packet prompt must carry the shared implementation-worker instruction"
     );
-    assert.match(
+    assert.match(prompt, /### Readable Paths/);
+    assert.match(prompt, /### Writable Paths/);
+    assert.match(prompt, /### Declared Validation/);
+
+    assert.doesNotMatch(
       prompt,
-      /apply_patch remains available as one editing option/i,
-      "launch packet prompt must keep apply_patch optional"
+      /Codex may invoke|Claude may invoke|apply_patch remains available|Bubblewrap exposes|bwrap namespace|not a commit prerequisite/u
     );
-    assert.doesNotMatch(prompt, /check the exact apply_patch entry|Filtering ALL_TOOLS/u);
     assert.match(prompt, /## Canonical Record/);
     assert.match(prompt, /## Dispatch Readiness/);
     assert.match(prompt, /## Agent Brief/);

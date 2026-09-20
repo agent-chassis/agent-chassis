@@ -1,0 +1,1735 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-dry-disposition",
+      "kind": "provenance",
+      "text": "WK-2439#SLICE-001 accepted three DRY findings once: retain existing describe bootstraps, WK-2437 recovery ownership, and WK-2055 reporting ownership."
+    },
+    {
+      "annotation_id": "ann-decision-review",
+      "kind": "provenance",
+      "text": "WK-2439#SLICE-002 reviewed all 51 accepted decisions and returned no findings."
+    },
+    {
+      "annotation_id": "ann-projection-bound",
+      "kind": "rationale",
+      "text": "The 16,384-byte limit is a delivery projection bound; exact counts and the reused existing transport must keep every omitted skeleton entry reachable."
+    },
+    {
+      "annotation_id": "ann-intended-skeleton-population",
+      "kind": "rationale",
+      "text": "Operator-confirmed intended semantic skeleton population is exactly 39 entries; total remains 39 and bounding changes only the returned/omitted partition."
+    },
+    {
+      "annotation_id": "ann-test-proof-profile-anchor",
+      "kind": "rationale",
+      "text": "The package composer and package suite are profile-term anchors for proof.verification.test-validity; the exact implementation and test paths remain grounded by the stable-v1 test proof boundary, falsifier mutation and shaped slice targets."
+    },
+    {
+      "annotation_id": "ann-closed-skeleton-vocabulary",
+      "kind": "rationale",
+      "text": "Exhaustive ordered WK-2439 semantic skeleton vocabulary (39 entries): 01=common-unit-address-server-string; 02=common-selected-unit-server-nullable-string; 03=common-focus-server-nullable-slug; 04=common-selected-unit-digest-server-sha256; 05=common-criterion-identity-population-server; 06=common-contract-content-digest-server-sha256; 07=common-contract-node-population-server; 08=common-proof-plan-content-digest-server-nullable-sha256; 09=common-selected-pack-population-server; 10=common-carrier-status-server-enum; 11=common-currentness-changed-bindings-server; 12=common-mutation-operation-server-tool-identity; 13=common-mutation-stable-fixed-arguments-server-object; 14=common-mutation-cas-state-receipt-fed-sha256; 15=common-authored-unresolved-slot-population; 16=common-projection-total-server-integer-39; 17=common-projection-returned-server-integer; 18=common-projection-omitted-server-integer; 19=common-projection-inline-entry-population-server; 20=common-projection-complete-content-reference-existing-transport; 21=common-metric-call-count-integer; 22=common-metric-request-utf8-bytes-integer; 23=common-metric-result-utf8-bytes-integer; 24=common-metric-unresolved-slot-count-integer; 25=common-metric-retry-count-integer; 26=common-metric-source-inspection-escape-count-integer; 27=common-metric-final-carrier-equivalence-boolean; 28=obligation-row-obligation-id-authored-string; 29=obligation-row-statement-authored-trimmed-single-line-string; 30=obligation-row-criterion-selector-server-current-criterion; 31=obligation-row-contract-node-ids-authored-current-reference-list; 32=obligation-row-mechanism-authored-package-enum; 33=obligation-row-gap-authored-typed-alternative; 34=obligation-row-pack-component-authored-admitted-alternative; 35=obligation-mutation-expected-authoring-identity-server-string; 36=obligation-mutation-source-identity-server-object; 37=acceptance-row-criterion-identity-server-current-criterion; 38=acceptance-row-node-ids-authored-current-reference-list; 39=acceptance-row-axes-authored-complete-six-axis-state-map. Server/authored/evolving/transport/metric authority is encoded in each stable profile term; entry 39 requires all six existing acceptance axes with caller-authored package state values."
+    },
+    {
+      "annotation_id": "ann-lossless-existing-transport",
+      "kind": "rationale",
+      "text": "The composer retains the complete ordered 39-entry population server-side. Inline projection may omit entries to meet 16,384 UTF-8 bytes only after the existing MCP transport can bind an integrity-protected reference to the complete population; repeating describe is not an omission recovery mechanism."
+    },
+    {
+      "annotation_id": "ann-receipt-fed-cas",
+      "kind": "rationale",
+      "text": "Stable mutation tool identity and non-CAS fixed arguments are emitted once. expected_content_digest and every digest-bearing carrier identity are evolving state owned by the existing mutation receipt: each single-row call consumes the prior receipt digest, emits the next digest, and final query/describe verifies the completed carrier. WK-2438 batch is used only when canonically available."
+    },
+    {
+      "annotation_id": "ann-executable-metric-proof",
+      "kind": "rationale",
+      "text": "The existing MCP fresh-session integration proof must compare the persisted canonical carrier exactly with the intended complete authored state and capture call count, request/result UTF-8 bytes, unresolved-slot count, retry count, source-inspection-escape count and final-carrier-equivalence boolean. WK-2055 alone publishes workflow conclusions."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-obligation-describe-reuses-composer",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-obligation-describe-uses-composer"
+    },
+    {
+      "claim_id": "claim-acceptance-describe-reuses-composer",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-acceptance-describe-uses-composer"
+    },
+    {
+      "claim_id": "claim-caller-retains-semantic-authority",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-composer-preserves-caller-decisions"
+    },
+    {
+      "claim_id": "claim-server-resolves-composer-inputs",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-composer-reads-server-state"
+    },
+    {
+      "claim_id": "claim-projection-bound-is-exact",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-projection-byte-bound"
+    },
+    {
+      "claim_id": "claim-omitted-entries-remain-reachable",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-omitted-entries-use-existing-transport"
+    },
+    {
+      "claim_id": "claim-handoff-uses-existing-mutations",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-composer-returns-existing-mutations"
+    },
+    {
+      "claim_id": "claim-obligation-fresh-session-completes",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-obligation-describe-supports-fresh-authoring"
+    },
+    {
+      "claim_id": "claim-acceptance-fresh-session-completes",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-acceptance-describe-supports-fresh-authoring"
+    },
+    {
+      "claim_id": "claim-no-new-public-preparation-route",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-composer-creates-public-route"
+    },
+    {
+      "claim_id": "claim-composer-remains-nonauthoritative",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-composer-authoritative"
+    },
+    {
+      "claim_id": "claim-raw-metrics-handed-to-report-owner",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-raw-metrics-forward-report-owner"
+    },
+    {
+      "claim_id": "claim-recovery-ownership-remains-wk2437",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-recovery-owner-retained"
+    },
+    {
+      "claim_id": "claim-verify-package-composer",
+      "falsifying_proposition_id": "prop-package-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-package-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-core-projection",
+      "falsifying_proposition_id": "prop-core-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-core-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-mcp-fresh-session",
+      "falsifying_proposition_id": "prop-mcp-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-mcp-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-verify-owner-boundaries",
+      "falsifying_proposition_id": "prop-ownership-falsifier",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-ownership-verification-exists",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-skeleton-entry-count-is-exact",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-skeleton-entry-count"
+    },
+    {
+      "claim_id": "claim-package-component-exists",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-package-component-exists"
+    },
+    {
+      "claim_id": "claim-skeleton-vocabulary-is-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-skeleton-vocabulary-is-closed"
+    },
+    {
+      "claim_id": "claim-stable-mutation-arguments-emitted",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-stable-mutation-arguments-emitted"
+    },
+    {
+      "claim_id": "claim-cas-state-chains-mutation-receipts",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-cas-state-chains-mutation-receipts"
+    },
+    {
+      "claim_id": "claim-final-carrier-equivalence-required",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-final-carrier-equivalence-required"
+    },
+    {
+      "claim_id": "claim-raw-metrics-complete",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-raw-metrics-complete"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-wk2439-behavior-contract",
+      "collection_kind": "closed_set",
+      "purpose": "behavior_contract",
+      "member_claim_ids": [
+        "claim-obligation-describe-reuses-composer",
+        "claim-acceptance-describe-reuses-composer",
+        "claim-caller-retains-semantic-authority",
+        "claim-server-resolves-composer-inputs",
+        "claim-projection-bound-is-exact",
+        "claim-skeleton-entry-count-is-exact",
+        "claim-skeleton-vocabulary-is-closed",
+        "claim-omitted-entries-remain-reachable",
+        "claim-handoff-uses-existing-mutations",
+        "claim-stable-mutation-arguments-emitted",
+        "claim-cas-state-chains-mutation-receipts",
+        "claim-obligation-fresh-session-completes",
+        "claim-acceptance-fresh-session-completes",
+        "claim-final-carrier-equivalence-required",
+        "claim-raw-metrics-complete",
+        "claim-no-new-public-preparation-route",
+        "claim-composer-remains-nonauthoritative",
+        "claim-raw-metrics-handed-to-report-owner",
+        "claim-recovery-ownership-remains-wk2437"
+      ]
+    },
+    {
+      "collection_id": "set-wk2439-proof-obligations",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-package-component-exists",
+        "claim-verify-package-composer",
+        "claim-verify-core-projection",
+        "claim-verify-mcp-fresh-session",
+        "claim-verify-owner-boundaries"
+      ],
+      "purpose": "proof_obligations"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-shared-skeleton-composer"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-obligation-describe-uses-composer",
+      "subject_reference_id": "ref-obligation-describe"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-shared-skeleton-composer"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-acceptance-describe-uses-composer",
+      "subject_reference_id": "ref-acceptance-describe"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-caller-semantic-decisions"
+        }
+      ],
+      "operator": "reference:preserves",
+      "proposition_id": "prop-composer-preserves-caller-decisions",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-server-resolved-state"
+        }
+      ],
+      "operator": "reference:reads",
+      "proposition_id": "prop-composer-reads-server-state",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 16384
+        }
+      ],
+      "operator": "number:has_value",
+      "proposition_id": "prop-projection-byte-bound",
+      "subject_reference_id": "ref-projection-byte-bound"
+    },
+    {
+      "proposition_id": "prop-omitted-entries-use-existing-transport",
+      "subject_reference_id": "ref-skeleton-entry-population",
+      "operator": "reference:routes_to",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-omitted-skeleton-population"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-transport"
+        }
+      ]
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-mutations"
+        }
+      ],
+      "operator": "reference:returns",
+      "proposition_id": "prop-composer-returns-existing-mutations",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-mutations"
+        }
+      ],
+      "operator": "reference:supports",
+      "proposition_id": "prop-obligation-describe-supports-fresh-authoring",
+      "subject_reference_id": "ref-obligation-describe"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-mutations"
+        }
+      ],
+      "operator": "reference:supports",
+      "proposition_id": "prop-acceptance-describe-supports-fresh-authoring",
+      "subject_reference_id": "ref-acceptance-describe"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-public-route-population"
+        }
+      ],
+      "operator": "reference:creates",
+      "proposition_id": "prop-composer-creates-public-route",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-composer-authoritative",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-report-owner"
+        }
+      ],
+      "operator": "reference:forwards_to",
+      "proposition_id": "prop-raw-metrics-forward-report-owner",
+      "subject_reference_id": "ref-raw-metrics"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-recovery-owner"
+        }
+      ],
+      "operator": "reference:depends_on",
+      "proposition_id": "prop-recovery-owner-retained",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-shared-skeleton-composer"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-package-verification-exists",
+      "subject_reference_id": "ref-package-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-package-falsifier",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-core-verification-exists",
+      "subject_reference_id": "ref-core-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-transport"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-core-falsifier",
+      "subject_reference_id": "ref-omitted-skeleton-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-mcp-verification-exists",
+      "subject_reference_id": "ref-mcp-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-public-route-population"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-mcp-falsifier",
+      "subject_reference_id": "ref-obligation-describe"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-ownership-verification-exists",
+      "subject_reference_id": "ref-registry-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-public-route-population"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-ownership-falsifier",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 39
+        }
+      ],
+      "operator": "number:has_value",
+      "proposition_id": "prop-skeleton-entry-count",
+      "subject_reference_id": "ref-skeleton-entry-count"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-package-component-exists",
+      "subject_reference_id": "ref-shared-skeleton-composer"
+    },
+    {
+      "proposition_id": "prop-skeleton-vocabulary-is-closed",
+      "subject_reference_id": "ref-skeleton-entry-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-01"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-02"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-03"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-04"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-05"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-06"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-07"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-08"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-09"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-10"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-11"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-12"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-13"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-14"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-15"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-16"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-17"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-18"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-19"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-20"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-21"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-22"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-23"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-24"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-25"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-26"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-27"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-28"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-29"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-30"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-31"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-32"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-33"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-34"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-35"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-36"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-37"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-38"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-39"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-stable-mutation-arguments-emitted",
+      "subject_reference_id": "ref-shared-skeleton-composer",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-13"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-cas-state-chains-mutation-receipts",
+      "subject_reference_id": "ref-skeleton-entry-14",
+      "operator": "reference:depends_on",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-mutations"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-final-carrier-equivalence-required",
+      "subject_reference_id": "ref-skeleton-entry-27",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-raw-metrics-complete",
+      "subject_reference_id": "ref-raw-metrics",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-21"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-22"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-23"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-24"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-25"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-26"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-skeleton-entry-27"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-shared-semantic-skeleton-composer"
+      },
+      "reference_id": "ref-shared-skeleton-composer",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "mcp_tool",
+        "kind": "durable_id",
+        "value": "workspace_controlled_contract_obligation_coverage_describe"
+      },
+      "reference_id": "ref-obligation-describe",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "mcp_tool",
+        "kind": "durable_id",
+        "value": "workspace_controlled_contract_acceptance_coverage_describe"
+      },
+      "reference_id": "ref-acceptance-describe",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "mcp_tool_family",
+        "kind": "durable_id",
+        "value": "controlled_contract_coverage_existing_mutations"
+      },
+      "reference_id": "ref-existing-mutations",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "caller_authored_semantic_decisions"
+      },
+      "reference_id": "ref-caller-semantic-decisions",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "server_resolved_coverage_authoring_state"
+      },
+      "reference_id": "ref-server-resolved-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "bounded_gap_first_authoring_skeleton_projection"
+      },
+      "reference_id": "ref-skeleton-projection",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "coverage_authoring_skeleton_max_utf8_bytes"
+      },
+      "reference_id": "ref-projection-byte-bound",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "omitted_skeleton_entries"
+      },
+      "reference_id": "ref-omitted-skeleton-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "protocol_owner",
+        "kind": "durable_id",
+        "value": "existing_digest_bound_continuation_or_content_reference"
+      },
+      "reference_id": "ref-existing-transport",
+      "type_term": "cc:capability"
+    },
+    {
+      "identity": {
+        "domain": "mcp_registry",
+        "kind": "durable_id",
+        "value": "controlled_contract_public_operations"
+      },
+      "reference_id": "ref-public-route-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "work_record",
+        "kind": "durable_id",
+        "value": "WK-2437"
+      },
+      "reference_id": "ref-recovery-owner",
+      "type_term": "cc:lifecycle_entity"
+    },
+    {
+      "identity": {
+        "domain": "work_record",
+        "kind": "durable_id",
+        "value": "WK-2438"
+      },
+      "reference_id": "ref-batch-owner",
+      "type_term": "cc:lifecycle_entity"
+    },
+    {
+      "identity": {
+        "domain": "work_record",
+        "kind": "durable_id",
+        "value": "WK-2055"
+      },
+      "reference_id": "ref-report-owner",
+      "type_term": "cc:lifecycle_entity"
+    },
+    {
+      "identity": {
+        "domain": "work_record",
+        "kind": "durable_id",
+        "value": "WK-2024"
+      },
+      "reference_id": "ref-proof-skeleton-owner",
+      "type_term": "cc:lifecycle_entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "fixed_fixture_skeleton_equivalence_metrics"
+      },
+      "reference_id": "ref-raw-metrics",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-package-composer-suite"
+      },
+      "reference_id": "ref-package-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/controlled-contract-coverage-authoring-skeleton-operations.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-core-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-mcp-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/controlled-contract-tools-registration.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-registry-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-core-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-mcp-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-registration-module",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "coverage_authoring_skeleton_intended_entry_count"
+      },
+      "reference_id": "ref-skeleton-entry-count",
+      "type_term": "cc:configuration"
+    },
+    {
+      "reference_id": "ref-skeleton-entry-01",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-unit-address-server-string"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-02",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-selected-unit-server-nullable-string"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-03",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-focus-server-nullable-slug"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-04",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-selected-unit-digest-server-sha256"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-05",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-criterion-identity-population-server"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-06",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-contract-content-digest-server-sha256"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-07",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-contract-node-population-server"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-08",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-proof-plan-content-digest-server-nullable-sha256"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-09",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-selected-pack-population-server"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-10",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-carrier-status-server-enum"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-11",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-currentness-changed-bindings-server"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-12",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-mutation-operation-server-tool-identity"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-13",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-mutation-stable-fixed-arguments-server-object"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-14",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-mutation-cas-state-receipt-fed-sha256"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-15",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-authored-unresolved-slot-population"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-16",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-projection-total-server-integer-39"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-17",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-projection-returned-server-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-18",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-projection-omitted-server-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-19",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-projection-inline-entry-population-server"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-20",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-projection-complete-content-reference-existing-transport"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-21",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-call-count-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-22",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-request-utf8-bytes-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-23",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-result-utf8-bytes-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-24",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-unresolved-slot-count-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-25",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-retry-count-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-26",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-source-inspection-escape-count-integer"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-27",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-common-metric-final-carrier-equivalence-boolean"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-28",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-obligation-id-authored-string"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-29",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-statement-authored-trimmed-single-line-string"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-30",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-criterion-selector-server-current-criterion"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-31",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-contract-node-ids-authored-current-reference-list"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-32",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-mechanism-authored-package-enum"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-33",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-gap-authored-typed-alternative"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-34",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-row-pack-component-authored-admitted-alternative"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-35",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-mutation-expected-authoring-identity-server-string"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-36",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-obligation-mutation-source-identity-server-object"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-37",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-acceptance-row-criterion-identity-server-current-criterion"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-38",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-acceptance-row-node-ids-authored-current-reference-list"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-39",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-acceptance-row-axes-authored-complete-six-axis-state-map"
+      }
+    },
+    {
+      "reference_id": "ref-skeleton-entry-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2439-complete-ordered-semantic-skeleton-entry-population"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-package-composer-obligation-describe-reuses-composer",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-composer",
+      "target_claim_id": "claim-obligation-describe-reuses-composer"
+    },
+    {
+      "relation_id": "rel-package-composer-acceptance-describe-reuses-composer",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-composer",
+      "target_claim_id": "claim-acceptance-describe-reuses-composer"
+    },
+    {
+      "relation_id": "rel-package-composer-caller-retains-semantic-authority",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-composer",
+      "target_claim_id": "claim-caller-retains-semantic-authority"
+    },
+    {
+      "relation_id": "rel-package-composer-server-resolves-composer-inputs",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-composer",
+      "target_claim_id": "claim-server-resolves-composer-inputs"
+    },
+    {
+      "relation_id": "rel-core-projection-projection-bound-is-exact",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-projection-bound-is-exact"
+    },
+    {
+      "relation_id": "rel-core-projection-omitted-entries-remain-reachable",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-omitted-entries-remain-reachable"
+    },
+    {
+      "relation_id": "rel-core-projection-handoff-uses-existing-mutations",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-handoff-uses-existing-mutations"
+    },
+    {
+      "relation_id": "rel-core-projection-recovery-ownership-remains-wk2437",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-recovery-ownership-remains-wk2437"
+    },
+    {
+      "relation_id": "rel-mcp-fresh-session-obligation-fresh-session-completes",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mcp-fresh-session",
+      "target_claim_id": "claim-obligation-fresh-session-completes"
+    },
+    {
+      "relation_id": "rel-mcp-fresh-session-acceptance-fresh-session-completes",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mcp-fresh-session",
+      "target_claim_id": "claim-acceptance-fresh-session-completes"
+    },
+    {
+      "relation_id": "rel-mcp-fresh-session-composer-remains-nonauthoritative",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mcp-fresh-session",
+      "target_claim_id": "claim-composer-remains-nonauthoritative"
+    },
+    {
+      "relation_id": "rel-owner-boundaries-no-new-public-preparation-route",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-owner-boundaries",
+      "target_claim_id": "claim-no-new-public-preparation-route"
+    },
+    {
+      "relation_id": "rel-owner-boundaries-raw-metrics-handed-to-report-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-owner-boundaries",
+      "target_claim_id": "claim-raw-metrics-handed-to-report-owner"
+    },
+    {
+      "relation_id": "rel-core-projection-skeleton-entry-count-is-exact",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-skeleton-entry-count-is-exact"
+    },
+    {
+      "relation_id": "rel-package-suite-verifies-component-exists",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-composer",
+      "target_claim_id": "claim-package-component-exists"
+    },
+    {
+      "relation_id": "rel-package-composer-skeleton-vocabulary-is-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-composer",
+      "target_claim_id": "claim-skeleton-vocabulary-is-closed"
+    },
+    {
+      "relation_id": "rel-core-projection-stable-mutation-arguments",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-stable-mutation-arguments-emitted"
+    },
+    {
+      "relation_id": "rel-core-projection-cas-state-chaining",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-core-projection",
+      "target_claim_id": "claim-cas-state-chains-mutation-receipts"
+    },
+    {
+      "relation_id": "rel-mcp-fresh-session-final-carrier-equivalence",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mcp-fresh-session",
+      "target_claim_id": "claim-final-carrier-equivalence-required"
+    },
+    {
+      "relation_id": "rel-mcp-fresh-session-raw-metrics-complete",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-mcp-fresh-session",
+      "target_claim_id": "claim-raw-metrics-complete"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2439-core-projection",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+            "mutation_id": "mutation-wk2439-core-projection",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-core-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-wk2439-core-projection",
+        "proposition_id": "prop-core-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2439-core-projection",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "subject_reference_ids": [
+          "ref-core-module",
+          "ref-shared-skeleton-composer"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2439-core-projection",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-core-projection",
+      "test_selector": {
+        "name": "wk2439 core projection",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2439-mcp-fresh-session",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-wk2439-mcp-fresh-session",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-mcp-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "protocol_message",
+        "observable_id": "observable-wk2439-mcp-fresh-session",
+        "proposition_id": "prop-mcp-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2439-mcp-fresh-session",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-mcp-module",
+          "ref-obligation-describe",
+          "ref-acceptance-describe"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2439-mcp-fresh-session",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-mcp-fresh-session",
+      "test_selector": {
+        "name": "wk2439 mcp fresh session",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2439-owner-boundaries",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+            "mutation_id": "mutation-wk2439-owner-boundaries",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-ownership-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk2439-owner-boundaries",
+        "proposition_id": "prop-ownership-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2439-owner-boundaries",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-registration-module",
+          "ref-public-route-population"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2439-owner-boundaries",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-owner-boundaries",
+      "test_selector": {
+        "name": "wk2439 owner boundaries",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2439-package-composer",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+            "mutation_id": "mutation-wk2439-package-composer",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-package-falsifier",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-wk2439-package-composer",
+        "proposition_id": "prop-package-verification-exists"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2439-package-composer",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/coverage-authoring-skeleton.mjs",
+        "subject_reference_ids": [
+          "ref-shared-skeleton-composer"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2439-package-composer",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-package-composer",
+      "test_selector": {
+        "name": "wk2439 package composer",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

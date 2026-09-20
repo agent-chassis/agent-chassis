@@ -4,21 +4,22 @@ import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { types as utilTypes } from "node:util";
 import {
-  STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS,
-  classifyStableTestProofRuntimeReadiness
-} from "@agent-chassis/controlled-contract";
+  resolveControlledContractTestProofRuntimeBindings
+} from "../../../wiki-core/src/lib/controlled-contract-tools.mjs";
 import {
   computeWorkRecordSourceDigest,
-  projectWorkRecordTestProofValidation,
-  projectSliceReviewReceiptContracts,
-  resolveControlledContractTestProofRuntimeBindings
-} from "../../../wiki-core/src/index.mjs";
+  projectSliceReviewReceiptContracts
+} from "../../../wiki-core/src/lib/work-record-schema.mjs";
+import {
+  projectWorkRecordTestProofValidation
+} from "../../../wiki-core/src/lib/work-record-test-proof-bindings.mjs";
 import {
   runWithControlledContractAuthorityContext,
   withControlledContractAuthorityExclusion
 } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 import {
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
   resolveControlledContractGenerationBinding,
   authenticateControlledContractGenerationAtW
 } from "@agent-chassis/agent-launch-cli/src/lib/controlled-carrier-attachment-primitive.mjs";
@@ -32,7 +33,6 @@ import { runWorkspaceAgentTestProofAttempt } from
   "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs";
 import {
   mintLauncherTestProofAttemptContext,
-  mintTerminalCandidateTestProofRuntimeAuthority,
   TestProofRuntimeIdentityError
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
 import {
@@ -67,8 +67,6 @@ import {
   verifyTerminalWkCandidateObjectBinding
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 import {
-  runAllTerminalCandidateValidations,
-  runTerminalCandidateValidation,
   verifyTerminalCandidateDependencies
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-validation.mjs";
 import {
@@ -122,14 +120,6 @@ export async function executeTestProofReceiptsWithAuthority({
   validationBindings,
   assertCurrentIdentity = null
 }) {
-  const readinessCodes = {
-    [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_INVENTORY]:
-      "test_proof_runtime_inventory_missing",
-    [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_SELECTION]:
-      "test_proof_runtime_test_selection_missing",
-    [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.INVALID_SELECTION]:
-      "test_proof_runtime_test_selection_invalid"
-  };
   const proofWkId = proofAuthority?.wk_id ?? proofAuthority?.record_id;
   const selections = new Map();
   try {
@@ -170,36 +160,7 @@ export async function executeTestProofReceiptsWithAuthority({
           "verify-proof preflight resolved a missing or duplicate binding",
           { target, verification_id: verificationId }
         );
-        const readiness = classifyStableTestProofRuntimeReadiness(matches[0]);
-        if (readiness.status !== "ready") {
-          const cause = new TestProofRuntimeIdentityError(
-            readinessCodes[readiness.reason],
-            "proof execution requires a package-ready runtime test identity",
-            {
-              readiness_reason: readiness.reason,
-              candidate_total: readiness.candidate_total,
-              candidate_test_ids: readiness.current_test_ids.slice(0, 16),
-              candidate_test_ids_omitted: Math.max(readiness.candidate_total - 16, 0),
-              selected_test_id: readiness.selected_test_id,
-              authority_limb: "mechanical_failure",
-              admissibility_effect: "none",
-              recovery_operation: "workspace_controlled_test_proof_patch",
-              complete_retrieval: {
-                tool: "workspace_controlled_test_proof_query",
-                arguments: {
-                  wk_id: proofWkId,
-                  verification_ids: [verificationId]
-                }
-              }
-            }
-          );
-          throw new VerifyProofExecutionError(
-            VERIFY_PROOF_EXECUTION_FAILURE_CODES.ATTEMPT_CONTEXT,
-            "verify-proof could not mint the exact attempt context",
-            { target, verification_id: verificationId },
-            cause
-          );
-        }
+
       }
       selections.set(JSON.stringify(verificationIds), selection);
     }
@@ -220,52 +181,6 @@ export async function executeTestProofReceiptsWithAuthority({
     }
     throw error;
   }
-}
-
-async function executeTerminalTestProofReceipts({
-  binding,
-  materialization,
-  targets,
-  validationBindings,
-  runGit
-}) {
-  const verificationCount = targets.reduce(
-    (count, target) => count + (validationBindings[target]?.length ?? 0),
-    0
-  );
-  if (verificationCount === 0) {
-    return Object.freeze(Object.fromEntries(
-      targets.map((target) => [target, Object.freeze([])])
-    ));
-  }
-  const proofAuthority = await mintTerminalCandidateTestProofRuntimeAuthority({
-    binding, materialization, runGit
-  });
-  const executed = await executeTestProofReceiptsWithAuthority({
-    proofAuthority, targets, validationBindings
-  });
-  return executed.receipts_by_target;
-}
-
-async function runTerminalCandidateValidationsWithProofs({
-  binding,
-  materialization,
-  targets,
-  runtimeRoot,
-  validationBindings,
-  runGit
-}) {
-  const validations = await runAllTerminalCandidateValidations({
-    binding, materialization, targets, runtimeRoot, runGit
-  });
-  const receipts = await executeTerminalTestProofReceipts({
-    binding,
-    materialization,
-    targets,
-    validationBindings,
-    runGit
-  });
-  return bindTerminalTestProofVerificationIds(validations, validationBindings, receipts);
 }
 
 export const TERMINAL_REVIEW_UNIT_PROJECTION_CODES = Object.freeze({
@@ -334,10 +249,22 @@ async function authenticateCurrentControlledGeneration({
   if (expectedW !== null && binding.wk_tip_sha !== expectedW) {
     throw new Error("persistent WK ref moved before terminal candidate preparation");
   }
-  const authenticated = await authenticateControlledContractGenerationAtW({
-    binding,
-    deps: { runGit }
-  });
+  let authenticated;
+  try {
+    authenticated = await authenticateControlledContractGenerationAtW({
+      binding,
+      deps: { runGit }
+    });
+  } catch (error) {
+
+    if (error?.code === CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED) {
+      throw new TerminalWkCandidateError(
+        "current controlled-contract generation is not persisted in the exact WK tip",
+        { code: TERMINAL_WK_CANDIDATE_CODES.CONTROLLED_GENERATION_STALE }
+      );
+    }
+    throw error;
+  }
   return run(assertAuthenticatedControlledContractGeneration(authenticated, {
     repository: binding.repository,
     wkId,
@@ -632,9 +559,7 @@ export const TERMINAL_CANDIDATE_RECOVERY_REASONS = Object.freeze({
     "terminal_candidate_recovery_canonical_wk_binding_disagrees",
   REVIEW_CONTRACT_BINDING_DISAGREES:
     "terminal_candidate_recovery_review_contract_binding_disagrees",
-  NO_DETERMINISTIC_MATCH: "terminal_candidate_recovery_no_deterministic_match",
-  VALIDATION_EVIDENCE_UNAVAILABLE:
-    "terminal_candidate_recovery_validation_evidence_unavailable"
+  NO_DETERMINISTIC_MATCH: "terminal_candidate_recovery_no_deterministic_match"
 });
 
 export const TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION =
@@ -729,7 +654,8 @@ export function createTerminalCandidateCoordinator({
     runGit === PRODUCTION_TERMINAL_CANDIDATE_RUN_GIT;
   const cycles = new Map();
 
-  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef, baseSha, baseRef = "main" }) => {
+  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef, baseSha,
+    baseRef = "main", authenticateAuthoredState }) => {
     try {
       if (integration?.wk_ref !== wkRef || integration?.wk_sha == null || reviewUnit?.record_id !== wkId) {
         throw new Error("terminal candidate preparation does not match the exact integrated WK identity");
@@ -737,6 +663,9 @@ export function createTerminalCandidateCoordinator({
 
       if (typeof baseSha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(baseSha)) {
         throw new Error("terminal candidate preparation requires the launcher-bound WK lifecycle base");
+      }
+      if (typeof authenticateAuthoredState !== "function") {
+        throw new Error("terminal candidate preparation requires backend-owned authored-state authentication");
       }
       return await withCurrentControlledGeneration({
         mainRepo, wkId, expectedW: integration.wk_sha, runGit,
@@ -767,6 +696,11 @@ export function createTerminalCandidateCoordinator({
             runGit
           });
           const derived = await deriveTerminalWkCandidate({ frozen, runGit });
+
+          await authenticateAuthoredState({
+            historicalReviewUnit: canonical.review_unit,
+            candidateBinding: derived
+          });
           const binding = await publishTerminalWkCandidateVersion({
             binding: derived,
             expectedOld,
@@ -994,7 +928,7 @@ export function createTerminalCandidateCoordinator({
       runGit
     });
     const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-    const recoveredState = {
+    const state = Object.freeze({
       binding,
       materialization,
       dependency_proof: dependencyProof,
@@ -1003,26 +937,10 @@ export function createTerminalCandidateCoordinator({
       canonical_validation_bindings: recoveredCanonical.validation_bindings,
       validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate),
       version_decision: binding.version_decision
-    };
-    const validations = await runTerminalCandidateValidationsWithProofs({
-      binding,
-      materialization,
-      targets: recoveredState.canonical_targets,
-      runtimeRoot: recoveredState.validation_runtime_root,
-      validationBindings: recoveredState.canonical_validation_bindings,
-      runGit
     });
-    if (!Array.isArray(validations)) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_validation_evidence_unavailable");
-    }
     await verifyTerminalWkCandidateObjectBinding({
       binding,
       runGit
-    });
-    const state = Object.freeze({
-      ...recoveredState,
-      validation_evidence: Object.freeze([...validations])
     });
     cycles.set(wkId, state);
     return state;
@@ -1077,46 +995,10 @@ export function createTerminalCandidateCoordinator({
       })
     });
 
-  const validateTerminalCandidate = async ({ terminalCandidate }) =>
-    runTerminalCandidateValidationsWithProofs({
-      binding: terminalCandidate.binding,
-      materialization: terminalCandidate.materialization,
-      targets: terminalCandidate.canonical_targets,
-      runtimeRoot: terminalCandidate.validation_runtime_root,
-      validationBindings: terminalCandidate.canonical_validation_bindings ?? Object.freeze({}),
-      runGit
-    });
-
-  const runTerminalCandidateValidationForUnit = async ({ unit, target }) => {
-    const state = cycles.get(unit) ?? null;
-    if (state === null) return null;
-    if (!state.canonical_targets.includes(target)) {
-      throw new Error("terminal candidate target is not present in the frozen canonical whole-WK contract");
-    }
-    const validation = await runTerminalCandidateValidation({
-      binding: state.binding,
-      materialization: state.materialization,
-      target,
-      runtimeRoot: state.validation_runtime_root,
-      runGit
-    });
-    const validationBindings = state.canonical_validation_bindings ?? Object.freeze({});
-    const receipts = await executeTerminalTestProofReceipts({
-      binding: state.binding,
-      materialization: state.materialization,
-      targets: [target],
-      validationBindings,
-      runGit
-    });
-    return bindTerminalTestProofVerificationIds([validation], validationBindings, receipts)[0];
-  };
-
   return Object.freeze({
     prepareTerminalCandidate,
-    validateTerminalCandidate,
     recoverTerminalCandidate,
     recoverTerminalCandidateUnderAuthority,
-    runTerminalCandidateValidationForUnit,
     resolve: (wkId) => cycles.get(wkId) ?? null
   });
 }

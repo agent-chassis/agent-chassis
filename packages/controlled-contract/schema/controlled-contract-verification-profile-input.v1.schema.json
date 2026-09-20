@@ -254,15 +254,10 @@
         },
         "test_inventory": {
           "type": "object",
-          "required": [
-            "declared_test_ids", "baseline_executed_test_ids", "observed_tests"
-          ],
+          "required": ["declared_test_ids", "observed_tests"],
           "additionalProperties": false,
           "properties": {
             "declared_test_ids": { "type": "array", "items": { "type": "string" } },
-            "baseline_executed_test_ids": {
-              "type": "array", "items": { "type": "string" }
-            },
             "observed_tests": {
               "type": "array",
               "items": {

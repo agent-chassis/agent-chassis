@@ -14,7 +14,6 @@ import {
 } from '../../packages/wiki-core/src/lib/initiative-status.mjs';
 import { workspaceInitiativeStatus } from '../../packages/wiki-core/src/operations/initiative-status.mjs';
 import { bootstrapRepo } from '../../packages/wiki-core/src/operations/bootstrap.mjs';
-import { createWikiRecord } from '../../packages/wiki-core/src/operations/create.mjs';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const testInitiative = 'IN-TEST';
@@ -207,7 +206,7 @@ test('initiative frontier covers the implemented coordinator scenarios', () => {
   assert.ok(frontier.top_actions.length <= 50);
 });
 
-test('ready worker dispatch routes through dispatch-readiness validation', () => {
+test('ready worker dispatch suggests optional readiness assessment, not a launch prerequisite', () => {
   const frontier = initiativeStatus({ top_action_limit: 50, verbose: true });
   const dispatchAction = frontier.top_actions.find(
     (action) => action.target_unit === 'WK-9001',
@@ -217,6 +216,28 @@ test('ready worker dispatch routes through dispatch-readiness validation', () =>
   assert.equal(kindOf(dispatchAction), 'validate_dispatch');
   assert.equal(dispatchAction.suggested_tool, 'workspace_validate_dispatch');
   assert.equal(reasonCodeOf(dispatchAction), 'record_needs_validation');
+
+  assert.equal(dispatchAction.blocking, false);
+
+  assert.match(dispatchAction.summary, /optional/iu);
+  assert.doesNotMatch(dispatchAction.summary, /before launching/iu);
+  assert.doesNotMatch(dispatchAction.summary, /must .*(validate|be dispatchable)/iu);
+});
+
+test('the validate_dispatch vocabulary describes optional assessment and grants no launch permission', () => {
+  const taxonomy = loadInitiativeStatusTaxonomy();
+  const validate = (taxonomy.action_kinds ?? taxonomy.actions ?? []).find(
+    ({ kind }) => kind === 'validate_dispatch',
+  );
+  assert.ok(validate, 'validate_dispatch action kind present');
+  assert.equal(validate.advisory_only, true);
+  const descriptions = `${validate.default_description}\n${validate.verbose_description}`;
+  assert.match(descriptions, /optional/iu);
+  assert.match(descriptions, /grants no launch permission/iu);
+  assert.doesNotMatch(validate.default_description, /is the next step/iu);
+
+  assert.ok(taxonomy.raw.advisory_contract.forbidden_effects.includes('dispatch'));
+  assert.equal(taxonomy.raw.advisory_contract.read_only, true);
 });
 
 test('runtime/operator blocked unit surfaces as a blocking next action', () => {
@@ -1093,20 +1114,13 @@ test('a clean consumer repository with no work-record corpus returns allocation-
   t.after(() => rm(root, { recursive: true, force: true }));
 
   await bootstrapRepo({ dir: root, repo: 'agent-chassis/consumer-initiative-status' });
-  const created = await createWikiRecord({
-    dir: root,
-    type: 'initiative',
-    title: 'Start the first real work',
-  });
-  assert.match(created.id, /^IN-\d{4}$/);
-
   const corpusPath = path.join(root, 'wiki', 'work-records');
   await assert.rejects(access(corpusPath), { code: 'ENOENT' });
 
-  const result = await workspaceInitiativeStatus({ repoRoot: root, initiative: created.id });
+  const result = await workspaceInitiativeStatus({ repoRoot: root, initiative: 'IN-0001' });
 
   assert.equal(result.schema_version, 'initiative-status.v1');
-  assert.equal(result.scope.initiative, created.id);
+  assert.equal(result.scope.initiative, 'IN-0001');
   assertAllocationRequired(result);
 
   await assert.rejects(access(corpusPath), { code: 'ENOENT' });

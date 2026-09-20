@@ -15,6 +15,7 @@ import {
   projectWorkRecordTestProofValidation,
   renderWorkRecordValidationEntry
 } from "./work-record-test-proof-bindings.mjs";
+import { projectWorkRecordEntries } from "./work-record-entry-projection.mjs";
 
 export const WORK_RECORD_SUMMARY_SCHEMA_VERSION = "work-record-summary.v1";
 
@@ -367,7 +368,7 @@ function collectBlockers(record, { dependencyResolver = null } = {}) {
   return blockers;
 }
 
-function findSliceById(record, sliceId) {
+export function findSliceById(record, sliceId) {
   if (!sliceId) return null;
   if (!Array.isArray(record.slices)) return null;
   return record.slices.find((entry) => isObject(entry) && entry.id === sliceId) || null;
@@ -857,7 +858,8 @@ function buildCompactSummary(
     blockers_returned: blockers.length,
     blockers_truncated: blockers.length < blockersFull.length,
     slice_count: sliceSummaries.length,
-    slice_status_counts: summarizeSliceStatusCounts(sliceSummaries)
+    slice_status_counts: summarizeSliceStatusCounts(sliceSummaries),
+    entries: projectWorkRecordEntries(record, { limit: 3 })
   };
   if (compactSliceProjection.slice_detail_omissions) {
     summary.slice_detail_omissions = compactSliceProjection.slice_detail_omissions;
@@ -884,12 +886,14 @@ function buildCompactSummary(
         blockers: collectSliceBlockers(record, slice, dependencyResolver),
         validation,
         validation_count: validation.length,
-        next_action: nextAction
+        next_action: nextAction,
+        entries: projectWorkRecordEntries(slice, { limit: 3 })
       }, slice);
     } else {
       summary.selected_unit_summary = {
         validation_count: validation.length,
-        next_action: nextAction
+        next_action: nextAction,
+        entries: projectWorkRecordEntries(record, { limit: 3 })
       };
     }
     return summary;

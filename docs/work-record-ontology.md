@@ -100,9 +100,20 @@ the separate `work-unit-feature-vector.v1` schema.
 
 A `WK-*` begins as an allocator-backed inbox record created through `workspace_create_record`. Allocation owns identity and the canonical template only. It does not accept or infer raw controlled-contract carriers, proofs, slices, proof posture, readiness, or lifecycle state.
 
+After identity allocation, every WK authors its controlled-acceptance
+disposition through `workspace_controlled_contract_obligation_coverage_upsert`
+before it is used as an executable implementation contract. Call ordinary query
+first to obtain the combined revision. Canonical `proof_posture` is the sole
+persistent carrier and the controlled-contract semantic-operation family is its
+sole writer. `controlled_acceptance_state` is derived as `absent`,
+`incomplete`, `complete`, or `opted_out` from that posture and the current
+authenticated workbench population; it is never persisted. Opt-out requires the
+canonical exemption plus a nonempty rationale. This structural distinction is
+independent of CCE sequencing and policy admissibility.
+
 The execution contract is authored after design convergence and the required review dispositions. Semantic controlled-contract operations own claims and proof obligations; `workspace_work_record_ready_slice` owns atomic executable-unit shaping. The full order is the [design-first operating model](../AGENTS.md#wk-first-work). CCE remains the only action-sequencing and admissibility owner, so the local wiki layer neither reconstructs that sequence nor turns it into a refusal gate.
 
-This separation preserves the ontology: allocation facts, authored contract semantics, executable slices, advisory proof evidence, and lifecycle authority remain distinct owners rather than one combined birth payload.
+This separation preserves the ontology: authored proof posture, contract semantics, executable slices, advisory proof evidence, and lifecycle authority remain distinct owners rather than one combined birth payload.
 
 ## Rejected approach: collapse the ontology
 

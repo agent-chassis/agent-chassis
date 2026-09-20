@@ -4,27 +4,30 @@
 
 This page documents the per-role host wiki-MCP conduit, its typed `stdio_mcp_*`
 failure taxonomy, the orchestrator session diagnostic fields, and the operator
-recovery route for a consumed or failed conduit. The conduit contract itself is
+recovery route for a failed conduit. The conduit contract itself is
 in [mcp-integration.md](mcp-integration.md).
 
-Every confined Codex or Claude role receives exactly one launcher-owned host
-wiki-MCP server through two named FIFOs bound into the final bubblewrap namespace.
-The server and its dependencies remain on the host; the sandbox contains only the
-two fixed relay paths and the pinned base-system copy relay. The launcher verifies
-the exact role-derived tool list after the real client completes MCP `initialize`
-and `tools/list`, then unlinks the FIFO names.
+Every confined Codex or Claude role receives a launcher-owned stdio connector
+over a private Unix-domain socket. Each authenticated MCP command invocation
+gets an independent connection and host wiki-MCP process. The server and its
+dependencies remain on the host; the sandbox receives the socket endpoint,
+credential file, pinned connector, and connector Node executable. Server
+registration must succeed before acknowledgement permits forwarding. The
+launcher then verifies the exact role-derived tool list after the real client
+completes MCP `initialize` and `tools/list`.
 
 Conduit construction, host-server startup, client readiness, namespace, and
-cleanup failures use the producer-complete public `stdio_mcp_*` taxonomy
+cleanup failures use the registered public `stdio_mcp_*` taxonomy
 documented in [MCP integration](mcp-integration.md#transport). These
 failures never degrade to an optional MCP server. Failures found before spawn or
 readiness refuse model work; failures found after readiness resolve the separate
 always-live conduit failure channel, trigger bounded exactly-once teardown, and
-publish a typed terminal outcome. Interactive orchestrator server loss is
-failure-shaped while the orchestrator process remains live, even when client
-transport close was observed first. Only launcher-observed orchestrator process
-terminality authorizes expected interactive cleanup; one-shot worker, reviewer,
-and redteam expected drain remains successful.
+publish a typed terminal outcome. After client readiness, authenticated transport
+EOF followed by a clean host-server exit is an expected drain, including while
+an interactive orchestrator process remains live. That transport fact does not
+complete the orchestrator session or authorize signalling its process. Abnormal
+server loss retains the bounded terminal supervision described in the
+[conduit lifecycle](agent-launch-confinement-mcp-conduit.md).
 
 Orchestrator `session.json` records a bounded `stdio_mcp_reason` and
 `stdio_mcp_detail` before terminal publication. The detail identifies readiness,
@@ -113,10 +116,29 @@ it. Both interactive orchestrator families reach this through the one shared
 supervisor: Claude hands it the conduit its own launch created, exactly as Codex
 does, and a persisted conduit diagnostic still forces a failed terminal status.
 
-Recovery for a consumed or failed conduit is to end the affected session, repair
+Findings-only reviewer and redteam runs publish the same typed cause. When the
+launcher's conduit terminal probe reports a readiness, server-loss, or cleanup
+failure, advisory settlement reads it through the probe's validated reader and
+attaches `{reason, detail, cleanup_only}` at `exit.conduit_failure`. The same
+carrier appears on an initially terminal `workspace_agent_dispatch` result and
+on every later `workspace_agent_run_status` observation, in both the compact
+and `include_final_result` presentations. It is added next to the observed
+child exit code, signal, and error, which remain the child's own facts. Captured
+review text, the missing-result evidence of a zero-output run, and the advisory
+authority and attestation fields are unchanged. `cleanup_only` is `true` only
+when launcher teardown is the sole failure and the child was observed to exit
+with code 0 and no signal. A run without a typed conduit failure carries no
+`conduit_failure`. This carrier is cause evidence only: it does not attribute a
+signal to the launcher.
+
+Recovery for a failed conduit is to end the affected session, repair
 the named host-server, bubblewrap, cleanup, or persistence prerequisite indicated
 by the typed phase, and restart or resume through the normal launcher entrypoint.
-A consumed per-dispatch FIFO stream is never refreshed, reconnected, or reused.
+Independent MCP command invocations may connect while admission is open, each
+with a fresh server generation. They do not reuse a prior stream or repair a
+failed conduit; the launcher-owned discovery-probe promotion described in the
+[conduit lifecycle](agent-launch-confinement-mcp-conduit.md) is a separate,
+bounded readiness transition.
 Do not increase `startup_timeout_sec` for post-readiness loss: that budget governs
 only initialize plus `tools/list` and cannot restore a conduit that already
 failed. Never widen repository visibility or add another transport.

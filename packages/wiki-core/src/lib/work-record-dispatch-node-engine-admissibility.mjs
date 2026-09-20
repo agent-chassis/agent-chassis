@@ -11,6 +11,13 @@ import {
   NODE_ENGINE_UNRATIFIED_PLACEHOLDER
 } from "./work-record-admission-derived-evidence.mjs";
 import {
+  ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE,
+  isAdmissionEvidenceSnapshotChangedError
+} from "./work-record-admission-evidence-sidecar.mjs";
+import {
+  createNodeEngineCarrierFactsFromDispatchReadiness
+} from "./work-record-admission-derived-evidence-carrier-facts.mjs";
+import {
   createReviewAttestationBindingFromRemoteNeedsReview,
   preserveFirstPassReviewThresholdReasonsForOpaqueRetryResult
 } from "./review-attestation-pack-carry.mjs";
@@ -39,6 +46,7 @@ export const NODE_ENGINE_NON_PACK_ADMISSIBILITY_MAP = Object.freeze({
   request_contract_digest_missing: ["unavailable", "node_engine_request_contract_unbound"],
   pack_input_missing: ["unavailable", "node_engine_pack_input_missing"],
   pack_input_assembly_failed: ["unavailable", "node_engine_pack_input_assembly_failed"],
+  [ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE]: ["unavailable", ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE],
   auth_rejected: ["undetermined", "node_engine_auth_rejected"],
   entitlement_rejected: ["undetermined", "node_engine_entitlement_rejected"],
   invalid_request: ["undetermined", "node_engine_request_invalid"],
@@ -58,7 +66,10 @@ export const NODE_ENGINE_NON_PACK_ADMISSIBILITY_MAP = Object.freeze({
   malformed_result: ["undetermined", "node_engine_unrecognized_response"],
   availability_failure: ["unavailable", "node_engine_unavailable"],
   timeout_abort: ["unavailable", "node_engine_unavailable"],
-  transport_failure: ["unavailable", "node_engine_unavailable"]
+  transport_failure: ["unavailable", "node_engine_unavailable"],
+  request_failure: ["unavailable", "node_engine_unavailable"],
+  response_read_failure: ["unavailable", "node_engine_unavailable"],
+  response_classification_failure: ["unavailable", "node_engine_unavailable"]
 });
 
 export function buildNodeEngineAdmissibilityOutcome(status, admissible, diagnosticCode, extra = {}) {
@@ -78,6 +89,9 @@ export function buildNodeEngineAdmissibilityOutcome(status, admissible, diagnost
     ...(isObject(extra.recovery) ? { recovery: extra.recovery } : {}),
     ...(typeof extra.authenticated_request_sent === "boolean"
       ? { authenticated_request_sent: extra.authenticated_request_sent }
+      : {}),
+    ...(Object.hasOwn(extra, "failure_diagnostic")
+      ? { failure_diagnostic: extra.failure_diagnostic }
       : {})
   };
 }
@@ -116,30 +130,7 @@ function createValidateDispatchAdmissionOperationId(unit) {
 }
 
 export function createValidateDispatchNodeEngineCarrierFacts(readiness) {
-  const normalizedClusterCount = Array.isArray(readiness?.clusters)
-    ? readiness.clusters.length
-    : null;
-  const clusterCount = normalizedClusterCount === 0 && readiness?.dispatchable === true
-    ? 1
-    : normalizedClusterCount;
-  if (!Number.isInteger(clusterCount) || clusterCount < 0) {
-    return null;
-  }
-
-  const localBlastRadius = isNonEmptyString(readiness?.blast_radius?.level)
-    ? String(readiness.blast_radius.level).trim().toLowerCase()
-    : null;
-  const blastRadiusSeverity = {
-    low: "none",
-    medium: "elevated",
-    elevated: "elevated",
-    critical: "critical"
-  }[localBlastRadius] ?? null;
-
-  return {
-    cluster_count: clusterCount,
-    ...(blastRadiusSeverity ? { blast_radius_severity: blastRadiusSeverity } : {})
-  };
+  return createNodeEngineCarrierFactsFromDispatchReadiness(readiness, readiness);
 }
 
 export function projectValidateDispatchPackInputCarrier(packInput, readiness) {
@@ -204,10 +195,16 @@ export async function resolveNodeEngineAdmissibility({ request, record, selected
             review_attestation_binding,
             now: bundle.now ?? null
           });
+
+    const snapshotChangedOutcome = () => ({
+      outcome: ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE,
+      authenticated_request_sent: false
+    });
     let packInput = null;
     try {
       packInput = await createPackInput();
-    } catch {
+    } catch (error) {
+      if (isAdmissionEvidenceSnapshotChangedError(error)) return snapshotChangedOutcome();
       return {
         outcome: "pack_input_assembly_failed",
         authenticated_request_sent: false
@@ -247,7 +244,8 @@ export async function resolveNodeEngineAdmissibility({ request, record, selected
     let secondPackInput = null;
     try {
       secondPackInput = await createPackInput(reviewAttestationBinding);
-    } catch {
+    } catch (error) {
+      if (isAdmissionEvidenceSnapshotChangedError(error)) return snapshotChangedOutcome();
       return firstResult;
     }
     if (

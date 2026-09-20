@@ -9,7 +9,7 @@
     "profile_version": "2.0.0",
     "profile_digest": "1e97b33590c2f7219b3fc73e12c3b8c510bea79e2578bb1a523c36f23e167f78",
     "guarantee_digest": "f55adcfd21e759ad9f647d8d63aaefd8d0fc0d112d9b288ca7489077c5c508b8",
-    "adequacy_digest": "5024732749a8215e0fbc54db397e3c292b9489fba004fbdb7ae6f60ac3ae0402"
+    "adequacy_digest": "9917c2767ab0535330a973d078a499634e8242f25b2f015df75a6e2a6a38375c"
   },
   "passed": true,
   "control_count": 59,

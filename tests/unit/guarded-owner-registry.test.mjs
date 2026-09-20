@@ -10,6 +10,7 @@ import {
   defineGuardedOwnerCategoryAdapter,
   deriveGuardedOwnerPopulation,
   loadGuardedOwnerRegistry,
+  surveyGuardedOwnerReferences,
   validateGuardedOwnerReferences,
   validateGuardedOwnerRegistryDefinition
 } from "../../packages/wiki-core/src/lib/guarded-owner-registry.mjs";
@@ -41,13 +42,13 @@ function singleBinding(source, categoryId = source.bindings[0].category_id) {
 test("the closed registry binds each guarded class to one owner and current owner proof", async () => {
   const value = await loadGuardedOwnerRegistry();
   assert.equal(value.closed, true);
-  assert.equal(value.bindings.length, 10);
-  assert.equal(new Set(value.bindings.map((entry) => entry.guarded_class_id)).size, 10);
-  assert.equal(new Set(value.bindings.map((entry) => entry.diagnostic_id)).size, 10);
+  assert.equal(value.bindings.length, 9);
+  assert.equal(new Set(value.bindings.map((entry) => entry.guarded_class_id)).size, 9);
+  assert.equal(new Set(value.bindings.map((entry) => entry.diagnostic_id)).size, 9);
   assert.deepEqual(
     new Set(value.bindings.map((entry) => entry.semantic_owner)),
     new Set([
-      "WK-2257", "WK-2258", "WK-2357", "WK-2359", "WK-2382", "WK-2391", "WK-2405", "WK-2428",
+      "WK-2257", "WK-2357", "WK-2359", "WK-2382", "WK-2391", "WK-2405", "WK-2428",
       "decision:family_adapter_boundary", "decision:launcher_neutrality"
     ])
   );
@@ -257,6 +258,52 @@ test("missing and digest-mismatched owner proofs fail with separate stable diagn
     hasCode(CODES.OWNER_REFERENCE_DIGEST_MISMATCH)
   );
 });
+
+test("the reference survey reports every defect with the fail-fast codes and still rejects a malformed registry",
+  async () => {
+    const value = await registry();
+    const [first, second] = value.owner_references;
+    const trackedPaths = value.owner_references.map((reference) => reference.path);
+    const changed = new Map([
+      [path.join("/repo", first.path), Buffer.from("changed first owner proof")],
+      [path.join("/repo", second.path), Buffer.from("changed second owner proof")]
+    ]);
+    const read = async (absolutePath) =>
+      changed.get(absolutePath) ?? Buffer.from(`intact:${absolutePath}`);
+
+    const defects = await surveyGuardedOwnerReferences(value, {
+      repositoryRoot: "/repo", trackedPaths, read
+    });
+
+    const reported = defects.filter((defect) =>
+      [first.reference_id, second.reference_id].includes(defect.details.reference_id));
+    assert.equal(reported.length, 2);
+    for (const defect of reported) {
+      assert.equal(defect.code, CODES.OWNER_REFERENCE_DIGEST_MISMATCH);
+      assert.match(defect.details.actual, /^sha256:[0-9a-f]{64}$/u);
+      assert.notEqual(defect.details.actual, defect.details.expected);
+    }
+
+    await assert.rejects(
+      validateGuardedOwnerReferences(value, { repositoryRoot: "/repo", trackedPaths, read }),
+      hasCode(CODES.OWNER_REFERENCE_DIGEST_MISMATCH)
+    );
+
+    const intact = singleBinding(await registry());
+    const intactBytes = await readFile(path.join(REPO_ROOT, intact.owner_references[0].path));
+    assert.deepEqual(await surveyGuardedOwnerReferences(intact, {
+      repositoryRoot: "/repo",
+      trackedPaths: [intact.owner_references[0].path],
+      read: async () => intactBytes
+    }), []);
+
+    const malformed = clone(value);
+    malformed.closed = false;
+    await assert.rejects(
+      surveyGuardedOwnerReferences(malformed, { repositoryRoot: "/repo", trackedPaths, read }),
+      hasCode(CODES.SCHEMA_INVALID)
+    );
+  });
 
 test("category adapters surface new and moved matching production sites from the full declared tracked population", async () => {
   const value = singleBinding(await registry(), "durability_liveness");

@@ -5,15 +5,15 @@
   "variation_mode": "full_census",
   "passed": true,
   "diagnostics": [],
-  "control_count": 38,
-  "positive_control_count": 1,
-  "mutant_control_count": 37,
+  "control_count": 41,
+  "positive_control_count": 2,
+  "mutant_control_count": 39,
   "rejection_control_count": 0,
-  "negative_fixture_count": 37,
-  "coverage_witness_count": 37,
+  "negative_fixture_count": 39,
+  "coverage_witness_count": 39,
   "native_test_validity": {
-    "positive_case_count": 1,
-    "passed_single_axis_weakening_count": 37,
-    "total_count": 38
+    "positive_case_count": 2,
+    "passed_single_axis_weakening_count": 39,
+    "total_count": 41
   }
 }

@@ -20,53 +20,5 @@
     "executable_control_count": 85,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0
-  },
-  "exact_binding": {
-    "declaration_digest": "be92d5e9229acb4c934450ac60b1f5e538d0a5cc6293c37ed8383463586806f2",
-    "certification_result_digest": "7ba3d4ee982ab3adb70b852a23d94edb262d25b81fe75de5a8b248c4c72a0c57",
-    "executable_control_count": 32,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection"
-    ],
-    "corpus_id": "proof-input-caller-authority-confinement-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "ecf591a1c29c73033679a687a98f68e1ffa90c4c29812d0fca022acfca8a81f8",
-    "passed_control_ids": [
-      "accepted-parser-request-id-splice",
-      "accepted-request-source-splice",
-      "admission-context-splice",
-      "authored-equality-laundering",
-      "capture-proof-source-splice",
-      "crossed-member-coordinate-association",
-      "cut-refusal-id-splice",
-      "declaration-profile-splice",
-      "declaration-result-splice",
-      "evaluation-input-splice",
-      "evidence-attempt-id-splice",
-      "evidence-cut-id-splice",
-      "fabricated-selected-claim",
-      "forbidden-request-source-splice",
-      "observation-evidence-source-splice",
-      "omitted-association-trace-record",
-      "policy-source-splice",
-      "positive-exact-capture",
-      "positive-reordered-capture",
-      "positive-unicode-capture",
-      "profile-association-binding-weakening",
-      "profile-cardinality-weakening",
-      "profile-complete-population-weakening",
-      "profile-context-splice",
-      "profile-falsifier-weakening",
-      "profile-relation-weakening",
-      "profile-satisfaction-weakening",
-      "profile-stage-weakening",
-      "profile-verification-method-weakening",
-      "projected-evaluation-opt-in-removal",
-      "projection-result-splice",
-      "surplus-member-coordinate-association"
-    ]
   }
 }

@@ -41,7 +41,7 @@ const controlledContractRoot = path.resolve(
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.completeness.lossless-projection/2.0.0"
+  "certification/profiles/proof.completeness.lossless-projection/3.0.0"
 );
 
 async function readJson(name) {

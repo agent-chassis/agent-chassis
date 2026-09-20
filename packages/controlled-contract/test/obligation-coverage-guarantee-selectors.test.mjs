@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { evaluateAcceptanceCoverage } from "../lib/acceptance-coverage.mjs";
 import {
   loadAdmittedProofPack,
   readProofPackCatalog
@@ -15,15 +14,8 @@ import {
   buildObligationGuaranteeSelectorIndex,
   resolveObligationGuaranteeSelector
 } from "../lib/obligation-coverage-guarantee-selectors.mjs";
-import {
-  captureExactBoundAssessmentInputsV1
-} from "../lib/exact-binding-assessment.mjs";
 import { canonicalJson } from "../lib/contract-assessment.mjs";
 import { assessProofPlan } from "../lib/multi-pack-assessment.mjs";
-import {
-  VOCABULARY_DIGESTS,
-  VOCABULARY_VERSION
-} from "../lib/vocabulary-v034.mjs";
 import { buildDormancyNonactivationFixture }
   from "./proof-packs/dormancy-nonactivation-v1-fixture.mjs";
 import { buildImplementationReadinessFixture }
@@ -60,70 +52,6 @@ const readinessUnsatisfiedAssessment = evaluateAgainst(readinessSnapshot, {
 });
 const dormancyAssessment = evaluateAgainst(dormancySnapshot);
 
-async function capturedDormancyBindings() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "wk2095-selector-exact-"));
-  const fixture = buildDormancyNonactivationFixture({
-    profile: dormancySnapshot.profile, domain: "plugin-registry"
-  });
-  const graphNodes = fixture.input.reference_bindings.find(
-    ({ role }) => role === "graph_nodes"
-  ).reference_ids;
-  const sources = {
-    "activation-observation-artifact": {
-      kind: "artifact_file", relative_path: "activation-observation.json"
-    },
-    "default-configuration-artifact": {
-      kind: "artifact_file", relative_path: "default-configuration.json"
-    },
-    "production-reachability-snapshot": {
-      kind: "complete_reachability_snapshot",
-      snapshot: {
-        complete: true,
-        subject_reference_id: "ref-production-graph",
-        nodes: graphNodes.map((reference_id) => ({ reference_id })),
-        edges: [
-          { from_reference_id: "ref-production-entry-a",
-            to_reference_id: "ref-active-component" },
-          { from_reference_id: "ref-production-entry-b",
-            to_reference_id: "ref-active-component" }
-        ]
-      }
-    }
-  };
-  await Promise.all([
-    writeFile(path.join(root, "contract.json"), canonicalJson(fixture.contract)),
-    writeFile(path.join(root, "evaluation-input.json"), canonicalJson(fixture.input)),
-    writeFile(path.join(root, "activation-observation.json"),
-      canonicalJson({ complete: true, activation_events: [] })),
-    writeFile(path.join(root, "default-configuration.json"),
-      canonicalJson({ component: "ref-dormant-component", active: false }))
-  ]);
-  const capture = (exactBindingSources) => captureExactBoundAssessmentInputsV1({
-    contractPath: "contract.json",
-    evaluationInputPath: "evaluation-input.json",
-    profileId: DORMANCY_PROFILE_ID,
-    exactBindingSources
-  }, {
-    captureRoot: root,
-    proofPack: dormancySnapshot,
-    vocabularyIdentity: {
-      version: VOCABULARY_VERSION,
-      complete_digest: VOCABULARY_DIGESTS.complete
-    }
-  });
-  try {
-    const satisfied = (await capture(sources)).exactBindingResult;
-    const missingSource = structuredClone(sources);
-    delete missingSource["activation-observation-artifact"];
-    const unsatisfied = (await capture(missingSource)).exactBindingResult;
-    return { satisfied, unsatisfied };
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-}
-
-const dormancyExactBindings = await capturedDormancyBindings();
-
 function readinessPack(overrides = {}) {
   return {
     pack_id: "pack-readiness",
@@ -132,7 +60,6 @@ function readinessPack(overrides = {}) {
     assessment: readinessAssessment,
     evaluation_input_present: true,
     profile_discrimination: "proven",
-    exact_binding: null,
     ...overrides
   };
 }
@@ -145,7 +72,6 @@ function dormancyPack(overrides = {}) {
     assessment: dormancyAssessment,
     evaluation_input_present: true,
     profile_discrimination: "proven",
-    exact_binding: null,
     ...overrides
   };
 }
@@ -165,7 +91,7 @@ function mapping(overrides = {}) {
     profile_id: profileId,
     profile_version: profileVersion,
     selector: { kind: "claim", component_id: "design-names-grounded-loci" },
-    evaluation_stage: "pre_dispatch", ...overrides
+    ...overrides
   };
 }
 
@@ -212,17 +138,14 @@ test("derives every component from the recognized snapshot and its bound assessm
     profile_version: readinessSnapshot.profile.profile_version,
     requested_intents: ["implementation-readiness"],
     selector: { kind: "claim", component_id: "design-names-grounded-loci" },
-    evaluation_stage: "pre_dispatch",
-    assessed_evaluation_stage: "pre_dispatch",
+
     guarantee_applicability_proven: false,
     applicable_exclusion: null,
     matched_node_ids: ["claim-design-names-grounded-loci"],
     satisfaction: "satisfied",
     evaluation_input_present: true,
     pack_evaluated: true,
-    profile_discrimination: "proven",
-    exact_binding_required: false,
-    exact_binding: "not_applicable"
+    profile_discrimination: "proven"
   });
 });
 
@@ -231,7 +154,7 @@ test("rejects caller-injected applicability outside a recognized assessment", ()
     packs: [readinessPack({
       authenticated_component_exclusion_applicability: {
         projection_version:
-          "controlled-contract-assessment-component-exclusion-applicability.v1"
+          "controlled-contract-assessment-component-exclusion-applicability.v2"
       }
     })]
   })), "obligation_guarantee_selector_assessment_unrecognized");
@@ -245,7 +168,7 @@ function stabilizeFixture(value) {
   fixture.contract.test_proof_version = "controlled-contract-test-proof.v1";
   fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
   fixture.input.input_version =
-    "controlled-contract-verification-profile-input.v1";
+    "controlled-contract-verification-profile-input.v2";
   fixture.input.stable_evaluation = {};
   return fixture;
 }
@@ -282,7 +205,7 @@ test("recognized assessment preserves omitted applicability as unknown", async (
       selector.kind === "claim" &&
       selector.component_id === "implementation-locus-targets-requirements"
     );
-    assert.equal(readinessSnapshot.profile.profile_version, "2.1.0");
+    assert.equal(readinessSnapshot.profile.profile_version, "4.0.0");
     assert.equal(omittedComponent.applicable_exclusion, null);
     assert.equal(omittedComponent.guarantee_applicability_proven, false);
     assert.ok(omittedComponent.matched_node_ids.length > 0);
@@ -296,7 +219,7 @@ test("recognized assessment preserves omitted applicability as unknown", async (
         profile_id: readinessSnapshot.profile.profile_id,
         profile_version: readinessSnapshot.profile.profile_version,
         selector: omittedComponent.selector,
-        evaluation_stage: "pre_dispatch"
+
       },
       nodeIds: [omittedComponent.matched_node_ids[0]]
     });
@@ -390,9 +313,9 @@ test("accepts only exact package-minted and pack-bound assessment artifacts", ()
       ...readinessAssessment, profile: dormancyAssessment.profile
     }), "obligation_guarantee_selector_assessment_unrecognized"],
     ["caller_minted", Object.freeze({
-      result_version: "controlled-contract-verification-profile-result.v1",
-      profile: { profile_id: READINESS_PROFILE_ID, profile_version: "2.0.0" },
-      evaluation_stage: "pre_dispatch",
+      result_version: "controlled-contract-verification-profile-result.v2",
+      profile: { profile_id: READINESS_PROFILE_ID, profile_version: "4.0.0" },
+
       admission: { profile_digest: readinessSnapshot.profile_digest },
       pattern_results: [{ pattern_id: "design-names-grounded-loci",
         pattern_kind: "claim", status: "satisfied",
@@ -414,102 +337,12 @@ test("accepts only exact package-minted and pack-bound assessment artifacts", ()
   }
 });
 
-test("exact-binding requirement and absence follow the authenticated admission version", () => {
-  const readinessComponents = index().components;
-  assert.ok(readinessComponents.every(
-    ({ exact_binding_required: required }) => required === false));
-  assert.ok(readinessComponents.every(
-    ({ exact_binding: status }) => status === "not_applicable"));
-  const dormancyIndex = buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack()]
-  });
-  assert.ok(dormancyIndex.components.every(
-    ({ exact_binding_required: required }) => required === true));
-  assert.ok(dormancyIndex.components.every(
-    ({ exact_binding: status }) => status === "not_assessed"));
-  assert.equal(errorCode(() => buildObligationGuaranteeSelectorIndex({
-    packs: [readinessPack({ exact_binding: dormancyExactBindings.satisfied })]
-  })), "obligation_guarantee_selector_exact_binding_artifact_mismatch");
-});
-
-test("derives v2 exact-binding status only from recognized pack-bound captures", () => {
-  const proven = buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack({ exact_binding: dormancyExactBindings.satisfied })]
-  });
-  assert.ok(proven.components.every(
-    ({ exact_binding: status }) => status === "proven"));
-  const notProven = buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack({ exact_binding: dormancyExactBindings.unsatisfied })]
-  });
-  assert.ok(notProven.components.every(
-    ({ exact_binding: status }) => status === "not_proven"));
-
-  for (const [label, exactBinding, code, snapshot = dormancySnapshot] of [
-    ["caller_status", { status: "proven" },
-      "obligation_guarantee_selector_exact_binding_artifact_unrecognized"],
-    ["structured_clone", structuredClone(dormancyExactBindings.satisfied),
-      "obligation_guarantee_selector_exact_binding_artifact_unrecognized"],
-    ["shallow_copy", { ...dormancyExactBindings.satisfied },
-      "obligation_guarantee_selector_exact_binding_artifact_unrecognized"],
-    ["cross_pack", dormancyExactBindings.satisfied,
-      "obligation_guarantee_selector_exact_binding_binding_mismatch",
-      foreignV2Snapshot]
-  ]) assert.equal(errorCode(() => buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack({ pack_snapshot: snapshot, assessment: null, exact_binding:
-      exactBinding })]
-  })), code, label);
-});
-
-test("v2 missing and not-proven exact binding remain distinct", () => {
-  const missingIndex = buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack()]
-  });
-  const notProvenIndex = buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack({ exact_binding: dormancyExactBindings.unsatisfied })]
-  });
-  for (const selectorIndex of [missingIndex, notProvenIndex]) {
-    const result = resolveObligationGuaranteeSelector({
-      index: selectorIndex,
-      mapping: mapping({ pack_id: "pack-dormancy",
-        requested_intent: "dormancy-nonactivation",
-        profile_id: DORMANCY_PROFILE_ID,
-        selector: { kind: "claim", component_id: "activation-population-is-empty" } }),
-      nodeIds: ["claim-activation-population-is-empty"]
-    });
-    assert.equal(result.status, "profile_proven_exact_binding_missing");
-    assert.equal(result.reason, "required_exact_binding_not_proven");
-  }
-  const captured = buildObligationGuaranteeSelectorIndex({
-    packs: [dormancyPack({ exact_binding: dormancyExactBindings.satisfied })]
-  });
-  const capturedResult = resolveObligationGuaranteeSelector({
-    index: captured,
-    mapping: mapping({ pack_id: "pack-dormancy",
-      requested_intent: "dormancy-nonactivation",
-      profile_id: DORMANCY_PROFILE_ID,
-      selector: { kind: "claim", component_id: "activation-population-is-empty" } }),
-    nodeIds: ["claim-activation-population-is-empty"]
-  });
-  assert.equal(capturedResult.status, "incompatible");
-  assert.equal(capturedResult.reason, "component_applicability_unproven");
-});
-
-test("v1 rejects every non-null exact-binding value before component derivation", () => {
-  for (const value of [
-    dormancyExactBindings.satisfied,
-    { status: "not_applicable" },
-    Object.freeze({ status: "not_applicable" })
-  ]) assert.equal(errorCode(() => buildObligationGuaranteeSelectorIndex({
-    packs: [readinessPack({ assessment: null, exact_binding: value })]
-  })), "obligation_guarantee_selector_exact_binding_artifact_mismatch");
-});
-
 test("discriminates every selector incompatibility", () => {
   const unsatisfiedIndex = index({ assessment: readinessUnsatisfiedAssessment });
   const cases = [
-    [resolve(index(), { profile_version: "3.0.0" }), "profile_identity_mismatch"],
+    [resolve(index(), { profile_version: "2.1.0" }), "profile_identity_mismatch"],
     [resolve(index(), { requested_intent: "other-intent" }), "incompatible_intent"],
-    [resolve(index(), { evaluation_stage: "post_delivery" }), "stage_mismatch"],
+
     [resolve(index(), {}, ["unmatched-node"]), "unmatched_node"],
     [resolve(unsatisfiedIndex, { selector: { kind: "reference_binding",
       component_id: "complete-placeholder-population" } },
@@ -532,11 +365,12 @@ test("discriminates every selector incompatibility", () => {
   })), "obligation_guarantee_selector_input_invalid");
 });
 
-test("preserves missing input, unevaluated pack, and missing exact binding distinctions", () => {
+test("preserves missing input and unevaluated pack distinctions", () => {
   assert.equal(resolve(index({ evaluation_input_present: false })).status,
     "mapped_input_missing");
   assert.equal(resolve(index({ assessment: null })).status,
     "mapped_pack_not_evaluated");
+
   const dormancyIndex = buildObligationGuaranteeSelectorIndex({
     packs: [dormancyPack()]
   });
@@ -548,8 +382,8 @@ test("preserves missing input, unevaluated pack, and missing exact binding disti
       selector: { kind: "claim", component_id: "activation-population-is-empty" } }),
     nodeIds: ["claim-activation-population-is-empty"]
   });
-  assert.equal(dormancyResult.status, "profile_proven_exact_binding_missing");
-  assert.equal(dormancyResult.reason, "required_exact_binding_not_proven");
+  assert.equal(dormancyResult.status, "incompatible");
+  assert.equal(dormancyResult.reason, "component_applicability_unproven");
 });
 
 test("one population component credits distinct assessed members", () => {
@@ -585,46 +419,20 @@ test("no admitted pack awards mechanical proof without authenticated applicabili
       pack_snapshot: snapshot,
       assessment: evaluated.get(snapshot.profile.profile_id) ?? null,
       evaluation_input_present: true,
-      profile_discrimination: "proven",
-      exact_binding: null
+      profile_discrimination: "proven"
     }));
     const corpus = buildObligationGuaranteeSelectorIndex({ packs });
     assert.equal(corpus.pack_ids.length, catalog.packs.length);
     assert.ok(corpus.components.length > corpus.pack_ids.length);
     assert.ok(corpus.components.every(
       ({ guarantee_applicability_proven: proven }) => proven === false));
-    const obligations = corpus.components.map((component, position) => ({
-      obligation_id: `OBL-${String(position + 1).padStart(5, "0")}`,
-      source_locator: `/acceptance/criteria/${position}`,
-      source_locator_digest: digest,
-      statement: `Implement ${component.selector.component_id} exactly.`,
-      controlled_contract_node_ids: [
-        component.matched_node_ids?.[0] ?? `node-${position}`
-      ],
-      mechanism: { owner: "packages/example.mjs", kind: "code_symbol",
-        selector: `owner-${position}` },
-      proof: { kind: "pack_mapping", pack_id: component.pack_id,
-        requested_intent: "corpus-intent", profile_id: component.profile_id,
-        profile_version: component.profile_version,
-        selector: { ...component.selector },
-        evaluation_stage: component.evaluation_stage }
+    const resolutions = corpus.components.map(component => resolveObligationGuaranteeSelector({
+      index: corpus, mapping: { kind: 'pack_mapping', pack_id: component.pack_id,
+        requested_intent: 'corpus-intent', profile_id: component.profile_id,
+        profile_version: component.profile_version, selector: { ...component.selector } },
+      nodeIds: [component.matched_node_ids?.[0] ?? 'node-unmatched']
     }));
-    const result = evaluateAcceptanceCoverage({
-      obligationCoverage: {
-        schema_version: "controlled-contract-obligation-coverage.v1",
-        wk_id: "WK-2095", obligations
-      },
-      guaranteeSelectorIndex: corpus,
-      selectedPackIds: [...corpus.pack_ids]
-    });
-    assert.equal(result.obligation_outcomes.length, obligations.length);
-    assert.equal(result.obligation_outcomes.filter(
-      ({ outcome }) => outcome === "mechanically_proven").length, 0);
-    assert.equal(result.complete, false);
-
-    const denied = result.obligation_outcomes.filter(({ proof, reason }) =>
-      [READINESS_PROFILE_ID, DORMANCY_PROFILE_ID].includes(proof.pack_id) &&
-      reason === "component_applicability_unproven");
-    assert.ok(denied.length > 0);
-    assert.ok(denied.every(({ outcome }) => outcome === "guarantee_incompatible"));
+    assert.equal(resolutions.length, corpus.components.length);
+    assert.ok(resolutions.every(result => result.status !== 'compatible'));
+    assert.ok(resolutions.some(result => result.reason === 'component_applicability_unproven'));
   });

@@ -9,9 +9,11 @@ import { WORK_RECORD_EDIT_FIELD_REGISTRY } from
 import { WORK_RECORD_EDIT_SPECIALIZED_FIELD_OWNERS } from
   "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-operations.mjs";
 import { baseSlice } from "../../../../tests/fixtures/work-record-admission.mjs";
-import { canonicalRecord, createToolRegistry, parseStructuredResponse, readRecord, WORKSPACE_REPO } from
+import { canonicalRecord, createToolRegistry, parseStructuredResponse, readRecord, STALE_DIGEST, WORKSPACE_REPO } from
   "../../../../tests/fixtures/work-record-write-tools-harness.mjs";
-import { WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME, createWorkRecordEditInputSchema } from
+import { createWorkRecordEditInputSchema } from "./work-record-edit-input-contract.mjs";
+import * as authoredFieldTools from "./work-record-authored-field-tools.mjs";
+import { WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME } from
   "./work-record-authored-field-tools.mjs";
 async function withWorkspace(fn) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "authored-field-tools-"));
@@ -19,9 +21,7 @@ async function withWorkspace(fn) {
     const value = canonicalRecord();
     value.sections.tasks = [{ text: "Original task", status: "todo" }];
     value.tags = [];
-    const slice = baseSlice({ id: "SLICE-001", docs: ["docs/slice-original.md"] });
-    slice.read_scope = [...slice.docs];
-    delete slice.docs;
+    const slice = baseSlice({ id: "SLICE-001", read_scope: ["docs/slice-original.md"] });
     value.slices = [slice];
     const target = path.join(dir, "wiki", "work-records", `${value.id}.json`);
     await mkdir(path.dirname(target), { recursive: true });
@@ -32,19 +32,30 @@ async function withWorkspace(fn) {
   }
 }
 test("general edit schema is a closed mechanical projection of every facade entry", () => {
+  assert.equal(
+    Object.hasOwn(authoredFieldTools, "createWorkRecordEditInputSchema"),
+    false,
+    "the old tool module must not retain a compatibility re-export"
+  );
   const schema = createWorkRecordEditInputSchema(z);
   for (const entry of WORK_RECORD_EDIT_FIELD_REGISTRY.filter(({ facade }) => facade)) {
     for (const action of entry.actions) {
       const request = { unit: "WK-2287", kind: entry.kind, field: entry.field, action };
       if (entry.kind === "scalar") {
-        request.value = entry.field === "priority" ? "high" : "value";
+        request.value = entry.field === "priority"
+          ? "high"
+          : entry.value_schema.entry_content === true ? { text: "value" } : "value";
       } else if (entry.kind === "list") {
         request.value = action === "append" ? "value" : ["value"];
       } else if (action === "append_todo") {
-        request.value = "value";
+        request.value = entry.value_schema[action].entry_content === true
+          ? { text: "value" } : "value";
       } else {
         request.index = 0;
-        if (action === "replace_text") request.value = "value";
+        if (action === "replace_text") {
+          request.value = entry.value_schema[action].entry_content === true
+            ? { text: "value" } : "value";
+        }
       }
       assert.equal(schema.safeParse(request).success, true, entry.id);
     }
@@ -57,6 +68,8 @@ test("general edit schema is a closed mechanical projection of every facade entr
     }).success, true, field);
   }
   for (const rejected of [
+    { unit: "WK-2287", kind: "scalar", field: "sections.summary", action: "replace", value: "x" },
+    { unit: "WK-2287", kind: "task", field: "sections.tasks", action: "append_todo", value: "x" },
     { unit: "WK-2287", kind: "scalar", field: "title", action: "replace", value: "x", dir: "/tmp" },
     { unit: "WK-2287", kind: "scalar", field: "/title", action: "replace", value: "x" },
     { unit: "WK-2287", kind: "scalar", field: "sections", action: "replace", value: {} },
@@ -80,60 +93,68 @@ test("registered facade routes scalar, list, and task requests to canonical owne
     const list = await call({ kind: "list", field: "tags", action: "append", value: "new" });
     assert.equal(list.written, true);
     const task = await call({ kind: "task", field: "sections.tasks",
-      action: "replace_text", index: 0, value: "New task" });
+      action: "replace_text", index: 0, value: { text: "New task" } });
     assert.equal(task.written, true);
     assert.equal(task.task.status, "todo");
     const replay = await call({ kind: "task", field: "sections.tasks",
-      action: "replace_text", index: 0, value: "New task" });
+      action: "replace_text", index: 0, value: { text: "New task" } });
     assert.equal(replay.no_op, true);
   });
 });
-test("compatibility task and list tools remain registered beside the general facade", () => {
+test("the general facade remains while the task and list adapters are absent", () => {
   const tools = createToolRegistry(process.cwd());
-  assert.ok(tools.has("workspace_work_record_set_task"));
-  assert.ok(tools.has("workspace_work_record_set_list_field"));
+  assert.equal(tools.has("workspace_work_record_set_task"), false);
+  assert.equal(tools.has("workspace_work_record_set_list_field"), false);
   assert.ok(tools.has(WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME));
   assert.equal(tools.has("workspace_work_record_set_scalar"), false);
 });
 
-test("docs alias behavior agrees through the general facade and list compatibility adapter", async () => {
+test("read_scope replacement, append, stale CAS, no-op, and scope preservation use the current editor", async () => {
   await withWorkspace(async ({ dir, value }) => {
     const tools = createToolRegistry(dir);
     const general = tools.get(WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME);
-    const compatibility = tools.get("workspace_work_record_set_list_field");
+    const parse = (tool, request) => tool.config.inputSchema.safeParse({
+      repo: WORKSPACE_REPO,
+      unit: value.id,
+      ...request
+    });
     const call = async (tool, request) => {
-      const parsed = tool.config.inputSchema.safeParse({
-        repo: WORKSPACE_REPO,
-        unit: value.id,
-        ...request
-      });
+      const parsed = parse(tool, request);
       assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues ?? []));
       return parseStructuredResponse(await tool.handler(parsed.data));
     };
     const replaced = await call(general, {
-      kind: "list", field: "docs", action: "replace", value: ["docs/replacement.md"]
+      kind: "list", field: "read_scope", action: "replace", value: ["docs/replacement.md"]
     });
     assert.equal(replaced.written, true);
     assert.ok(replaced.changed_fields.includes("read_scope"));
     assert.equal(replaced.changed_fields.includes("docs"), false);
 
-    const duplicate = await call(compatibility, {
-      field: "docs", values: ["docs/replacement.md"], mode: "append",
+    const staleDuplicate = await call(general, {
+      kind: "list", field: "read_scope", action: "append", value: "docs/replacement.md",
+      expected_source_digest: STALE_DIGEST
+    });
+    assert.equal(staleDuplicate.written, false);
+    assert.equal(staleDuplicate.no_op, false);
+    assert.equal(staleDuplicate.diagnostics[0].code, "stale_source_digest");
+
+    const duplicate = await call(general, {
+      kind: "list", field: "read_scope", action: "append", value: "docs/replacement.md",
       expected_source_digest: replaced.source_digest
     });
     assert.equal(duplicate.no_op, true);
     assert.equal(duplicate.source_digest, replaced.source_digest);
     assert.deepEqual(duplicate.changed_fields, []);
 
-    const appended = await call(compatibility, {
-      field: "docs", values: ["docs/new.md"], mode: "append",
+    const appended = await call(general, {
+      kind: "list", field: "read_scope", action: "append", value: "docs/new.md",
       expected_source_digest: duplicate.source_digest
     });
     assert.equal(appended.written, true);
     assert.equal(appended.changed_fields.filter((field) => field === "read_scope").length, 1);
 
     const slice = await call(general, {
-      unit: `${value.id}#SLICE-001`, kind: "list", field: "docs",
+      unit: `${value.id}#SLICE-001`, kind: "list", field: "read_scope",
       action: "append", value: "docs/slice-new.md"
     });
     assert.equal(slice.written, true);
@@ -145,6 +166,22 @@ test("docs alias behavior agrees through the general facade and list compatibili
       ["docs/slice-original.md", "docs/slice-new.md"]);
     assert.equal(Object.hasOwn(persisted, "docs"), false);
     assert.equal(Object.hasOwn(persisted.slices[0], "docs"), false);
+
+    const recordPath = path.join(dir, "wiki", "work-records", `${value.id}.json`);
+    const beforeRefusals = await readRecord(recordPath);
+    for (const [tool, request] of [
+      [general, {
+        kind: "list", field: "docs", action: "replace", value: ["docs/refused.md"]
+      }],
+      [general, {
+        unit: `${value.id}#SLICE-001`, kind: "list", field: "docs",
+        action: "append", value: "docs/refused.md"
+      }]
+    ]) {
+      const refused = parse(tool, request);
+      assert.equal(refused.success, false, "docs must be rejected by the MCP input schema");
+      assert.deepEqual(await readRecord(recordPath), beforeRefusals);
+    }
   });
 });
 
@@ -153,13 +190,14 @@ test("known semantic fields reach exact core owner refusals and cannot mutate", 
     const tool = createToolRegistry(dir).get(WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME);
     const recordPath = path.join(dir, "wiki", "work-records", `${value.id}.json`);
     const before = await readRecord(recordPath);
-    for (const [field, owner] of [
-      ["status", "workspace_work_record_set_status"],
-      ["acceptance", "workspace_work_record_set_acceptance"]
+    for (const [unit, field, owner] of [
+      [value.id, "status", "workspace_work_record_set_status"],
+      [value.id, "acceptance",
+        "the acceptance.criteria or acceptance.validation list field; executable validation bindings belong to controlled-contract semantic operations"]
     ]) {
       const parsed = tool.config.inputSchema.safeParse({
         repo: WORKSPACE_REPO,
-        unit: value.id,
+        unit,
         kind: "scalar",
         field,
         action: "replace",

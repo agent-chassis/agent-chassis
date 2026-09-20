@@ -1,0 +1,2485 @@
+{
+  "schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "profile_id": "acceptance-contract.standard.v1",
+  "references": [
+    {
+      "reference_id": "ref-design-unit",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/work-records/WK-2012.json"
+      }
+    },
+    {
+      "reference_id": "ref-package-engine",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/current.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wiki-core-adapter",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "symbol": "controlledContractOperation"
+      }
+    },
+    {
+      "reference_id": "ref-wiki-mcp-tools",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "symbol": "registerControlledContractTools"
+      }
+    },
+    {
+      "reference_id": "ref-tool-discovery",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/data/tool-discovery/manifest.json"
+      }
+    },
+    {
+      "reference_id": "ref-contract-store",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts"
+      }
+    },
+    {
+      "reference_id": "ref-assessment-store",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:controlled-contract",
+        "value": "content-addressed-assessment-store"
+      }
+    },
+    {
+      "reference_id": "ref-binding-assistance",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/proof-pack-binding-assistance.mjs",
+        "symbol": "inspectProofPackBindings"
+      }
+    },
+    {
+      "reference_id": "ref-proof-plan-compiler",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/proof-plan-compiler.mjs",
+        "symbol": "buildProofPlan"
+      }
+    },
+    {
+      "reference_id": "ref-package-backed-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "package-api-is-sole-semantic-engine"
+      }
+    },
+    {
+      "reference_id": "ref-required-operation-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "complete-required-mcp-operation-population"
+      }
+    },
+    {
+      "reference_id": "ref-observed-operation-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "registered-supported-mcp-operation-population"
+      }
+    },
+    {
+      "reference_id": "ref-refused-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "caller-substrate-refused-before-read-or-write"
+      }
+    },
+    {
+      "reference_id": "ref-canonical-disk-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "canonical-contract-and-proof-json-on-disk"
+      }
+    },
+    {
+      "reference_id": "ref-validation-only-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "complete-binding-validation-without-authoring-projection"
+      }
+    },
+    {
+      "reference_id": "ref-registered-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "registered-discoverable-role-gated"
+      }
+    },
+    {
+      "reference_id": "ref-required-role-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "required-role-to-tool-grants"
+      }
+    },
+    {
+      "reference_id": "ref-observed-role-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "configured-role-to-tool-grants"
+      }
+    },
+    {
+      "reference_id": "ref-non-authoritative-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "package-authority-markers-preserved-non-authoritative"
+      }
+    },
+    {
+      "reference_id": "ref-private-snapshot-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "private-and-excluded-from-public-snapshot"
+      }
+    },
+    {
+      "reference_id": "ref-obsolete-architecture-absent-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "no-inline-work-record-carrier-or-prose-renderer"
+      }
+    },
+    {
+      "reference_id": "ref-caller-substrate-attempt",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "caller-path-root-cwd-env-module-executable-output-or-pack-directory-attempt"
+      }
+    },
+    {
+      "reference_id": "ref-compact-result",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "bounded-task-projection"
+      }
+    },
+    {
+      "reference_id": "ref-lossless-artifact",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "exact-content-addressed-lossless-artifact"
+      }
+    },
+    {
+      "reference_id": "ref-implementation-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/controlled-contract-mcp-tools.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-registration-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/controlled-contract-mcp-registration.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-parity-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/controlled-contract-mcp-package-parity.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-operation-carrier-read",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_carrier_read"
+      }
+    },
+    {
+      "reference_id": "ref-operation-carrier-write",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_carrier_write"
+      }
+    },
+    {
+      "reference_id": "ref-operation-query-vocabulary",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_vocabulary_query"
+      }
+    },
+    {
+      "reference_id": "ref-operation-discover-proof-intents",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_proof_intents_discover"
+      }
+    },
+    {
+      "reference_id": "ref-operation-select-proof-packs",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_proof_packs_select"
+      }
+    },
+    {
+      "reference_id": "ref-operation-describe-proof-pack",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_proof_pack_describe"
+      }
+    },
+    {
+      "reference_id": "ref-operation-inspect-bindings",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_proof_pack_bindings_inspect"
+      }
+    },
+    {
+      "reference_id": "ref-operation-build-proof-plan",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_proof_plan_build"
+      }
+    },
+    {
+      "reference_id": "ref-operation-assess-contract",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_assess"
+      }
+    },
+    {
+      "reference_id": "ref-operation-read-artifact",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_artifact_read"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-contract",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-implementation-readiness.controlled-acceptance.json"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-proof-plan",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-implementation-readiness.proof-plan.json"
+      }
+    },
+    {
+      "reference_id": "ref-refusal-contract",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-caller-substrate-refusal.controlled-acceptance.json"
+      }
+    },
+    {
+      "reference_id": "ref-refusal-proof-plan",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-caller-substrate-refusal.proof-plan.json"
+      }
+    },
+    {
+      "reference_id": "ref-result-shape-contract",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-proof-pack-selection-result-shape.controlled-acceptance.json"
+      }
+    },
+    {
+      "reference_id": "ref-result-shape-proof-plan",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-proof-pack-selection-result-shape.proof-plan.json"
+      }
+    },
+    {
+      "reference_id": "ref-lossless-contract",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-proof-pack-authoring-lossless.controlled-acceptance.json"
+      }
+    },
+    {
+      "reference_id": "ref-lossless-proof-plan",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2012-proof-pack-authoring-lossless.proof-plan.json"
+      }
+    },
+    {
+      "reference_id": "ref-token-bounded-authoring-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "agents-use-bounded-query-and-typed-server-side-mutation"
+      }
+    },
+    {
+      "reference_id": "ref-agent-authoring-operation-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "agent-facing-controlled-contract-authoring-operations"
+      }
+    },
+    {
+      "reference_id": "ref-operator-recovery-operation-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "operator-only-full-carrier-recovery-operations"
+      }
+    },
+    {
+      "reference_id": "ref-operation-carrier-create",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_carrier_create"
+      }
+    },
+    {
+      "reference_id": "ref-operation-carrier-query",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_carrier_query"
+      }
+    },
+    {
+      "reference_id": "ref-operation-carrier-patch",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_carrier_patch"
+      }
+    },
+    {
+      "reference_id": "ref-limit-create-content-bytes",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "create-content-maximum-1048576-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-limit-query-default-bytes",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "query-default-maximum-4096-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-limit-query-selector-count",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "query-selector-maximum-64"
+      }
+    },
+    {
+      "reference_id": "ref-limit-query-selected-bytes",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "query-selected-maximum-16384-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-limit-patch-operation-count",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "patch-operation-maximum-64"
+      }
+    },
+    {
+      "reference_id": "ref-limit-patch-operation-bytes",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "patch-per-operation-maximum-16384-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-limit-patch-total-bytes",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "patch-total-maximum-65536-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-limit-patch-receipt-bytes",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:transport-limit",
+        "value": "patch-receipt-maximum-8192-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-operation-authoring-describe",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012:mcp-operation",
+        "value": "workspace_controlled_contract_authoring_describe"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-package-backed",
+      "subject_reference_id": "ref-wiki-core-adapter",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-package-backed-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-package-backed",
+      "subject_reference_id": "ref-wiki-core-adapter",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-package-backed-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-package-backed",
+      "subject_reference_id": "ref-parity-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wiki-core-adapter"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-operation-population",
+      "subject_reference_id": "ref-observed-operation-population",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-required-operation-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-operation-population",
+      "subject_reference_id": "ref-observed-operation-population",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-required-operation-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-operation-population",
+      "subject_reference_id": "ref-registration-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-observed-operation-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-caller-substrate-refusal",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-refused-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-caller-substrate-refusal",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-refused-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-caller-substrate-refusal",
+      "subject_reference_id": "ref-implementation-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wiki-mcp-tools"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-canonical-disk-carriers",
+      "subject_reference_id": "ref-contract-store",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-disk-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-canonical-disk-carriers",
+      "subject_reference_id": "ref-contract-store",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-disk-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-canonical-disk-carriers",
+      "subject_reference_id": "ref-implementation-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-contract-store"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-validation-only-compilation",
+      "subject_reference_id": "ref-proof-plan-compiler",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-validation-only-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-validation-only-compilation",
+      "subject_reference_id": "ref-proof-plan-compiler",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-validation-only-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-validation-only-compilation",
+      "subject_reference_id": "ref-parity-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-plan-compiler"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-registered-discoverable-role-gated",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-registered-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-registered-discoverable-role-gated",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-registered-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-registered-discoverable-role-gated",
+      "subject_reference_id": "ref-registration-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wiki-mcp-tools"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-role-grants-exact",
+      "subject_reference_id": "ref-observed-role-population",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-required-role-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-role-grants-exact",
+      "subject_reference_id": "ref-observed-role-population",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-required-role-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-role-grants-exact",
+      "subject_reference_id": "ref-registration-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-observed-role-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-authority-markers-preserved",
+      "subject_reference_id": "ref-compact-result",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-non-authoritative-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-authority-markers-preserved",
+      "subject_reference_id": "ref-compact-result",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-non-authoritative-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-authority-markers-preserved",
+      "subject_reference_id": "ref-parity-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-compact-result"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-private-snapshot-boundary",
+      "subject_reference_id": "ref-package-engine",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-private-snapshot-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-private-snapshot-boundary",
+      "subject_reference_id": "ref-package-engine",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-private-snapshot-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-private-snapshot-boundary",
+      "subject_reference_id": "ref-registration-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-package-engine"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-obsolete-architecture-absent",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-obsolete-architecture-absent-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-obsolete-architecture-absent",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-obsolete-architecture-absent-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-obsolete-architecture-absent",
+      "subject_reference_id": "ref-implementation-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wiki-mcp-tools"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-lossless-artifact-drilldown",
+      "subject_reference_id": "ref-compact-result",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-lossless-artifact"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-lossless-artifact-drilldown",
+      "subject_reference_id": "ref-compact-result",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-lossless-artifact"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-lossless-artifact-drilldown",
+      "subject_reference_id": "ref-implementation-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-compact-result"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-required-operation-population-count",
+      "subject_reference_id": "ref-required-operation-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 14
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-required-operation-population-members",
+      "subject_reference_id": "ref-required-operation-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-read"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-write"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-query-vocabulary"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-discover-proof-intents"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-select-proof-packs"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-describe-proof-pack"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-inspect-bindings"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-build-proof-plan"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-assess-contract"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-read-artifact"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-create"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-query"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-patch"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-authoring-describe"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-caller-substrate-is-refused",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-caller-substrate-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-caller-substrate-attempt"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-binding-assistance-remains-bounded",
+      "subject_reference_id": "ref-binding-assistance",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-compact-result"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-proof-plan-carriers-bound",
+      "subject_reference_id": "ref-design-unit",
+      "operator": "reference:includes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-contract"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-proof-plan"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-refusal-contract"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-refusal-proof-plan"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-result-shape-contract"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-result-shape-proof-plan"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-lossless-contract"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-lossless-proof-plan"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-token-bounded-agent-authoring",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-token-bounded-authoring-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsify-token-bounded-agent-authoring",
+      "subject_reference_id": "ref-wiki-mcp-tools",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-token-bounded-authoring-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-token-bounded-agent-authoring",
+      "subject_reference_id": "ref-implementation-test",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wiki-mcp-tools"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-agent-authoring-operation-count",
+      "subject_reference_id": "ref-agent-authoring-operation-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-agent-authoring-operation-members",
+      "subject_reference_id": "ref-agent-authoring-operation-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-create"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-query"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-patch"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-operator-recovery-operation-count",
+      "subject_reference_id": "ref-operator-recovery-operation-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-operator-recovery-operation-members",
+      "subject_reference_id": "ref-operator-recovery-operation-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-read"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation-carrier-write"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-full-read-not-agent-facing",
+      "subject_reference_id": "ref-operation-carrier-read",
+      "operator": "reference:not_member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-agent-authoring-operation-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-full-write-not-agent-facing",
+      "subject_reference_id": "ref-operation-carrier-write",
+      "operator": "reference:not_member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-agent-authoring-operation-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-create-uses-explicit-limit",
+      "subject_reference_id": "ref-operation-carrier-create",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-create-content-bytes"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-query-uses-explicit-limits",
+      "subject_reference_id": "ref-operation-carrier-query",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-query-default-bytes"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-query-selector-count"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-query-selected-bytes"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-patch-uses-explicit-limits",
+      "subject_reference_id": "ref-operation-carrier-patch",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-patch-operation-count"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-patch-operation-bytes"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-patch-total-bytes"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-limit-patch-receipt-bytes"
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-package-backed",
+      "proposition_id": "prop-package-backed",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-package-backed",
+      "proposition_id": "prop-verify-package-backed",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-package-backed"
+    },
+    {
+      "claim_id": "claim-operation-population",
+      "proposition_id": "prop-operation-population",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-operation-population",
+      "proposition_id": "prop-verify-operation-population",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-operation-population"
+    },
+    {
+      "claim_id": "claim-caller-substrate-refusal",
+      "proposition_id": "prop-caller-substrate-refusal",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-caller-substrate-refusal",
+      "proposition_id": "prop-verify-caller-substrate-refusal",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-caller-substrate-refusal"
+    },
+    {
+      "claim_id": "claim-canonical-disk-carriers",
+      "proposition_id": "prop-canonical-disk-carriers",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-canonical-disk-carriers",
+      "proposition_id": "prop-verify-canonical-disk-carriers",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-canonical-disk-carriers"
+    },
+    {
+      "claim_id": "claim-validation-only-compilation",
+      "proposition_id": "prop-validation-only-compilation",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-validation-only-compilation",
+      "proposition_id": "prop-verify-validation-only-compilation",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-validation-only-compilation"
+    },
+    {
+      "claim_id": "claim-registered-discoverable-role-gated",
+      "proposition_id": "prop-registered-discoverable-role-gated",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-registered-discoverable-role-gated",
+      "proposition_id": "prop-verify-registered-discoverable-role-gated",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-registered-discoverable-role-gated"
+    },
+    {
+      "claim_id": "claim-role-grants-exact",
+      "proposition_id": "prop-role-grants-exact",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-role-grants-exact",
+      "proposition_id": "prop-verify-role-grants-exact",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-role-grants-exact"
+    },
+    {
+      "claim_id": "claim-authority-markers-preserved",
+      "proposition_id": "prop-authority-markers-preserved",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-authority-markers-preserved",
+      "proposition_id": "prop-verify-authority-markers-preserved",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-authority-markers-preserved"
+    },
+    {
+      "claim_id": "claim-private-snapshot-boundary",
+      "proposition_id": "prop-private-snapshot-boundary",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-private-snapshot-boundary",
+      "proposition_id": "prop-verify-private-snapshot-boundary",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-private-snapshot-boundary"
+    },
+    {
+      "claim_id": "claim-obsolete-architecture-absent",
+      "proposition_id": "prop-obsolete-architecture-absent",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-obsolete-architecture-absent",
+      "proposition_id": "prop-verify-obsolete-architecture-absent",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-obsolete-architecture-absent"
+    },
+    {
+      "claim_id": "claim-lossless-artifact-drilldown",
+      "proposition_id": "prop-lossless-artifact-drilldown",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-lossless-artifact-drilldown",
+      "proposition_id": "prop-verify-lossless-artifact-drilldown",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-lossless-artifact-drilldown"
+    },
+    {
+      "claim_id": "claim-required-operation-population-count",
+      "proposition_id": "prop-required-operation-population-count",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-required-operation-population-members",
+      "proposition_id": "prop-required-operation-population-members",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-caller-substrate-is-refused",
+      "proposition_id": "prop-caller-substrate-is-refused",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-binding-assistance-remains-bounded",
+      "proposition_id": "prop-binding-assistance-remains-bounded",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-proof-plan-carriers-bound",
+      "proposition_id": "prop-proof-plan-carriers-bound",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-token-bounded-agent-authoring",
+      "proposition_id": "prop-token-bounded-agent-authoring",
+      "kind": "behavior",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-verify-token-bounded-agent-authoring",
+      "proposition_id": "prop-verify-token-bounded-agent-authoring",
+      "kind": "verification",
+      "modality": "MUST",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsify-token-bounded-agent-authoring"
+    },
+    {
+      "claim_id": "claim-agent-authoring-operation-count",
+      "proposition_id": "prop-agent-authoring-operation-count",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-agent-authoring-operation-members",
+      "proposition_id": "prop-agent-authoring-operation-members",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-operator-recovery-operation-count",
+      "proposition_id": "prop-operator-recovery-operation-count",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-operator-recovery-operation-members",
+      "proposition_id": "prop-operator-recovery-operation-members",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-full-read-not-agent-facing",
+      "proposition_id": "prop-full-read-not-agent-facing",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-full-write-not-agent-facing",
+      "proposition_id": "prop-full-write-not-agent-facing",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-create-uses-explicit-limit",
+      "proposition_id": "prop-create-uses-explicit-limit",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-query-uses-explicit-limits",
+      "proposition_id": "prop-query-uses-explicit-limits",
+      "kind": "evidence",
+      "modality": "MUST"
+    },
+    {
+      "claim_id": "claim-patch-uses-explicit-limits",
+      "proposition_id": "prop-patch-uses-explicit-limits",
+      "kind": "evidence",
+      "modality": "MUST"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-package-backed",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-package-backed",
+      "target_claim_id": "claim-package-backed"
+    },
+    {
+      "relation_id": "rel-verify-operation-population",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-operation-population",
+      "target_claim_id": "claim-operation-population"
+    },
+    {
+      "relation_id": "rel-verify-caller-substrate-refusal",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-caller-substrate-refusal",
+      "target_claim_id": "claim-caller-substrate-refusal"
+    },
+    {
+      "relation_id": "rel-verify-canonical-disk-carriers",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-canonical-disk-carriers",
+      "target_claim_id": "claim-canonical-disk-carriers"
+    },
+    {
+      "relation_id": "rel-verify-validation-only-compilation",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-validation-only-compilation",
+      "target_claim_id": "claim-validation-only-compilation"
+    },
+    {
+      "relation_id": "rel-verify-registered-discoverable-role-gated",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-registered-discoverable-role-gated",
+      "target_claim_id": "claim-registered-discoverable-role-gated"
+    },
+    {
+      "relation_id": "rel-verify-role-grants-exact",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-role-grants-exact",
+      "target_claim_id": "claim-role-grants-exact"
+    },
+    {
+      "relation_id": "rel-verify-authority-markers-preserved",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-authority-markers-preserved",
+      "target_claim_id": "claim-authority-markers-preserved"
+    },
+    {
+      "relation_id": "rel-verify-private-snapshot-boundary",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-private-snapshot-boundary",
+      "target_claim_id": "claim-private-snapshot-boundary"
+    },
+    {
+      "relation_id": "rel-verify-obsolete-architecture-absent",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-obsolete-architecture-absent",
+      "target_claim_id": "claim-obsolete-architecture-absent"
+    },
+    {
+      "relation_id": "rel-verify-lossless-artifact-drilldown",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-lossless-artifact-drilldown",
+      "target_claim_id": "claim-lossless-artifact-drilldown"
+    },
+    {
+      "relation_id": "rel-tools-depend-on-adapter",
+      "role": "depends_on",
+      "source_claim_id": "claim-operation-population",
+      "target_claim_id": "claim-package-backed"
+    },
+    {
+      "relation_id": "rel-registration-refines-operation-population",
+      "role": "refines",
+      "source_claim_id": "claim-registered-discoverable-role-gated",
+      "target_claim_id": "claim-operation-population"
+    },
+    {
+      "relation_id": "rel-verify-token-bounded-agent-authoring",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-token-bounded-agent-authoring",
+      "target_claim_id": "claim-token-bounded-agent-authoring"
+    }
+  ],
+  "collections": [],
+  "annotations": [],
+  "residue": [
+    {
+      "residue_id": "res-applicable-intent-omission-boundary",
+      "reason": "review_only",
+      "text": "No structural assessment can discover an obligation omitted from the WK, this controlled contract, declared impact facets, and every shaping review result. Applicable-intent completeness remains a mandatory reviewed boundary."
+    },
+    {
+      "residue_id": "res-role-policy-and-filesystem-runtime",
+      "reason": "review_only",
+      "text": "The contract represents role, registration, confinement, CAS, and disk-identity obligations, but only implementation tests and findings-only review can establish actual server registration, filesystem confinement, atomicity, symlink handling, and zero-effect refusal."
+    },
+    {
+      "residue_id": "res-runtime-and-policy-authority",
+      "reason": "review_only",
+      "text": "Structural, profile, exact-binding, and projection facts do not establish runtime evidence, evidence sufficiency, CCE policy, organization policy, readiness, or dispatch authorization."
+    },
+    {
+      "residue_id": "res-root-to-focused-semantic-equivalence",
+      "reason": "review_only",
+      "text": "The root contract binds the four focused contracts and their exact proof plans, but no admitted pack establishes semantic equivalence between a root behavior claim and a focused-contract claim. That mapping remains an explicit findings-only review boundary."
+    },
+    {
+      "residue_id": "res-token-relevance-boundary",
+      "reason": "review_only",
+      "text": "Bounded query and mutation projections constrain transport volume but do not establish that an agent selected the semantically relevant nodes or that the selected context is cognitively sufficient."
+    }
+  ],
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "test_proof_id": "test-proof-verify-authority-markers-preserved",
+      "verification_claim_id": "claim-verify-authority-markers-preserved",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-authority-markers-preserved",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-authority-markers-preserved",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-authority-markers-preserved"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-authority-markers-preserved",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-authority-markers-preserved",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-authority-markers-preserved",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify authority markers preserved",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-caller-substrate-refusal",
+      "verification_claim_id": "claim-verify-caller-substrate-refusal",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-caller-substrate-refusal",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-caller-substrate-refusal",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-caller-substrate-refusal"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-caller-substrate-refusal",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-caller-substrate-refusal",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-caller-substrate-refusal",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify caller substrate refusal",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-canonical-disk-carriers",
+      "verification_claim_id": "claim-verify-canonical-disk-carriers",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-canonical-disk-carriers",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-canonical-disk-carriers",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-canonical-disk-carriers"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-canonical-disk-carriers",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-canonical-disk-carriers",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-canonical-disk-carriers",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify canonical disk carriers",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-lossless-artifact-drilldown",
+      "verification_claim_id": "claim-verify-lossless-artifact-drilldown",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-lossless-artifact-drilldown",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-lossless-artifact-drilldown",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-lossless-artifact-drilldown"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-lossless-artifact-drilldown",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-lossless-artifact-drilldown",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-lossless-artifact-drilldown",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify lossless artifact drilldown",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-obsolete-architecture-absent",
+      "verification_claim_id": "claim-verify-obsolete-architecture-absent",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-obsolete-architecture-absent",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-obsolete-architecture-absent",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-obsolete-architecture-absent"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-obsolete-architecture-absent",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-obsolete-architecture-absent",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-obsolete-architecture-absent",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify obsolete architecture absent",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-operation-population",
+      "verification_claim_id": "claim-verify-operation-population",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-operation-population",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-operation-population",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-operation-population"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-operation-population",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-operation-population",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-operation-population",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify operation population",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-package-backed",
+      "verification_claim_id": "claim-verify-package-backed",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-package-backed",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-package-backed",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-package-backed"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-package-backed",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-package-backed",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-package-backed",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify package backed",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-private-snapshot-boundary",
+      "verification_claim_id": "claim-verify-private-snapshot-boundary",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-private-snapshot-boundary",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-private-snapshot-boundary",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-private-snapshot-boundary"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-private-snapshot-boundary",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-private-snapshot-boundary",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-private-snapshot-boundary",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify private snapshot boundary",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-registered-discoverable-role-gated",
+      "verification_claim_id": "claim-verify-registered-discoverable-role-gated",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-registered-discoverable-role-gated",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-registered-discoverable-role-gated",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-registered-discoverable-role-gated"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-registered-discoverable-role-gated",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-registered-discoverable-role-gated",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-registered-discoverable-role-gated",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify registered discoverable role gated",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-role-grants-exact",
+      "verification_claim_id": "claim-verify-role-grants-exact",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-role-grants-exact",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-role-grants-exact",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-role-grants-exact"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-role-grants-exact",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-role-grants-exact",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-role-grants-exact",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify role grants exact",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-token-bounded-agent-authoring",
+      "verification_claim_id": "claim-verify-token-bounded-agent-authoring",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-token-bounded-agent-authoring",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-token-bounded-agent-authoring",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-token-bounded-agent-authoring"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-token-bounded-agent-authoring",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-token-bounded-agent-authoring",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-token-bounded-agent-authoring",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify token bounded agent authoring",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-verify-validation-only-compilation",
+      "verification_claim_id": "claim-verify-validation-only-compilation",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-verify-validation-only-compilation",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-design-unit"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-verify-validation-only-compilation",
+        "kind": "return_value",
+        "proposition_id": "prop-verify-validation-only-compilation"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-verify-validation-only-compilation",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsify-validation-only-compilation",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-verify-validation-only-compilation",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "verify validation only compilation",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    }
+  ]
+}

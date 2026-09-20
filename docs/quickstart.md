@@ -100,7 +100,9 @@ an agent, or reaches an external service.
 
 - `wiki/schema.md`, `wiki/conventions.md`, `wiki/index.md`, and the generated
   wiki views — your consumer-owned wiki contract surfaces.
-- `wiki/initiatives/IN-0001.md` — an in-progress placeholder for the first real work.
+- `wiki/initiatives/IN-0001.json` — the canonical `initiative.v1` in-progress
+  placeholder for the first real work.
+- `wiki/initiatives/IN-0001.md` — the generated Markdown projection of that JSON record.
 - `wiki/templates/AGENTS.md.boilerplate.md` — directly appendable root guidance.
 - `wiki/.wiki-contract.json` — local contract metadata (your `vocab.topics.local`
   and `inference.paths` entries are preserved across reruns).
@@ -114,6 +116,11 @@ eligible for the first real work record. It does **not** create root guidance
 files, write global MCP client config, build the code index, or run an adoption
 gate. The legacy adoption-verification command remains available for
 compatibility but is not part of fresh installation.
+
+Bootstrap reruns preserve valid operator-authored canonical state in
+`IN-0001.json` and regenerate `IN-0001.md` from it. A projection-only legacy
+initiative is refused with structured migration guidance rather than accepted
+as canonical input.
 
 ## 4. Build the code index
 
@@ -294,6 +301,35 @@ to sandboxed scope enforcement; install `bwrap` for real isolation.
 
 For the `bwrap` install recipe and the full isolation contract, see
 [docs/agent-launch-quickstart.md](agent-launch-quickstart.md).
+
+## 8. Prepare local test runtimes (optional operator step)
+
+`workspace_verify_proof` runs saved native proofs for Jest, Vitest, Mocha, AVA,
+Deno, lib0/testing, pytest, stestr, go test and cargo test inside the launcher
+sandbox. It uses only runtimes that an explicit setup prepared.
+
+Ordinary `agent-chassis setup` (step 1) already does this as its last step: it
+finds the test project from this repository's own manifests, locates its
+toolchain on `PATH`, saves both choices in `agent-chassis-runtime.json`, and
+publishes `.agent-launch/test-runtimes/readiness.v1.json`. It asks only when
+the evidence leaves a choice open, and prints the exact option to pass when it
+has no terminal to ask in.
+
+To rerun only that step, or to select runners and project directories
+explicitly, run it from the repository root:
+
+```sh
+npx agent-chassis setup --test-runtimes --runner jest@web --runner go-test@services/api
+```
+
+In that form setup installs any missing selected toolchain (Node, Python, Go,
+Rust/Cargo, Deno) at a pinned version, prepares the projects' lockfile-pinned
+test dependencies, verifies them inside the sandbox and publishes the same
+readiness record. Add `--dry-run` to see the plan first. Rerun setup after
+changing a lockfile or toolchain pin; attempts report a stale-input environment
+failure with this exact command until you do. See
+[docs/local-test-runtime-setup.md](local-test-runtime-setup.md) for every
+option and failure code.
 
 ## Where to go next
 

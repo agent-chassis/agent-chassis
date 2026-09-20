@@ -1,0 +1,597 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-dry-disposition",
+      "kind": "provenance",
+      "text": "PWT-DRY-AUTH-005 was upheld by trusted findings-only review run wkdb_feffd84a482bbff1 and dispositioned once."
+    },
+    {
+      "annotation_id": "ann-dec-disposition",
+      "kind": "rationale",
+      "text": "DEC review run wkdb_7ed7fd7a9e2efe10 passed DEC-0169 and DEC-0179 and identified one DEC-0180 violation; the contract requires complete authoritative bytes in exact-direct W and rejects metadata substitutes."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-authority-binds-complete-generation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-authority-binds-complete-generation"
+    },
+    {
+      "claim_id": "claim-w-contains-contract-bytes",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-w-contains-contract-bytes"
+    },
+    {
+      "claim_id": "claim-candidate-ref-fenced",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-candidate-ref-fenced"
+    },
+    {
+      "claim_id": "claim-forge-publication-fenced",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-forge-publication-fenced"
+    },
+    {
+      "claim_id": "claim-candidate-preserves-dec0169",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-candidate-preserves-dec0169"
+    },
+    {
+      "claim_id": "claim-metadata-not-authoritative",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-metadata-not-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-generation-authority",
+      "falsifying_proposition_id": "prop-falsify-generation-authority",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-generation-authority",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-cold-recovery-create-cas-fenced",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-cold-recovery-create-cas-fenced"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-operative-obligations",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-authority-binds-complete-generation",
+        "claim-w-contains-contract-bytes",
+        "claim-candidate-ref-fenced",
+        "claim-cold-recovery-create-cas-fenced",
+        "claim-forge-publication-fenced",
+        "claim-candidate-preserves-dec0169",
+        "claim-metadata-not-authoritative",
+        "claim-verify-generation-authority"
+      ],
+      "purpose": "operative_obligations_and_verification"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-exact-w"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-current-contract-generation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-complete-contract-bytes"
+        }
+      ],
+      "operator": "reference:depends_on",
+      "proposition_id": "prop-authority-binds-complete-generation",
+      "subject_reference_id": "ref-terminal-candidate-authority"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-complete-contract-bytes"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-w-contains-contract-bytes",
+      "subject_reference_id": "ref-exact-w"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-generation-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-durable-wk-exclusion"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-terminal-candidate-authority"
+        }
+      ],
+      "operator": "reference:depends_on",
+      "proposition_id": "prop-candidate-ref-fenced",
+      "subject_reference_id": "ref-candidate-ref-mutation"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-generation-movement"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-durable-wk-exclusion"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-terminal-candidate-authority"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-exact-w"
+        }
+      ],
+      "operator": "reference:depends_on",
+      "proposition_id": "prop-forge-publication-fenced",
+      "subject_reference_id": "ref-forge-publication"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-dec0169"
+        }
+      ],
+      "operator": "reference:preserves",
+      "proposition_id": "prop-candidate-preserves-dec0169",
+      "subject_reference_id": "ref-terminal-candidate-authority"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-metadata-not-authoritative",
+      "subject_reference_id": "ref-generation-metadata"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-terminal-candidate-authority"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-candidate-ref-mutation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-forge-publication"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-verify-generation-authority",
+      "subject_reference_id": "ref-authority-test-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-authority-violation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:fails_when",
+      "proposition_id": "prop-falsify-generation-authority",
+      "subject_reference_id": "ref-authority-test-suite"
+    },
+    {
+      "proposition_id": "prop-cold-recovery-create-cas-fenced",
+      "subject_reference_id": "ref-cold-recovery-create-cas",
+      "operator": "reference:depends_on",
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-durable-wk-exclusion"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-terminal-candidate-authority"
+        }
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-generation-movement"
+        ]
+      }
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "terminal-candidate-authority"
+      },
+      "reference_id": "ref-terminal-candidate-authority",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "exact-direct-w"
+      },
+      "reference_id": "ref-exact-w",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "complete-current-controlled-generation"
+      },
+      "reference_id": "ref-current-contract-generation",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "complete-current-authoritative-contract-bytes"
+      },
+      "reference_id": "ref-complete-contract-bytes",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "generation-digests-metadata-and-projections"
+      },
+      "reference_id": "ref-generation-metadata",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "terminal-candidate-ref-cas"
+      },
+      "reference_id": "ref-candidate-ref-mutation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "remote-branch-and-pull-request-publication"
+      },
+      "reference_id": "ref-forge-publication",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "durable-wk-authority-exclusion"
+      },
+      "reference_id": "ref-durable-wk-exclusion",
+      "type_term": "cc:capability"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis-decision",
+        "kind": "durable_id",
+        "value": "DEC-0169"
+      },
+      "reference_id": "ref-dec0169",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "generation-movement-while-w-unchanged"
+      },
+      "reference_id": "ref-generation-movement",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "stale-generation-authorizes-mutation"
+      },
+      "reference_id": "ref-authority-violation",
+      "type_term": "cc:conflict"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "generation-authority-node-test-suite"
+      },
+      "reference_id": "ref-authority-test-suite",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-terminal-candidate-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-forge-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-coordinator.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-candidate-coordinator-module",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "candidate-ref-remote-branch-pull-request-effects"
+      },
+      "reference_id": "ref-protected-effect-population",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "stale-generation-operation-attempt"
+      },
+      "reference_id": "ref-stale-generation-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "attempt-to-refusal-protected-interval"
+      },
+      "reference_id": "ref-protected-interval",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "stale-generation-refusal"
+      },
+      "reference_id": "ref-refusal-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "candidate-bound-to-prior-generation"
+      },
+      "reference_id": "ref-stale-generation-subject",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "candidate-ref-and-forge-publication"
+      },
+      "reference_id": "ref-generation-authority-operation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "terminal-candidate-ref"
+      },
+      "reference_id": "ref-candidate-ref-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "remote-branch"
+      },
+      "reference_id": "ref-remote-branch-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "pull-request"
+      },
+      "reference_id": "ref-pull-request-state",
+      "type_term": "cc:state"
+    },
+    {
+      "reference_id": "ref-cold-recovery-create-cas",
+      "type_term": "cc:operation",
+      "identity": {
+        "domain": "WK-2271",
+        "kind": "durable_id",
+        "value": "cold-recovery-terminal-candidate-ref-create-cas"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-generation-authority-1",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-authority-binds-complete-generation"
+    },
+    {
+      "relation_id": "rel-verify-generation-authority-2",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-w-contains-contract-bytes"
+    },
+    {
+      "relation_id": "rel-verify-generation-authority-3",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-candidate-ref-fenced"
+    },
+    {
+      "relation_id": "rel-verify-generation-authority-4",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-forge-publication-fenced"
+    },
+    {
+      "relation_id": "rel-verify-generation-authority-5",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-candidate-preserves-dec0169"
+    },
+    {
+      "relation_id": "rel-verify-generation-authority-6",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-metadata-not-authoritative"
+    },
+    {
+      "relation_id": "rel-verify-generation-authority-7",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-generation-authority",
+      "target_claim_id": "claim-cold-recovery-create-cas-fenced"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2271-generation-owner-absent",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs",
+            "mutation_id": "mutation-wk2271-generation-owner-absent",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-generation-authority",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-wk2271-generation-authority",
+        "proposition_id": "prop-verify-generation-authority"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2271-generation-authority",
+        "kind": "protocol",
+        "subject_reference_ids": [
+          "ref-terminal-candidate-module",
+          "ref-forge-module",
+          "ref-candidate-coordinator-module"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2271-generation-authority",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-generation-authority",
+      "test_selector": {
+        "name": "wk2271 generation authority",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

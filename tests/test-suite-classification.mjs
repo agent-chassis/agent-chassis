@@ -24,6 +24,9 @@ export const TEST_CLASSIFICATION_CODES = Object.freeze({
   ESCAPING_TEST_PATH: "test_suite_classification.escaping_test_path.v1",
   INTEGRATION_SIGNAL_IN_UNIT: "test_suite_classification.integration_signal_in_unit.v1",
   UNKNOWN_EXCEPTION_PATH: "test_suite_classification.unknown_exception_path.v1",
+  DIRECT_SUBPROCESS_IN_ENROLLED: "test_suite_classification.direct_subprocess_in_enrolled.v1",
+  STALE_SUBPROCESS_BACKLOG: "test_suite_classification.stale_subprocess_backlog.v1",
+  SUBPROCESS_ENROLLMENT_CONFLICT: "test_suite_classification.subprocess_enrollment_conflict.v1",
 });
 
 export class TestSuiteClassificationError extends Error {
@@ -419,6 +422,22 @@ export const UNIT_SAFE_SIGNAL_EXCEPTIONS = Object.freeze([
   }),
 ]);
 
+export const DESIGNATED_PROCESS_HELPERS = Object.freeze([
+  "tests/helpers/managed-test-process.mjs",
+  "tests/helpers/git-test-fixture.mjs",
+]);
+
+export const SUBPROCESS_HELPER_ENROLLED = Object.freeze([
+  "tests/helpers/committed-slice-review-fixture.mjs",
+  "tests/helpers/committed-slice-review-lifecycle-fixture.mjs",
+  "tests/helpers/launcher-wk-fork-ref.mjs",
+  "tests/helpers/proof-authoring-fixture.mjs",
+  "tests/integration/scope-refusal-diagnostics.test.mjs",
+  "tests/integration/sync-owned-git-runner.test.mjs",
+]);
+
+export const SUBPROCESS_MIGRATION_BACKLOG = Object.freeze([]);
+
 export function collectLocalImportClosure(relPath, sources) {
   const key = toPosixPath(relPath);
   const seen = new Set();
@@ -453,7 +472,14 @@ export function findIntegrationProcessSignals(relPath, sources) {
   return reasons;
 }
 
-export function auditTestCorpus({ testFiles, sources, exceptions = UNIT_SAFE_SIGNAL_EXCEPTIONS }) {
+export function auditTestCorpus({
+  testFiles,
+  sources,
+  exceptions = UNIT_SAFE_SIGNAL_EXCEPTIONS,
+  enrolled = SUBPROCESS_HELPER_ENROLLED,
+  backlog = SUBPROCESS_MIGRATION_BACKLOG,
+  designatedHelpers = DESIGNATED_PROCESS_HELPERS,
+}) {
   const unit = [];
   const integration = [];
   const uncategorized = [];
@@ -492,6 +518,24 @@ export function auditTestCorpus({ testFiles, sources, exceptions = UNIT_SAFE_SIG
     if (signals.length > 0) integrationSignalInUnit.push({ test: rel, signals });
   }
 
+  const enrolledPaths = enrolled.map((entry) => toPosixPath(entry));
+  const helperPaths = new Set(designatedHelpers.map((entry) => toPosixPath(entry)));
+  const backlogPaths = backlog.map((entry) => toPosixPath(entry.path));
+
+  const directSubprocessInEnrolled = enrolledPaths
+    .filter((rel) => !helperPaths.has(rel) && hasIntegrationProcessSignal(sources.get(rel)))
+    .sort();
+
+  const staleSubprocessBacklog = backlogPaths
+    .filter((rel) => !hasIntegrationProcessSignal(sources.get(rel)))
+    .sort();
+
+  const enrolledSet = new Set(enrolledPaths);
+  const subprocessEnrollmentConflicts = [
+    ...backlogPaths.filter((rel) => enrolledSet.has(rel)),
+    ...enrolledPaths.filter((rel) => helperPaths.has(rel)),
+  ].sort();
+
   return {
     unit: unit.sort(),
     integration: integration.sort(),
@@ -501,13 +545,20 @@ export function auditTestCorpus({ testFiles, sources, exceptions = UNIT_SAFE_SIG
       escaping: escaping.sort(),
       integrationSignalInUnit,
       staleExceptions,
+      directSubprocessInEnrolled,
+      staleSubprocessBacklog,
+      subprocessEnrollmentConflicts,
     },
   };
 }
 
 export function assertNoCorpusViolations(audit) {
-  const { uncategorized, duplicates, escaping, integrationSignalInUnit, staleExceptions } =
-    audit.violations;
+  const {
+    uncategorized, duplicates, escaping, integrationSignalInUnit, staleExceptions,
+    directSubprocessInEnrolled = [],
+    staleSubprocessBacklog = [],
+    subprocessEnrollmentConflicts = [],
+  } = audit.violations;
 
   if (escaping.length > 0) {
     throw new TestSuiteClassificationError(
@@ -560,9 +611,46 @@ export function assertNoCorpusViolations(audit) {
       },
     );
   }
+
+  if (subprocessEnrollmentConflicts.length > 0) {
+    throw new TestSuiteClassificationError(
+      "subprocess-helper enrollment conflicts with the migration backlog or a designated " +
+        `helper: ${subprocessEnrollmentConflicts.join(", ")}`,
+      {
+        code: TEST_CLASSIFICATION_CODES.SUBPROCESS_ENROLLMENT_CONFLICT,
+        paths: subprocessEnrollmentConflicts,
+      },
+    );
+  }
+  if (staleSubprocessBacklog.length > 0) {
+    throw new TestSuiteClassificationError(
+      "subprocess migration backlog names a file that no longer creates subprocesses " +
+        `directly: ${staleSubprocessBacklog.join(", ")}\n` +
+        "the file has migrated; remove its backlog entry and add it to " +
+        "SUBPROCESS_HELPER_ENROLLED so the rule holds for it from now on",
+      {
+        code: TEST_CLASSIFICATION_CODES.STALE_SUBPROCESS_BACKLOG,
+        paths: staleSubprocessBacklog,
+      },
+    );
+  }
+  if (directSubprocessInEnrolled.length > 0) {
+    throw new TestSuiteClassificationError(
+      `enrolled test support creates subprocesses directly: ${directSubprocessInEnrolled.join(", ")}\n` +
+        `route process creation through a designated helper (${DESIGNATED_PROCESS_HELPERS.join(", ")}), ` +
+        "which bounds timeout, output, environment and cleanup; a raw spawn leaves an " +
+        "abandoned child invisible and unreclaimable",
+      {
+        code: TEST_CLASSIFICATION_CODES.DIRECT_SUBPROCESS_IN_ENROLLED,
+        paths: directSubprocessInEnrolled,
+      },
+    );
+  }
 }
 
-export function loadTestCorpus({ repoRoot, readFile, listDir, dirExists, exceptions }) {
+export function loadTestCorpus({
+  repoRoot, readFile, listDir, dirExists, exceptions, enrolled, backlog, designatedHelpers,
+}) {
   const testFiles = enumerateTestFiles({ repoRoot, listDir, dirExists });
   const supportModules = enumerateTestSupportModules({ repoRoot, listDir, dirExists });
 
@@ -571,7 +659,14 @@ export function loadTestCorpus({ repoRoot, readFile, listDir, dirExists, excepti
     sources.set(rel, readFile(path.join(repoRoot, rel)));
   }
 
-  const audit = auditTestCorpus({ testFiles, sources, exceptions });
+  const audit = auditTestCorpus({
+    testFiles,
+    sources,
+    ...(exceptions === undefined ? {} : { exceptions }),
+    ...(enrolled === undefined ? {} : { enrolled }),
+    ...(backlog === undefined ? {} : { backlog }),
+    ...(designatedHelpers === undefined ? {} : { designatedHelpers }),
+  });
   assertNoCorpusViolations(audit);
   return { unit: audit.unit, integration: audit.integration, sources, supportModules, audit };
 }

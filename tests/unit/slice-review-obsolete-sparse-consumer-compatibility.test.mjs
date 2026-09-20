@@ -25,9 +25,8 @@ test("sparse consumer keeps the v1 detail shape and null config fields", () => {
 
   for (const [index, predicate] of PREDICATES.entries()) {
     const code = codes[index % codes.length];
-    const projected = buildLifecycleFailure({ phase: "pre-integration" },
-      Object.assign(reason(predicate), { code }));
-    const detail = projected.materialization_failure.detail;
+    const refusal = Object.assign(reason(predicate), { code });
+    const detail = projectAuthenticatedSliceReviewMaterializationFailure(refusal).detail;
     assert.deepEqual(Object.keys(detail), [
       "predicate", "field", "pseudoref", "config_key", "config_scope",
       "suffix_depth", "traversal_bound", "git_exit_status"
@@ -35,6 +34,10 @@ test("sparse consumer keeps the v1 detail shape and null config fields", () => {
     assert.equal(detail.predicate, predicate);
     assert.equal(detail.config_key, null);
     assert.equal(detail.config_scope, null);
+
+    const failure = buildLifecycleFailure({ phase: "pre-integration" }, refusal);
+    assert.equal(Object.hasOwn(failure, "materialization_failure"), false);
+    assert.equal(failure.error_code, "agent_launch.slice_lifecycle.failed.v1");
   }
 });
 

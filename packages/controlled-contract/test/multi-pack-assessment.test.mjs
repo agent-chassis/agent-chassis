@@ -8,8 +8,7 @@ import { promisify } from "node:util";
 import test from "node:test";
 
 import { loadAdmittedProofPack } from "../lib/admitted-proof-packs.mjs";
-import { evaluateAcceptanceCoverage } from "../lib/acceptance-coverage.mjs";
-import { buildObligationGuaranteeSelectorIndex } from
+import { buildObligationGuaranteeSelectorIndex, resolveObligationGuaranteeSelector } from
   "../lib/obligation-coverage-guarantee-selectors.mjs";
 import {
   PROOF_INTENT_DIGESTS
@@ -52,7 +51,7 @@ function stabilizeFixture(value) {
   fixture.contract.vocabulary_version = "controlled-contract-vocabulary.v1";
   fixture.contract.test_proof_version = "controlled-contract-test-proof.v1";
   fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
-  fixture.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixture.input.input_version = "controlled-contract-verification-profile-input.v2";
   fixture.input.stable_evaluation = {};
   return fixture;
 }
@@ -149,7 +148,6 @@ test("zero packs preserve structural-only proof axes as not assessed", async () 
     assert.equal(validateProofPlan(proofPlan), true);
     const projected = await assessProofPlan({ inputPath: contractPath, proofPlan });
     assert.equal(projected.assessment.profile_discrimination, "not_assessed");
-    assert.equal(projected.assessment.exact_binding, "not_assessed");
     assert.equal(projected.assessment.assessment_scope, "planning");
     assert.equal(projected.assessment.authority, "non_authoritative");
     assert.equal(projected.assessment.per_pack.length, 0);
@@ -238,7 +236,7 @@ test("one failing pack cannot be concealed by another passing pack", async () =>
   }
 });
 
-test("mixed v1/v2 requests preserve independent missing exact inputs", async () => {
+test("mixed v1/v2 requests report the missing evaluation input of the unbound pack", async () => {
   const setup = await setupPassingPlan(1);
   try {
     const v2 = await loadAdmittedProofPack(
@@ -253,8 +251,7 @@ test("mixed v1/v2 requests preserve independent missing exact inputs", async () 
       profile_version: v2.profile.profile_version,
       requested_intents: ["controlled-proof-intent.behavioral-preservation"],
       evaluation_input: null,
-      exact_binding: null,
-      source_digests: expectedPackSourceDigests(v2, null, null)
+      source_digests: expectedPackSourceDigests(v2, null)
     });
     const projected = await assessProofPlan({
       inputPath: setup.contractPath,
@@ -263,8 +260,7 @@ test("mixed v1/v2 requests preserve independent missing exact inputs", async () 
     });
     assert.equal(projected.assessment.evaluated_pack_count, 1);
     assert.equal(projected.assessment.profile_discrimination, "not_proven");
-    assert.equal(projected.assessment.exact_binding, "not_proven");
-    assert.equal(projected.assessment.missing_inputs.length, 3);
+    assert.equal(projected.assessment.missing_inputs.length, 1);
     assert(projected.assessment.missing_inputs.every(
       ({ pack }) => pack.profile_id === v2.profile.profile_id
     ));
@@ -273,7 +269,7 @@ test("mixed v1/v2 requests preserve independent missing exact inputs", async () 
   }
 });
 
-test("mixed v1/v2 packs each run their own admitted and exact-binding evaluation", async () => {
+test("mixed v1/v2 packs each run their own admitted evaluation", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-mixed-exact-"));
   try {
     const refusal = namespaceFixture(
@@ -332,9 +328,7 @@ test("mixed v1/v2 packs each run their own admitted and exact-binding evaluation
       }, {
         profileId: "proof.dormancy.nonactivation",
         requestedIntents: ["controlled-proof-intent.dormancy-nonactivation"],
-        evaluationInputPath: dormancyInputPath,
-        captureRoot: root,
-        exactBindingSources: sources
+        evaluationInputPath: dormancyInputPath
       }]
     });
     const projected = await assessProofPlan({
@@ -342,54 +336,18 @@ test("mixed v1/v2 packs each run their own admitted and exact-binding evaluation
     });
     assert.equal(projected.assessment.profile_discrimination, "proven",
       JSON.stringify(projected.assessment.diagnostics));
-    assert.equal(projected.assessment.exact_binding, "proven");
     assert.deepEqual(projected.assessment.per_pack.map((pack) => [
-      pack.profile_id, pack.profile_discrimination, pack.exact_binding
+      pack.profile_id, pack.profile_discrimination
     ]), [
-      ["proof.authorization.refusal-before-effects", "proven", "not_applicable"],
-      ["proof.dormancy.nonactivation", "proven", "proven"]
+      ["proof.authorization.refusal-before-effects", "proven"],
+      ["proof.dormancy.nonactivation", "proven"]
     ]);
-
-    const missingCapturePlan = structuredClone(proofPlan);
-    const missingCaptureEntry = missingCapturePlan.packs.find(
-      ({ profile_id: id }) => id === "proof.dormancy.nonactivation"
-    );
-    missingCaptureEntry.exact_binding = null;
-    const admittedDormancy = await loadAdmittedProofPack(
-      missingCaptureEntry.profile_id
-    );
-    missingCaptureEntry.source_digests = expectedPackSourceDigests(
-      admittedDormancy, dormancy.input, null
-    );
-    const missingCapture = await assessProofPlan({
-      inputPath: contractPath,
-      proofPlan: missingCapturePlan,
-      planDirectory: root
-    });
-    assert.equal(missingCapture.assessment.evaluated_pack_count, 2);
-    assert.equal(missingCapture.assessment.profile_discrimination, "not_proven");
-    assert.equal(missingCapture.assessment.exact_binding, "not_proven");
-    assert.equal(missingCapture.assessment.missing_inputs.length, 2);
-
-    const missingSourcePlan = structuredClone(proofPlan);
-    const exactEntry = missingSourcePlan.packs.find(
-      ({ profile_id: id }) => id === "proof.dormancy.nonactivation"
-    );
-    delete exactEntry.exact_binding.sources["activation-observation-artifact"];
-    const exactPack = await loadAdmittedProofPack(exactEntry.profile_id);
-    exactEntry.source_digests = expectedPackSourceDigests(
-      exactPack, dormancy.input, exactEntry.exact_binding.sources
-    );
-    const missingSource = await assessProofPlan({
-      inputPath: contractPath, proofPlan: missingSourcePlan, planDirectory: root
-    });
-    assert.equal(missingSource.assessment.exact_binding, "not_proven");
-    assert.equal(missingSource.assessment.profile_discrimination, "not_proven");
 
     const splicedRawResult = structuredClone(proofPlan);
     splicedRawResult.packs[1].exact_binding_result = {
       satisfaction: "satisfied", provenance: { capture_verified: true }
     };
+    splicedRawResult.packs[1].exact_binding = null;
     await assert.rejects(() => assessProofPlan({
       inputPath: contractPath,
       proofPlan: splicedRawResult,
@@ -536,7 +494,7 @@ test("assessment authenticates exact empty and nonempty component applicability"
     assert.equal(full.source_digests.component_exclusion_applicability,
       admitted.component_exclusion_applicability_digest);
     assert.equal(authenticated.profile_id, admitted.profile.profile_id);
-    assert.equal(authenticated.profile_version, "2.1.0");
+    assert.equal(authenticated.profile_version, "4.0.0");
     assert.equal(authenticated.profile_digest, admitted.profile_digest);
     assert.equal(authenticated.admission_digest, admitted.admission_digest);
     assert.equal(authenticated.component_exclusion_applicability_digest,
@@ -567,36 +525,15 @@ test("assessment authenticates exact empty and nonempty component applicability"
       true);
     assert(components["design-names-grounded-loci"].matched_node_ids.length > 0);
     assert(components["warning-shape-verification"].matched_node_ids.length > 0);
-    const obligations = [
-      ["OBL-001", "design-names-grounded-loci"],
-      ["OBL-002", "warning-shape-verification"]
-    ].map(([obligationId, componentId], index) => ({
-      obligation_id: obligationId,
-      source_locator: `/acceptance/criteria/${index}`,
-      source_locator_digest: `sha256:${"a".repeat(64)}`,
-      statement: `Discharge ${componentId}.`,
-      controlled_contract_node_ids: [components[componentId].matched_node_ids[0]],
-      mechanism: { owner: "packages/controlled-contract", kind: "code_symbol",
-        selector: componentId },
-      proof: {
-        kind: "pack_mapping", pack_id: admitted.profile.profile_id,
-        requested_intent: "controlled-proof-intent.implementation-readiness",
-        profile_id: admitted.profile.profile_id,
-        profile_version: admitted.profile.profile_version,
-        selector: { kind: "claim", component_id: componentId },
-        evaluation_stage: "pre_dispatch"
-      }
-    }));
-    const coverage = evaluateAcceptanceCoverage({
-      obligationCoverage: { schema_version:
-        "controlled-contract-obligation-coverage.v1", wk_id: "WK-2097", obligations },
-      guaranteeSelectorIndex: selectorIndex,
-      selectedPackIds: [admitted.profile.profile_id]
-    });
-    assert.deepEqual(coverage.obligation_outcomes.map(({ outcome }) => outcome), [
-      "mechanically_proven", "guarantee_incompatible"
-    ]);
-    assert.equal(coverage.obligation_outcomes[1].reason, "applicable_exclusion");
+    const results = ['design-names-grounded-loci', 'warning-shape-verification'].map(componentId =>
+      resolveObligationGuaranteeSelector({ index: selectorIndex,
+        mapping: { kind: 'pack_mapping', pack_id: admitted.profile.profile_id,
+          requested_intent: 'controlled-proof-intent.implementation-readiness',
+          profile_id: admitted.profile.profile_id, profile_version: admitted.profile.profile_version,
+          selector: { kind: 'claim', component_id: componentId } },
+        nodeIds: [components[componentId].matched_node_ids[0]] }));
+    assert.deepEqual(results.map(result => result.status), ['compatible', 'incompatible']);
+    assert.equal(results[1].reason, 'applicable_exclusion');
 
     assert.throws(() => buildObligationGuaranteeSelectorIndex({
       assessment: structuredClone(projected)
@@ -656,6 +593,7 @@ test("results are detached, immutable, contain no unqualified pass, and stay com
 
 test("independent processes, locales, and timezones preserve compact identity", async () => {
   const setup = await setupPassingPlan(2);
+  await execFileAsync("git", ["init", "--quiet", setup.root]);
   try {
     const planPath = path.join(setup.root, "proof-plan.json");
     await writeFile(planPath, canonicalJson(setup.proofPlan));

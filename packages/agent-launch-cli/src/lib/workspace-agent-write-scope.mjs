@@ -3,7 +3,7 @@
 import path from "node:path";
 import { statSync, realpathSync } from "node:fs";
 
-import { loadWorkRecordById } from "@agent-chassis/wiki-core";
+import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
 import { parseWorkRecordUnitAddress } from "@agent-chassis/agent-launch-core";
 
 export async function resolveCanonicalWriteScope({
@@ -72,6 +72,14 @@ export function deriveWritableMountsFromWriteScope({ workspaceDir, writeScope } 
     }
   }
   return { writableRoots, writableFiles };
+}
+
+export function deriveWritableMountsFromResolvedScope({ workspaceDir, resolvedScope }) {
+  const repoRoot = path.resolve(workspaceDir);
+  return {
+    writableRoots: resolvedScope.writable.directories.map((entry) => path.join(repoRoot, entry)),
+    writableFiles: resolvedScope.writable.files.map((entry) => path.join(repoRoot, entry))
+  };
 }
 
 export function deriveDirectoryScopedWritableMountsFromWriteScope({

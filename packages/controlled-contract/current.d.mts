@@ -155,7 +155,7 @@ export {
   INTEGRATION_TEST_DESIGN_ASSESSMENT_STATES,
   assessIntegrationTestDesign,
   canonicalJson as canonicalIntegrationTestDesignAssessmentJson
-} from "./current-integration-test-design-assessment.d.mts";
+} from "./current-integration-test-design-assessment.mjs";
 export type {
   IntegrationTestDesignAssessmentAxis,
   IntegrationTestDesignAssessmentDiagnostic,
@@ -164,23 +164,10 @@ export type {
   IntegrationTestDesignAssessmentSubject,
   IntegrationTestDesignPopulationRef,
   IntegrationTestDesignResolvedInput
-} from "./current-integration-test-design-assessment.d.mts";
-
-export {
-  IntegrationPrefixCompatibilityError, ARTIFACTS,
-  compareIntegrationPrefixCaptureCompatibility, compareIntegrationPrefixCompatibility
-} from "./current-integration-prefix.mjs";
-export type {
-  IntegrationPrefixCompatibilityCode, IntegrationPrefixArtifactBinding,
-  IntegrationPrefixCompatibilitySources, IntegrationPrefixCatalogEntry,
-  IntegrationPrefixCatalog, IntegrationPrefixAdmission,
-  IntegrationPrefixCompatibilityDifference, IntegrationPrefixCompatibilityResult,
-  IntegrationPrefixCompatibilityOptions
-} from "./current-integration-prefix.mjs";
+} from "./current-integration-test-design-assessment.mjs";
 
 export {
   assessContractFiles,
-  assessExactBoundContractFiles,
   assessStructuralContractFile,
   compactAssessmentOutput
 } from "./lib/contract-assessment.mjs";
@@ -206,15 +193,25 @@ export {
   PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
   ProofIntentDiscoveryError,
   canonicalProofIntentDiscoveryJson,
+  discoverCompleteProofIntents,
   discoverProofIntents
 } from "./lib/proof-intent-discovery.mjs";
 
 export {
+  CLAIM_PATTERN_BINDING_ADMISSION_CODES,
   MAX_BINDING_ASSISTANCE_BYTES,
   ProofPackBindingAssistanceError,
   canonicalProofPackBindingAssistanceJson,
-  inspectProofPackBindings
+  inspectProofPackBindings,
+  validateSuppliedClaimPatternBindings
 } from "./lib/proof-pack-binding-assistance.mjs";
+
+export {
+  SelectedPackClaimParticipationError,
+  evaluateSelectedPackClaimParticipation,
+  matchedProfileCoveredClaimIds,
+  matchedProfileCoveredClaims
+} from "./lib/selected-pack-claim-participation.mjs";
 
 export function inspectProofPackBindingsPage(input: {
   contract: Record<string, unknown>; profileId: string; profileVersion: string;
@@ -239,6 +236,17 @@ export {
   buildProofPlanFiles,
   canonicalProofPlanJson
 } from "./lib/proof-plan-compiler.mjs";
+
+export class ProspectiveProofPlanError extends Error {
+  code: string;
+  details: Readonly<Record<string, unknown>>;
+}
+export function buildProspectiveProofPlan(input: {
+  sourceContract: Record<string, unknown>;
+  prospectiveContract: Record<string, unknown>;
+  request: Record<string, unknown>;
+  evaluationInputs: Record<string, Record<string, unknown>>;
+}): Promise<Readonly<Record<string, unknown>>>;
 
 export class ProofAuthoringSkeletonError extends Error {
   code: string;
@@ -305,7 +313,8 @@ export type {
   ComponentExclusionApplicabilitySelectorKind, ComponentExclusionApplicabilityComponent,
   ComponentExclusionApplicability, ComponentExclusionApplicabilityValidationResult,
   AdmittedProofPackSnapshot, PackageMintedVerificationProfileV1Result,
-  PackageMintedExactBindingResult, AssessmentComponentExclusionApplicability
+  AssessmentComponentExclusionApplicability, AdmittedProofPackCatalog,
+  AdmittedProofPackCatalogEntry
 } from "./current-admitted-proof-packs.mjs";
 
 export {
@@ -313,57 +322,68 @@ export {
   TEST_PROOF_PROVIDER_CATALOG, TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
   TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2, TEST_PROOF_RUNTIME_EVIDENCE_SCHEMA_V2,
   STABLE_TEST_PROOF_AUTHORING_LIMITS, PROVIDER_REFUSAL_PRECEDENCE,
+  CURRENT_DEFINITION_REAUTHORING_SCHEMA, RETIRED_CURRENT_DEFINITION_FIELDS,
   StableTestProofContractError, validateStableTestProofContract,
   canonicalStableTestProofContractJson, validateTestProofRuntimeEvidenceV2,
   describeStableTestProofAuthoring, VERIFICATION_BUNDLE_SCHEMA_VERSION,
   VERIFICATION_BUNDLE_FIELDS, VERIFICATION_BUNDLE_VOCABULARY,
-  buildStableTestProofBindingTemplate, buildVerificationBundleTemplate,
+  buildStableTestProofBindingTemplate, buildStableTestProofRecoveryCall,
+  buildVerificationBundleTemplate,
   queryStableTestProofBindings, resolveStableTestProofBindingPopulation,
   resolveStableTestProofProviderBindings,
-  replaceStableTestProofBindings, resolveTestProofProviderCompatibility,
+  replaceStableTestProofBindings, qualifyStableCurrentDefinitionReauthoring,
+  reauthorStableCurrentDefinitionBindings, resolveTestProofProviderCompatibility,
   ASSESSMENT_SCHEMA_V2, MAX_TEST_PROOF_ASSESSMENT_INDEX_BYTES,
   TEST_PROOF_SEMANTIC_JUDGMENT, assessTestProofContract, evaluateAdmittedTestValidity,
   validateTestProofAssessmentSchema
 } from "./current-test-proof.mjs";
 
-export interface StableRuntimeTestIdentityV1 {
-  readonly test_id: string;
+/**
+ * Authored evaluation inputs carry design meaning only. Test-validity
+ * execution observations (`stable_evaluation.test_validity`) are produced by
+ * `workspace_verify_proof`; every authoring route refuses them with this one
+ * reason code before any canonical read or write.
+ */
+export const AUTHORED_EXECUTION_OBSERVATION_REFUSAL_CODE:
+  "evaluation_input_execution_observation_authored";
+export const AUTHORED_EXECUTION_OBSERVATION_POINTER: "/stable_evaluation/test_validity";
+export const EXECUTION_OBSERVATION_OWNER: "workspace_verify_proof";
+export class AuthoredExecutionObservationError extends Error {
+  readonly code: "evaluation_input_execution_observation_authored";
+  readonly details: Readonly<Record<string, unknown>>;
+}
+export interface AuthoredEvaluationInputValidation {
+  readonly valid: boolean;
+  readonly execution_owner: "workspace_verify_proof";
+  readonly diagnostics: Readonly<Record<string, unknown>>;
+}
+export function authoredEvaluationInputDiagnostics(
+  input: unknown, options?: { pointerPrefix?: string }
+): ReadonlyArray<Readonly<Record<string, unknown>>>;
+export function validateAuthoredEvaluationInput(
+  input: unknown, options?: { pointerPrefix?: string }
+): AuthoredEvaluationInputValidation;
+export function assertAuthoredEvaluationInputExecutionFree(
+  input: unknown, options?: { pointerPrefix?: string }
+): AuthoredEvaluationInputValidation;
+
+/**
+ * The declarative test selector a stable proof definition carries: the exact
+ * node:test name and nesting depth inside the work record's bound node_test
+ * target. It is design data only; the launcher derives the stable runtime test
+ * identity from it at execution time.
+ */
+export interface StableTestProofSelectorV1 {
+  readonly name: string;
+  readonly nesting: number;
 }
 
-export type StableTestProofRuntimeReadinessReason =
-  | "missing_inventory"
-  | "missing_selection"
-  | "invalid_selection"
-  | "ready";
-
-export interface StableTestProofRuntimeReadiness {
-  readonly schema_version: "controlled-contract-test-proof-runtime-readiness.v1";
-  readonly status: "ready" | "not_ready";
-  readonly reason: StableTestProofRuntimeReadinessReason;
-  readonly candidate_total: number;
-  readonly current_test_ids: readonly string[];
-  readonly selected_test_id: string | null;
-  readonly runtime_test_identity: StableRuntimeTestIdentityV1 | null;
-  readonly authority: "diagnostic";
-  readonly admissibility_effect: "none";
-}
-
-export const STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION:
-  "controlled-contract-test-proof-runtime-readiness.v1";
-export const STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS: Readonly<{
-  MISSING_INVENTORY: "missing_inventory";
-  MISSING_SELECTION: "missing_selection";
-  INVALID_SELECTION: "invalid_selection";
-  READY: "ready";
-}>;
-export function projectStableTestProofCurrentPopulation(
+export function projectStableTestProofSelector(
   binding: Readonly<Record<string, unknown>>
-): readonly string[];
-export function classifyStableTestProofRuntimeReadiness(
-  binding: Readonly<Record<string, unknown>>
-): StableTestProofRuntimeReadiness;
+): StableTestProofSelectorV1;
 export type {
   ControlledContractVerificationBundle, ControlledContractVerificationBundleOperation,
+  StableCurrentDefinitionQualification,
   TestProofValidationResult, RuntimeAssessmentStatus, RuntimeAssessmentReceiptKind,
   RuntimeAssessmentVerification, RuntimeAssessmentIdentity, RuntimeAssessmentReceipt,
   ControlledContractAssessmentV3
@@ -415,6 +435,12 @@ export function isAcceptanceCoverageComplete(
 ): boolean;
 
 export {
+  OBLIGATION_DRAFT_SCHEMA_VERSION, OBLIGATION_DRAFT_SCHEMA,
+  OBLIGATION_COVERAGE_MAX_ROWS, OBLIGATION_COVERAGE_MAX_BYTES,
+  validateObligationCoverageDraft, PROOF_AUTHORING_FIELDS, PROOF_AUTHORING_FIELD_SCHEMAS,
+  upsertProofAuthoringSelection, removeProofAuthoringSelection, pinProofSelection,
+  loadPinnedProofSelection, ProofAuthoringError, assertProofAuthoringDraft,
+  PROOF_AUTHORING_DIAGNOSTIC_GROUPS_VERSION, groupProofAuthoringDiagnostics,
   OBLIGATION_COVERAGE_SCHEMA_VERSION, OBLIGATION_COVERAGE_SCHEMA,
   OBLIGATION_COVERAGE_GAP_KINDS, OBLIGATION_COVERAGE_MECHANISM_KINDS,
   OBLIGATION_COVERAGE_OUTCOMES, validateObligationCoverageCarrier,
@@ -424,6 +450,12 @@ export {
   buildObligationGuaranteeSelectorIndex, resolveObligationGuaranteeSelector
 } from "./current-obligation-coverage.mjs";
 export type {
+  ProofAuthoringPin, ProofAuthoringJson, ProofAuthoringSelection, ProofAuthoringObligation,
+  ObligationCoverageDraft, ProofAuthoringAmendment, ProofAuthoringDiagnosticCategory,
+  ProofAuthoringDiagnostic, ProofAuthoringDiagnosticOccurrence, ProofAuthoringDiagnosticGroup,
+  SelectedProofDiagnosticEffect, SelectedProofDiagnosticStage,
+  SelectedProofDiagnosticRecovery, SelectedProofDiagnosticRouteAssessment,
+  SelectedProofDiagnosticStageAssessment, SelectedProofPrerequisiteAssessment,
   ObligationCoverageMechanismKind, ObligationGuaranteeSelectorKind,
   ObligationCoverageGapKind, ObligationCoverageOutcome, ObligationGuaranteeSelector,
   ObligationCoveragePackMapping, ObligationCoverageExplicitGap, ObligationCoverageRow,
@@ -434,29 +466,25 @@ export type {
 
 export interface ObligationCoverageEvaluationResult {
   readonly mode: "obligation_coverage";
-  readonly schema_version: "controlled-contract-obligation-coverage.v1";
+  readonly schema_version: "resolved-obligation-coverage.v1";
   readonly wk_id: string;
   readonly focus: string | null;
   readonly obligation_outcomes: readonly Readonly<{
     obligation_id: string;
     position: number;
-    source_locator: string;
     controlled_contract_node_ids: readonly string[];
-    mechanism: ObligationCoverageRow["mechanism"];
-    proof: ObligationCoverageRow["proof"];
+    mechanism?: ObligationCoverageRow["mechanism"];
+    selection: ObligationCoverageRow["selection"];
     outcome: ObligationCoverageOutcome;
     reason: string | null;
   }>[];
   readonly outcome_precedence: readonly ObligationCoverageOutcome[];
   readonly diagnostics: readonly Readonly<Record<string, unknown>>[];
-  readonly orphan_selected_pack_ids: readonly string[];
   readonly warnings: readonly AcceptanceCoverageGapWarning[];
   readonly complete: boolean;
 }
 export function evaluateAcceptanceCoverage(input: {
   obligationCoverage: ObligationCoverageCarrier;
-  guaranteeSelectorIndex: ObligationGuaranteeSelectorIndex;
-  selectedPackIds: readonly string[];
   staleObligationIds?: readonly string[];
 }): ObligationCoverageEvaluationResult;
 
@@ -513,11 +541,9 @@ export interface AcceptanceCoverageProjectionResult {
 
 export type ObligationCoverageProjectionSelector =
   | Readonly<{ obligationId: string }>
-  | Readonly<{ sourceLocator: string }>
   | Readonly<{ controlledContractNodeId: string }>
   | Readonly<{ mechanism: Readonly<{ owner: string; kind: string; selector: string }> }>
-  | Readonly<{ packId: string }>
-  | Readonly<{ guaranteeSelector: Readonly<{ kind: string; componentId: string }> }>
+  | Readonly<{ proofName: string }>
   | Readonly<{ outcome: ObligationCoverageOutcome }>;
 export interface ObligationCoverageProjectionResult {
   readonly version: "acceptance-obligation-coverage-projection.v1";
@@ -530,7 +556,7 @@ export interface ObligationCoverageProjectionResult {
   readonly totals: Readonly<{
     total: number;
     outcomes: Readonly<Record<ObligationCoverageOutcome, number>>;
-    invalid_mapping: number;
+    invalid_design: number;
   }>;
   readonly items: readonly ObligationCoverageEvaluationResult["obligation_outcomes"][number][];
 }
@@ -585,6 +611,7 @@ export {
   REFACTOR_GRAPH_SCHEMA_VERSION,
   REFACTOR_MODES,
   buildControlledContractRefactorClosure,
+  inspectControlledContractRefactorIdentityPopulation,
   planControlledContractRefactor
 } from "./lib/refactor-graph-v1.mjs";
 export type {
@@ -593,80 +620,49 @@ export type {
 } from "./lib/refactor-graph-v1.mjs";
 
 export {
-  ARTIFACT_SET_IDENTITY_DOMAIN,
-  ARTIFACT_SET_PROVENANCE_REFUSAL_CODES,
-  ARTIFACT_SET_PROVENANCE_SCHEMA,
-  ARTIFACT_SET_PROVENANCE_SCHEMA_VERSION,
-  ArtifactSetProvenanceError,
-  PACKAGE_POPULATION_ID as ARTIFACT_SET_PACKAGE_POPULATION_ID,
-  PACKED_ARTIFACT_POPULATION_ID as ARTIFACT_SET_PACKED_ARTIFACT_POPULATION_ID,
-  buildArtifactSetProvenance,
-  validateArtifactSetProvenance,
-  verifyArtifactSetProvenance
-} from "./lib/artifact-set-provenance.mjs";
-export type {
-  ArtifactSetProvenanceCarrier,
-  ArtifactSetProvenanceExpectation,
-  ArtifactSetProvenanceInput,
-  ArtifactSetProvenanceValidation,
-  ArtifactSetProvenanceVerification,
-  AuthenticationProvenanceWitnesses,
-  BoundCompletePopulation,
-  BoundPopulationInput,
-  PackageMemberInput,
-  PackedArtifactMemberInput
-} from "./lib/artifact-set-provenance.mjs";
-
-export {
-  WRITE_CONFINEMENT_CAPTURE_REFUSAL_CODES, WRITE_CONFINEMENT_CAPTURE_SCHEMA_VERSION,
   WRITE_CONFINEMENT_EVIDENCE_SCHEMA_VERSION, WRITE_CONFINEMENT_PROFILE_ID,
-  WRITE_CONFINEMENT_PROFILE_VERSION, mapWriteConfinementCapture,
-  canonicalWriteConfinementEvaluationInputJson
+  WRITE_CONFINEMENT_PROFILE_VERSION, WRITE_CONFINEMENT_VERIFICATION_REFUSAL_CODES,
+  WRITE_CONFINEMENT_VERIFICATION_SCHEMA_VERSION, verifyWriteConfinementEvidence,
+  verifyWriteConfinementProjection
 } from "./current-write-confinement.mjs";
 export type {
-  WriteConfinementCaptureRefusalCode, WriteConfinementReferenceIdentity,
-  WriteConfinementReference, WriteConfinementReferenceBinding,
-  WriteConfinementEvaluationInput, WriteConfinementCaptureSource,
-  WriteConfinementCaptureRefusal, WriteConfinementCaptureMapped,
-  WriteConfinementCaptureRefused, WriteConfinementCaptureResult
+  WriteConfinementVerificationRefusalCode, WriteConfinementEvidence,
+  WriteConfinementProjectionEnvelope, WriteConfinementVerificationSource,
+  WriteConfinementVerificationPopulations, WriteConfinementVerificationRefusal,
+  WriteConfinementVerified, WriteConfinementVerificationRefused,
+  WriteConfinementVerificationResult
 } from "./current-write-confinement.mjs";
 
 export {
-  BEHAVIORAL_PRESERVATION_CAPTURE_REFUSAL_CODES,
-  BEHAVIORAL_PRESERVATION_CAPTURE_SCHEMA_VERSION,
-  BEHAVIORAL_PRESERVATION_CAPTURE_INPUT_SCHEMA_VERSION,
-  BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION, BEHAVIORAL_PRESERVATION_PROFILE_ID,
-  BEHAVIORAL_PRESERVATION_PROFILE_VERSION, BEHAVIORAL_PRESERVATION_SIDES,
-  mapBehavioralPreservationCapture, canonicalBehavioralPreservationEvaluationInputJson
+  BEHAVIORAL_PRESERVATION_PROFILE_ID, BEHAVIORAL_PRESERVATION_PROFILE_VERSION,
+  BEHAVIORAL_PRESERVATION_REPORT_SCHEMA_VERSION, BEHAVIORAL_PRESERVATION_SIDES,
+  BEHAVIORAL_PRESERVATION_VERIFICATION_REFUSAL_CODES,
+  BEHAVIORAL_PRESERVATION_VERIFICATION_SCHEMA_VERSION,
+  verifyBehavioralPreservationReports
 } from "./current-behavioral-preservation.mjs";
 export type {
-  BehavioralPreservationCaptureRefusalCode, BehavioralPreservationSide,
+  BehavioralPreservationVerificationRefusalCode, BehavioralPreservationSide,
   BehavioralPreservationObservable, BehavioralPreservationReport,
-  BehavioralPreservationSourceDescriptor, BehavioralPreservationCaptureSide,
-  BehavioralPreservationCaptureInput, BehavioralPreservationReferenceIdentity,
-  BehavioralPreservationReference, BehavioralPreservationReferenceBinding,
-  BehavioralPreservationNumberBinding, BehavioralPreservationEvaluationInput,
-  BehavioralPreservationCaptureSourceSide, BehavioralPreservationCaptureSource,
-  BehavioralPreservationCaptureRefusal, BehavioralPreservationCaptureMapped,
-  BehavioralPreservationCaptureRefused, BehavioralPreservationCaptureResult
+  BehavioralPreservationReportPair, BehavioralPreservationMemberDescriptor,
+  BehavioralPreservationDifferences, BehavioralPreservationVerificationSource,
+  BehavioralPreservationVerificationRefusal, BehavioralPreservationVerified,
+  BehavioralPreservationVerificationRefused, BehavioralPreservationVerificationResult
 } from "./current-behavioral-preservation.mjs";
 
 export {
-  DECLARED_BOUNDARY_CAPTURE_REFUSAL_CODES, DECLARED_BOUNDARY_CAPTURE_SCHEMA_VERSION,
-  DECLARED_BOUNDARY_CAPTURE_INPUT_SCHEMA_VERSION, DECLARED_BOUNDARY_PROFILE_ID,
-  DECLARED_BOUNDARY_PROFILE_VERSION, DECLARED_BOUNDARY_OBSERVATION_PROVENANCE,
-  DECLARED_BOUNDARY_NOT_ESTABLISHED, mapDeclaredBoundaryCapture,
-  canonicalDeclaredBoundaryEvaluationInputJson, canonicalDeclaredBoundaryReportJson
+  DECLARED_BOUNDARY_PROFILE_ID, DECLARED_BOUNDARY_PROFILE_VERSION,
+  DECLARED_BOUNDARY_OBSERVATION_PROVENANCE, DECLARED_BOUNDARY_NOT_ESTABLISHED,
+  DECLARED_BOUNDARY_VERIFICATION_REFUSAL_CODES,
+  DECLARED_BOUNDARY_VERIFICATION_SCHEMA_VERSION,
+  verifyDeclaredBoundaryRecordConsistency, canonicalDeclaredBoundaryReportJson
 } from "./current-declared-boundary.mjs";
 export type {
-  DeclaredBoundaryCaptureRefusalCode, DeclaredBoundaryArtifactSource,
-  DeclaredBoundaryCaptureInput, DeclaredBoundaryReferenceIdentity,
-  DeclaredBoundaryReference, DeclaredBoundaryReferenceBinding,
-  DeclaredBoundaryNumberBinding, DeclaredBoundaryEvaluationInput,
-  DeclaredBoundaryCensusCase, DeclaredBoundaryCensusLimit, DeclaredBoundaryCensus,
-  DeclaredBoundaryCaptureSource, DeclaredBoundaryCaptureRefusal,
-  DeclaredBoundaryCaptureMapped, DeclaredBoundaryCaptureRefused,
-  DeclaredBoundaryCaptureResult
+  DeclaredBoundaryVerificationRefusalCode, DeclaredBoundaryDocument,
+  DeclaredBoundaryVerificationInput, DeclaredBoundaryCensusCase,
+  DeclaredBoundaryCensusLimit, DeclaredBoundaryCensus,
+  DeclaredBoundaryVerificationSource, DeclaredBoundaryVerificationRefusal,
+  DeclaredBoundaryVerified, DeclaredBoundaryVerificationRefused,
+  DeclaredBoundaryVerificationResult
 } from "./current-declared-boundary.mjs";
 
 export {
@@ -677,3 +673,40 @@ export {
 export type {
   CompiledValidatorCacheGroupStatus, CompiledValidatorCacheStatus
 } from "./current-compiled-validator-cache.mjs";
+
+export { validateNativeTestProofAuthoringContract } from './current-test-proof.mjs';
+export type { NativeTestCaseInput, NativeTestCaseAmendment, AuthoredTestCaseDefinition,
+  UnifiedProofAuthoringRequest, UnifiedProofAuthoringReceipt } from './current-obligation-coverage.mjs';
+export const NATIVE_TEST_CASE_SCHEMA: Readonly<Record<string, unknown>>;
+export const NATIVE_TEST_CASE_AMENDMENT_SCHEMA: Readonly<Record<string, unknown>>;
+export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE: Readonly<Record<string, unknown>>;
+export const DEFAULT_MANDATORY_MODALITIES: readonly string[];
+export function applyNativeTestProofCase(input: { contract: Record<string, any>; row: Record<string, any>;
+  caseInput: import('./current-obligation-coverage.mjs').NativeTestCaseInput; subject: unknown;
+  buildTemplate: typeof import('./current-test-proof.mjs').buildStableTestProofBindingTemplate }): Record<string, any>;
+export function projectAuthoredTestCase(cases: readonly Record<string, any>[], row: Record<string, any>, facts?: { references?: readonly Record<string, any>[]; targets?: readonly Record<string, any>[] }): readonly Record<string, any>[];
+export function authoredCaseRevision(definition: Record<string, any>): string;
+export function authoredCaseVerificationId(definition: Record<string, any>): string;
+export function deriveAuthoredTestCases(input: { contract: Record<string, any> | null; cases: readonly Record<string, any>[]; buildTemplate: Function }): Record<string, any>;
+export function emptyCaseContract(): Record<string, any>;
+export function linkedNativeTestProofs(contract: Record<string, any>, row: Record<string, any>, facts?: { references?: readonly Record<string, any>[]; targets?: readonly Record<string, any>[] }): readonly Record<string, any>[];
+
+// The shared proof contract, re-exported from the barrel for consumers that
+// already hold it. `@agent-chassis/controlled-contract/proof-contract` is the
+// same owner without either proof workflow's module graph.
+export {
+  PROOF_AUTHORING_SEMANTIC_ASSESSMENT_VERSION,
+  assessProofAuthoringRowSemantics,
+  assessProofAuthoringSemantics,
+  proofDiagnostic,
+  proofOwnerDiagnostic,
+  proofProblem,
+  selectProofAuthoringRows
+} from './lib/proof-contract.mjs';
+export type {
+  ProofAuthoringSemanticAssessment, ProofAuthoringSemanticContext,
+  ProofAuthoringSemanticRow, ProofDiagnostic, ProofProblem
+} from './lib/proof-contract.mjs';
+export function loadAdmittedProofPackMeaning(profileId: string): Promise<Record<string, any>>;
+export function loadExactAdmittedProofPackMeaning(
+  identity: { profileId: string; profileVersion: string }): Promise<Record<string, any>>;

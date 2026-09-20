@@ -9,9 +9,8 @@ export const WORKER_ADMISSION_RECOVERY_VALIDATION_BOUNDARY =
   "wiki-core.node-engine-worker-admission-recovery";
 const WORKER_ADMISSION_RECOVERY_AUTHORITY = "advisory_recovery_only";
 const WORKER_ADMISSION_RECOVERY_ACTION_SUMMARY_MAX = 16;
-const WORKER_ADMISSION_RECOVERY_TOKEN_MAX = 24;
-const WORKER_ADMISSION_RECOVERY_TOKEN_LENGTH_MAX = 128;
 const WORKER_ADMISSION_RECOVERY_NEXT_ACTION_MAX = 240;
+const WORKER_ADMISSION_RECOVERY_SUBJECT_REPO_MAX = 256;
 const WORKER_ADMISSION_RECOVERY_PROJECTION_MODES = new Set([
   "bounded_current_decision_recovery",
   "route_problem_recovery",
@@ -87,6 +86,14 @@ const WORKER_ADMISSION_RECOVERY_ACTION_FIELDS = new Set([
   "thresholds",
   "next_action",
   "remedy_guidance",
+  "subject_repo",
+  "subject_unit",
+  "source_digest_present",
+]);
+const WORKER_ADMISSION_RECOVERY_SUBJECT_UNIT_FIELDS = new Set([
+  "record_id",
+  "slice_id",
+  "address",
 ]);
 const WORKER_ADMISSION_RECOVERY_THRESHOLD_FIELDS = new Set([
   "field",
@@ -97,13 +104,11 @@ const WORKER_ADMISSION_RECOVERY_THRESHOLD_FIELDS = new Set([
 const WORKER_ADMISSION_RECOVERY_THRESHOLD_BOUNDARIES = new Set(["review", "reject"]);
 
 export const WORKER_ADMISSION_RECOVERY_REVIEW_THRESHOLD_REASON_CODES = Object.freeze([
-  "review_threshold_exceeded",
-  "worker_admission.work_unit_atomicity.review_threshold_exceeded.v1"
+  "review_threshold_exceeded"
 ]);
 export const WORKER_ADMISSION_RECOVERY_PUBLIC_REASON_CODES = Object.freeze([
   ...WORKER_ADMISSION_RECOVERY_REVIEW_THRESHOLD_REASON_CODES,
-  "request_schema_unrecognized",
-  "worker_admission.work_unit_atomicity.write_scope_count_denied.v1"
+  "request_schema_unrecognized"
 ]);
 export const WORKER_ADMISSION_RECOVERY_REASON_CONTROL_IDS = Object.freeze([
   "write_scope_total_loc",
@@ -198,21 +203,44 @@ function hasOnlyAllowedFields(object, allowedFields) {
   return Object.keys(object).every((key) => allowedFields.has(key));
 }
 
+function unicodeCharacterLength(value) {
+  return Array.from(value).length;
+}
+
 function summarizeRecoveryTokenList(value) {
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > WORKER_ADMISSION_RECOVERY_TOKEN_MAX) return null;
+  if (!Array.isArray(value) || value.length === 0) return null;
   const tokens = [];
+  const seen = new Set();
   for (const item of value) {
-    if (
-      typeof item !== "string" ||
-      item.length === 0 ||
-      item.length > WORKER_ADMISSION_RECOVERY_TOKEN_LENGTH_MAX
-    ) {
-      return null;
-    }
+    if (typeof item !== "string" || item.length === 0 || seen.has(item)) return null;
+    seen.add(item);
     tokens.push(item);
   }
   return tokens;
+}
+
+function summarizeRecoverySubjectUnit(value) {
+  if (
+    !isPlainObject(value) ||
+    !hasOnlyAllowedFields(value, WORKER_ADMISSION_RECOVERY_SUBJECT_UNIT_FIELDS) ||
+    Object.keys(value).length !== WORKER_ADMISSION_RECOVERY_SUBJECT_UNIT_FIELDS.size ||
+    typeof value.record_id !== "string" ||
+    value.record_id.length === 0 ||
+    !(
+      value.slice_id === null ||
+      (typeof value.slice_id === "string" && value.slice_id.length > 0)
+    ) ||
+    typeof value.address !== "string" ||
+    value.address.length === 0
+  ) {
+    return null;
+  }
+  return {
+    record_id: value.record_id,
+    slice_id: value.slice_id,
+    address: value.address,
+  };
 }
 
 function summarizeRecoveryThresholds(value) {
@@ -328,7 +356,7 @@ function summarizeRemedyGuidance(value) {
   return summary;
 }
 
-function summarizeRecoveryAction(action) {
+function summarizeRecoveryAction(action, projectionMode) {
   if (!isPlainObject(action) || !hasOnlyAllowedFields(action, WORKER_ADMISSION_RECOVERY_ACTION_FIELDS)) {
     return null;
   }
@@ -345,20 +373,63 @@ function summarizeRecoveryAction(action) {
   const thresholds = summarizeRecoveryThresholds(action.thresholds);
   if (thresholds === null) return null;
   if (thresholds !== undefined) summary.thresholds = thresholds;
-  if (action.next_action !== undefined) {
-    if (
-      typeof action.next_action !== "string" ||
-      action.next_action.length === 0 ||
-      action.next_action.length > WORKER_ADMISSION_RECOVERY_NEXT_ACTION_MAX
-    ) {
-      return null;
-    }
-    summary.next_action = action.next_action;
+  if (
+    typeof action.next_action !== "string" ||
+    unicodeCharacterLength(action.next_action) === 0 ||
+    unicodeCharacterLength(action.next_action) > WORKER_ADMISSION_RECOVERY_NEXT_ACTION_MAX
+  ) {
+    return null;
   }
+  summary.next_action = action.next_action;
   if (action.remedy_guidance !== undefined) {
     const remedyGuidance = summarizeRemedyGuidance(action.remedy_guidance);
     if (remedyGuidance === null) return null;
     summary.remedy_guidance = remedyGuidance;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(action, "subject_repo")) {
+    if (
+      typeof action.subject_repo !== "string" ||
+      unicodeCharacterLength(action.subject_repo) === 0 ||
+      unicodeCharacterLength(action.subject_repo) > WORKER_ADMISSION_RECOVERY_SUBJECT_REPO_MAX
+    ) {
+      return null;
+    }
+    summary.subject_repo = action.subject_repo;
+  }
+  if (Object.prototype.hasOwnProperty.call(action, "subject_unit")) {
+    const subjectUnit = summarizeRecoverySubjectUnit(action.subject_unit);
+    if (subjectUnit === null) return null;
+    summary.subject_unit = subjectUnit;
+  }
+  if (Object.prototype.hasOwnProperty.call(action, "source_digest_present")) {
+    if (typeof action.source_digest_present !== "boolean") return null;
+    summary.source_digest_present = action.source_digest_present;
+  }
+
+  if (projectionMode === "bounded_current_decision_recovery") {
+    if (
+      summary.reason_codes === undefined ||
+      Object.prototype.hasOwnProperty.call(action, "problem_types")
+    ) {
+      return null;
+    }
+    if (
+      action.kind === "obtain_review_attestation" &&
+      (
+        summary.controls === undefined ||
+        summary.subject_repo === undefined ||
+        summary.subject_unit === undefined ||
+        summary.source_digest_present === undefined
+      )
+    ) {
+      return null;
+    }
+  } else if (
+    projectionMode === "route_problem_recovery" &&
+    (action.kind === "obtain_review_attestation" || summary.problem_types === undefined)
+  ) {
+    return null;
   }
   return summary;
 }
@@ -385,7 +456,8 @@ function summarizeWorkerAdmissionRecoveryObject(recovery) {
     return null;
   }
 
-  const actions = recovery.actions.map(summarizeRecoveryAction);
+  const actions = recovery.actions.map((action) =>
+    summarizeRecoveryAction(action, recovery.projection_mode));
   if (actions.some((action) => action === null)) return null;
   return {
     schema_version: recovery.schema_version,

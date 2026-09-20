@@ -22,6 +22,7 @@ import {
   isNonEmptyString,
   isWithinRepo
 } from "./launch-isolation-errors.mjs";
+import { rollbackPreparedWorkerDirectories } from "./launch-isolation-worker-scope.mjs";
 
 export function assertExistingDirectory(p, label, code) {
   let st;
@@ -160,10 +161,10 @@ function sameFileIdentity(real, expected) {
 
 function buildWritableFilePrecreationCleanup(createdEntries, attemptBinding = null) {
   const attemptId = randomUUID();
-  const owned = Object.freeze(createdEntries.map((entry) => Object.freeze({
-    real: entry.real,
-    identity: entry.identity
-  })));
+
+  const owned = Object.freeze(createdEntries.map((entry) => Object.freeze(entry.kind === "directory"
+    ? { real: entry.real, kind: "directory", identity: entry.identity }
+    : { real: entry.real, identity: entry.identity })));
   let completed = false;
   let result = null;
   const cleanup = () => {
@@ -172,6 +173,12 @@ function buildWritableFilePrecreationCleanup(createdEntries, attemptBinding = nu
     const preserved = [];
     for (let i = owned.length - 1; i >= 0; i -= 1) {
       const entry = owned[i];
+      if (entry.kind === "directory") {
+        const outcome = rollbackPreparedWorkerDirectories([entry]);
+        removed.push(...outcome.removed);
+        preserved.push(...outcome.preserved);
+        continue;
+      }
       if (!sameFileIdentity(entry.real, entry.identity)) {
         preserved.push(entry.real);
         continue;
@@ -401,6 +408,7 @@ function resolveWritableFileEntry(lexical, label, repoReal, { refuseSymlinks = f
 
 export function prepareWritableFiles(writableFiles, repoReal, {
   refuseSymlinks = false,
+  preparedDirectories = [],
   attemptBinding = null
 } = {}) {
   if (!Array.isArray(writableFiles)) {
@@ -411,7 +419,7 @@ export function prepareWritableFiles(writableFiles, repoReal, {
   }
   const out = [];
   const seen = new Set();
-  const created = [];
+  const created = [...preparedDirectories];
   try {
     for (let i = 0; i < writableFiles.length; i += 1) {
       const lexical = assertAbsoluteSafePath(writableFiles[i], `writableFiles[${i}]`);

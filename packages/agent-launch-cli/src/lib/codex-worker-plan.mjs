@@ -2,6 +2,7 @@ import path from "node:path";
 import { realpathSync } from "node:fs";
 
 import {
+  buildWorkerAssignmentCanonicalSummary,
   evaluateWorkRecordWrapperGate,
   parseWorkRecordUnitAddress,
   WORK_RECORD_WRAPPER_GATE_SCHEMA_VERSION
@@ -12,20 +13,30 @@ import {
   CODEX_WORKER_GRAPH_IMPACT_BRIDGE_ENV_VAR
 } from "./graph-impact-bridge.mjs";
 import {
-  computeWorkRecordSourceDigest,
-  loadWorkRecordById,
-  renderWorkRecordAgentBriefById,
-  validateWorkRecordDispatch
-} from "@agent-chassis/wiki-core";
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
+
+const loadValidateWorkRecordDispatch = async () => (
+  await import("@agent-chassis/wiki-core/src/operations/validate-dispatch.mjs")
+).validateWorkRecordDispatch;
+
+import {
+  renderWorkRecordAgentBriefById
+} from "@agent-chassis/wiki-core/src/operations/work-record-render.mjs";
 import {
   RUNTIME_BLOCKER_CODES
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import {
-  buildCanonicalSummary,
   evaluateWorkerAdmissionDecision,
   refuseCallerSuppliedWorkerIdentity,
 } from "./workspace-agent-worker-admission.mjs";
+import { resolveWorkerMaterialRepository } from "./worker-assignment-capture.mjs";
+
+import {
+  assertManagedWorkerAssignment
+} from "./worker-assignment-authority.mjs";
 import {
   attachWorkerAdmissionRemediation,
   buildModelUnsetRefusal,
@@ -127,8 +138,7 @@ export {
   ensureNewWorkerWriteRoots,
   evaluateWorkerAdmissionDecision,
   evaluateWorkerAdmissionForBackend,
-  refuseCallerSuppliedWorkerIdentity,
-  buildCanonicalSummary
+  refuseCallerSuppliedWorkerIdentity
 } from "./workspace-agent-worker-admission.mjs";
 
 export {
@@ -151,6 +161,15 @@ export async function resolveWorkerPlanRepoRoots({
   return { repo, canonicalReadRepo: repo };
 }
 
+function preserveAgentBriefRendererDiagnostics(gateRefusal, rendered) {
+  const diagnostics = rendered.valid === false && Array.isArray(rendered.diagnostics)
+    ? rendered.diagnostics.filter((entry) => typeof entry?.code === "string" && entry.code.length > 0)
+    : [];
+  const failure = diagnostics.findLast((entry) => entry.severity === "error") ?? diagnostics.at(-1);
+  if (failure === undefined) return gateRefusal;
+  return { ...gateRefusal, wrapper_gate_code: failure.code, diagnostics };
+}
+
 export async function buildWorkerPlan({
   role,
   wk,
@@ -165,6 +184,10 @@ export async function buildWorkerPlan({
   provisioned_worktree_git_identity = null,
   worker_scope_authority = null,
   worktree_provisioning = null,
+
+  dispatchWorkspaceBinding = null,
+
+  worker_assignment = null,
 
   terminalStructuredRoleResultMode = undefined
 }) {
@@ -233,6 +256,44 @@ export async function buildWorkerPlan({
 
   const managedCanonicalMainRepo =
     assertManagedProvisioningMainRepo(worktree_provisioning, serverOwnedSliceBinding);
+
+  let managedAssignment = null;
+  if (worktree_provisioning !== null) {
+    try {
+      managedAssignment = assertManagedWorkerAssignment(worker_assignment, {
+        role: "worker",
+        subject: wk,
+        worktreePath: worktree_provisioning.worktree_path
+      });
+    } catch (error) {
+      return {
+        mode: "refusal",
+        role,
+        subject: typeof wk === "string" ? wk : null,
+        repo: worktree_provisioning.worktree_path ?? null,
+        command: "codex",
+        args: [],
+        env: { ...env, AGENT_ROLE: "worker", AGENT_SUBJECT: typeof wk === "string" ? wk : "" },
+        refusal: {
+          schema_version: WORK_RECORD_WRAPPER_GATE_SCHEMA_VERSION,
+          allowed: false,
+          wrapper_gate_code: error?.code ?? "worker_assignment_missing",
+          role,
+          unit_address: typeof wk === "string" ? wk : null,
+          expected_unit_address: typeof wk === "string" ? wk : null,
+          diagnostics: [{
+            code: error?.code ?? "worker_assignment_missing",
+            message: error?.message ?? String(error),
+            path: "worker_assignment",
+            authority_limb: "mechanical_failure"
+          }],
+          readiness: null,
+          agent_brief: null,
+          launch_packet: null
+        }
+      };
+    }
+  }
   if (managedWorkerCommitRequired) {
     assertNoConfiguredCodexWorkerCommitCredential({ env });
   }
@@ -257,6 +318,7 @@ export async function buildWorkerPlan({
   const recordId = unit.value.record_id;
   const sliceId = unit.value.slice_id;
   const now = env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString();
+  const validateWorkRecordDispatch = await loadValidateWorkRecordDispatch();
   const initialReadiness = await validateWorkRecordDispatch({
     dir: canonicalReadRepo,
     unitAddress,
@@ -376,14 +438,34 @@ export async function buildWorkerPlan({
     unit: unit.value,
     env
   });
-  const canonicalSummary = buildCanonicalSummary(loaded.record, readiness, unit.value);
-  const agentBriefResult = await renderWorkRecordAgentBriefById({
-    dir: canonicalReadRepo,
-    id: recordId,
-    sliceId
-  });
+
+  const canonicalSummary = managedAssignment !== null
+    ? managedAssignment.canonical_summary
+    : buildWorkerAssignmentCanonicalSummary(loaded.record, readiness, unit.value);
+  const agentBriefResult = managedAssignment !== null
+    ? {
+        valid: true,
+        brief: managedAssignment.agent_brief.brief,
+        projection: managedAssignment.agent_brief.projection,
+        diagnostics: []
+      }
+    : await renderWorkRecordAgentBriefById({
+        dir: canonicalReadRepo,
+        id: recordId,
+        sliceId,
+        repository: resolveWorkerMaterialRepository({
+          managedCanonicalMainRepo,
+          dispatchWorkspaceBinding,
+          env,
+          canonicalReadRepo
+        })
+      });
+
+  const effectiveTerminalResultMode = managedAssignment !== null
+    ? managedAssignment.terminal_result_mode
+    : terminalStructuredRoleResultMode;
   if (!agentBriefResult.valid || !agentBriefResult.brief || !agentBriefResult.projection) {
-    const refusal = evaluateWorkRecordWrapperGate({
+    const gateRefusal = evaluateWorkRecordWrapperGate({
       role,
       unitAddress,
       readiness,
@@ -394,8 +476,9 @@ export async function buildWorkerPlan({
       supplementalInstructions: promptArgs,
 
       remoteWorkerAdmission: remoteAdmissionProvenance,
-      terminalStructuredRoleResultMode
+      terminalStructuredRoleResultMode: effectiveTerminalResultMode
     });
+    const refusal = preserveAgentBriefRendererDiagnostics(gateRefusal, agentBriefResult);
     return {
       mode: "refusal",
       role,
@@ -426,10 +509,12 @@ export async function buildWorkerPlan({
     },
 
     remoteWorkerAdmission: remoteAdmissionProvenance,
+
+    preparedLaunchPacket: managedAssignment?.launch_packet ?? null,
     launchTimestamp: env.AGENT_LAUNCH_TIMESTAMP || new Date().toISOString(),
     supplementalInstructions: promptArgs,
 
-    terminalStructuredRoleResultMode
+    terminalStructuredRoleResultMode: effectiveTerminalResultMode
   });
   if (!gate.allowed) {
     const refusal = attachWorkerAdmissionRemediation(gate);
@@ -467,7 +552,7 @@ export async function buildWorkerPlan({
     worktree_provisioning,
     serverProvisionedWorktreeGitBinding,
     remoteAdmissionProvenance,
-    terminalStructuredRoleResultMode,
+    terminalStructuredRoleResultMode: effectiveTerminalResultMode,
     buildCodexWritableSandboxArgs,
     buildHeadlessPlan,
     ROLE_CONFIG

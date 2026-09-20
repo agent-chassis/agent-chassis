@@ -1,3 +1,6 @@
+import { resolveNativeTestSelector } from
+  "../../../controlled-contract/lib/test-proof-provider-registry.mjs";
+
 const PACKAGE_SPECIFIER = "@agent-chassis/controlled-contract";
 const STABLE_V1 = "controlled-acceptance-contract.v1";
 const CLOSED_NODE_TEST_TARGET_RE =
@@ -19,10 +22,9 @@ function diagnostic(code, field, details = {}) {
     field,
     ...details,
     recovery: {
-      tool: "workspace_controlled_test_proof_query",
-      arguments: details.verification_id
-        ? { verification_ids: [details.verification_id] }
-        : { verification_ids: [] }
+      capability: "saved proof declaration correction",
+      available_route: null,
+      reason: "this validation boundary does not own the unit identity required for a callable semantic correction"
     }
   };
 }
@@ -36,6 +38,14 @@ function isClosedRelativeTarget(value) {
   return typeof value === "string" && value.length > 0 && value.length <= 4096 &&
     !value.startsWith("/") && !value.includes("\\") && !value.includes("\0") &&
     value.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+}
+
+export const CLOSED_NODE_TEST_TARGET_STATEMENT =
+  "one canonical repository-relative .mjs node:test module path";
+
+export function isClosedNodeTestTarget(value) {
+  return typeof value === "string" && !value.startsWith("-") &&
+    CLOSED_NODE_TEST_TARGET_RE.test(value) && isClosedRelativeTarget(value);
 }
 
 function validationIssue(code, path, message, details = {}) {
@@ -83,6 +93,8 @@ export function projectWorkRecordTestProofValidation({
   const declarations = [];
   const notes = [];
   const validationEntries = [];
+
+  const entryKinds = [];
   const seenExecutableVerificationIds = new Set();
   if (selectedUnit?.sections && typeof selectedUnit.sections === "object" &&
       Object.hasOwn(selectedUnit.sections, "structured_validation")) {
@@ -98,6 +110,7 @@ export function projectWorkRecordTestProofValidation({
   } else {
     validation.forEach((entry, index) => {
       const entryPath = `${path}[${index}]`;
+      entryKinds[index] = "invalid";
       if (typeof entry === "string") {
         if (entry.trim().length === 0) issues.push(validationIssue(
           "validation_note_invalid", entryPath, `${entryPath} must be a nonblank note`
@@ -105,6 +118,7 @@ export function projectWorkRecordTestProofValidation({
         else {
           notes.push(Object.freeze({ note: entry, verification_ids: Object.freeze([]) }));
           validationEntries.push(entry);
+          entryKinds[index] = "note";
         }
         return;
       }
@@ -123,9 +137,7 @@ export function projectWorkRecordTestProofValidation({
           "validation_operation_invalid", `${entryPath}.operation`,
           `${entryPath}.operation must be node_test`
         ));
-        if (typeof entry.target !== "string" || entry.target.startsWith("-") ||
-            !CLOSED_NODE_TEST_TARGET_RE.test(entry.target) ||
-            !isClosedRelativeTarget(entry.target)) issues.push(validationIssue(
+        if (!isClosedNodeTestTarget(entry.target)) issues.push(validationIssue(
           "validation_target_invalid", `${entryPath}.target`,
           `${entryPath}.target must be one canonical repository-relative .mjs test-module path`
         ));
@@ -145,9 +157,9 @@ export function projectWorkRecordTestProofValidation({
             seenExecutableVerificationIds.add(identity);
           }
         }
-        if (entry.operation === "node_test" && typeof entry.target === "string" &&
-            CLOSED_NODE_TEST_TARGET_RE.test(entry.target) &&
-            isClosedRelativeTarget(entry.target) && verificationIds !== null) {
+        if (entry.operation === "node_test" && isClosedNodeTestTarget(entry.target) &&
+            verificationIds !== null) {
+          entryKinds[index] = "executable";
           declarations.push(Object.freeze({
             operation: "node_test",
             target: entry.target,
@@ -183,6 +195,7 @@ export function projectWorkRecordTestProofValidation({
         });
         notes.push(note);
         validationEntries.push(note);
+        entryKinds[index] = "note";
       }
     });
   }
@@ -202,10 +215,76 @@ export function projectWorkRecordTestProofValidation({
     status: issues.length === 0 ? "valid" : "invalid",
     diagnostics: issues,
     validation_entries: validationEntries,
+    entry_kinds: entryKinds,
     executable_declarations: declarations,
     notes,
     targets: [...new Set(projected.map(([target]) => target))].sort(),
     validation_bindings: Object.fromEntries(projected)
+  });
+}
+
+function workRecordUnitAddress(workRecord, unit) {
+  return unit?.id === workRecord?.id ? workRecord?.id : `${workRecord?.id}#${unit?.id}`;
+}
+
+export function projectCaseOwnedTestProofValidation({ workRecord, selectedUnit, caseTargets }) {
+  const selected = projectWorkRecordTestProofValidation({ selectedUnit });
+  const selectedAddress = workRecordUnitAddress(workRecord, selectedUnit);
+  const owned = new Map(caseTargets.filter(({ owner_unit: owner }) => typeof owner === "string")
+    .map(({ verification_id: id, owner_unit: owner }) => [id, owner]));
+  if (owned.size === 0) return selected;
+  const units = new Map(canonicalWorkRecordUnits(workRecord).map((unit) =>
+    [workRecordUnitAddress(workRecord, unit), unit]));
+  const projections = new Map([[selectedAddress, selected]]);
+  const project = (address) => {
+    if (!projections.has(address)) projections.set(address,
+      projectWorkRecordTestProofValidation({ selectedUnit: units.get(address) }));
+    return projections.get(address);
+  };
+  const declared = (address, id) => project(address).executable_declarations
+    .filter((entry) => entry.verification_ids.includes(id))
+    .map((entry) => ({ operation: entry.operation, target: entry.target,
+      verification_ids: [id], unit: address }));
+  const diagnostics = [...selected.diagnostics];
+  const invalidOwners = new Set();
+  const declarations = selected.executable_declarations.flatMap((entry) => {
+    const ids = entry.verification_ids.filter((id) => !owned.has(id));
+    return ids.length === 0 ? [] : [{ ...entry, verification_ids: ids, unit: selectedAddress }];
+  });
+  const resolutions = [];
+  for (const [id, owner] of [...owned].sort(([left], [right]) => left.localeCompare(right))) {
+    if (!units.has(owner)) {
+      diagnostics.push(validationIssue("validation_case_owner_unit_missing", "cases/target/owner_unit",
+        `the shared case owner '${owner}' of verification '${id}' is not a unit of ${workRecord?.id}`,
+        { verification_id: id, owner_unit: owner }));
+      resolutions.push({ verification_id: id, owner_unit: owner, status: "owner_missing", declaring_units: [] });
+      continue;
+    }
+    if (owner !== selectedAddress && project(owner).status !== "valid" && !invalidOwners.has(owner)) {
+      invalidOwners.add(owner);
+      diagnostics.push(...project(owner).diagnostics.map((entry) =>
+        ({ ...entry, path: `${owner}/${entry.path}`, owner_unit: owner })));
+    }
+    const ownerDeclarations = declared(owner, id);
+    const foreign = [...units.keys()].filter((address) => address !== owner)
+      .flatMap((address) => declared(address, id));
+    const duplicates = ownerDeclarations.length === 0 ? [] : foreign;
+    declarations.push(...ownerDeclarations, ...duplicates);
+    const count = ownerDeclarations.length + duplicates.length;
+    resolutions.push({ verification_id: id, owner_unit: owner,
+      status: count === 0 ? "declaration_missing" : count === 1 ? "resolved" : "ambiguous",
+      declaring_units: [...new Set([...ownerDeclarations, ...foreign].map(({ unit }) => unit))].sort() });
+  }
+  declarations.sort((left, right) =>
+    `${left.target}:${left.unit}:${left.verification_ids.join()}`.localeCompare(
+      `${right.target}:${right.unit}:${right.verification_ids.join()}`));
+  return deepFreeze({
+    ...structuredClone(selected),
+    schema_version: "work-record-case-owned-validation-declarations.v1",
+    status: diagnostics.length === 0 ? "valid" : "invalid",
+    diagnostics,
+    executable_declarations: declarations,
+    case_owner_resolutions: resolutions
   });
 }
 
@@ -413,6 +492,36 @@ function resolveAuthorizedDeclaredTestTarget({
   });
 }
 
+function resolveNativeCaseDeclaredTestTarget({
+  verificationId,
+  selector,
+  unit,
+  controlledContractGeneration,
+  sourceSnapshotDigest = null
+}) {
+  const native = resolveNativeTestSelector(selector);
+  if (!native.valid) return deepFreeze({
+    schema_version: "wiki-core-declared-test-target-resolution.v1",
+    status: "refused",
+    verification_id: verificationId,
+    diagnostics: [diagnostic("test_proof_native_case_target_invalid", "/cases/target", {
+      verification_id: verificationId, selector_pointer: native.pointer })]
+  });
+  return deepFreeze({
+    schema_version: "wiki-core-declared-test-target-resolution.v1",
+    status: "resolved",
+    verification_id: verificationId,
+    unit,
+    operation: "native_test_proof",
+    target_owner: "authored_case_target",
+    provider: { provider_id: native.provider_id, provider_version: native.provider_version },
+    target: native.path,
+    target_id: `native-case-target:${unit}:${verificationId}:${native.provider_id}@${native.provider_version}:${native.path}`,
+    controlled_contract_generation: controlledContractGeneration,
+    source_snapshot_digest: sourceSnapshotDigest
+  });
+}
+
 function deriveWorkRecordTestProofBindingFacts({selectedUnit}) {
   const projection = projectWorkRecordTestProofValidation({ selectedUnit });
   const diagnostics = projection.diagnostics.map((entry) =>
@@ -435,7 +544,8 @@ async function validateWorkRecordTestProofBindings({
   workRecord,
   selectedUnit,
   controlledContract,
-  packageApi = null
+  packageApi = null,
+  nativeCaseVerificationIds = []
 }) {
   if (controlledContract?.schema_version !== STABLE_V1) return {
     status: "refused",
@@ -474,7 +584,10 @@ async function validateWorkRecordTestProofBindings({
     kind === "verification" && method === "test_execution"
   ).map(({claim_id: id}) => id).sort();
   const bound = new Set(bindings.map(({verification_id: id}) => id));
-  for (const verificationId of required) if (!bound.has(verificationId)) diagnostics.push(
+
+  const nativeBound = new Set(nativeCaseVerificationIds);
+  for (const verificationId of required) if (!bound.has(verificationId) &&
+      !nativeBound.has(verificationId)) diagnostics.push(
     diagnostic("test_proof_validation_binding_missing", "/acceptance/validation", {
       verification_id: verificationId
     })
@@ -506,12 +619,10 @@ async function validateWorkRecordTestProofBindings({
         contract: controlledContract,
         verificationIds: [...bound]
       });
+
       if (selected.matched_count !== bound.size) diagnostics.push(diagnostic(
         "test_proof_binding_incomplete", "/test_proofs"
       ));
-      for (const binding of selected.bindings) {
-        api.resolveStableTestProofProviderBindings(binding);
-      }
     } catch (error) {
       diagnostics.push(diagnostic(
         "test_proof_binding_invalid", "/test_proofs",
@@ -534,5 +645,81 @@ async function validateWorkRecordTestProofBindings({
 export {
   deriveWorkRecordTestProofBindingFacts,
   resolveAuthorizedDeclaredTestTarget,
+  resolveNativeCaseDeclaredTestTarget,
   validateWorkRecordTestProofBindings
 };
+
+export function removeWorkRecordTestProofTarget(unit, verificationId) {
+  const prospective = structuredClone(unit.acceptance.validation);
+  for (let index = prospective.length - 1; index >= 0; index--) {
+    const entry = prospective[index];
+    if (entry?.operation !== 'node_test' || !entry.verification_ids?.includes(verificationId)) continue;
+    entry.verification_ids = entry.verification_ids.filter(id => id !== verificationId);
+    if (entry.verification_ids.length === 0) prospective.splice(index, 1);
+  }
+  unit.acceptance.validation = prospective;
+}
+
+export function amendWorkRecordTestProofTarget(unit, verificationId, target) {
+  if (unit.acceptance.validation.some(entry => entry?.operation === 'node_test' && entry.target === target &&
+      entry.verification_ids?.includes(verificationId))) return;
+  const prospective = structuredClone(unit.acceptance.validation);
+  for (let index = prospective.length - 1; index >= 0; index--) {
+    const entry = prospective[index];
+    if (entry?.operation !== 'node_test' || !entry.verification_ids?.includes(verificationId)) continue;
+    entry.verification_ids = entry.verification_ids.filter(id => id !== verificationId);
+    if (entry.verification_ids.length === 0) prospective.splice(index, 1);
+  }
+  const shared = prospective.find(entry => entry?.operation === 'node_test' && entry.target === target);
+  if (shared) shared.verification_ids = [...shared.verification_ids, verificationId].sort();
+  else prospective.push({ operation: 'node_test', target, verification_ids: [verificationId] });
+  const validation = projectWorkRecordTestProofValidation({ selectedUnit: { ...unit,
+    acceptance: { ...unit.acceptance, validation: prospective } } });
+  if (validation.status !== 'valid') {
+    const error = new Error('Prospective test target violates the work-record target contract');
+    error.code = 'obligation_coverage_case_target_invalid'; error.details = { changed: false, validation }; throw error;
+  }
+  unit.acceptance.validation = prospective;
+}
+
+export function rebindWorkRecordTestProofVerificationIds(record, mapping) {
+  const units = canonicalWorkRecordUnits(record);
+  const address = unit => unit === record ? record.id : `${record.id}#${unit.id}`;
+  const prospective = units.map(unit => {
+    const validation = unit.acceptance?.validation;
+    if (!Array.isArray(validation) || !validation.some(entry => entry?.operation === 'node_test' &&
+        entry.verification_ids?.some(id => mapping.has(id)))) return null;
+    return validation.map(entry => entry?.operation === 'node_test' && Array.isArray(entry.verification_ids)
+      ? { ...entry, verification_ids: entry.verification_ids.map(id => mapping.get(id) ?? id) } : entry);
+  });
+  const fail = (code, message, details) => {
+    const error = new Error(message);
+    error.code = code; error.details = { changed: false, ...details }; throw error;
+  };
+  units.forEach((unit, index) => {
+    if (prospective[index] === null) return;
+    const validation = projectWorkRecordTestProofValidation({ selectedUnit: { ...unit,
+      acceptance: { ...unit.acceptance, validation: prospective[index] } } });
+    if (validation.status !== 'valid') fail('obligation_coverage_case_target_invalid',
+      'Rebinding verification identities violates the work-record target contract',
+      { unit: address(unit), validation });
+  });
+  const replacements = new Set(mapping.values());
+  const declaringUnits = new Map();
+  units.forEach((unit, index) => {
+    for (const entry of prospective[index] ?? unit.acceptance?.validation ?? []) {
+      if (entry?.operation !== 'node_test') continue;
+      for (const id of entry.verification_ids ?? []) if (replacements.has(id)) {
+        declaringUnits.set(id, [...new Set([...(declaringUnits.get(id) ?? []), address(unit)])]);
+      }
+    }
+  });
+  for (const [verificationId, owners] of declaringUnits) if (owners.length > 1) fail(
+    'obligation_coverage_case_selector_cross_unit',
+    'A rebound verification would be declared by more than one unit; change the target through its owner',
+    { verification_id: verificationId, owner_units: owners.sort() });
+  units.forEach((unit, index) => {
+    if (prospective[index] !== null) unit.acceptance.validation = prospective[index];
+  });
+  return units.filter((_unit, index) => prospective[index] !== null).map(address);
+}

@@ -10,7 +10,7 @@ const V2_FILE = "schema/controlled-contract-assessment.v2.schema.json";
 const V3_FILE = "schema/controlled-contract-assessment.v3.schema.json";
 const PROOF_SELECTION_STATUS_FILE = "lib/proof-intent-selection-status.mjs";
 const PROOF_SELECTION_V2_FILE =
-  "schema/controlled-contract-proof-pack-selection.v2.schema.json";
+  "schema/controlled-contract-proof-pack-selection.v4.schema.json";
 
 const v3Schema = JSON.parse(await readFile(new URL(`../${V3_FILE}`, import.meta.url)));
 

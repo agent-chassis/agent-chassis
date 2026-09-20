@@ -1,6 +1,10 @@
+import { loadProofDiscoveryPopulation, discoveryLimitation } from "./proof-discovery-scope.mjs";
 import { readFile } from "node:fs/promises";
 
+import { loadAdmittedProofPackMeaning } from "./admitted-proof-packs.mjs";
+
 import { compiledValidators } from "./compiled-validator-cache.mjs";
+import { TEST_PROOF_PROVIDER_AUTHORING_FACTS } from "./test-proof-provider-registry.mjs";
 import {
   canonicalDigest,
   canonicalJsonBytes,
@@ -13,7 +17,7 @@ const packageRoot = new URL("../", import.meta.url);
 const [rawCatalog, catalogSchema, discoverySchema] = await Promise.all([
   readJson(new URL("proof-intents/catalog.json", packageRoot)),
   readJson(new URL(
-    "schema/controlled-contract-proof-intent-catalog.v1.schema.json",
+    "schema/controlled-contract-proof-intent-catalog.v2.schema.json",
     packageRoot
   )),
   readJson(new URL(
@@ -23,7 +27,8 @@ const [rawCatalog, catalogSchema, discoverySchema] = await Promise.all([
 ]);
 
 const MAX_DISCOVERY_QUERY_BYTES = 1_024;
-const MAX_DISCOVERY_RESULT_BYTES = 65_536;
+
+const MAX_DISCOVERY_RESULT_BYTES = null;
 const MAX_DISCOVERY_RETURNED_INTENTS = 256;
 const {
   validateProofIntentCatalog,
@@ -188,6 +193,19 @@ const PROOF_INTENT_DISCOVERY_CATALOG_DIGEST = canonicalDigest(
   PROOF_INTENT_DISCOVERY_CATALOG
 );
 
+const discoveryPopulation = await loadProofDiscoveryPopulation(PROOF_INTENT_DISCOVERY_CATALOG, canonicalDigest(rawCatalog));
+
+const PROOF_VERIFICATION_CAPABILITIES = deepFreeze(Object.fromEntries(
+  (await Promise.all(discoveryPopulation.population.map(async ({ proof_name: proofName }) => [
+    proofName,
+    (await loadAdmittedProofPackMeaning(proofName)).profile.stable_capabilities?.test_validity ?? null
+  ]))).filter(([, capability]) => capability !== null)
+));
+
+function proofVerificationCapability(proofName) {
+  return PROOF_VERIFICATION_CAPABILITIES[proofName] ?? null;
+}
+
 function validateOptions(options, unexpectedArguments) {
   if (unexpectedArguments.length > 0) throw new ProofIntentDiscoveryError(
     "proof_intent_discovery_arguments_invalid",
@@ -203,7 +221,7 @@ function validateOptions(options, unexpectedArguments) {
   }
   const keys = Reflect.ownKeys(options);
   const unsupported = keys.filter((key) => typeof key !== "string" ||
-    !["query", "limit"].includes(key));
+    !["query", "limit", "proof_name"].includes(key));
   if (unsupported.length > 0) throw new ProofIntentDiscoveryError(
     "proof_intent_discovery_option_unsupported",
     "proof-intent discovery accepts only query and search-result limit options",
@@ -213,6 +231,11 @@ function validateOptions(options, unexpectedArguments) {
 }
 
 function prepareRequest(options) {
+  if (Object.hasOwn(options, "proof_name")) {
+    if (Object.keys(options).length !== 1 || typeof options.proof_name !== "string" || !options.proof_name.length)
+      throw new ProofIntentDiscoveryError("proof_discovery_identity_invalid", "exact name lookup accepts only proof_name");
+    return { mode: "detail", proofName: options.proof_name, query: null, queryTerms: null, limit: null };
+  }
   const hasQuery = Object.hasOwn(options, "query");
   const hasLimit = Object.hasOwn(options, "limit");
   const limit = hasLimit ? options.limit : null;
@@ -252,103 +275,118 @@ function prepareRequest(options) {
   };
 }
 
-function searchableSources(intent) {
+function searchableSources(candidate) {
   return [
-    { source: "intent_id", source_value: intent.intent_id },
-    { source: "definition", source_value: intent.definition },
-    ...intent.discovery_terms.map((term) => ({
-      source: "discovery_term", source_value: term
-    }))
-  ].map((source) => ({
-    ...source,
-    normalized_terms: new Set(normalizeSearchText(source.source_value).split(" "))
-  }));
+    { source: "assertion", source_value: candidate.assertion },
+    ...candidate.constraints.map(clause => ({ source: "constraint", source_value:
+      JSON.stringify(clause) })),
+    ...candidate.refinements.map(value => ({ source: "constraint", source_value: JSON.stringify(value) })),
+    ...candidate.exclusions.map(source_value => ({ source: "exclusion", source_value })),
+    { source: "name", source_value: candidate.proof_name.slice("proof.".length) },
+    ...candidate.intents.flatMap(intent => [
+      { source: "intent_id", source_value: intent.intent_id.replace(/^controlled-proof-intent\./u, "") },
+      { source: "definition", source_value: intent.definition },
+      ...intent.discovery_terms.map(source_value => ({ source: "discovery_term", source_value }))
+    ])
+  ];
 }
 
-function searchIntent(intent, queryTerms) {
-  const sources = searchableSources(intent);
-  const searchableTerms = new Set(sources.flatMap(
-    ({ normalized_terms: terms }) => [...terms]
-  ));
-  const matchedTerms = queryTerms.filter((term) => searchableTerms.has(term));
-  if (matchedTerms.length === 0) return null;
-  const unmatchedTerms = queryTerms.filter((term) => !searchableTerms.has(term));
-  const reasons = sources.map(({
-    source, source_value: sourceValue, normalized_terms: terms
-  }) => ({
-    source,
-    source_value: sourceValue,
-    matched_terms: matchedTerms.filter((term) => terms.has(term))
-  })).filter(({ matched_terms: matchedTerms }) => matchedTerms.length > 0)
-    .sort((left, right) => compareCodeUnits(
-      `${left.source}\0${left.source_value}`,
-      `${right.source}\0${right.source_value}`
-    ));
+const SOURCE_WEIGHTS = Object.freeze({ assertion: 2, definition: 2, constraint: 2,
+  name: 1, intent_id: 1, discovery_term: 1, exclusion: 0 });
+const SEMANTIC_SOURCES = Object.freeze(["assertion", "constraint", "definition"]);
+const RELEVANCE_SCORE_SCALE = 1_000;
+
+function createProofIntentSearchIndex(population) {
+  const indexedSourceTokens = population.map(candidate => {
+    const tokens = new Map();
+    for (const { source, source_value: value } of searchableSources(candidate)) {
+      if (!tokens.has(source)) tokens.set(source, new Set());
+      for (const token of normalizeSearchText(value).split(" ")) tokens.get(source).add(token);
+    }
+    return tokens;
+  });
+  const indexedDocumentFrequency = new Map();
+  for (const tokens of indexedSourceTokens) for (const [source, values] of tokens) {
+    for (const token of values) {
+      const key = `${source}\u0000${token}`;
+      indexedDocumentFrequency.set(key, (indexedDocumentFrequency.get(key) ?? 0) + 1);
+    }
+  }
+  return { populationSize: population.length, sourceTokens: indexedSourceTokens,
+    documentFrequency: indexedDocumentFrequency };
+}
+const productionSearchIndex = createProofIntentSearchIndex(discoveryPopulation.population);
+const inverseDocumentFrequency = (searchIndex, source, term) => Math.log(
+  searchIndex.populationSize / searchIndex.documentFrequency.get(`${source}\u0000${term}`));
+
+const PROVIDER_TERM_FAMILIES = new Map();
+for (const family of TEST_PROOF_PROVIDER_AUTHORING_FACTS) {
+  for (const term of family.identity_terms.map(normalizeSearchText)) {
+    if (term.length === 0 || term.includes(" ")) continue;
+    PROVIDER_TERM_FAMILIES.set(term, sortedUnique([...(PROVIDER_TERM_FAMILIES.get(term) ?? []),
+      family.family_id]));
+  }
+}
+
+function providerContext(queryTerms) {
+  const providerTerms = (queryTerms ?? []).filter(term => PROVIDER_TERM_FAMILIES.has(term));
+  const families = providerTerms.length === 0 ? [] : providerTerms
+    .map(term => PROVIDER_TERM_FAMILIES.get(term))
+    .reduce((left, right) => left.filter(family => right.includes(family)));
   return {
-    match_kind: unmatchedTerms.length === 0 ? "exact_match" : "partial_match",
-    matched_terms: matchedTerms,
-    unmatched_terms: unmatchedTerms,
-    match_reasons: reasons
+    status: providerTerms.length === 0 ? "unspecified" : families.length === 1 ? "identified" :
+      families.length === 0 ? "conflicting" : "ambiguous",
+    provider_terms: providerTerms,
+    families
   };
 }
 
-function summarizeIntent(intent, match) {
-  return {
-    intent_id: intent.intent_id,
-    definition: intent.definition,
-    discovery_terms: [...intent.discovery_terms],
-    capable_packs: structuredClone(intent.capable_packs),
-    distinctions: structuredClone(intent.distinctions),
-    match_kind: match?.match_kind ?? "catalog_entry",
-    matched_terms: structuredClone(match?.matched_terms ?? []),
-    unmatched_terms: structuredClone(match?.unmatched_terms ?? []),
-    match_reasons: structuredClone(match?.match_reasons ?? [])
-  };
+function searchCandidate(candidate, index, queryTerms, providerTerms, searchIndex) {
+  const propertyTerms = queryTerms.filter(term => !providerTerms.includes(term));
+  const reasons = searchableSources(candidate).map(source => ({ ...source,
+    matched_terms: propertyTerms.filter(term => normalizeSearchText(source.source_value).split(" ").includes(term))
+  })).filter(source => source.matched_terms.length);
+  const semantic = sortedUnique(reasons.filter(x => SEMANTIC_SOURCES.includes(x.source))
+    .flatMap(x => x.matched_terms));
+  const matched = sortedUnique(reasons.flatMap(x => x.matched_terms));
+  if (!matched.length) return null;
+  let score = 0;
+  for (const term of matched) for (const [source, tokens] of searchIndex.sourceTokens[index]) {
+    if (tokens.has(term)) score += SOURCE_WEIGHTS[source] *
+      inverseDocumentFrequency(searchIndex, source, term);
+  }
+  return { match_kind: semantic.length === propertyTerms.length ? "assertion_match" :
+    semantic.length ? "partial_assertion_match" : "navigation_or_exclusion_match",
+    relevance_score: Math.round(score * RELEVANCE_SCORE_SCALE),
+    matched_terms: matched, unmatched_terms: propertyTerms.filter(term => !matched.includes(term)),
+    provider_terms: providerTerms, semantic_terms: semantic, match_reasons: reasons };
 }
 
-function guidanceFor(status) {
-  if (status === "match") return {
-    code: "inspect_exact_candidates",
-    message: "Every returned candidate matches all normalized query terms; inspect candidates and explicitly choose any applicable controlled intent."
-  };
-  if (status === "partial_match") return {
-    code: "inspect_partial_candidates_and_refine_query",
-    message: "No candidate matches every normalized query term; inspect matched and unmatched terms, then refine the query or list the bounded catalog."
-  };
-  if (status === "no_match") return {
-    code: "refine_query_or_list_catalog",
-    message: "No catalog candidate shares a normalized query term; remove or replace terms, or list the bounded catalog without a query."
-  };
-  return {
-    code: "inspect_catalog",
-    message: "Inspect the complete bounded catalog and explicitly choose any applicable controlled intent."
-  };
+function rankProofIntentCandidates(population, { queryTerms, providerTerms = [], limit = null,
+  searchIndex = createProofIntentSearchIndex(population) }) {
+  const matches = population.map((candidate, index) => {
+    const ranking = searchCandidate(candidate, index, queryTerms, providerTerms, searchIndex);
+    if (ranking === null) return null;
+    const { intents, ...scope } = candidate;
+    return { ...scope, matching_assertion: scope.assertion,
+      essential_limitation: discoveryLimitation(scope, queryTerms, normalizeSearchText),
+      ranking, associations: intents.map(intent => intent.intent_id) };
+  }).filter(Boolean);
+  const tiers = { assertion_match: 0, partial_assertion_match: 1,
+    navigation_or_exclusion_match: 2 };
+  matches.sort((left, right) => tiers[left.ranking.match_kind] - tiers[right.ranking.match_kind] ||
+    right.ranking.relevance_score - left.ranking.relevance_score || compareCodeUnits(left.id, right.id));
+  return limit === null ? matches : matches.slice(0, limit);
 }
 
 function assertResultSemantics(result) {
-  const expectedNoMatch = result.total_match_count === 0;
-  const expectedPartial = result.intents.length > 0 &&
-    result.intents.every(({ match_kind: matchKind }) =>
-      matchKind === "partial_match");
-  if (result.evaluated_intent_count !== result.catalog_intent_count ||
-      result.returned_count !== result.intents.length ||
+  if (result.returned_count !== result.candidates.length ||
       result.omitted_count !== result.total_match_count - result.returned_count ||
       result.truncated !== (result.omitted_count > 0) ||
-      (result.status === "no_match") !== expectedNoMatch ||
-      (result.status === "partial_match") !== expectedPartial ||
-      (result.mode === "list" && (
-        result.query !== null ||
-        (result.result_limit === null && (
-          result.truncated || result.returned_count !== result.catalog_intent_count
-        ))
-      )) ||
-      (result.mode === "search" && (
-        result.query === null || result.result_limit === null
-      ))) {
-    throw new ProofIntentDiscoveryError(
-      "proof_intent_discovery_result_inconsistent",
-      "proof-intent discovery produced internally inconsistent scan or limit facts"
-    );
+      new Set(result.candidates.map(x => x.id)).size !== result.candidates.length ||
+      (result.status === "no_match") !== (result.total_match_count === 0)) {
+    throw new ProofIntentDiscoveryError("proof_intent_discovery_result_inconsistent",
+      "discovery population accounting is inconsistent");
   }
 }
 
@@ -362,62 +400,70 @@ function canonicalProofIntentDiscoveryJson(result) {
   }
   assertResultSemantics(result);
   const bytes = canonicalJsonBytes(result, { file: true });
-  if (bytes.byteLength > MAX_DISCOVERY_RESULT_BYTES) {
-    throw new ProofIntentDiscoveryError(
-      "proof_intent_discovery_result_too_large",
-      "proof-intent discovery result exceeds the declared UTF-8 byte limit",
-      { byte_length: bytes.byteLength, maximum_bytes: MAX_DISCOVERY_RESULT_BYTES }
-    );
-  }
   return bytes.toString("utf8");
 }
 
-function discoverProofIntents(options, ...unexpectedArguments) {
-  const request = prepareRequest(validateOptions(options, unexpectedArguments));
-  const evaluated = PROOF_INTENT_DISCOVERY_CATALOG.intents.map((intent) => {
-    const match = request.mode === "list" ? null :
-      searchIntent(intent, request.queryTerms);
-    return request.mode === "list" ? summarizeIntent(intent, null) :
-      match === null ? null : summarizeIntent(intent, match);
-  });
-  const overlaps = evaluated.filter((value) => value !== null);
-  const exactMatches = overlaps.filter(({ match_kind: matchKind }) =>
-    matchKind === "exact_match");
-  const matches = request.mode === "list" ? overlaps :
-    exactMatches.length > 0 ? exactMatches : overlaps;
-  const returned = request.limit === null ? matches : matches.slice(0, request.limit);
-  const status = request.mode === "list" || exactMatches.length > 0 ? "match" :
-    matches.length > 0 ? "partial_match" : "no_match";
+function discoverProofIntentsInternal(options, unexpectedArguments, { completeSearch }) {
+  const prepared = prepareRequest(validateOptions(options, unexpectedArguments));
+  const request = completeSearch && prepared.mode === "search"
+    ? { ...prepared, limit: null } : prepared;
+  const current = discoveryPopulation.currentSourceIdentity();
+  if (canonicalDigest(current) !== canonicalDigest(discoveryPopulation.sourceIdentity)) {
+    throw new ProofIntentDiscoveryError("proof_discovery_source_changed",
+      "The loaded discovery definitions changed; reload the package/server before fresh discovery.",
+      { changed: false, source_identity: current });
+  }
+  const provider = providerContext(request.queryTerms);
+  const propertySearch = request.mode === "search" &&
+    provider.provider_terms.length < request.queryTerms.length;
+  let matches = propertySearch ? rankProofIntentCandidates(discoveryPopulation.population, {
+    queryTerms: request.queryTerms,
+    providerTerms: provider.provider_terms,
+    limit: null,
+    searchIndex: productionSearchIndex
+  }) : discoveryPopulation.population.map(candidate => {
+    const ranking = request.mode === "search" ? null :
+      { match_kind: "catalog_entry", relevance_score: 0, matched_terms: [], unmatched_terms: [],
+        provider_terms: [], semantic_terms: [], match_reasons: [] };
+    if (!ranking || request.mode === "detail" && candidate.proof_name !== request.proofName) return null;
+    const { intents, ...scope } = candidate;
+    return { ...scope, matching_assertion: scope.assertion,
+      essential_limitation: discoveryLimitation(scope, request.queryTerms ?? [], normalizeSearchText),
+      ranking, associations: intents.map(x => x.intent_id) };
+  }).filter(Boolean);
+  if (request.mode === "detail" && matches.length !== 1) throw new ProofIntentDiscoveryError(
+    matches.length ? "proof_discovery_identity_ambiguous" : "proof_discovery_identity_unknown",
+    "proof_name must resolve exactly one admitted candidate", { proof_name: request.proofName });
+  const tiers = { catalog_entry: 0, assertion_match: 0, partial_assertion_match: 1, navigation_or_exclusion_match: 2 };
+  matches.sort((a, b) => tiers[a.ranking.match_kind] - tiers[b.ranking.match_kind] ||
+    b.ranking.relevance_score - a.ranking.relevance_score || compareCodeUnits(a.id, b.id));
+  const candidates = request.limit === null ? matches : matches.slice(0, request.limit);
   const result = canonicalValue({
     schema_version: "controlled-contract-proof-intent-discovery.v1",
-    mode: request.mode,
-    query: request.query,
-    status,
-    guidance: guidanceFor(request.mode === "list" ? "list" : status),
+    mode: request.mode, query: request.query,
+    status: matches.length ? "match" : "no_match",
     catalog_intent_count: PROOF_INTENT_DISCOVERY_CATALOG.intents.length,
-    evaluated_intent_count: evaluated.length,
-    total_match_count: matches.length,
-    returned_count: returned.length,
-    omitted_count: matches.length - returned.length,
-    truncated: returned.length < matches.length,
-    result_limit: request.limit,
-    intents: returned,
+    evaluated_intent_count: PROOF_INTENT_DISCOVERY_CATALOG.intents.length,
+    candidate_count: discoveryPopulation.population.length,
+    total_match_count: matches.length, returned_count: candidates.length,
+    omitted_count: matches.length - candidates.length,
+    truncated: candidates.length < matches.length, result_limit: request.limit,
+    provider_context: provider,
+    candidates, source_identity: discoveryPopulation.sourceIdentity,
     catalog_digest: PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
-    selection_performed: false,
-    pack_invocation_performed: false,
-    pack_admission_performed: false,
-    authority: "non_authoritative"
+    selection_performed: false, pack_invocation_performed: false,
+    pack_admission_performed: false, authority: "non_authoritative"
   });
-  if (!validateProofIntentDiscoveryResult(result)) {
-    throw new ProofIntentDiscoveryError(
-      "proof_intent_discovery_result_invalid",
-      "proof-intent discovery produced a schema-invalid typed result",
-      { diagnostics: structuredClone(validateProofIntentDiscoveryResult.errors) }
-    );
-  }
-  assertResultSemantics(result);
   canonicalProofIntentDiscoveryJson(result);
-  return deepFreeze(structuredClone(result));
+  return deepFreeze(result);
+}
+
+function discoverProofIntents(options, ...unexpectedArguments) {
+  return discoverProofIntentsInternal(options, unexpectedArguments, { completeSearch: false });
+}
+
+function discoverCompleteProofIntents(options, ...unexpectedArguments) {
+  return discoverProofIntentsInternal(options, unexpectedArguments, { completeSearch: true });
 }
 
 export {
@@ -427,13 +473,17 @@ export {
   PROOF_INTENT_DISCOVERY_CATALOG,
   PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
   PROOF_INTENT_DISCOVERY_QUERY_POLICY,
+  PROOF_VERIFICATION_CAPABILITIES,
   ProofIntentDiscoveryError,
   canonicalProofIntentDiscoveryJson,
+  discoverCompleteProofIntents,
   discoverProofIntents,
   isProofIntentDiscoveryQueryWithinLimit,
   normalizeProofIntentDiscoveryCatalog,
   normalizeSearchText,
   proofIntentDiscoveryQueryCause,
+  proofVerificationCapability,
+  rankProofIntentCandidates,
   validateProofIntentCatalog,
   validateProofIntentDiscoveryResult
 };

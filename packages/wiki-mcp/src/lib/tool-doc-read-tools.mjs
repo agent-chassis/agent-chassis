@@ -206,16 +206,7 @@ export function registerToolDocReadTools({
   registerTool(
     WORKSPACE_READ_TOOL_DOC_TOOL_NAME,
     {
-      description:
-        "Read-only: return the bytes of one package-owned documentation reference that this session currently " +
-        "advertises for one tool it can currently see. Pass `tool_name` (a tool visible in this session's " +
-        "workspace_tools_describe/query output) and `path` (one of that tool's advertised package-scoped " +
-        "`doc_references` logical paths). The route reapplies the session's role and tier visibility gate, requires " +
-        "the selected descriptor and the bound package documentation manifest to agree, and reads only the " +
-        "manifest-contained bundled file. Hidden tool names, unadvertised paths, absolute paths, traversal, an " +
-        "absent or mismatched documentation carrier, and a package-version mismatch all refuse with a stable typed " +
-        "diagnostic; the route never browses the package, never falls back to the consuming workspace, and never " +
-        "discloses installation roots. Workspace-owned references keep using workspace_read_page.",
+      description: "Read an advertised package doc for a currently visible tool. Supply tool_name and its advertised logical path. Visibility, manifest and package-version mismatches refuse. No arbitrary paths or installation roots. Use workspace_read_page for workspace docs.",
       inputSchema: z
         .object({
           tool_name: z.string(),

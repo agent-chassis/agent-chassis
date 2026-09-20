@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "requested_intents": [
+    "controlled-proof-intent.atomic-failure-boundary",
+    "controlled-proof-intent.forbidden-operation-noninvocation",
+    "controlled-proof-intent.implementation-readiness"
+  ],
+  "selected_packs": [
+    {
+      "profile_id": "proof.atomicity.failure-boundary",
+      "profile_version": "3.0.0",
+      "evaluation_input_path": "WK-2071.pack-sha256-ba62b9694fa0142ae5538cf31991ad67484b251281dbcd2ab616674ab8430770.evaluation-input.json"
+    },
+    {
+      "profile_id": "proof.operation.forbidden-noninvocation",
+      "profile_version": "3.0.0",
+      "evaluation_input_path": "WK-2071.pack-sha256-a18f2d2fd5ee73191441ab825375b5917787db3bdbd89deae850b76b30972406.evaluation-input.json"
+    },
+    {
+      "profile_id": "proof.design.implementation-readiness",
+      "profile_version": "3.0.0",
+      "evaluation_input_path": "WK-2071.pack-sha256-b0f693d6be58df66d9d5b7b8dbd510119b3127c080f865901bf65a56b146f090.evaluation-input.json"
+    }
+  ]
+}

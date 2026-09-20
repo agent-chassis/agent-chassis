@@ -22,7 +22,8 @@ import { computeReviewedUnitSourceDigest } from "./work-record-review-attestatio
 import { loadOrgPolicyProfile } from "./org-policy-profile-loader.mjs";
 import {
   attachPersistedReviewAttestations,
-  readPersistedWorkerAdmissionEvidenceSidecar
+  captureSelectedWorkRecordAdmissionEvidence,
+  readCapturedWorkRecordAdmissionEvidence
 } from "./work-record-admission-evidence-sidecar.mjs";
 import { createSelectedUnitReadiness } from "./work-record-dispatch-readiness-shape.mjs";
 
@@ -294,12 +295,15 @@ export async function createSelectedUnitWorkerAdmissionDomainPackInput({
     generated_at: now ?? undefined,
     clock: systemUtcClock
   });
-  const persistedEvidence = await readPersistedWorkerAdmissionEvidenceSidecar({
-    dir,
-    record,
-    selectedUnit,
-    sourceDigest: derivedEvidence.source_record_digest
-  });
+
+  const persistedEvidence = readCapturedWorkRecordAdmissionEvidence(
+    await captureSelectedWorkRecordAdmissionEvidence({
+      dir,
+      record,
+      selectedUnit,
+      sourceDigest: derivedEvidence.source_record_digest
+    })
+  );
   const derivedEvidenceWithPersistedAttestations = attachPersistedReviewAttestations(
     derivedEvidence,
     persistedEvidence

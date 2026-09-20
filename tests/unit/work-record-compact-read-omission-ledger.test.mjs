@@ -13,7 +13,7 @@ import {
   projectOmissions
 } from "../../packages/wiki-mcp/src/lib/work-record-compact-read-continuation.mjs";
 import {
-  runWorkRecordSummaryWithCompactGate
+  runWorkRecordReadWithCompactGate
 } from "../../packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs";
 import {
   projectWorkRecordContractFields
@@ -297,34 +297,33 @@ test("the gate's ledger reports the withheld set for a non-tracker record the ol
       { id: "SLICE-004", work_kind: "review", status: "todo" }
     ]
   };
-  const result = await runWorkRecordSummaryWithCompactGate({
+
+  const result = await runWorkRecordReadWithCompactGate({
     workspaceRepo: WORKSPACE_REPO,
     workspaceDir: WORKSPACE_DIR,
+    toolFamily: "workspace_get_record",
     args: { id: RECORD_ID },
-    getWorkRecordSummary: async () => ({
+    readCompact: async () => ({
+      format: "json-work-record",
       valid: true,
       record_id: RECORD_ID,
       source_digest: "sha256:compact",
-      summary: {
-        id: RECORD_ID,
-        work_kind: "implementation",
-        slice_count: 4,
-        slices_total: 4,
-        slices: [{ id: "SLICE-001", status: "active", agent_notes_bytes: 64 }],
-        review_state: {
-          review_slices: [{ id: "SLICE-003", status: "todo" }],
-          review_slices_total: 2
-        }
-      }
+      work_kind: "implementation",
+      slice_counts: { total: 4 },
+      working_slices: [{ id: "SLICE-001", status: "active", agent_notes_bytes: 64 }]
     }),
+    readExpensive: async () => {
+      throw new Error("the compact path must not call the expensive reader");
+    },
     readWorkRecordById: async () => ({ source_digest: "sha256:source-a", record })
   });
 
   const ledger = result.compact_read.omitted_detail_counts;
   assert.equal(Object.values(ledger).includes(null), false, "no category reports null");
+
   assert.deepEqual(ledger, {
     slices: 3,
-    review_slices: 1,
+    review_slices: 2,
     included_slices_with_omitted_agent_notes: 1,
     record_fields: 3
   });

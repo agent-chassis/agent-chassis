@@ -48,7 +48,7 @@ order and repo map.
 - [agent-launch-conduit-diagnostics.md](agent-launch-conduit-diagnostics.md) —
   the `stdio_mcp_*` conduit failure taxonomy and operator recovery route.
 - [agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md)
-  — confined repository visibility, the exact host wiki-MCP FIFO conduit, and
+  — confined repository visibility, the host wiki-MCP local socket conduit, and
   the unsupported Agy posture.
 - [agent-launch-family-runtime-state.md](agent-launch-family-runtime-state.md) —
   per-family launcher runtime-state facts.

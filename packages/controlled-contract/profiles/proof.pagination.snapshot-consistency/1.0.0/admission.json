@@ -20,35 +20,5 @@
     "executable_control_count": 26,
     "negative_fixture_count": 126,
     "coverage_witness_count": 126
-  },
-  "exact_binding": {
-    "declaration_digest": "7750ecca32f146d9bda50f3db99c5dc39471ea5cd034fcdc112ab2946316636a",
-    "certification_result_digest": "4fcd6a6baa3412d22fefe6c2b7f0949129aa1da410d44591ce422df42b5b6b2a",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection",
-      "distinct_content_sha256",
-      "same_content_sha256"
-    ],
-    "corpus_id": "snapshot-pagination-consistency-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "52a465bcc7e36380c9779998a58ec4602f8be75d2a93cb1fb0d68b07d17bc39b",
-    "passed_control_ids": [
-      "caller-selected-attempt-refused",
-      "capture-order-swap-refused",
-      "duplicate-occurrence-positive",
-      "empty-page-positive",
-      "frozen-snapshot-positive",
-      "live-version-content-reuse-refused",
-      "member-occurrence-omission-refused",
-      "member-occurrence-reorder-refused",
-      "missing-trace-refused",
-      "projection-result-splice-refused",
-      "snapshot-identity-splice-refused",
-      "snapshot-state-content-change-refused"
-    ]
   }
 }

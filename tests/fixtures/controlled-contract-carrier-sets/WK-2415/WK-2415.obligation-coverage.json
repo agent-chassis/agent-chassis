@@ -1,0 +1,1256 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2415",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK2415-001",
+      "statement": "The feature must remain classified as a tooling operation.",
+      "controlled_contract_node_ids": [
+        "claim-assessment-component-exists"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#classification"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-002",
+      "statement": "The implementation must not add a controlled proof intent.",
+      "controlled_contract_node_ids": [
+        "ref-assessment-component"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#proof-intent-catalog-unchanged"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-003",
+      "statement": "The implementation must not add a controlled proof profile.",
+      "controlled_contract_node_ids": [
+        "ref-assessment-component"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#proof-profile-catalog-unchanged"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-004",
+      "statement": "The MCP surface must expose workspace_controlled_contract_integration_test_design_assess.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-exports-new-assess"
+      ],
+      "mechanism": {
+        "owner": "wiki-mcp",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_integration_test_design_assess"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-005",
+      "statement": "workspace_controlled_contract_assess must retain its proof-plan meaning.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-preserves-existing-assess"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#existing-assess-semantics"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-006",
+      "statement": "The package must own a pure integration-test design evaluator.",
+      "controlled_contract_node_ids": [
+        "ref-evaluator"
+      ],
+      "mechanism": {
+        "owner": "@portfolio-wiki/controlled-contract",
+        "kind": "code_symbol",
+        "selector": "integration-test-design-assessment.mjs#evaluateIntegrationTestDesignAssessment"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-007",
+      "statement": "The package must own the assessment input schema.",
+      "controlled_contract_node_ids": [
+        "ref-input-schema"
+      ],
+      "mechanism": {
+        "owner": "@portfolio-wiki/controlled-contract",
+        "kind": "schema",
+        "selector": "integration-test-design-assessment-input.experimental.v0.1.schema.json"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-008",
+      "statement": "The package must own the assessment result schema.",
+      "controlled_contract_node_ids": [
+        "ref-result-schema"
+      ],
+      "mechanism": {
+        "owner": "@portfolio-wiki/controlled-contract",
+        "kind": "schema",
+        "selector": "integration-test-design-assessment-result.experimental.v0.1.schema.json"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-009",
+      "statement": "The evaluator must preserve the five result states.",
+      "controlled_contract_node_ids": [
+        "claim-evaluator-returns"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#result-state-population"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-010",
+      "statement": "The evaluator must preserve exact set-join denominators.",
+      "controlled_contract_node_ids": [
+        "claim-evaluator-covers-axes"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#exact-set-join-denominators"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-011",
+      "statement": "The evaluator must preserve lossless populations.",
+      "controlled_contract_node_ids": [
+        "claim-evaluator-lossless"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#lossless-populations"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-012",
+      "statement": "The evaluator must preserve deterministic ordering.",
+      "controlled_contract_node_ids": [
+        "claim-evaluator-deterministic"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#deterministic-order"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-013",
+      "statement": "The evaluator must bound returned diagnostics.",
+      "controlled_contract_node_ids": [
+        "ref-result-contract"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#bounded-diagnostics"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-014",
+      "statement": "The package entrypoint must export the evaluator surface.",
+      "controlled_contract_node_ids": [
+        "claim-package-exports"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#package-exports"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-015",
+      "statement": "The assessor must consume no runtime execution evidence.",
+      "controlled_contract_node_ids": [
+        "claim-evaluator-no-runtime-evidence"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#no-runtime-evidence"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-016",
+      "statement": "The assessor must confer no runtime proof.",
+      "controlled_contract_node_ids": [
+        "ref-runtime-evidence"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#no-runtime-proof-authority"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-017",
+      "statement": "Wiki-core must resolve the canonical subject server-side.",
+      "controlled_contract_node_ids": [
+        "claim-core-reads"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#server-resolves-subject"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-018",
+      "statement": "Wiki-core must call the package evaluator with server-resolved facts.",
+      "controlled_contract_node_ids": [
+        "claim-core-calls-evaluator"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#server-resolved-evaluator-input"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-019",
+      "statement": "Wiki-core must reuse the existing currentness owner.",
+      "controlled_contract_node_ids": [
+        "ref-canonical"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#reuse-currentness-owner"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-020",
+      "statement": "Wiki-core must invoke only registered census providers.",
+      "controlled_contract_node_ids": [
+        "claim-core-server-censuses"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#registered-providers-only"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-021",
+      "statement": "The route provider must return the complete current population.",
+      "controlled_contract_node_ids": [
+        "claim-core-server-censuses"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#route-provider"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-022",
+      "statement": "The role-profile provider must return exact role populations.",
+      "controlled_contract_node_ids": [
+        "claim-core-server-censuses"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#role-profile-provider"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-023",
+      "statement": "The result-schema provider must return the complete population.",
+      "controlled_contract_node_ids": [
+        "ref-server-censuses"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#result-schema-provider"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-024",
+      "statement": "The mutant provider must return the manifest-selected population.",
+      "controlled_contract_node_ids": [
+        "ref-server-censuses"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#mutant-provider"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-025",
+      "statement": "Provider results must carry server-owned completeness facts.",
+      "controlled_contract_node_ids": [
+        "ref-server-censuses"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#provider-completeness"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-026",
+      "statement": "A missing provider must yield incomplete or unevaluable.",
+      "controlled_contract_node_ids": [
+        "claim-core-missing-provider-nonpass"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#missing-provider-nonpass"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-027",
+      "statement": "A non-current provider must never yield pass.",
+      "controlled_contract_node_ids": [
+        "ref-missing-provider"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#noncurrent-provider-nonpass"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-028",
+      "statement": "Public input must accept only inline authored design declarations.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-inline-only"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#inline-authored-input"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-029",
+      "statement": "Public input must reject caller-supplied authority facts.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-rejects-authority"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#caller-authority-refusal"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-030",
+      "statement": "The request-key census must derive from the registered MCP schema.",
+      "controlled_contract_node_ids": [
+        "claim-input-schema-closed"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#request-key-census"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-031",
+      "statement": "Authority-bearing request keys must be refused before resolution.",
+      "controlled_contract_node_ids": [
+        "ref-caller-authority"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#authority-key-refusal"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-032",
+      "statement": "The evaluator must preserve five distinct result states.",
+      "controlled_contract_node_ids": [
+        "ref-result"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#five-distinct-states"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-033",
+      "statement": "A resolvable design omission must yield fail.",
+      "controlled_contract_node_ids": [
+        "ref-nonpass-result"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#fail-semantics"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-034",
+      "statement": "An uncompleted canonical comparison must yield incomplete or unevaluable.",
+      "controlled_contract_node_ids": [
+        "ref-nonpass-result"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#incomplete-semantics"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-035",
+      "statement": "A review_only result must never be pass.",
+      "controlled_contract_node_ids": [
+        "claim-evaluator-returns"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#review-only-nonpass"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-036",
+      "statement": "Results must report exact required and declared populations.",
+      "controlled_contract_node_ids": [
+        "ref-lossless-result"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#required-declared-populations"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-037",
+      "statement": "Results must report exact population counts.",
+      "controlled_contract_node_ids": [
+        "claim-result-schema-lossless"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#exact-population-counts"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-038",
+      "statement": "MCP projection must preserve results through bounded pagination.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-returns"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#lossless-pagination"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-039",
+      "statement": "Wiki-core must reuse the canonical obligation carrier.",
+      "controlled_contract_node_ids": [
+        "ref-canonical"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#reuse-obligation-carrier"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-040",
+      "statement": "MCP exposure must reuse the controlled-contract family.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-shared-family"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-mcp-registration.test.mjs#shared-family"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-041",
+      "statement": "The implementation must create no parallel protocol owner.",
+      "controlled_contract_node_ids": [
+        "ref-shared-mcp-family"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#no-parallel-owner"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-042",
+      "statement": "The assessor must perform no persistence.",
+      "controlled_contract_node_ids": [
+        "claim-core-readonly"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#no-persistence"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-043",
+      "statement": "Every assessor result must deny lifecycle authority.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-readonly"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#lifecycle-denials"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-044",
+      "statement": "Every assessor result must deny proof authority.",
+      "controlled_contract_node_ids": [
+        "ref-persistence"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#proof-denial"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-045",
+      "statement": "The assessor must not persist authored scenarios.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-no-draft-persistence"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#no-scenario-persistence"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-046",
+      "statement": "The assessor must not persist assessment state.",
+      "controlled_contract_node_ids": [
+        "ref-persisted-drafts"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#no-assessment-persistence"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-047",
+      "statement": "The implementation must add no WK-2405-specific behavior.",
+      "controlled_contract_node_ids": [
+        "ref-runtime-evidence"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#no-wk2405-behavior"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-048",
+      "statement": "The new operation must have exact registration parity.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-calls"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-mcp-registration.test.mjs#registration-parity"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-049",
+      "statement": "The new operation must have exact discovery and routing parity.",
+      "controlled_contract_node_ids": [
+        "ref-mcp"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#discovery-routing-parity"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-050",
+      "statement": "The operation must reuse the bounded content-reference projection.",
+      "controlled_contract_node_ids": [
+        "claim-mcp-returns"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#bounded-content-reference"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-051",
+      "statement": "Package tests must cover evaluator behavior.",
+      "controlled_contract_node_ids": [
+        "claim-verify-package"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#package-regressions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-052",
+      "statement": "Wiki-core tests must cover resolver behavior.",
+      "controlled_contract_node_ids": [
+        "claim-verify-core"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#core-regressions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-053",
+      "statement": "MCP tests must cover public invocation behavior.",
+      "controlled_contract_node_ids": [
+        "claim-verify-mcp"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#mcp-regressions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-054",
+      "statement": "MCP tests must cover request self-authentication.",
+      "controlled_contract_node_ids": [
+        "ref-mcp-tests"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#self-authentication-regressions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-055",
+      "statement": "Wiki-core tests must cover missing-provider behavior.",
+      "controlled_contract_node_ids": [
+        "ref-core-tests"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/unit/controlled-contract-integration-test-design-assessment.test.mjs#missing-provider-regressions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-056",
+      "statement": "Package tests must cover schema behavior.",
+      "controlled_contract_node_ids": [
+        "ref-package-tests"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#schema-regressions"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-057",
+      "statement": "The complete suite must cover every declared implementation boundary.",
+      "controlled_contract_node_ids": [
+        "ref-assessment-suite"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs#complete-plan"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-058",
+      "statement": "Product code must not import internal staging artifacts.",
+      "controlled_contract_node_ids": [
+        "claim-package-no-staging-import"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#no-staging-import"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-059",
+      "statement": "Product documentation must use package-owned names.",
+      "controlled_contract_node_ids": [
+        "ref-package-surface"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis",
+        "kind": "durable_record",
+        "selector": "docs/mcp-controlled-contract-operations.md"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-060",
+      "statement": "Internal staging artifacts must remain evidence-only.",
+      "controlled_contract_node_ids": [
+        "ref-internal-staging"
+      ],
+      "mechanism": {
+        "owner": "node:test",
+        "kind": "test",
+        "selector": "packages/controlled-contract/test/integration-test-design-assessment.test.mjs#staging-evidence-only"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-061",
+      "statement": "Implementation start requires completed lifecycle prerequisites.",
+      "controlled_contract_node_ids": [
+        "claim-verify-complete-plan"
+      ],
+      "mechanism": {
+        "owner": "WK-2415",
+        "kind": "durable_record",
+        "selector": "wiki/work-records/WK-2415.json"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Coordinator-reviewed lifecycle evidence is not an implementation test-proof obligation."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-062",
+      "statement": "Closure must preserve direct-to-main authorization.",
+      "controlled_contract_node_ids": [
+        "claim-verify-complete-plan"
+      ],
+      "mechanism": {
+        "owner": "WK-2415",
+        "kind": "durable_record",
+        "selector": "wiki/work-records/WK-2415.json"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Operator authorization is recorded as canonical coordination evidence."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2415-063",
+      "statement": "Closure requires one exact-change findings-only review.",
+      "controlled_contract_node_ids": [
+        "claim-verify-complete-plan"
+      ],
+      "mechanism": {
+        "owner": "WK-2415",
+        "kind": "durable_record",
+        "selector": "wiki/work-records/WK-2415.json"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Terminal review provenance is evaluated after implementation delivery."
+      }
+    }
+  ]
+}

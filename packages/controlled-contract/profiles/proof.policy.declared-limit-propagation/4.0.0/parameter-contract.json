@@ -1,0 +1,665 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.policy.declared-limit-propagation",
+  "profile_version": "4.0.0",
+  "profile_digest": "2acf4c49da5b019ad3efa919b4c750ff9f700ef28fef8f4a1921745bd9228bc8",
+  "description": "For one exact closed declared policy and one exact raw UTF-8 guidance artifact, the package-owned transformer associates every required policy key with exactly one plain decimal value and exact unit token, refuses missing, duplicate, stale, conflicting, substituted, wrong-unit, and unrelated-number guidance, and emits complete policy-key and association populations, exact counts, associations, and one canonical report bound to the exact source-set digest.",
+  "parameters": [
+    {
+      "name": "policy_artifact",
+      "purpose": "Declare policy artifact for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_policy_reference",
+      "roles": [
+        "policy_artifact"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "guidance_artifact",
+      "purpose": "Declare guidance artifact for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "guidance_artifact"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/6",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "propagation_report",
+      "purpose": "Declare propagation report for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "propagation_report"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_occurrence_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/8"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "limit_population",
+      "purpose": "Declare limit population for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "limit_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "declared_limits",
+      "purpose": "Declare declared limits for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "declared_limits"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "unit_population",
+      "purpose": "Declare unit population for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "unit_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "measurement_units",
+      "purpose": "Declare measurement units for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "measurement_units"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "association_population",
+      "purpose": "Declare association population for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "association_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/10"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "guidance_associations",
+      "purpose": "Declare guidance associations for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "guidance_associations"
+      ],
+      "refinement_refs": [
+        "/reference_roles/11"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "surface_population",
+      "purpose": "Declare surface population for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "surface_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "guidance_surfaces",
+      "purpose": "Declare guidance surfaces for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "guidance_surfaces"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "key_population",
+      "purpose": "Declare key population for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "key_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "policy_keys",
+      "purpose": "Declare policy keys for proof.policy.declared-limit-propagation. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_policy_reference",
+      "roles": [
+        "policy_keys"
+      ],
+      "refinement_refs": [
+        "/reference_roles/15"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/reference_binding_patterns/4",
+        "/reference_role_count_bindings/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "guidance_subject",
+      "kind": "capability_gap",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [],
+      "capability": null,
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Required role guidance_subject has no rule-linked semantic source.",
+        "source": "profiles/proof.policy.declared-limit-propagation/4.0.0/profile.json#/reference_roles/0",
+        "consequence": "The required type/cardinality survives; no new guarantee or input mapping is invented."
+      }
+    },
+    {
+      "role": "policy_artifact",
+      "kind": "semantic_parameter",
+      "parameter": "policy_artifact",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "guidance_artifact",
+      "kind": "semantic_parameter",
+      "parameter": "guidance_artifact",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/6",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "propagation_report",
+      "kind": "semantic_parameter",
+      "parameter": "propagation_report",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_occurrence_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/8"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "mismatch_condition",
+      "kind": "capability_gap",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [],
+      "capability": null,
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Required role mismatch_condition has no rule-linked semantic source.",
+        "source": "profiles/proof.policy.declared-limit-propagation/4.0.0/profile.json#/reference_roles/5",
+        "consequence": "The required type/cardinality survives; no new guarantee or input mapping is invented."
+      }
+    },
+    {
+      "role": "limit_population",
+      "kind": "semantic_parameter",
+      "parameter": "limit_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "declared_limits",
+      "kind": "semantic_parameter",
+      "parameter": "declared_limits",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "unit_population",
+      "kind": "semantic_parameter",
+      "parameter": "unit_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "measurement_units",
+      "kind": "semantic_parameter",
+      "parameter": "measurement_units",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "association_population",
+      "kind": "semantic_parameter",
+      "parameter": "association_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "guidance_associations",
+      "kind": "semantic_parameter",
+      "parameter": "guidance_associations",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "surface_population",
+      "kind": "semantic_parameter",
+      "parameter": "surface_population",
+      "inputs": [],
+      "rule_refs": [
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "guidance_surfaces",
+      "kind": "semantic_parameter",
+      "parameter": "guidance_surfaces",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "key_population",
+      "kind": "semantic_parameter",
+      "parameter": "key_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "policy_keys",
+      "kind": "semantic_parameter",
+      "parameter": "policy_keys",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/reference_binding_patterns/4",
+        "/reference_role_count_bindings/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "declared_limits_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "declared_limits"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "measurement_units_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "measurement_units"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "guidance_associations_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "guidance_associations"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "guidance_surfaces_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "guidance_surfaces"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "policy_keys_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "policy_keys"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/4"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "policy_artifact",
+      "guidance_artifact",
+      "propagation_report",
+      "verification",
+      "limit_population",
+      "declared_limits",
+      "unit_population",
+      "measurement_units",
+      "association_population",
+      "guidance_associations",
+      "surface_population",
+      "guidance_surfaces",
+      "key_population",
+      "policy_keys"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.policy.declared-limit-propagation.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.policy.declared-limit-propagation constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.policy.declared-limit-propagation.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

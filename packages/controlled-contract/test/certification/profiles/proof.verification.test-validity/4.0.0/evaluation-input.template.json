@@ -34,9 +34,6 @@
           "declared_test_ids": [
             "test-package-result"
           ],
-          "baseline_executed_test_ids": [
-            "test-package-result"
-          ],
           "observed_tests": [
             {
               "test_id": "test-package-result",

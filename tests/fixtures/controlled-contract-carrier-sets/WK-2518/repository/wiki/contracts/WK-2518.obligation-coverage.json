@@ -1,0 +1,501 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v1",
+  "wk_id": "WK-2518",
+  "focus": null,
+  "obligations": [
+    {
+      "obligation_id": "OBLIGATION-001",
+      "source_locator": "/acceptance/criteria/0",
+      "source_locator_digest": "sha256:78a39cfcbeda3c55d4effa0bd6ce20a2c190b0180cee2b7821f4ec738bbfd68a",
+      "statement": "Admission target: production workspace_agent_dispatch registration and admitAgentDispatchRequest accept the exact legitimate request at admission only; the real env.PATH dictionary value ../opaque-control.txt is schema-admitted, preserved and opaque to protected authority coordinates. Demonstrate this; do not add a field, change parser behavior, invoke its lazy continuation, or substitute a mock parser/resolver. If the control is not actually accepted, return the precise blocker. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-5645935490402421f28745ecb2ad192f056d108f",
+        "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-002",
+      "source_locator": "/acceptance/criteria/1",
+      "source_locator_digest": "sha256:9a841038bc30ebdb8c65475936b8051e65e594e719cba8e1b3d7ffe3a2ef3083",
+      "statement": "Refusal cut: the corresponding actual request plus registered authority:true returns caller_supplied_cce_policy_authority with the caller-supplied-identity blocker and authority in refused_fields before resolveWorkspaceRepo or any protected downstream continuation. Cover every incumbent forbidden-field family and precedence as regressions without extending this claim to WK-2510 policy selection, no-gate settlement or automatic review. Across-family precedence follows the admission owner loop; registered authority lists collect all present fields in the first matching family, while nested identity is first-carrier-wins. Identity regressions assert the owning refusal code/blocker and identityRefusal.detail.carrier, without pinning incidental envelope-key refused_fields/count or repairing that production projection. Reviewer SHA-subject correction is a separate subject/role branch. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-521edcb0d6cad753258f2bbdc500901333792ec9",
+        "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-003",
+      "source_locator": "/acceptance/criteria/2",
+      "source_locator_digest": "sha256:62f444575a76783eb2257f82629ba8e16eead999a6267350dcb4c815bc3a97a9",
+      "statement": "Complete observation: derive the exact loaded admission dependency/callsite census and all nine source channels (resolver, loader, filesystem, environment, module, catalog, subprocess, return, success), with actual source-specific start/end state/version and monotone refusal cut. Require real occurrence-injection sensitivity at resolver, protected successful-return and success/continuation hooks. The current closure has no call-time filesystem/subprocess/module/loader port; catalog uses loaded metadata and environment access is in the imported identity owner. For those channels require exact-generation census-completeness falsifiers (removed/extra reachable callsite, missing/duplicate/extra source, missing endpoint, stale closure). A newly reachable protected operation requires its actual hook or an explicit missing-hook blocker. Never infer nine complete empty channels from one spy or relabel census inspection as runtime observation. Dropped/late/misordered events and stale module/schema generations must not produce success. Refusal output is not protected successful dispatch return. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-20e68e8aa5f9150e48721ec99a80ca383365954a",
+        "claim-a27848c794c4007f8fd768547d433bb82a99c763"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-004",
+      "source_locator": "/acceptance/criteria/3",
+      "source_locator_digest": "sha256:52feffe0544e0c426aa72a08710bc7fa2184cf200591d3ff65568fb6cccb46d1",
+      "statement": "Production provenance: only live host-private acquisition objects yield exact request/outcome bytes and actual signed source assignment, target, source, attempt and authentication witnesses. Use randomly generated per-acquisition/source Ed25519 keys and successful signature verification over actual retained bytes; reject forged/mismatched keys, altered evidence, fixture-only synthetic witnesses and foreign source/attempt. No private keys persisted/exposed; no CCE, admission, launcher identity or general trust authority conferred. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-d6636eb5982798f80320b6d6083e0af7314eb93d",
+        "claim-0f542f718035b2052c9708e0e46b769a5205d49b"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-005",
+      "source_locator": "/acceptance/criteria/4",
+      "source_locator_digest": "sha256:bcbabc23e132e8edcb75d67eb70da2d7f1928c744b02747e14f466f76e245b59",
+      "statement": "Existing pack composition: proof.input.caller-authority-confinement@2.0.0 consumes the five actual input artifacts and its incumbent caller-input-surface-capture.v1 alone creates caller-input-projection. Derive concrete-member input policy from the shared real schema/refusal owner; preserve open dictionary semantics, actual decoding/aliases and exact protected coordinate associations. Pure mapper reuses capture-mapping and owned vocabularies, never acts as acquisition or policy owner. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-73e86024142c81ea07a9e9be085f2ebe6bb037fd",
+        "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/unit/controlled-caller-authority-mapping.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-006",
+      "source_locator": "/acceptance/criteria/5",
+      "source_locator_digest": "sha256:6c65bd21c9d75dfc12c20fe0b7ff160e4222f3ce380ea71a2ede7d4f42aede97",
+      "statement": "Single ownership: one package artifact naming/declaration owner replaces duplicate suffix/formula definitions; common-proof-capture-tools retains sole family/store/currentness/persistence dispatch and carrier-set-publication retains staging/exclusion/complete-generation publication. Existing other-family contracts remain correct without compatibility shims or independent file writes. Use actual structured size/attestation/refactor policy results, not the 1200-LOC retrieval threshold. Unit 1 migrates both the package skeleton and wiki-core carrier-set-manifest naming consumers to the one descriptor atomically; unit 3 adds publication constituents afterward. No transient duplicate naming owner or compatibility window. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-26bd913ec4aad739c26fb166eb586d53b6dae6cc",
+        "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/unit/controlled-caller-authority-mapping.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-007",
+      "source_locator": "/acceptance/criteria/6",
+      "source_locator_digest": "sha256:0c0535c8e2bd4be317fe62c81133e8c72eb01978deee797ce8ca974cfd5d253c",
+      "statement": "Exact source selection: six artifacts plus public producer metadata are complete WK contract-generation constituents. Manifest owns shared locations/digests/lengths; private producer join additionally matches exact pack/profile, WK/focus, schema/parser/observer generation, acquisition/attempt/cut, requirement and intended artifact. Reject missing/duplicate/ambiguous/foreign/stale/tampered sources or wrong requirement-to-artifact association; filename, digest match or signature alone cannot confer intended identity. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-369c14d3296d2d561c15f2d2d427577c2ed581d2",
+        "claim-0615617ec0933a20eee608730ee6add45b143562"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/controlled-caller-authority-publication.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-008",
+      "source_locator": "/acceptance/criteria/7",
+      "source_locator_digest": "sha256:b9d11b0755544623da0551aae0701dc5ef4727a961f330f817ed110001e8d5d3",
+      "statement": "Atomicity and currentness: publish the complete constituent census under one incumbent source lease/CAS/generation/manifest switch; source movement or pre-switch failure preserves the canonical generation, while post-switch/indeterminate failures report truthful effects and supported recovery. Test same/conflicting replay, concurrent acquisition/publication and restart; never reconstruct unfinished observations or silently reuse stale captures. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-7e0b41a0a569e9aae24d8f158460d246b8141d88",
+        "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/controlled-caller-authority-publication.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-009",
+      "source_locator": "/acceptance/criteria/8",
+      "source_locator_digest": "sha256:98123ddc5939bf394244e306baf0bdbdf33327b3520b3ef3c13f28afdcb14f6b",
+      "statement": "Private exact-capture handoff: absent-input authoring and applicable reauthoring/reference preparation receive only server-resolved authenticated source locations through the existing package constructor and incumbent applicability reassessment. Changed intent requires explicit current owner rebinding. Preserve unrelated carriers and compiler refusal for missing/stale exact_capture; no null-plan success, guessed path, generic lookup, pack substitution or auto-acquisition from refresh/post_delivery. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-d8467a27e47164900125daa9c0e495504365ab49",
+        "claim-8be96edd2c15a7b2f1522b07694efb22395109fb"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/controlled-caller-authority-publication.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-010",
+      "source_locator": "/acceptance/criteria/9",
+      "source_locator_digest": "sha256:ffc35f84c06860477768b9e40a44bad071450a4e0b3629f67a117f98da3d2619",
+      "statement": "Exact verifier consumption: real capture-generated declarations reach the unchanged exact-binding compiler/capture/verification owners with descriptor-pinned no-symlink regular-file containment and before/after identity checks. Missing sixth projection, invalid signatures, traversal, symlink/nonregular/replaced descriptor and change-during-read fail; a complete projected artifact alone is not proof of runtime truth or lifecycle completion. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-f525acaa9eb9d2ab8a83e139bb28fa20ccca43d4",
+        "claim-402acecc547eab6f802b67fa2c73a48923f8966f"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/controlled-caller-authority-authoring.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-011",
+      "source_locator": "/acceptance/criteria/10",
+      "source_locator_digest": "sha256:575fe041780fa15bc3cddf6e5c44ca7e34f8fb7fa647d3216be66dffeb0abde8",
+      "statement": "Bounded resources: before allocation/I/O enforce exactly two attempts/nine sources/six artifacts, 64 KiB per request, depth 16, 256 concrete declarations, 4096 events, 8 MiB per artifact and aggregate 48 MiB subject to stricter carrier-owner caps including witness overhead. At most one in-flight acquisition per WK/focus; discard incomplete process state at request end. Overflow/depth/size/count failures report unavailability rather than dropping data or proving absence. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-0e3da540f2dcc07e239539335b5944ab0fc5709d",
+        "claim-27fdd09710619ebff3e2773766827c25fe1c5a52"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-012",
+      "source_locator": "/acceptance/criteria/11",
+      "source_locator_digest": "sha256:ceb7fbaa4650259752a85ecd6de4fe701917869cb1f8f6e5f215860c768fe0c8",
+      "statement": "Public authority and effects: extend only coordinator/operator workspace_controlled_common_proof_capture with the exact caller-authority family and fixed server-side admission target. Server resolves/checks repo/WK/focus/profile/verification/role/write scope. Reject caller roots/paths/keys/evidence/policy/source assignments/requests/executors/environment before acquisition or writes; expose actual attempt/publication effects and bounded closed-code/redaction projections; do not give workers inherited execution capability. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-d913246fe8da2d11933f59276aad0e91cba261ba",
+        "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/controlled-caller-authority-authoring.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "obligation_id": "OBLIGATION-013",
+      "source_locator": "/acceptance/criteria/12",
+      "source_locator_digest": "sha256:2be3d35c6f3e32e4969fe796aa19048e43f337c45f70b6df96498dab96f5b8b0",
+      "statement": "End-to-end integration and discovery: real registered capture to complete canonical generation to semantic absent-input authoring to reassessed reauthoring to exact verification succeeds in isolated integration tests, with exact expected negative cases and unchanged unrelated packs. Always-on discovery and owning docs disclose the only supported target, source caps/currentness, effects, refusal causes and next call; explicitly keep later WK-2510 policy/no-gate/automatic-review proofs separate. Proof limitation: this test-validity selector records the intended validity mechanism for the retained runtime test; it does not establish this behavioral requirement or consume these generic criterion claims. Full selected-pack guarantee coverage remains outside_pack and unresolved. The narrower OBLIGATION-015 through OBLIGATION-018 mappings do not discharge this full obligation.",
+      "controlled_contract_node_ids": [
+        "claim-1d60d40476808b917d90ff0d10022718d1b34333",
+        "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/integration/controlled-caller-authority-authoring.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    },
+    {
+      "controlled_contract_node_ids": [
+        "claim-af53f0115bb68fc821752f63a7c011acddb9c734",
+        "claim-0ed6cfa68425bb663653c376a599f3d14c300b66"
+      ],
+      "mechanism": {
+        "kind": "durable_record",
+        "owner": "agent-chassis/agent-chassis:WK-2518 coordinator",
+        "selector": "wiki/work-records/WK-2518.json /acceptance/criteria/13"
+      },
+      "obligation_id": "OBLIGATION-014",
+      "proof": {
+        "gap_kind": "review_only",
+        "kind": "explicit_gap",
+        "reason": "This design/execution distinction is the authored coordinator inspection verification, not an executable runtime test. DRY/DEC/design-redteam/challenge text and this inspection do not prove product behavior or CCE authority. No selected pre_dispatch pack is claimed to prove this governance requirement; preserve the uncovered guarantee until a faithful supported mapping is authored."
+      },
+      "source_locator": "/acceptance/criteria/13",
+      "source_locator_digest": "sha256:4935d6f5074c6e7b35279a8fe59462d0c3c09bdf114d754de289b010d51eb498",
+      "statement": "Design/execution distinction: bind meaningful stable runtime test proofs with declared actual boundaries, observables and falsifiers. New tests have honest no_executed_coverage and no invented runtime identities until workers implement and execute them through launcher-supported validation. Review prose, local signatures, metadata completeness and pack stage never assert implementation readiness, CCE admissibility or completion."
+    },
+    {
+      "controlled_contract_node_ids": [
+        "claim-1ca90111bf541c36ac0040125e2382645790359c",
+        "claim-0c6a632ac02141d5f0b45d6284aa166ee354e43e",
+        "claim-a7bfe30c72bd0d7ac021dd1f9bbe80e8f9fdeb28",
+        "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+        "claim-4ea6ca62a8f355e1b3f3058ea076d6e583ff4907"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "selector": "tests/integration/dispatch-ingress-caller-authority-capture.test.mjs"
+      },
+      "obligation_id": "OBLIGATION-015",
+      "proof": {
+        "evaluation_stage": "pre_dispatch",
+        "kind": "pack_mapping",
+        "pack_id": "proof.operation.forbidden-noninvocation",
+        "profile_id": "proof.operation.forbidden-noninvocation",
+        "profile_version": "2.0.0",
+        "requested_intent": "controlled-proof-intent.forbidden-operation-noninvocation",
+        "selector": {
+          "component_id": "verify-forbidden-operation-noninvocation",
+          "kind": "claim"
+        }
+      },
+      "source_locator": "/acceptance/criteria/1",
+      "source_locator_digest": "sha256:eb70e0986160335774bc2eafe2d3da3da88e2d488cf7cece2a2d87c81f0e90c5",
+      "statement": "Within the authority:true request's entry-through-refusal context at admitAgentDispatchRequest, neither real resolveWorkspaceRepo nor the returned lazy resolveTransitionSelection operation is invoked. This is only AC2's two-operation noninvocation sub-obligation; the actual refusal code, field-family regressions, accepted opaque control and nine-source census remain separately required and unproved by this pack."
+    },
+    {
+      "controlled_contract_node_ids": [
+        "claim-0be0557fcc5f81da5e6af0a542c32c83e69a2071",
+        "claim-697c4c42fe02f5467a29d748256e910c206a7233",
+        "claim-722e9dcc65954d94f347c4e55dc8bf222e85c67e",
+        "claim-9193a3333fb25803266d1822b8d0fb60a9b75d54",
+        "claim-bdb55886a6837a8b7088d732597493342a75d2e6",
+        "claim-cd313f9586834b22cb355f9879d083a9015e025d",
+        "claim-7e099dbe6c05289be0638815949467fec24863a5",
+        "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "selector": "tests/integration/controlled-caller-authority-publication.test.mjs"
+      },
+      "obligation_id": "OBLIGATION-016",
+      "proof": {
+        "evaluation_stage": "pre_dispatch",
+        "kind": "pack_mapping",
+        "pack_id": "proof.state.bounded-interval-nonmutation",
+        "profile_id": "proof.state.bounded-interval-nonmutation",
+        "profile_version": "2.0.0",
+        "requested_intent": "controlled-proof-intent.bounded-interval-nonmutation",
+        "selector": {
+          "component_id": "verify-no-during-interval-write",
+          "kind": "claim"
+        }
+      },
+      "source_locator": "/acceptance/criteria/7",
+      "source_locator_digest": "sha256:0d935216c3158e05230eb8ee196a58d26e636f2628d9096dc1e35563c5fa1339",
+      "statement": "AC8 sub-obligation: no write by the incumbent carrier-set publisher to the exact incumbent visible manifest or any member of its selected immutable generation tree, from publication entry through settled failure injected at before_manifest_switch. Bind the exact two-resource population and ordered interval; detect write even if bytes are subsequently restored. This does not claim post-switch recovery, cleanup of new staging, idempotency, restart or concurrency."
+    },
+    {
+      "controlled_contract_node_ids": [
+        "claim-0be0557fcc5f81da5e6af0a542c32c83e69a2071",
+        "claim-697c4c42fe02f5467a29d748256e910c206a7233",
+        "claim-722e9dcc65954d94f347c4e55dc8bf222e85c67e",
+        "claim-9193a3333fb25803266d1822b8d0fb60a9b75d54",
+        "claim-bdb55886a6837a8b7088d732597493342a75d2e6",
+        "claim-cd313f9586834b22cb355f9879d083a9015e025d",
+        "claim-3abbd9bccb198348641ca1a792b068cceb58c122",
+        "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3"
+      ],
+      "mechanism": {
+        "kind": "test",
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "selector": "tests/integration/controlled-caller-authority-publication.test.mjs"
+      },
+      "obligation_id": "OBLIGATION-017",
+      "proof": {
+        "evaluation_stage": "pre_dispatch",
+        "kind": "pack_mapping",
+        "pack_id": "proof.state.bounded-interval-nonmutation",
+        "profile_id": "proof.state.bounded-interval-nonmutation",
+        "profile_version": "2.0.0",
+        "requested_intent": "controlled-proof-intent.bounded-interval-nonmutation",
+        "selector": {
+          "component_id": "verify-no-during-interval-mutation",
+          "kind": "claim"
+        }
+      },
+      "source_locator": "/acceptance/criteria/7",
+      "source_locator_digest": "sha256:eb11520dbe8ce881900db2c44dffe472cc9ffa5335666bc7d1072bef4ac714a0",
+      "statement": "AC8 sub-obligation: no mutation by the incumbent carrier-set publisher to the exact incumbent visible manifest or any member of its selected immutable generation tree, from publication entry through settled failure injected at before_manifest_switch. Bind the exact two-resource population and ordered interval; detect mutation even if bytes are subsequently restored. This does not claim post-switch recovery, cleanup of new staging, idempotency, restart or concurrency."
+    },
+    {
+      "obligation_id": "OBLIGATION-018",
+      "source_locator": "/acceptance/criteria/5",
+      "source_locator_digest": "sha256:bfd1386df1faf66bab982a06ab01240f4da67b73fc09c6a1421c713f63eff464",
+      "statement": "AC6 descriptor availability sub-obligation only: the package artifact naming/declaration descriptor is a usable capability, tested at packages/controlled-contract/lib/capture-artifact-descriptor.mjs by tests/unit/controlled-caller-authority-mapping.test.mjs with a falsifier that removes the usable capability. Logical component/suite identities bind the pre-dispatch test-validity pattern; actual runtime boundary and falsifier remain the descriptor module. This does not discharge AC6 naming/formula correctness, sole ownership, both-consumer atomic migration, publication ownership, other-family behavior or no-compatibility requirements, which remain in OBLIGATION-006. No test has executed.",
+      "controlled_contract_node_ids": [
+        "claim-cf0f6b3437d5cba329ad5d9b29a375c736f22ef0",
+        "claim-dfbf6f81335180b04893667287799c1be5b4cf42"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis/agent-chassis:WK-2518 implementation worker",
+        "kind": "test",
+        "selector": "tests/unit/controlled-caller-authority-mapping.test.mjs"
+      },
+      "proof": {
+        "kind": "pack_mapping",
+        "pack_id": "proof.verification.test-validity",
+        "requested_intent": "controlled-proof-intent.test-verification-validity",
+        "profile_id": "proof.verification.test-validity",
+        "profile_version": "2.0.0",
+        "selector": {
+          "kind": "claim",
+          "component_id": "suite-covers-component"
+        },
+        "evaluation_stage": "pre_dispatch"
+      }
+    }
+  ]
+}

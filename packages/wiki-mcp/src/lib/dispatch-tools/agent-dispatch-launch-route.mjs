@@ -11,6 +11,7 @@ import {
   DISPATCH_BLOCKER_CODES
 } from "../dispatch-tool-constants.mjs";
 import { buildBlockedDispatchResult } from "../dispatch-tool-helpers.mjs";
+import { projectPublicFinalResult } from "../dispatch-final-result-projection.mjs";
 import {
   backendRefusalCarrier,
   projectPublicBackendDetail,
@@ -62,6 +63,7 @@ export async function executeAdvisoryReviewDispatch({
     caller_session_id: dispatchSessionIdentity,
     role: args.role,
     subject: args.subject,
+
     workspace_alias: workspace.repo,
     app: dispatchApp,
     model: dispatchModel,
@@ -86,6 +88,9 @@ export async function executeAdvisoryReviewDispatch({
     schema_version: AGENT_DISPATCH_SCHEMA_VERSION,
     transport: "mcp",
     subject_kind: subjectKind,
+    ...(Object.hasOwn(launch, "final_result")
+      ? { final_result: projectPublicFinalResult(launch.final_result) }
+      : {}),
     blocker: null
   });
 }
@@ -133,7 +138,8 @@ export async function executeAgentDispatchLaunch({
     return jsonContent(buildTransitionRefusal({
       readinessSource: readiness,
       failure: LAUNCHER_TRANSITION_FAILURES.PROSPECTIVE_LIFECYCLE_UNAVAILABLE,
-      blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+
+      blockerCode: LAUNCHER_TRANSITION_FAILURES.PROSPECTIVE_LIFECYCLE_UNAVAILABLE.code,
       reason: routingDecision?.reason ?? "launcher_transition_selection_unavailable",
       detail: { admission: admissionDetail, routing: routingDecision ?? null }
     }));
@@ -210,7 +216,7 @@ export async function executeAgentDispatchLaunch({
         return jsonContent(buildTransitionRefusal({
           readinessSource: readiness,
           failure: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
-          blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+          blockerCode: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
           reason: "managed_wk_settled_refusal_projection_diverged",
           detail: publicBackendDetail,
           previousPlan: prospectiveTransitionPlan
@@ -227,14 +233,13 @@ export async function executeAgentDispatchLaunch({
             subject: args.subject
           })
         }),
-        run_id: managedWkAllocation.run_id,
-        monitor_handle: managedWkAllocation.monitor_handle,
+        run_id: null,
+        monitor_handle: null,
+
         readiness: settledReadiness,
-        managed_wk_allocation: managedWkAllocation,
-        launcher_transition_plan: activeTransitionPlan,
-        ...(settledTransitionPlan === activeTransitionPlan ? {} : {
-          settled_launcher_transition_plan: settledTransitionPlan
-        }),
+        ...(settledReadiness.launcher_transition_plan === activeTransitionPlan
+          ? {}
+          : { launcher_transition_plan: activeTransitionPlan }),
         ...(typeof launch?.review_dispatch_id === "string"
           ? { review_dispatch_id: launch.review_dispatch_id }
           : {}),
@@ -268,7 +273,7 @@ export async function executeAgentDispatchLaunch({
     return jsonContent(buildTransitionRefusal({
       readinessSource: readiness,
       failure: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
-      blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+      blockerCode: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
       reason: "launcher_transition_projection_diverged",
       detail: { admission: admissionDetail },
       previousPlan: prospectiveTransitionPlan
@@ -283,7 +288,7 @@ export async function executeAgentDispatchLaunch({
     return jsonContent(buildTransitionRefusal({
       readinessSource: readiness,
       failure: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
-      blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+      blockerCode: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
       reason: "managed_wk_allocation_projection_diverged",
       detail: { admission: admissionDetail },
       previousPlan: prospectiveTransitionPlan
@@ -307,7 +312,6 @@ export async function executeAgentDispatchLaunch({
     updated_at: launch.updated_at,
     ...(launch.review_result ? { review_result: launch.review_result } : {}),
     readiness: acceptedReadiness,
-    ...(managedWkAllocation === null ? {} : { managed_wk_allocation: managedWkAllocation }),
     ...(typeof launch.review_dispatch_id === "string"
       ? { review_dispatch_id: launch.review_dispatch_id }
       : {}),
@@ -317,8 +321,10 @@ export async function executeAgentDispatchLaunch({
     ...(launch.attempt_lineage_resolution === undefined
       ? {}
       : { attempt_lineage_resolution: launch.attempt_lineage_resolution }),
-    launcher_transition_plan: acceptedTransitionPlan,
-    final_result: launch.final_result ?? null,
+    ...(acceptedReadiness?.launcher_transition_plan === acceptedTransitionPlan
+      ? {}
+      : { launcher_transition_plan: acceptedTransitionPlan }),
+    final_result: projectPublicFinalResult(launch.final_result ?? null),
     blocker: null
   });
 }

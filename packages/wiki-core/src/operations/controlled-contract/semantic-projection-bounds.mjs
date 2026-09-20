@@ -4,6 +4,7 @@ export const CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS = Object.freeze({
   index_list_bytes: 4_096,
   compact_summary_bytes: 8_192,
   detail_census_bytes: 16_384,
+  actionable_result_bytes: 32_768,
   page_items: 64
 });
 

@@ -1,6 +1,7 @@
 
 
 import path from "node:path";
+import { createSubmitForReviewResponse } from "./server-composition-helpers.mjs";
 import {
   resolveLauncherRunCredential,
   resolveAssignedUnit,
@@ -18,9 +19,11 @@ import {
   resolveCommitGitIdentity,
   normalizeCommitRef,
   resolveExpectedEnvelope,
-  resolveSparseBinding,
   resolveCommitWriteScopeMatcher
 } from "../../../agent-launch-cli/src/lib/exact-slice-commit-binding.mjs";
+import { createWorkerScopeTreeReader } from "../../../agent-launch-cli/src/lib/backend-worker-scope-tree.mjs";
+import { defaultRunGit } from "../../../agent-launch-cli/src/lib/worktree-substrate-primitives.mjs";
+import { CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT } from "../../../wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
 import { verifyAndMeasureCommitScope } from "../../../agent-launch-cli/src/lib/commit-scope-envelope.mjs";
 import {
   admitWorkerCommitCall,
@@ -30,11 +33,10 @@ import {
   resolveWorktreeBinding
 } from "../../../agent-launch-cli/src/lib/worktree-substrate.mjs";
 import {
-  deriveWritableMountsFromWriteScope
-} from "../../../agent-launch-cli/src/lib/workspace-agent-write-scope.mjs";
-import {
   persistExactSliceImplementationReviewTransition
 } from "../../../wiki-core/src/operations/work-record-slice-review-acceptance.mjs";
+import { serializeWorkRecordDiagnosticValue } from
+  "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 
 export { WORKER_COMMIT_TOOL_NAME };
 
@@ -48,6 +50,37 @@ export const WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION = Object.freeze({
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+const BINDING_RESOLUTION_STAGE = "binding_resolution";
+const BINDING_RESOLUTION_DIAGNOSTIC_PATH = "workspace_commit.binding_resolution";
+
+function declareBindingResolutionFailure(error, resolution) {
+  if (!resolution.threw || error === null || typeof error !== "object" ||
+      !Object.hasOwn(error, "cause") || error.cause !== resolution.error) {
+    return error;
+  }
+  const declared = new Error(error.message);
+  try {
+    declared.envelope = {
+      ...serializeWorkRecordDiagnosticValue(error, { path: BINDING_RESOLUTION_DIAGNOSTIC_PATH }),
+      stage: BINDING_RESOLUTION_STAGE,
+      diagnostic_serialization: { state: "complete" }
+    };
+  } catch (serializationError) {
+    declared.envelope = {
+      code: typeof error.code === "string" ? error.code : null,
+      message: typeof error.message === "string" ? error.message : null,
+      stage: BINDING_RESOLUTION_STAGE,
+      diagnostic_serialization: {
+        state: "failed",
+        cause: serializeWorkRecordDiagnosticValue(serializationError, {
+          path: `${BINDING_RESOLUTION_DIAGNOSTIC_PATH}.serialization_failure`
+        })
+      }
+    };
+  }
+  return declared;
 }
 
 function createCommitRefusal(decisionCode, reasons, extra = {}) {
@@ -68,7 +101,8 @@ function createCommitResponse(workspaceRepo, assignedUnit, result) {
     workspaceRepo,
     tool: WORKER_COMMIT_TOOL_NAME,
     committed: true,
-    submitted_for_review: Boolean(result.transition?.submitted),
+
+    submitted_for_review: result.transition.submitted,
     assigned_unit: assignedUnit,
     commit: result.commit,
     tree: result.tree,
@@ -142,15 +176,6 @@ function createTransactionRefusal(advanced, transition, compensation) {
   );
 }
 
-function createSubmitForReviewResponse(workspaceRepo, assignedUnit, result, createCompactWorkRecordEditResponse) {
-  return {
-    tool: "workspace_submit_for_review",
-    submitted: Boolean(result?.valid) && (Boolean(result?.written) || Boolean(result?.no_op)),
-    assigned_unit: assignedUnit,
-    ...createCompactWorkRecordEditResponse(workspaceRepo, result)
-  };
-}
-
 function resolveCommitBindingFromCredential(credential, mainRepo, assignedUnit) {
   if (!isPlainObject(credential)) {
     throw new Error("commit credential must be a launcher-provided object");
@@ -181,7 +206,6 @@ export function registerWorkspaceCommitTool({
   jsonContent,
   errorContent,
   resolveWorkspaceRepo,
-  createCompactWorkRecordEditResponse,
   setWorkRecordStatusByUnit,
   env = process.env
 }) {
@@ -189,10 +213,11 @@ export function registerWorkspaceCommitTool({
     WORKER_COMMIT_TOOL_NAME,
     {
       description:
-        "Worker-only closed-input affordance. Materialize and verify the launcher-bound delta against the launcher-assigned write_scope, advance only the launcher-bound delivery ref, and durably transition the assigned unit to review. For an exact slice, that successful commit is submit-for-review; it does not advance the WK ref or authorize integration. The exact committed slice target must receive a clean findings-only review before trusted integration. The tool accepts no caller-supplied branch, path, base_sha, write_scope, subject, expected envelope, author identity, commit message, or serialized binding.",
+        "Commit only the launcher-bound worker delta and move its unit to review. Exact-slice commit submits for review; it advances no WK ref or integration authority. Closed input: identity, scope, refs and commit settings are launcher-owned.",
       inputSchema: z.object({}).strict()
     },
     async (args) => {
+      const bindingResolution = { threw: false, error: undefined };
       try {
         const rawAssignedUnit = env?.[WIKI_MCP_ASSIGNED_UNIT_ENV_VAR];
         const assignedUnit = resolveAssignedUnit(env);
@@ -222,7 +247,13 @@ export function registerWorkspaceCommitTool({
           workerArgs: args,
           deps: {
             resolveBinding(value) {
-              rawBinding = resolveCommitBindingFromCredential(value, mainRepo, rawAssignedUnit);
+              try {
+                rawBinding = resolveCommitBindingFromCredential(value, mainRepo, rawAssignedUnit);
+              } catch (error) {
+                bindingResolution.threw = true;
+                bindingResolution.error = error;
+                throw error;
+              }
               return rawBinding;
             }
           }
@@ -236,8 +267,7 @@ export function registerWorkspaceCommitTool({
           gitDir: gitIdentity.gitDir,
           workTree: gitIdentity.workTree,
           baseSha: binding.base_sha,
-          message: admitted.server_generated_message,
-          sparseBinding: resolveSparseBinding(serverResolvedBinding)
+          message: admitted.server_generated_message
         });
 
         const scope = verifyAndMeasureCommitScope({
@@ -248,9 +278,12 @@ export function registerWorkspaceCommitTool({
           writeScope: binding.write_scope,
           expectedEnvelope: resolveExpectedEnvelope(serverResolvedBinding),
           deps: {
+
             resolveWriteScope(writeScope) {
               return resolveCommitWriteScopeMatcher(
-                deriveWritableMountsFromWriteScope, mainRepo, writeScope
+                createWorkerScopeTreeReader({ runGit: defaultRunGit, mainRepo, baseSha: binding.base_sha }),
+                writeScope,
+                [CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]
               );
             }
           }
@@ -338,8 +371,7 @@ export function registerWorkspaceCommitTool({
         const transition = createSubmitForReviewResponse(
           workspace.repo,
           assignedUnit,
-          persistedTransition.result,
-          createCompactWorkRecordEditResponse
+          persistedTransition.result
         );
         return jsonContent(
           createCommitResponse(workspace.repo, assignedUnit, {
@@ -355,7 +387,7 @@ export function registerWorkspaceCommitTool({
           })
         );
       } catch (error) {
-        return errorContent(error);
+        return errorContent(declareBindingResolutionFailure(error, bindingResolution));
       }
     }
   );

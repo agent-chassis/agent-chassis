@@ -1,9 +1,9 @@
 export {
-  applyControlledContractCarrierPatch,
   CARRIER_TARGETS,
   diffControlledContractCarrierContent,
   getControlledContractNodeSpills,
   getControlledContractProjectionSpills,
+  getControlledContractSelectedPopulation,
   projectControlledContractCarrierQuery as queryControlledContractCarrierContent
 } from "./controlled-contract-authoring-projections.mjs";
 
@@ -36,234 +36,7 @@ export const CONTROLLED_CONTRACT_CARRIER_QUERY_TARGETS = Object.freeze(
 );
 
 export const CONTROLLED_CONTRACT_PROOF_PACK_SELECTION_RESULT_SCHEMA_VERSION =
-  "controlled-contract-proof-pack-selection.v2";
-
-export const CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_AXES = Object.freeze([
-  "registered_routes",
-  "selector_partitions",
-  "authority_producer_consumer_edges",
-  "role_tool_profiles",
-  "failure_phases",
-  "result_schema_population",
-  "persistent_refs_and_state",
-  "concurrency_and_interleavings",
-  "declared_mutants",
-  "prohibited_stubs"
-]);
-
-const INTEGRATION_TEST_DESIGN_SHORT_STRING = Object.freeze({
-  type: "string", minLength: 1, maxLength: 1024
-});
-const INTEGRATION_TEST_DESIGN_ID = Object.freeze({
-  type: "string", minLength: 1, maxLength: 256
-});
-const INTEGRATION_TEST_DESIGN_ID_ARRAY = Object.freeze({
-  type: "array", maxItems: 4096, items: INTEGRATION_TEST_DESIGN_ID
-});
-const INTEGRATION_TEST_DESIGN_MEMBER_REF = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["census_id", "member_id"],
-  properties: {
-    census_id: INTEGRATION_TEST_DESIGN_ID,
-    member_id: INTEGRATION_TEST_DESIGN_ID
-  }
-});
-const INTEGRATION_TEST_DESIGN_PROOF_FACET = Object.freeze({
-  type: "object", additionalProperties: false, required: ["mode"],
-  properties: {
-    mode: { enum: ["closed_set", "required", "not_applicable"] },
-    items: INTEGRATION_TEST_DESIGN_ID_ARRAY,
-    rationale: INTEGRATION_TEST_DESIGN_SHORT_STRING
-  }
-});
-const INTEGRATION_TEST_DESIGN_EVIDENCE_KEYS = Object.freeze([
-  "action_id", "boundary_id", "input_id", "dependency_expectation_id",
-  "registered_set_id", "returned_set_id", "invoked_set_id", "completed_set_id",
-  "failure_injection_id", "expected_result_id", "before_checkpoint_id",
-  "after_checkpoint_id", "concurrency_constraint_id", "mutant_case_id",
-  "ordinary_discovery_binding_id", "kill_oracle_id", "seam_policy_id"
-]);
-const INTEGRATION_TEST_DESIGN_EVIDENCE = Object.freeze({
-  type: "object", additionalProperties: false,
-  properties: Object.freeze(Object.fromEntries(
-    INTEGRATION_TEST_DESIGN_EVIDENCE_KEYS.map((key) => [
-      key, INTEGRATION_TEST_DESIGN_ID
-    ])
-  ))
-});
-
-export const CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_ASSESS_INPUT_SCHEMA =
-  Object.freeze({
-    type: "object",
-    additionalProperties: false,
-    required: [
-      "unit", "axis_applicability", "declared_integration_tests",
-      "integration_scenarios", "interaction_requirements", "review_questions"
-    ],
-    properties: Object.freeze({
-      repo: { type: "string", minLength: 1 },
-      unit: { type: "string", pattern: "^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$" },
-      focus: { type: "string", pattern: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.pattern },
-      axis_applicability: {
-        type: "array", minItems: 10, maxItems: 10,
-        items: {
-          type: "object", additionalProperties: false,
-          required: ["axis", "status", "rationale"],
-          properties: {
-            axis: { enum: CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_AXES },
-            status: { enum: [
-              "required", "not_applicable", "review_only", "unevaluable", "undetermined"
-            ] },
-            rationale: INTEGRATION_TEST_DESIGN_SHORT_STRING
-          }
-        }
-      },
-      declared_integration_tests: {
-        type: "array", maxItems: 4096,
-        items: {
-          type: "object", additionalProperties: false,
-          required: ["test_id", "repository_path"],
-          properties: {
-            test_id: INTEGRATION_TEST_DESIGN_ID,
-            repository_path: INTEGRATION_TEST_DESIGN_SHORT_STRING,
-            classification_source: INTEGRATION_TEST_DESIGN_SHORT_STRING
-          }
-        }
-      },
-      integration_scenarios: {
-        type: "array", maxItems: 4096,
-        items: {
-          type: "object", additionalProperties: false,
-          required: [
-            "scenario_id", "test_id", "obligation_ids", "inputs", "actions",
-            "expected_results", "coverage"
-          ],
-          properties: {
-            scenario_id: INTEGRATION_TEST_DESIGN_ID,
-            test_id: { oneOf: [INTEGRATION_TEST_DESIGN_ID, { type: "null" }] },
-            candidate_test_reference_ids: INTEGRATION_TEST_DESIGN_ID_ARRAY,
-            obligation_ids: INTEGRATION_TEST_DESIGN_ID_ARRAY,
-            inputs: {
-              type: "array", maxItems: 4096,
-              items: { type: "object", additionalProperties: false,
-                required: ["input_id"], properties: {
-                  input_id: INTEGRATION_TEST_DESIGN_ID
-                } }
-            },
-            actions: {
-              type: "array", maxItems: 4096,
-              items: { type: "object", additionalProperties: false,
-                required: ["action_id", "boundary_id"], properties: {
-                  action_id: INTEGRATION_TEST_DESIGN_ID,
-                  boundary_id: INTEGRATION_TEST_DESIGN_ID
-                } }
-            },
-            expected_results: {
-              type: "array", maxItems: 4096,
-              items: { type: "object", additionalProperties: false,
-                required: ["result_id"], properties: {
-                  result_id: INTEGRATION_TEST_DESIGN_ID,
-                  kind: INTEGRATION_TEST_DESIGN_SHORT_STRING
-                } }
-            },
-            coverage: {
-              type: "array", maxItems: 4096,
-              items: { type: "object", additionalProperties: false,
-                required: ["census_id", "member_id", "evidence_design"], properties: {
-                  census_id: INTEGRATION_TEST_DESIGN_ID,
-                  member_id: INTEGRATION_TEST_DESIGN_ID,
-                  evidence_design: INTEGRATION_TEST_DESIGN_EVIDENCE
-                } }
-            },
-            fixture_effects: {
-              type: "array", maxItems: 4096,
-              items: { type: "object", additionalProperties: false,
-                required: ["state_member_id", "effect"], properties: {
-                  state_member_id: INTEGRATION_TEST_DESIGN_ID,
-                  effect: { enum: ["create", "delete", "mutate", "observe"] }
-                } }
-            },
-            seams: {
-              type: "array", maxItems: 4096,
-              items: { type: "object", additionalProperties: false,
-                required: ["authority_member_id", "mode"], properties: {
-                  authority_member_id: INTEGRATION_TEST_DESIGN_ID,
-                  mode: { enum: [
-                    "observe", "external_simulation", "fault_injection", "replace_result"
-                  ] }
-                } }
-            },
-            proof_specification: {
-              type: "object", additionalProperties: false,
-              required: [
-                "public_observations", "forbidden_side_effects", "follow_up",
-                "falsifiers", "writable_roots"
-              ],
-              properties: {
-                public_observations: {
-                  type: "array", minItems: 1, maxItems: 4096,
-                  items: INTEGRATION_TEST_DESIGN_SHORT_STRING
-                },
-                forbidden_side_effects: INTEGRATION_TEST_DESIGN_PROOF_FACET,
-                follow_up: INTEGRATION_TEST_DESIGN_PROOF_FACET,
-                falsifiers: INTEGRATION_TEST_DESIGN_PROOF_FACET,
-                writable_roots: INTEGRATION_TEST_DESIGN_PROOF_FACET
-              }
-            }
-          }
-        }
-      },
-      interaction_requirements: {
-        type: "array", maxItems: 4096,
-        items: {
-          type: "object", additionalProperties: false,
-          required: ["interaction_id", "coverage_mode", "required_population_members"],
-          properties: {
-            interaction_id: INTEGRATION_TEST_DESIGN_ID,
-            coverage_mode: { enum: ["single_scenario", "collective"] },
-            required_population_members: {
-              type: "array", minItems: 2, maxItems: 4096,
-              items: INTEGRATION_TEST_DESIGN_MEMBER_REF
-            }
-          }
-        }
-      },
-      review_questions: {
-        type: "array", maxItems: 4096,
-        items: {
-          type: "object", additionalProperties: false,
-          required: ["question_id", "question"],
-          properties: {
-            question_id: INTEGRATION_TEST_DESIGN_ID,
-            question: INTEGRATION_TEST_DESIGN_SHORT_STRING,
-            axis: { enum: CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_AXES },
-            resolution_owner: INTEGRATION_TEST_DESIGN_ID,
-            related_ids: INTEGRATION_TEST_DESIGN_ID_ARRAY
-          }
-        }
-      }
-    })
-  });
-
-export const CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_PUBLIC_REQUEST_KEYS =
-  Object.freeze(Object.keys(
-    CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_ASSESS_INPUT_SCHEMA.properties
-  ).sort());
-export const CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_AUTHORITY_KEYS = Object.freeze([
-  "acceptance_coverage", "acceptance_coverage_current", "acceptance_coverage_digest",
-  "assessment_state", "authority", "census_counts", "census_members",
-  "census_providers", "completeness", "contract_digest", "contract_generation_id",
-  "currentness", "generations", "obligation_source_current", "obligation_source_digest",
-  "obligations", "outcomes", "proof_plan_digest", "proof_plan_generation_id",
-  "provider_id", "requirements", "subject", "work_record_digest"
-]);
-export const CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_RESULT_SCHEMA_POPULATIONS =
-  Object.freeze(["pass", "fail", "incomplete", "unevaluable", "review_only"]);
-export const CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_ASSESS_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_integration_test_design_assess",
-  description: "Experimentally assess authored integration-test design sufficiency against server-resolved canonical populations without conferring proof or lifecycle authority.",
-  inputSchema: CONTROLLED_CONTRACT_INTEGRATION_TEST_DESIGN_ASSESS_INPUT_SCHEMA
-});
+  "controlled-contract-proof-pack-selection.v4";
 
 const ACCEPTANCE_COVERAGE_CARRIER_IDENTITY = Object.freeze({
   type: "object", additionalProperties: false,
@@ -316,24 +89,6 @@ const ACCEPTANCE_COVERAGE_ROW = Object.freeze({
   }
 });
 
-const ACCEPTANCE_COVERAGE_CRITERION_SELECTOR = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["kind", "criterion_identity"],
-  properties: {
-    kind: { const: "criterion_identity" },
-    criterion_identity: { type: "string", minLength: 1 }
-  }
-});
-
-const ACCEPTANCE_COVERAGE_QUERY_SELECTOR = Object.freeze({ oneOf: [
-  ACCEPTANCE_COVERAGE_CRITERION_SELECTOR,
-  { type: "object", additionalProperties: false,
-    required: ["kind", "node_id"], properties: {
-      kind: { const: "contract_node" },
-      node_id: { type: "string", minLength: 1 }
-    } }
-] });
-
 const ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES = Object.freeze({
   repo: { type: "string", minLength: 1 },
   unit: { type: "string", pattern: "^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$" },
@@ -342,14 +97,6 @@ const ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES = Object.freeze({
 
 const COVERAGE_ROW_SLOT_IDENTITY = Object.freeze({
   type: "string", pattern: "^ccrs_[0-9a-f]{64}$"
-});
-
-const COVERAGE_DESCRIBE_SELECTOR = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["kind", "row_slot_identity"], properties: {
-    kind: { const: "authoring_row" },
-    row_slot_identity: COVERAGE_ROW_SLOT_IDENTITY
-  }
 });
 
 const ACCEPTANCE_COVERAGE_AUTHORED_ROW = Object.freeze({
@@ -362,63 +109,7 @@ const ACCEPTANCE_COVERAGE_AUTHORED_ROW = Object.freeze({
   }
 });
 
-const ACCEPTANCE_COVERAGE_AUTHORITY_RESULT = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["authoritative", "authors_mappings_only", "grants"],
-  properties: {
-    authoritative: { const: false },
-    authors_mappings_only: { type: "boolean" },
-    grants: { type: "array", maxItems: 0 }
-  }
-});
-
-function coverageMutationNextCallsSchema(queryTool) {
-  return Object.freeze({
-    type: "array", minItems: 1, maxItems: 1,
-    items: {
-      type: "object", additionalProperties: false,
-      required: ["tool", "arguments"],
-      properties: {
-        tool: { const: queryTool },
-        arguments: {
-          type: "object", additionalProperties: false,
-          required: ["unit"],
-          properties: {
-            unit: { type: "string", pattern: "^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$" },
-            focus: { type: "string", pattern: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.pattern }
-          }
-        }
-      }
-    }
-  });
-}
-
-const ACCEPTANCE_COVERAGE_MUTATION_RESULT = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: [
-    "carrier_kind", "content_digest", "carrier_identity", "source_identity",
-    "changed", "next_calls", "authority"
-  ],
-  properties: {
-    carrier_kind: { const: "controlled-acceptance" },
-    content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-    carrier_identity: ACCEPTANCE_COVERAGE_CARRIER_IDENTITY,
-    source_identity: ACCEPTANCE_COVERAGE_SOURCE_IDENTITY,
-    changed: { type: "boolean" },
-    next_calls: coverageMutationNextCallsSchema(
-      "workspace_controlled_contract_acceptance_coverage_query"),
-    authority: ACCEPTANCE_COVERAGE_AUTHORITY_RESULT
-  }
-});
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_DESCRIBE_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit"], properties: {
-      ...ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES,
-      selector: COVERAGE_DESCRIBE_SELECTOR
-    } });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_CREATE_INPUT_SCHEMA =
+export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_ROW_AUTHORING_SCHEMA =
   Object.freeze({ type: "object", additionalProperties: false,
     required: ["unit", "carrier_identity", "source_identity",
       "expected_unit_digest", "expected_content_digest"],
@@ -437,523 +128,514 @@ export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_CREATE_INPUT_SCHEMA =
       { required: ["authored_rows"], not: { required: ["rows"] } }
     ] });
 
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_UPSERT_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit", "carrier_identity", "source_identity",
-      "expected_content_digest", "criterion_selector", "row"],
-    properties: {
-      ...ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES,
-      carrier_identity: ACCEPTANCE_COVERAGE_CARRIER_IDENTITY,
-      source_identity: ACCEPTANCE_COVERAGE_SOURCE_IDENTITY,
-      expected_content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-      criterion_selector: ACCEPTANCE_COVERAGE_CRITERION_SELECTOR,
-      row: ACCEPTANCE_COVERAGE_ROW
-    } });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_REMOVE_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit", "carrier_identity", "source_identity",
-      "expected_content_digest", "criterion_selector"],
-    properties: {
-      ...ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES,
-      carrier_identity: ACCEPTANCE_COVERAGE_CARRIER_IDENTITY,
-      source_identity: ACCEPTANCE_COVERAGE_SOURCE_IDENTITY,
-      expected_content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-      criterion_selector: ACCEPTANCE_COVERAGE_CRITERION_SELECTOR
-    } });
-
-const ACCEPTANCE_COVERAGE_PATCH_OPERATION = Object.freeze({ oneOf: [
-  { type: "object", additionalProperties: false,
-    required: ["op", "criterion_selector", "row"], properties: {
-      op: { const: "upsert" },
-      criterion_selector: ACCEPTANCE_COVERAGE_CRITERION_SELECTOR,
-      row: ACCEPTANCE_COVERAGE_ROW
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["op", "criterion_selector"], properties: {
-      op: { const: "remove" },
-      criterion_selector: ACCEPTANCE_COVERAGE_CRITERION_SELECTOR
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["op", "row_slot_identity", "row"], properties: {
-      op: { const: "upsert" },
-      row_slot_identity: COVERAGE_ROW_SLOT_IDENTITY,
-      row: { type: "object", additionalProperties: false,
-        required: ["node_ids", "axes"], properties: {
-          node_ids: ACCEPTANCE_COVERAGE_ROW.properties.node_ids,
-          axes: ACCEPTANCE_COVERAGE_ROW.properties.axes
-        } }
-    } }
-] });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_PATCH_INPUT_SCHEMA =
-  Object.freeze({
-    type: "object", additionalProperties: false,
-    required: [
-      "unit", "carrier_identity", "source_identity", "expected_unit_digest",
-      "expected_authoring_identity", "expected_content_digest", "operations"
-    ],
-    properties: {
-      ...ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES,
-      carrier_identity: ACCEPTANCE_COVERAGE_CARRIER_IDENTITY,
-      source_identity: ACCEPTANCE_COVERAGE_SOURCE_IDENTITY,
-      expected_unit_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-      expected_authoring_identity: {
-        type: "string", pattern: "^sha256:[0-9a-f]{64}$"
-      },
-      expected_content_digest: {
-        type: "string", pattern: "^sha256:[0-9a-f]{64}$"
-      },
-      operations: { type: "array", minItems: 1,
-        items: ACCEPTANCE_COVERAGE_PATCH_OPERATION }
-    }
-  });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_QUERY_INPUT_SCHEMA =
-  Object.freeze({
-    type: "object",
-    additionalProperties: false,
-    required: ["unit"],
-    properties: {
-      ...ACCEPTANCE_COVERAGE_COMMON_INPUT_PROPERTIES,
-      selector: ACCEPTANCE_COVERAGE_QUERY_SELECTOR,
-      cursor: { type: "string", minLength: 1 }
-    },
-    allOf: [{ not: { required: ["selector", "cursor"] } }]
-  });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_RESULT_SCHEMA_POPULATIONS =
-  Object.freeze([
-    "describe_success", "create_success", "upsert_success", "remove_success",
-    "query_success", "missing_source_refusal", "missing_carrier_refusal",
-    "invalid_selector_refusal", "stale_currentness_refusal",
-    "duplicate_credit_refusal", "oversize_refusal", "busy_refusal",
-    "final_compare_refusal"
-  ]);
-
-const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_AUTHORING_OUTPUT_SCHEMA =
-  Object.freeze({
-    type: "object",
-    additionalProperties: false,
-    required: [
-      "unit", "unit_digest", "criterion_identities", "evaluation",
-      "projection", "scope_facts", "proof_coverage", "result_facts",
-      "criterion_axes", "next_calls"
-    ],
-    properties: {
-      unit: { type: "object", additionalProperties: true },
-      unit_digest: { type: "string" },
-      criterion_identities: { type: "object", additionalProperties: true },
-      evaluation: { type: "object", additionalProperties: true },
-      projection: { type: "object", additionalProperties: true },
-      scope_facts: { type: "object", additionalProperties: true },
-      proof_coverage: { type: "array" },
-      result_facts: { type: ["object", "null"] },
-      criterion_axes: { type: "array" },
-      next_calls: { type: "array" }
-    }
-  });
-
-const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_QUERY_OUTPUT_SCHEMA =
-  Object.freeze({
-    type: "object",
-    additionalProperties: false,
-    required: [
-      "version", "criterion_identity_digest", "projection_digest", "claim",
-      "complete", "warnings", "unknown_mappings", "unmapped_mandatory_node_ids",
-      "axes", "selector", "totals", "page", "covered_detail", "next_calls",
-      "authority"
-    ],
-    properties: {
-      version: { type: "string" },
-      criterion_identity_digest: { type: "string" },
-      projection_digest: { type: "string" },
-      claim: { enum: ["absent", "present"] },
-      complete: { type: "boolean" },
-      warnings: { type: "array" },
-      unknown_mappings: { type: "array" },
-      unmapped_mandatory_node_ids: { type: "array", items: { type: "string" } },
-      axes: { type: "array", items: { type: "object", additionalProperties: false,
-        required: ["axis", "state", "totals_by_state"], properties: {
-          axis: { type: "string" }, state: { type: "string" },
-          totals_by_state: { type: "object", additionalProperties: false }
-        } } },
-      selector: { type: ["object", "null"], additionalProperties: false },
-      totals: { type: "object", additionalProperties: false },
-      page: { type: "object", additionalProperties: false },
-      covered_detail: { type: "object", additionalProperties: false },
-      next_calls: { type: "array" },
-      authority: ACCEPTANCE_COVERAGE_AUTHORITY_RESULT
-    }
-  });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_DESCRIBE_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_acceptance_coverage_describe",
-  description: "Describe acceptance coverage for authoring. Returns transport-sized row batches with criterion identity/text, shared node/proof choices, field contracts, exact counts, fixed mutation arguments, and callable continuation. Server binding protects integrity, not secrecy or authority.",
-  inputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_DESCRIBE_INPUT_SCHEMA
-});
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_CREATE_TOOL =
-  Object.freeze({
-    name: "workspace_controlled_contract_acceptance_coverage_create",
-    description: "Create absent acceptance coverage from returned one-use row identities and caller-authored fields; the server injects current criterion identities.",
-    inputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_CREATE_INPUT_SCHEMA,
-    outputSchema: ACCEPTANCE_COVERAGE_MUTATION_RESULT
-  });
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_UPSERT_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_acceptance_coverage_upsert",
-  description: "Upsert one typed acceptance-coverage row in the server-resolved carrier.",
-  inputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_UPSERT_INPUT_SCHEMA,
-  outputSchema: ACCEPTANCE_COVERAGE_MUTATION_RESULT
-});
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_REMOVE_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_acceptance_coverage_remove",
-  description: "Remove one typed acceptance-coverage row from the server-resolved carrier.",
-  inputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_REMOVE_INPUT_SCHEMA,
-  outputSchema: ACCEPTANCE_COVERAGE_MUTATION_RESULT
-});
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_QUERY_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_acceptance_coverage_query",
-  description: "Query the server-adapted acceptance-coverage projection by selector or cursor.",
-  inputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_QUERY_INPUT_SCHEMA,
-  outputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_QUERY_OUTPUT_SCHEMA
-});
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_PATCH_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_acceptance_coverage_patch",
-  description: "Atomically apply a bounded typed patch to one current acceptance-coverage carrier.",
-  inputSchema: CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_PATCH_INPUT_SCHEMA
-});
-
-export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_TOOL_DEFINITIONS =
-  Object.freeze([
-    CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_DESCRIBE_TOOL,
-    CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_CREATE_TOOL,
-    CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_UPSERT_TOOL,
-    CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_REMOVE_TOOL,
-    CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_QUERY_TOOL
-  ]);
-
-const OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES = Object.freeze({
+import { PROOF_AUTHORING_FIELD_SCHEMAS } from
+  "@agent-chassis/controlled-contract/proof-contract";
+import { CASE_VERIFICATION_ASSOCIATION_FIELD, NATIVE_TEST_CASE_AMENDMENT_SCHEMA,
+  NATIVE_TEST_CASE_AUTHORING_GUIDANCE } from
+  "@agent-chassis/controlled-contract/native-test-cases";
+import { STABLE_TEST_PROOF_AUTHORING_LIMITS, VERIFICATION_BUNDLE_VOCABULARY } from
+  "@agent-chassis/controlled-contract/test-proof";
+import { OBLIGATION_COVERAGE_GAP_KINDS, OBLIGATION_DRAFT_SCHEMA } from
+  "@agent-chassis/controlled-contract/obligation-coverage";
+import { NATIVE_CONTRACT_SCHEMA_V1 } from
+  "@agent-chassis/controlled-contract/native-contract";
+import { DEFAULT_MANDATORY_MODALITIES } from
+  "@agent-chassis/controlled-contract/native-contract-dag";
+import {
+  CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES,
+  CONTROLLED_CONTRACT_REQUIREMENT_LIMITS,
+  deriveControlledContractAuthoringVocabulary,
+  projectControlledContractAuthoringVocabulary,
+  publishAuthoringVocabularyForGuidance
+} from "../operations/controlled-contract/contract-requirement-vocabulary.mjs";
+const OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES = {
   repo: { type: "string", minLength: 1 },
-  unit: { type: "string", pattern: "^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$" },
-  focus: { type: "string", pattern: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.pattern }
+  unit: { type: "string", pattern: "^WK-[0-9]{4,}(?:#SLICE-[0-9]{3,})?$" },
+  focus: { type: "string", pattern: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.pattern,
+    description: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.accepted_form }
+};
+const draftRequest = (fields, required = []) => Object.freeze({
+  type: "object", additionalProperties: false, required: ["unit", ...required],
+  $defs: OBLIGATION_DRAFT_SCHEMA.$defs,
+  properties: { ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES, ...fields }
 });
+const obligationId = OBLIGATION_DRAFT_SCHEMA.$defs.obligation_id;
+const sourceCAS = { anyOf: [OBLIGATION_DRAFT_SCHEMA.$defs.sha256, { type: "null" }] };
+const semanticString = (maxLength) => ({ type: 'string', minLength: 1, maxLength });
+const typedRequirementIdentity = { oneOf: [
+  { type: 'object', additionalProperties: false,
+    required: ['kind', 'repository', 'path'], properties: {
+      kind: semanticString(64), repository: semanticString(256), path: semanticString(1024) } },
+  { type: 'object', additionalProperties: false,
+    required: ['kind', 'repository', 'path', 'symbol'], properties: {
+      kind: semanticString(64), repository: semanticString(256), path: semanticString(1024),
+      symbol: semanticString(512), scip_symbol: semanticString(1024) } },
+  { type: 'object', additionalProperties: false,
+    required: ['kind', 'domain', 'value'], properties: {
+      kind: semanticString(64), domain: semanticString(256), value: semanticString(512) } },
+  { type: 'object', additionalProperties: false,
+    required: ['kind', 'name'], properties: {
+      kind: semanticString(64), name: semanticString(512) } },
+  { type: 'object', additionalProperties: false,
+    required: ['kind', 'term'], properties: {
+      kind: semanticString(64), term: semanticString(512) } }
+] };
+const requirementReferent = { oneOf: [
+  { type: 'object', additionalProperties: false, required: ['select'],
+    properties: { select: { type: 'string', pattern: '^ref-[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 256 } } },
+  { type: 'object', additionalProperties: false, required: ['declare'], properties: {
+    declare: { type: 'object', additionalProperties: false, required: ['type_term', 'identity'],
+      properties: { type_term: semanticString(128), identity: typedRequirementIdentity } } } }
+] };
+const requirementObject = { oneOf: [
+  { type: 'object', additionalProperties: false, required: ['referent'], properties: { referent: requirementReferent } },
+  { type: 'object', additionalProperties: false, required: ['boolean'], properties: { boolean: { type: 'boolean' } } },
+  { type: 'object', additionalProperties: false, required: ['number'], properties: { number: { type: 'number' } } },
+  { type: 'object', additionalProperties: false, required: ['range'], properties: {
+    range: { type: 'object', additionalProperties: false, properties: {
+      minimum: { type: 'number' }, maximum: { type: 'number' } } } } }
+] };
+const requirementStatement = { type: 'object', additionalProperties: false,
+  required: ['relation', 'objects'], properties: {
+    relation: semanticString(256),
+    applies: { type: 'object', additionalProperties: false, required: ['mode'], properties: {
+      mode: semanticString(64), context: { type: 'array', maxItems: 4, items: requirementReferent } } },
+    objects: { type: 'array', minItems: 1, items: requirementObject }
+  } };
+const runtimeTest = { type: 'object', additionalProperties: false,
+  required: ['boundary', 'observable', 'falsifier', 'selector'], properties: {
+    boundary: { type: 'object', additionalProperties: false, required: ['subjects'], properties: {
+      kind: semanticString(64), subjects: { type: 'array', minItems: 1, maxItems: 8, items: requirementReferent },
+      module_path: semanticString(1024) } },
+    observable: { type: 'object', additionalProperties: false, required: ['kind'],
+      properties: { kind: semanticString(64) } },
+    falsifier: { type: 'object', additionalProperties: false, required: ['module_path'], properties: {
+      strategy: semanticString(64), module_path: semanticString(1024), entry_export: semanticString(256),
+      operation: { type: 'object', additionalProperties: false, properties: {
+        module_path: semanticString(1024), export_name: semanticString(256) } } } },
+    selector: { type: 'object', additionalProperties: false, required: ['name', 'nesting'], properties: {
+      name: semanticString(512), nesting: { type: 'integer', minimum: 0, maximum: 64 } } }
+  } };
+const requirementClaimId = { type: 'string', pattern: '^claim-[a-z0-9]+(?:-[a-z0-9]+)*$', maxLength: 256 };
 
-const OBLIGATION_COVERAGE_CRITERION_SELECTOR = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["kind", "criterion_identity"],
+const contractRequirements = { type: 'object', additionalProperties: false,
   properties: {
-    kind: { const: "criterion_identity" },
-    criterion_identity: { type: "string", minLength: 1, maxLength: 4096 }
-  }
+    retire_claim_ids: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { ...requirementClaimId } },
+    requirements: { type: 'array', minItems: 1, maxItems: 8, items: {
+      type: 'object', additionalProperties: false,
+      required: ['modality', 'subject', 'behavior'], properties: {
+        replace_claim_id: requirementClaimId,
+        rebind_case_ids: { type: 'array', minItems: 1,
+          maxItems: STABLE_TEST_PROOF_AUTHORING_LIMITS.replacement_operations, uniqueItems: true,
+          items: NATIVE_TEST_CASE_AMENDMENT_SCHEMA.properties.case_id },
+        nature: semanticString(64), modality: semanticString(32), subject: requirementReferent,
+        behavior: requirementStatement,
+        verification: { type: 'object', additionalProperties: false,
+          required: ['method', 'verifier', 'observes', 'fails_when'], properties: {
+            method: semanticString(64), verifier: requirementReferent,
+            observes: requirementStatement, fails_when: requirementStatement,
+            runtime_test: runtimeTest } }
+      } } },
+    unrepresentable_meaning: { type: 'array', maxItems: 8, items: {
+      type: 'object', additionalProperties: false, required: ['reason', 'text'], properties: {
+        reason: semanticString(64), text: semanticString(4096), candidate_concept: semanticString(256) } } },
+    notes: { type: 'array', maxItems: 8, items: {
+      type: 'object', additionalProperties: false, required: ['kind', 'text'], properties: {
+        kind: semanticString(64), text: semanticString(4096) } } }
+  } };
+
+const requirementVocabulary = publishAuthoringVocabularyForGuidance(
+  projectControlledContractAuthoringVocabulary(
+    deriveControlledContractAuthoringVocabulary(NATIVE_CONTRACT_SCHEMA_V1)
+  )
+);
+const exampleReferent = (typeTerm, identity) => Object.freeze({
+  declare: Object.freeze({ type_term: typeTerm, identity: Object.freeze(identity) })
+});
+const exampleParser = exampleReferent("cc:operation", {
+  kind: "profile_term", term: "action-pinning configuration parser"
+});
+const exampleInvalidLevel = exampleReferent("cc:configuration", {
+  kind: "profile_term", term: "configuration with an unknown action-pinning level"
+});
+const exampleVerifier = exampleReferent("cc:test", {
+  kind: "repository_path", repository: "example/go-actionlint",
+  path: "core/action_pin_test.go"
 });
 
-const OBLIGATION_COVERAGE_OBLIGATION_SELECTOR = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["kind", "obligation_id"],
-  properties: {
-    kind: { const: "obligation_id" },
-    obligation_id: { type: "string", pattern: "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$" }
-  }
+const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL_NAME =
+  "workspace_controlled_contract_obligation_coverage_upsert";
+const upsertDescribeRequest = (argumentsValue) => Object.freeze({
+  tool: "workspace_tools_describe",
+  arguments: Object.freeze({
+    tool_name: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL_NAME,
+    ...argumentsValue
+  })
+});
+const upsertGuidanceRequest = (...path) => upsertDescribeRequest({
+  input_contract: Object.freeze({ kind: "guidance", path: Object.freeze(path) })
+});
+export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
+  schema_version: "controlled-contract-requirement-input-guidance.v1",
+  overview: "Author a unit's contract requirements, controlled-acceptance disposition and " +
+    "obligations. First call workspace_controlled_contract_obligation_coverage_query for the " +
+    "unit and focus: it returns the combined content_digest this upsert takes as " +
+    "expected_content_digest, and the existing claim, verification, obligation and case " +
+    "identities. Save at least one of contract_requirements, controlled_acceptance or " +
+    "obligations; supplied items replace those items and omission preserves the others. " +
+    "contract_requirements carries requirements, retire_claim_ids or both: " +
+    `${CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer} entries at most across ` +
+    "the two, at least one, and a supplied list is never empty. Its notes and " +
+    "unrepresentable_meaning only supplement those entries and are never saved alone. " +
+    "contract_requirements.retire_claim_ids explicitly retires stored requirements with no " +
+    "replacement and reconciles their dependent obligations, cases and test targets. " +
+    "A behavioral requirement names a subject and an observable behavior. Its verification " +
+    "names a verifier, what it observes, and a fails_when statement describing the contrary " +
+    "result, so the check can tell the two apart. Take structures and accepted values from " +
+    "the published schema (this tool's verbose describe). After saving, query reads the saved " +
+    "authoring, workspace_validate_proof diagnoses saved inputs, and workspace_verify_proof " +
+    "executes saved proofs when execution is intended. Neither this guidance nor a successful " +
+    "save establishes lifecycle readiness. For an obligation verified by test_execution, " +
+    "case_authoring gives each listed family's exact provider identity, node_id form and " +
+    "falsification fields. When no catalog proof of the obligation has been identified, keep " +
+    "controlled_acceptance required and record the obligation gap described by " +
+    "unresolved_coverage; a partial search is not non-applicability. What can run a selected " +
+    "proof today is not an authoring input and is never recorded here: workspace_verify_proof " +
+    "reports execution capability at verify time.",
+  authored_path_root: "$.contract_requirements",
+  authority: Object.freeze({
+    structural_contract: upsertDescribeRequest({ verbose: true }),
+    accepted_values: upsertGuidanceRequest("vocabulary"),
+    complete_relation_catalog: upsertGuidanceRequest("vocabulary", "relation_details"),
+    case_authoring: upsertGuidanceRequest("case_authoring"),
+    unresolved_coverage: upsertGuidanceRequest("unresolved_coverage")
+  }),
+  case_authoring: NATIVE_TEST_CASE_AUTHORING_GUIDANCE,
+  unresolved_coverage: Object.freeze({
+    applies_when: "No catalog proof has been identified for an obligation, or discovery pages " +
+      "remain unread. Whether anything can execute a proof is not one of these conditions and " +
+      "is never an authored gap.",
+    record: Object.freeze({
+      controlled_acceptance: Object.freeze({ disposition: "required" }),
+      obligation_fields: Object.freeze({
+        gap: Object.freeze({ gap_kind: "<catalog_gap>",
+          reason: "<what was searched and the exact missing fact>" }),
+        mechanism: "optional {owner, kind, selector} naming the intended check",
+        proof_name: "omit until an exact catalog name is chosen; unknown names refuse"
+      })
+    }),
+    gap_kinds: OBLIGATION_COVERAGE_GAP_KINDS,
+    distinctions: Object.freeze([
+      "catalog_gap: the search for an admitted proof of the property is unresolved; record what " +
+        "was searched and what is still unread. Reading every page is not a prerequisite for " +
+        "following a candidate that is already known, and an unread page is not evidence that no " +
+        "proof exists.",
+      "Execution capability is not a gap kind. A proof whose selected route nothing can run today " +
+        "is authored exactly like any other: select it, author its case, and leave execution to " +
+        "workspace_verify_proof, which reports the incapacity with its own enumerated cause. A " +
+        "refused request shape, an unknown provider identity or a provider version the catalog " +
+        "does not list is a request defect to correct, not a gap.",
+      "A gap is an unresolved annotation: the obligation and its requirement remain, and the gap " +
+        "confers no proof credit, readiness or exemption.",
+      "opted_out is the explicit controlled-acceptance exemption; its rationale is authored " +
+        "meaning that is neither inferred nor classified. Discovery misses, unread pages, " +
+        "unsupported targets and missing authoring inputs are not evidence for it.",
+      "Saving an opt-out records the caller's authored rationale and reports it as authored: no " +
+        "operation here assesses whether that rationale is true, so a saved exemption is never a " +
+        "verified conclusion that the obligation does not apply."
+    ]),
+    next_calls: Object.freeze({
+      discover: Object.freeze({ tool: "workspace_controlled_proof_intents_discover",
+        arguments: Object.freeze({ query: "<property the obligation establishes>" }) }),
+      case_authoring: upsertGuidanceRequest("case_authoring")
+    })
+  }),
+  required_object_shapes: Object.freeze({
+    requirement: Object.freeze({
+      required_fields: Object.freeze(["modality", "subject", "behavior"]),
+      optional_fields: Object.freeze(["replace_claim_id", "rebind_case_ids", "nature",
+        "verification"]),
+      field_shapes: Object.freeze({ subject: "referent", behavior: "statement",
+        verification: "verification" })
+    }),
+    referent: CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES.referent,
+    statement: CONTROLLED_CONTRACT_REQUIREMENT_INPUT_SHAPES.statement,
+    statement_object: Object.freeze({
+      one_of: Object.freeze([
+        Object.freeze({ referent: "<referent>" }),
+        Object.freeze({ boolean: "<boolean>" }),
+        Object.freeze({ number: "<number>" }),
+        Object.freeze({ range: Object.freeze({ minimum: "<optional number>",
+          maximum: "<optional number>" }) })
+      ])
+    }),
+    verification: Object.freeze({
+      required_fields: Object.freeze(["method", "verifier", "observes", "fails_when"]),
+      field_shapes: Object.freeze({ verifier: "referent", observes: "statement",
+        fails_when: "statement", runtime_test: "conditional runtime-test object" })
+    }),
+    requirement_rebinding: Object.freeze({
+      field: "requirements[].rebind_case_ids",
+      requires: Object.freeze(["replace_claim_id"]),
+      purpose: "Keep existing authored cases while replacing a requirement. The compiler generates the replacement's requirement and verification identities; each listed case keeps its meaning and adopts the replacement test_execution verification in the same save.",
+      complete_case_population: "List every existing case whose verification the replacement retires, including cases no obligation uses. Query shows each requirement's verification_claim_ids and each case's verification_id.",
+      surviving_verification: "A listed case whose verification survives the replacement is accepted unchanged and still counts toward the case operation bound.",
+      runtime_meaning: "After same-batch case amendments, the authored runtime_test must agree with each retained case and its derived system-under-test boundary: boundary subjects, kind and module_path; observable kind; selector; falsifier strategy, module_path, entry_export and operation. Only fields present on both sides are compared.",
+      live_links: "Obligation links to the replaced requirement, or to a retired verification the replacement maps, are updated in the root and every slice source. Work-record validation declarations keep their target, order and owning unit; only the owning unit may change them.",
+      omission: "Without rebind_case_ids, a replacement that retires a verification a case still uses is refused before effects.",
+      bounds: Object.freeze({
+        requirements_per_answer: CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer,
+        case_operations: STABLE_TEST_PROOF_AUTHORING_LIMITS.replacement_operations,
+        case_operation_census: "each obligation case amendment plus each listed rebind_case_ids entry"
+      }),
+      refusal_codes: Object.freeze([
+        "obligation_coverage_request_invalid",
+        "obligation_coverage_case_unknown",
+        "obligation_coverage_case_selector_invalid",
+        "obligation_coverage_case_rebinding_incomplete",
+        "obligation_coverage_case_rebinding_verification_incompatible",
+        "obligation_coverage_case_shared_identity_conflict",
+        "obligation_coverage_case_verification_conflict",
+        "obligation_coverage_case_population_too_large",
+        "obligation_coverage_case_selector_cross_unit",
+        "obligation_coverage_case_target_invalid",
+        "obligation_coverage_source_invalid",
+        "controlled_contract_requirement_correction_shared_verification"
+      ])
+    }),
+    requirement_retirement: Object.freeze({
+      field: "retire_claim_ids",
+      purpose: "Retire stored requirements with no replacement. List the requirement claim_id values query returns; the server derives and settles every dependent change in the same save. Omitting a requirement never retires it.",
+      selection: "Each entry is a current non-verification requirement claim, listed once and not also named by a replace_claim_id or compiled by a requirement in the same answer. contract_requirements carries requirements, retire_claim_ids or both; a supplied list is never empty, and notes or unrepresentable_meaning alone are refused.",
+      native_effects: "The requirement and its verifies edges retire. A verification retires only when no remaining requirement still uses it, together with its test proof and newly unused propositions and references. Shared verifications, residue and notes remain.",
+      dependent_uses: "A parent or slice obligation whose explicit links and case support only retired requirements is deleted. An affected obligation that also supports a remaining requirement, or that the same save amends, is refused with its unit, obligation, case and identities; amend its controlled_contract_node_ids or case in the same save to keep the remaining meaning. Obligations with no retired link or case are unchanged.",
+      cases_and_targets: "Cases bound to a retired verification are deleted once their uses retire; other cases, including unfinished ones, remain. node_test declarations drop retired verification IDs, keeping target, order, notes and other IDs, and are changed only through their owning unit.",
+      semantic_dependencies: "A retained non-verifies relation or collection that still names a retired claim is refused; retained relationships are never rewritten or deleted to make retirement pass.",
+      receipt: "requirement_retirements lists each selection's retired and surviving verification IDs with retired obligation and case counts. Query reads the complete current state.",
+      bounds: Object.freeze({
+        requirements_per_answer: CONTROLLED_CONTRACT_REQUIREMENT_LIMITS.requirements_per_answer,
+        answer_census: "each requirements entry plus each retire_claim_ids entry",
+        case_operations: STABLE_TEST_PROOF_AUTHORING_LIMITS.replacement_operations,
+        case_operation_census: "each obligation case amendment, rebind_case_ids entry and retired case"
+      }),
+      refusal_codes: Object.freeze([
+        "obligation_coverage_request_invalid",
+        "controlled_contract_requirement_invalid",
+        "controlled_contract_requirement_correction_target_invalid",
+        "controlled_contract_requirement_correction_conflicting",
+        "controlled_contract_requirement_retirement_dependency_conflict",
+        "obligation_coverage_requirement_retirement_use_conflict",
+        "obligation_coverage_case_selector_cross_unit",
+        "obligation_coverage_case_population_too_large",
+        "obligation_coverage_source_invalid"
+      ])
+    })
+  }),
+  conditional_verification_requirements: Object.freeze([
+    Object.freeze({
+      when: Object.freeze({ nature: "behavior",
+        modality_in: DEFAULT_MANDATORY_MODALITIES }),
+      requires: Object.freeze(["verification"]),
+      guidance: "Use a verifier and observations specific to the behavior. fails_when describes a concrete contradictory behavior of the requirement subject."
+    }),
+    Object.freeze({
+      when: Object.freeze({
+        "verification.method":
+          VERIFICATION_BUNDLE_VOCABULARY.verification_claim.verification_method,
+        "verification.runtime_test": "supplied"
+      }),
+      requires: Object.freeze(["verification.runtime_test"]),
+      guidance: "A supplied runtime_test must be complete. Omitting it saves the verification meaning with no executable binding, which workspace_verify_proof then refuses to execute. Other admitted verification methods do not force test_execution."
+    })
+  ]),
+  behavioral_example: Object.freeze({
+    purpose: "The parser MUST reject an unknown action-pinning level. The named test covers that parser and input, and accepting the invalid level falsifies the requirement.",
+    contract_requirements: Object.freeze({ requirements: Object.freeze([
+      Object.freeze({
+        nature: "behavior",
+        modality: "MUST",
+        subject: exampleParser,
+        behavior: Object.freeze({ relation: "reference:rejects",
+          objects: Object.freeze([Object.freeze({ referent: exampleInvalidLevel })]) }),
+        verification: Object.freeze({
+          method: "analysis",
+          verifier: exampleVerifier,
+          observes: Object.freeze({ relation: "reference:covers",
+            objects: Object.freeze([
+              Object.freeze({ referent: exampleParser }),
+              Object.freeze({ referent: exampleInvalidLevel })
+            ]) }),
+          fails_when: Object.freeze({ relation: "reference:accepts",
+            objects: Object.freeze([Object.freeze({ referent: exampleInvalidLevel })]) })
+        })
+      })
+    ]) })
+  }),
+  runtime_test_authoring: "verification.runtime_test optionally binds a " +
+    "test_execution verification (see conditional_verification_requirements). It describes the test that " +
+    "runs: boundary.subjects are the referents under test; observable.kind is the result the " +
+    "test inspects; selector.name and selector.nesting identify the exact test; falsifier " +
+    "states how the test is shown to fail when the behavior is contrary. Which boundary and " +
+    "falsifier fields are required, open or bound depends on the falsifier strategy, and the " +
+    "published schema's per-strategy variants are authoritative. The default " +
+    "dependency_failure strategy may be omitted and its falsifier takes module_path only; " +
+    "forced_invocation requires strategy, module_path, entry_export and operation. A module " +
+    "boundary requires its open boundary.module_path. Fields the proof owner binds are not " +
+    "authored. Accepted kinds and strategies are in native_runtime_test_vocabulary.",
+  vocabulary: requirementVocabulary,
+  native_runtime_test_vocabulary: Object.freeze({
+    schema_version: "controlled-contract-requirement-runtime-test-vocabulary.v1",
+    required_for_verification_method:
+      VERIFICATION_BUNDLE_VOCABULARY.verification_claim.verification_method,
+    boundary_kinds:
+      VERIFICATION_BUNDLE_VOCABULARY.target_types.system_under_test_boundary_kind,
+    observable_kinds:
+      VERIFICATION_BUNDLE_VOCABULARY.target_types.observable_result_kind,
+    falsifier_strategies:
+      VERIFICATION_BUNDLE_VOCABULARY.target_types.falsifier_strategy,
+    provider_bound_boundary_kinds:
+      VERIFICATION_BUNDLE_VOCABULARY.providers.boundary_traversal.boundary_kinds,
+    selector: VERIFICATION_BUNDLE_VOCABULARY.target_types.test_selector,
+    native_case_target: Object.freeze({
+      owner: "authored_case",
+      selector: VERIFICATION_BUNDLE_VOCABULARY.target_types.native_test_selector,
+      providers: VERIFICATION_BUNDLE_VOCABULARY.native_providers
+    })
+  })
 });
 
-const OBLIGATION_COVERAGE_MECHANISM = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: ["owner", "kind", "selector"],
-  properties: {
-    owner: { type: "string", minLength: 1 },
-    kind: { enum: [
-      "code_symbol", "schema", "test", "configuration", "durable_record",
-      "tool_operation"
-    ] },
-    selector: { type: "string", minLength: 1 }
-  }
-});
-
-const OBLIGATION_COVERAGE_AUTHORED_PROOF = Object.freeze({ oneOf: [
-  { type: "object", additionalProperties: false,
-    required: ["kind", "requested_intent", "selector", "evaluation_stage"],
-    properties: {
-      kind: { const: "pack_mapping" },
-      requested_intent: { type: "string", minLength: 1 },
-      selector: { type: "object", additionalProperties: false,
-        required: ["kind", "component_id"], properties: {
-          kind: { enum: [
-            "reference_binding", "claim", "relation", "collection",
-            "resolver_fact", "evidence"
-          ] },
-          component_id: { type: "string", minLength: 1 }
-        } },
-      evaluation_stage: { enum: ["pre_dispatch", "post_delivery"] }
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["kind", "gap_kind", "reason"], properties: {
-      kind: { const: "explicit_gap" },
-      gap_kind: { enum: [
-        "catalog_gap", "mechanism_gap", "implementation_not_delivered",
-        "existing_mechanism_unextended", "review_only", "no_proof_required"
-      ] },
-      reason: { type: "string", minLength: 1 }
-    } }
-] });
-
-const OBLIGATION_COVERAGE_AUTHORED_ROW = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: [
-    "obligation_id", "statement", "criterion_selector",
-    "controlled_contract_node_ids", "mechanism", "proof"
-  ],
-  properties: {
-    obligation_id: {
-      type: "string", pattern: "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$"
-    },
-    statement: { type: "string", minLength: 1 },
-    criterion_selector: OBLIGATION_COVERAGE_CRITERION_SELECTOR,
-    controlled_contract_node_ids: {
-      type: "array", minItems: 1, uniqueItems: true,
-      items: { type: "string", minLength: 1 }
-    },
-    mechanism: OBLIGATION_COVERAGE_MECHANISM,
-    proof: OBLIGATION_COVERAGE_AUTHORED_PROOF
-  }
-});
-
-const OBLIGATION_COVERAGE_ROW_SLOT_AUTHORED_ROW = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: [
-    "row_slot_identity", "obligation_id", "statement",
-    "controlled_contract_node_ids", "mechanism", "proof"
-  ],
-  properties: {
-    row_slot_identity: COVERAGE_ROW_SLOT_IDENTITY,
-    obligation_id: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.obligation_id,
-    statement: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.statement,
-    controlled_contract_node_ids:
-      OBLIGATION_COVERAGE_AUTHORED_ROW.properties.controlled_contract_node_ids,
-    mechanism: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.mechanism,
-    proof: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.proof
-  }
-});
-
-const OBLIGATION_COVERAGE_QUERY_SELECTOR = Object.freeze({ oneOf: [
-  OBLIGATION_COVERAGE_OBLIGATION_SELECTOR,
-  OBLIGATION_COVERAGE_CRITERION_SELECTOR,
-  { type: "object", additionalProperties: false,
-    required: ["kind", "node_id"], properties: {
-      kind: { const: "contract_node" }, node_id: { type: "string", minLength: 1 }
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["kind", "mechanism"], properties: {
-      kind: { const: "mechanism" }, mechanism: OBLIGATION_COVERAGE_MECHANISM
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["kind", "proof_kind"], properties: {
-      kind: { const: "proof_kind" },
-      proof_kind: { enum: ["pack_mapping", "explicit_gap"] }
-    } }
-] });
-
-const OBLIGATION_COVERAGE_SOURCE_IDENTITY = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: [
-    "source_kind", "wk_id", "controlled_focus", "selected_unit",
-    "locator_digest", "content_digest"
-  ],
-  properties: {
-    source_kind: { const: "obligation-coverage" },
-    wk_id: { type: "string", pattern: "^WK-[0-9]{4}$" },
-    controlled_focus: { oneOf: [
-      { type: "null" },
-      { type: "string", pattern: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.pattern }
-    ] },
-    selected_unit: { oneOf: [
-      { type: "null" },
-      { type: "string", pattern: "^SLICE-[0-9]{3,}$" }
-    ] },
-    locator_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-    content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" }
-  }
-});
-
-const OBLIGATION_COVERAGE_PATCH_OPERATION = Object.freeze({ oneOf: [
-  { type: "object", additionalProperties: false,
-    required: ["op", "obligation_selector", "row"], properties: {
-      op: { const: "upsert" },
-      obligation_selector: OBLIGATION_COVERAGE_OBLIGATION_SELECTOR,
-      row: OBLIGATION_COVERAGE_AUTHORED_ROW
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["op", "obligation_selector"], properties: {
-      op: { const: "remove" },
-      obligation_selector: OBLIGATION_COVERAGE_OBLIGATION_SELECTOR
-    } },
-  { type: "object", additionalProperties: false,
-    required: ["op", "obligation_selector", "row_slot_identity", "row"],
-    properties: {
-      op: { const: "upsert" },
-      obligation_selector: OBLIGATION_COVERAGE_OBLIGATION_SELECTOR,
-      row_slot_identity: COVERAGE_ROW_SLOT_IDENTITY,
-      row: { type: "object", additionalProperties: false,
-        required: [
-          "obligation_id", "statement", "controlled_contract_node_ids",
-          "mechanism", "proof"
-        ], properties: {
-          obligation_id: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.obligation_id,
-          statement: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.statement,
-          controlled_contract_node_ids:
-            OBLIGATION_COVERAGE_AUTHORED_ROW.properties.controlled_contract_node_ids,
-          mechanism: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.mechanism,
-          proof: OBLIGATION_COVERAGE_AUTHORED_ROW.properties.proof
-        } }
-    } }
-] });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_PATCH_INPUT_SCHEMA =
-  Object.freeze({
-    type: "object", additionalProperties: false,
-    required: [
-      "unit", "source_identity", "expected_authoring_identity",
-      "expected_content_digest", "operations"
-    ],
-    properties: {
-      ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES,
-      source_identity: OBLIGATION_COVERAGE_SOURCE_IDENTITY,
-      expected_authoring_identity: {
-        type: "string", pattern: "^sha256:[0-9a-f]{64}$"
-      },
-      expected_content_digest: {
-        type: "string", pattern: "^sha256:[0-9a-f]{64}$"
-      },
-      operations: { type: "array", minItems: 1,
-        items: OBLIGATION_COVERAGE_PATCH_OPERATION }
+function requirementGuidanceMember(...path) {
+  let current = CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE;
+  for (const segment of path) {
+    if (current === null || typeof current !== "object" || !Object.hasOwn(current, segment)) {
+      throw new Error(
+        `controlled-contract requirement guidance has no member ${JSON.stringify(path)}`
+      );
     }
-  });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_DESCRIBE_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit"], properties: {
-      ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES,
-      selector: COVERAGE_DESCRIBE_SELECTOR
-    } });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_CREATE_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit", "expected_authoring_identity", "expected_content_digest"],
-    properties: {
-      ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES,
-      expected_authoring_identity: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-      expected_content_digest: { type: "null" },
-      rows: { type: "array", maxItems: 4097, items: OBLIGATION_COVERAGE_AUTHORED_ROW },
-      authored_rows: { type: "array", minItems: 1, maxItems: 4097,
-        items: OBLIGATION_COVERAGE_ROW_SLOT_AUTHORED_ROW }
-    },
-    oneOf: [
-      { required: ["rows"], not: { required: ["authored_rows"] } },
-      { required: ["authored_rows"], not: { required: ["rows"] } }
-    ] });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit", "expected_content_digest", "obligation_selector", "row"],
-    properties: {
-      ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES,
-      expected_content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-      obligation_selector: OBLIGATION_COVERAGE_OBLIGATION_SELECTOR,
-      row: OBLIGATION_COVERAGE_AUTHORED_ROW
-    } });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit", "expected_content_digest", "obligation_selector"],
-    properties: {
-      ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES,
-      expected_content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-      obligation_selector: OBLIGATION_COVERAGE_OBLIGATION_SELECTOR
-    } });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA =
-  Object.freeze({ type: "object", additionalProperties: false,
-    required: ["unit"], properties: {
-      ...OBLIGATION_COVERAGE_COMMON_INPUT_PROPERTIES,
-      selector: OBLIGATION_COVERAGE_QUERY_SELECTOR,
-      cursor: { type: "string", minLength: 1, maxLength: 8192 }
-    }, allOf: [{ not: { required: ["selector", "cursor"] } }] });
-
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_RESULT_SCHEMA_POPULATIONS =
-  Object.freeze([
-    "describe_absent_success", "describe_current_success", "describe_stale_success",
-    "create_success", "upsert_success", "upsert_unchanged_success", "remove_success",
-    "query_success", "missing_source_refusal", "malformed_request_refusal",
-    "duplicate_obligation_refusal", "duplicate_credit_refusal",
-    "admission_absence_refusal", "admission_digest_refusal",
-    "admission_identity_refusal", "stale_currentness_refusal",
-    "invalid_criterion_refusal", "invalid_node_refusal", "invalid_pack_refusal",
-    "invalid_selector_refusal", "busy_refusal", "final_compare_refusal",
-    "row_bound_refusal", "byte_bound_refusal", "stale_cursor_refusal"
-  ]);
-
-const OBLIGATION_COVERAGE_MUTATION_OUTPUT_SCHEMA = Object.freeze({
-  type: "object", additionalProperties: false,
-  required: [
-    "schema_version", "source_kind", "content_digest", "row_count",
-    "byte_length", "changed", "next_calls", "authority"
-  ],
-  properties: {
-    schema_version: { const: "controlled-contract-obligation-coverage-mutation.v1" },
-    source_kind: { const: "obligation-coverage" },
-    content_digest: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" },
-    row_count: { type: "integer", minimum: 0, maximum: 4096 },
-    byte_length: { type: "integer", minimum: 1, maximum: 1048576 },
-    changed: { type: "boolean" },
-    next_calls: coverageMutationNextCallsSchema(
-      "workspace_controlled_contract_obligation_coverage_query"),
-    authority: { type: "object", additionalProperties: true }
+    current = current[segment];
   }
+  return Object.freeze([...path]);
+}
+
+function conditionalRequirementMember(required) {
+  const index = CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE
+    .conditional_verification_requirements
+    .findIndex((rule) => rule.requires.includes(required));
+  if (index === -1) {
+    throw new Error(`controlled-contract requirement guidance has no rule requiring ${required}`);
+  }
+  return requirementGuidanceMember("conditional_verification_requirements", String(index));
+}
+
+export const CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS = Object.freeze({
+  claim_natures: requirementGuidanceMember("vocabulary", "claim_natures"),
+  modalities: requirementGuidanceMember("vocabulary", "modalities"),
+  verification_methods: requirementGuidanceMember("vocabulary", "verification_methods"),
+  type_terms: requirementGuidanceMember("vocabulary", "type_terms"),
+  identity_kinds: requirementGuidanceMember("vocabulary", "identity_kinds"),
+  relations: requirementGuidanceMember("vocabulary", "relation_details"),
+  applicability_modes: requirementGuidanceMember("vocabulary", "applicability_modes"),
+  residue_reasons: requirementGuidanceMember("vocabulary", "residue_reasons"),
+  note_kinds: requirementGuidanceMember("vocabulary", "note_kinds"),
+  mandatory_verification: conditionalRequirementMember("verification"),
+  runtime_test: conditionalRequirementMember("verification.runtime_test"),
+  runtime_test_vocabulary: requirementGuidanceMember("native_runtime_test_vocabulary"),
+  requirement_rebinding: requirementGuidanceMember("required_object_shapes", "requirement_rebinding"),
+  requirement_retirement: requirementGuidanceMember("required_object_shapes", "requirement_retirement"),
+  case_verification_association: requirementGuidanceMember("case_authoring", "verification_association"),
+  runtime_test_fields: Object.freeze({
+    "boundary.kind": requirementGuidanceMember(
+      "native_runtime_test_vocabulary", "provider_bound_boundary_kinds"),
+    "observable.kind": requirementGuidanceMember(
+      "native_runtime_test_vocabulary", "observable_kinds"),
+    "falsifier.strategy": requirementGuidanceMember(
+      "native_runtime_test_vocabulary", "falsifier_strategies"),
+    "selector.name": requirementGuidanceMember("native_runtime_test_vocabulary", "selector"),
+    "selector.nesting": requirementGuidanceMember("native_runtime_test_vocabulary", "selector")
+  })
 });
 
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_DESCRIBE_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_obligation_coverage_describe",
-  description: "Describe obligation coverage for authoring. Returns transport-sized row batches with criterion identity/text, shared node/proof choices, field contracts, exact counts, fixed mutation arguments, and callable continuation. Server binding protects integrity, not secrecy or authority.",
-  inputSchema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_DESCRIBE_INPUT_SCHEMA
-});
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_CREATE_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_obligation_coverage_create",
-  description: "Create absent obligation coverage from returned one-use row identities and caller-authored fields; the server injects current criterion identities.",
-  inputSchema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_CREATE_INPUT_SCHEMA,
-  outputSchema: OBLIGATION_COVERAGE_MUTATION_OUTPUT_SCHEMA
-});
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_obligation_coverage_upsert",
-  description: "Digest-CAS upsert one typed row in the current canonical obligation source.",
-  inputSchema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA,
-  outputSchema: OBLIGATION_COVERAGE_MUTATION_OUTPUT_SCHEMA
-});
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_obligation_coverage_remove",
-  description: "Digest-CAS remove one selected row from the current canonical obligation source.",
-  inputSchema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA,
-  outputSchema: OBLIGATION_COVERAGE_MUTATION_OUTPUT_SCHEMA
-});
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_obligation_coverage_query",
-  description: "Query the canonical obligation source with bounded gap-first digest-bound pagination.",
-  inputSchema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA
-});
-export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_PATCH_TOOL = Object.freeze({
-  name: "workspace_controlled_contract_obligation_coverage_patch",
-  description: "Atomically apply a bounded typed patch to one current obligation source.",
-  inputSchema: CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_PATCH_INPUT_SCHEMA
-});
+export { CASE_VERIFICATION_ASSOCIATION_FIELD };
+export const CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH = Object.freeze(
+  CASE_VERIFICATION_ASSOCIATION_FIELD.replace("[]", ".[]").split("."));
+export const CASE_VERIFICATION_ASSOCIATION_FIELD_PATH =
+  `$.${CASE_VERIFICATION_ASSOCIATION_FIELD}`;
+const requirementItem = ["contract_requirements", "requirements", "[]"];
+const requirementVerification = [...requirementItem, "verification"];
+const locations = CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS;
+export const CONTROLLED_CONTRACT_REQUIREMENT_REQUEST_GUIDANCE_LOCATIONS = Object.freeze([
+  [["contract_requirements", "requirements"], locations.requirement_retirement],
+  [["contract_requirements", "retire_claim_ids"], locations.requirement_retirement],
+  [requirementItem, requirementGuidanceMember("required_object_shapes", "requirement")],
+  [[...requirementItem, "nature"], locations.claim_natures],
+  [[...requirementItem, "modality"], locations.modalities],
+  [[...requirementItem, "subject"], requirementGuidanceMember("required_object_shapes", "referent")],
+  [[...requirementItem, "behavior"], requirementGuidanceMember("required_object_shapes", "statement")],
+  [[...requirementItem, "rebind_case_ids"], locations.requirement_rebinding],
+  [requirementVerification, requirementGuidanceMember("required_object_shapes", "verification")],
+  [[...requirementVerification, "method"], locations.verification_methods],
+  [[...requirementVerification, "verifier"], requirementGuidanceMember("required_object_shapes", "referent")],
+  [[...requirementVerification, "observes"], requirementGuidanceMember("required_object_shapes", "statement")],
+  [[...requirementVerification, "fails_when"], requirementGuidanceMember("required_object_shapes", "statement")],
+  [[...requirementVerification, "runtime_test"], requirementGuidanceMember("runtime_test_authoring")],
+  [CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH, locations.case_verification_association],
+  [["contract_requirements", "notes", "[]", "kind"], locations.note_kinds],
+  [["contract_requirements", "unrepresentable_meaning", "[]", "reason"], locations.residue_reasons]
+].map(([path, guidancePath]) => Object.freeze({ path: Object.freeze(path), guidance_path: guidancePath })));
+const controlledAcceptanceInput = { oneOf: [
+  { type: 'object', additionalProperties: false, required: ['disposition'],
+    properties: { disposition: { const: 'required' } } },
+  { type: 'object', additionalProperties: false, required: ['disposition', 'rationale'],
+    properties: { disposition: { const: 'opted_out' }, rationale: {
+      type: 'string', minLength: 1, maxLength: 8192, pattern: '^\\S(?:[\\s\\S]*\\S)?$' } } }
+] };
+const queryFields = { obligation_id: obligationId, parameter_detail: { type: "boolean" },
+  inventory: { type: "boolean", description: "Compact obligation inventory: one row per obligation " +
+    "with its authored statement and factual gap/selection/case indicators, and one shared detail-read " +
+    "declaration instead of requirement and reference bodies. Refused with obligation_id or " +
+    "parameter_detail, which read one obligation in full." },
+  cursor: { type: "string", minLength: 1, maxLength: 8192 } };
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA = draftRequest({
+  expected_content_digest: sourceCAS,
+  contract_requirements: contractRequirements,
+  controlled_acceptance: controlledAcceptanceInput,
+  obligations: { type: 'array', minItems: 1, items: {
+    type: 'object', additionalProperties: false, required: ['obligation_id'],
+    properties: { obligation_id: obligationId, ...PROOF_AUTHORING_FIELD_SCHEMAS, case: NATIVE_TEST_CASE_AMENDMENT_SCHEMA }
+  } }
+}, ['expected_content_digest']);
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA = draftRequest({
+  obligation_id: obligationId,
+  removal_scope: { type: "string", enum: ["selection", "obligation"] },
+  expected_content_digest: sourceCAS
+}, ["obligation_id", "removal_scope", "expected_content_digest"]);
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA = draftRequest(queryFields);
+export const VALIDATE_PROOF_INPUT_SCHEMA = draftRequest({ obligation_id: obligationId,
+  diagnostic_group_id: { type: 'string', pattern: '^diagnostic-group-[0-9a-f]{64}$' },
+  cursor: queryFields.cursor });
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_RESULT_SCHEMA_POPULATIONS = Object.freeze([
+  "saved", "deleted", "no_op", "source_absent", "source_present", "valid", "invalid", "post_commit_failure", "mechanical_failure"
+]);
+const proofTool = (name, description, inputSchema) => Object.freeze({ name, description, inputSchema });
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL = proofTool(
+  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL_NAME,
+  "Save contract requirements, controlled-acceptance applicability, obligation meaning, proof selections and shared authored cases under one combined revision CAS; omission preserves. In case.falsification, null clears only fields listed by verbose discovery. Quiet receipt; query returns saved meaning.",
+  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA);
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL = proofTool(
+  "workspace_controlled_contract_obligation_coverage_remove",
+  "Remove one proof selection or a whole obligation row under combined CAS; removal_scope selects which. Requirements, shared cases and history remain.",
+  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_INPUT_SCHEMA);
+export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_TOOL = proofTool(
+  "workspace_controlled_contract_obligation_coverage_query",
+  "Saved requirements, deduplicated references, parent controlled-acceptance applicability, draft obligations, shared cases, exact pins at one revision. obligation_id reads one obligation; parameter_detail pins; inventory IDs with statements. Large values spill losslessly.",
+  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA);
+export const VALIDATE_PROOF_TOOL = proofTool("workspace_validate_proof",
+  "Explicitly validate saved design inputs against the exact selected proof route. Results distinguish blocking, nonblocking and unresolved diagnostics, explain route stages and recovery, and group only equivalent meanings; diagnostic_group_id returns lossless occurrence detail. Does not execute providers, assess dispatch, change authored values or grant readiness.", VALIDATE_PROOF_INPUT_SCHEMA);
 export const CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_TOOL_DEFINITIONS = Object.freeze([
-  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_DESCRIBE_TOOL,
-  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_CREATE_TOOL,
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_TOOL,
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_REMOVE_TOOL,
-  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_TOOL
+  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_TOOL,
+  VALIDATE_PROOF_TOOL
 ]);
 
 export function controlledContractCarrierTargetCause({
@@ -973,17 +655,7 @@ export function controlledContractCarrierTargetCause({
       : "[bounded-invalid-target]",
     carrier_kind: carrierKind,
     valid_targets: Object.freeze(validTargets),
-    replacement_call: Object.freeze({
-      tool: "workspace_controlled_contract_carrier_query",
-      arguments: Object.freeze({
-        wk_id: wkId,
-        ...(focus === null || focus === undefined ? {} : { focus }),
-        carrier_kind: carrierKind,
-        ...(profileId === undefined ? {} : { profile_id: profileId }),
-        ...(profileVersion === undefined ? {} : { profile_version: profileVersion }),
-        ...(validTargets.length === 0 ? {} : { target: validTargets[0] })
-      })
-    })
+    recovery: null
   });
 }
 
@@ -1024,6 +696,8 @@ export {
   controlledContractPackCarrierFilename,
   classifyControlledContractCarrierBasename,
   classifyControlledContractRepositoryPath,
+  classifyControlledContractGenerationBasename,
+  classifyControlledContractGenerationRepositoryPath,
   controlledContractContentDigest,
   assertControlledContractAuthorableCarrierKind,
   resolveControlledContractRepository,
@@ -1075,6 +749,10 @@ export {
   resolveControlledContractTestProofRuntimeBindings,
   patchControlledContractTestProofBindings,
   patchControlledContractVerificationBundles,
+  prepareControlledContractVerificationBundlePatch,
+  validateControlledContractVerificationBundlePreparation,
+  commitControlledContractVerificationBundlePatch,
+  CONTROLLED_CONTRACT_VERIFICATION_BUNDLE_PREPARATION_SCHEMA,
   writeControlledContractProofPlanFile,
   composeProofPlanRequestEvaluationInputPaths,
   composeProofPlanRequestPatchEvaluationInputPaths,

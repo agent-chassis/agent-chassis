@@ -1,4 +1,11 @@
 import { createHash } from "node:crypto";
+import {
+  TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE,
+  parseTestProofModuleFaultWitnessName,
+  verifyTestProofModuleFaultExpectation
+} from "./workspace-agent-test-proof-module-fault-contract.mjs";
+import { isLauncherTestFailureDiagnostic } from
+  "./workspace-agent-test-proof-error-diagnostic.mjs";
 import { stableRuntimeTestIdFromParts } from
   "./workspace-agent-test-proof-node-reporter.mjs";
 
@@ -8,34 +15,44 @@ export const NODE_TEST_PROOF_FAULT_LOADER_PATH =
   "packages/agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-loader.mjs";
 
 const REPORT_SCHEMA_VERSION = "workspace-agent-test-proof-node-events.v1";
-const MAX_OBSERVED_IDENTITY_CANDIDATES = 8;
-const STABLE_ERROR_CODE_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,127}$/u;
 export const TEST_PROOF_STRUCTURED_EVENTS_OVERSIZED_CODE =
   "test_proof_structured_events_oversized";
 
-function safeObservedIdentityCandidate(event) {
-  if (typeof event?.test_id !== "string" || !/^test-[a-f0-9]{64}$/u.test(event.test_id) ||
-      typeof event.file !== "string" || event.file.length === 0 || event.file.length > 4096 ||
-      event.file.startsWith("/") || event.file.includes("\\") ||
-      event.file.split("/").some((part) => part === "" || part === "." || part === ".." ||
-        !/^[A-Za-z0-9_.-]+$/u.test(part)) ||
-      typeof event.name !== "string" || event.name.length === 0 || event.name.length > 512 ||
-      /[\u0000-\u001f\u007f]/u.test(event.name) || event.name.startsWith("/") ||
-      event.name.startsWith("file:") || /^[A-Za-z]:[\\/]/u.test(event.name) ||
-      !Number.isSafeInteger(event.nesting) || event.nesting < 0 ||
-      event.nesting > 1_000_000) return null;
-  return { test_id: event.test_id, file: event.file, name: event.name,
-    nesting: event.nesting };
+export const NODE_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES = 2 * 1024 * 1024;
+export const LAUNCHER_NODE_TEST_INVENTORY_SCHEMA_VERSION =
+  "launcher-node-test-observed-inventory.v1";
+export const LAUNCHER_NODE_TEST_STABLE_IDENTITY = "launcher-stable-v1";
+
+export function launcherNodeTestReporterUrl() {
+  const url = new URL("./workspace-agent-test-proof-node-reporter.mjs", import.meta.url);
+  url.searchParams.set("launcher_protocol_fd", "3");
+  return url.href;
+}
+
+function projectedTestName(name, file) {
+  if (typeof name !== "string" || typeof file !== "string" || file.length === 0) {
+    return name;
+  }
+  const normalized = name.replaceAll("\\", "/");
+  return normalized === file || normalized.endsWith(`/${file}`) ? file : name;
+}
+
+export function projectObservedTestFact(event) {
+  return { test_id: event.test_id, file: event.file,
+    name: projectedTestName(event.name, event.file),
+    nesting: event.nesting, status: event.status,
+    error_codes: [...(event.error_codes ?? [])],
+    ...(event.failure_diagnostic === undefined ? {} : {
+      failure_diagnostic: structuredClone(event.failure_diagnostic)
+    }) };
 }
 
 function selectedIdentityNotObserved(expectation, testEvents) {
   const target = expectation?.target;
-  const candidates = testEvents.map(safeObservedIdentityCandidate)
-    .filter((candidate) => candidate !== null)
+  const candidates = testEvents.map(projectObservedTestFact)
     .sort((left, right) => Number(right.file === target) - Number(left.file === target) ||
-      left.file.localeCompare(right.file) || left.nesting - right.nesting ||
-      left.name.localeCompare(right.name) || left.test_id.localeCompare(right.test_id))
-    .slice(0, MAX_OBSERVED_IDENTITY_CANDIDATES);
+      (left.file ?? "").localeCompare(right.file ?? "") || left.nesting - right.nesting ||
+      (left.name ?? "").localeCompare(right.name ?? "") || left.test_id.localeCompare(right.test_id));
   const wrapper = testEvents.find((event) => {
     if (event.nesting !== 0 || event.file !== target || typeof event.name !== "string") {
       return false;
@@ -43,9 +60,9 @@ function selectedIdentityNotObserved(expectation, testEvents) {
     const name = event.name.replaceAll("\\", "/");
     return name === target || name.endsWith(`/${target}`);
   });
-  const wrapperErrorCodes = [...new Set((wrapper?.error_codes ?? []).filter(
-    (code) => typeof code === "string" && STABLE_ERROR_CODE_RE.test(code)
-  ))].sort().slice(0, 8);
+  const wrapperErrorCodes = [...new Set(wrapper?.error_codes ?? [])].sort();
+  const failures = testEvents.filter((event) => event.type === "test:fail")
+    .map(projectObservedTestFact);
   return {
     valid: false,
     code: "test_proof_selected_identity_not_observed",
@@ -57,7 +74,9 @@ function selectedIdentityNotObserved(expectation, testEvents) {
       omitted_count: testEvents.length - candidates.length,
       observed_identity_candidates: candidates,
       file_wrapper_status: wrapper?.status ?? null,
-      file_wrapper_error_codes: wrapperErrorCodes
+      file_wrapper_error_codes: wrapperErrorCodes,
+      observed_failures: failures,
+      observed_failure_count: failures.length
     }
   };
 }
@@ -93,6 +112,16 @@ export function launcherArtifact(kind, payload) {
   });
 }
 
+function validAncestorTestIds(value) {
+  return value === null || (Array.isArray(value) &&
+    value.every((id) => typeof id === "string" && /^test-[a-f0-9]{64}$/u.test(id)) &&
+    new Set(value).size === value.length);
+}
+
+function structuredTestEvent({ ancestor_test_ids: _ancestorTestIds, ...event }) {
+  return event;
+}
+
 function parseEnvelope(stdout) {
   let envelope;
   try {
@@ -111,19 +140,26 @@ function parseEnvelope(stdout) {
   ].includes(event?.type))) {
     return { valid: false, code: "test_proof_structured_events_untrusted_type" };
   }
+  if (envelope.events.some((event) => event?.type === "test:fail" &&
+      !isLauncherTestFailureDiagnostic(event.failure_diagnostic))) {
+    return { valid: false, code: "test_proof_structured_events_invalid" };
+  }
+  if (envelope.events.some((event) => (event.type === "test:pass" || event.type === "test:fail") &&
+      !validAncestorTestIds(event.ancestor_test_ids))) {
+    return { valid: false, code: "test_proof_structured_events_invalid" };
+  }
   const payload = { schema_version: envelope.schema_version, events: envelope.events };
   if (reporterDigest(payload) !== envelope.event_digest ||
       reporterDigest({ ...payload, reporter_nonce: envelope.reporter_nonce }) !==
         envelope.reporter_attestation) {
     return { valid: false, code: "test_proof_structured_events_digest_mismatch" };
   }
-  return { valid: true, payload };
+  return { valid: true, payload, event_digest: envelope.event_digest,
+    reporter_attestation: envelope.reporter_attestation };
 }
 
-export function observeLauncherNodeTestRun({
+export function authenticateLauncherNodeTestEvents({
   stdout,
-  exitCode,
-  expectation,
   reporterProtocolOverflow = false
 } = {}) {
   if (reporterProtocolOverflow === true) return {
@@ -147,23 +183,207 @@ export function observeLauncherNodeTestRun({
   };
   const testIds = testEvents.map(({ test_id: testId }) => testId);
   if (new Set(testIds).size !== testIds.length) return {
-    valid: false, code: "test_proof_structured_test_identity_duplicate"
+    valid: false, code: "test_proof_structured_test_identity_duplicate",
+    detail: { duplicate_test_ids: [...new Set(testIds.filter(
+      (id, index) => testIds.indexOf(id) !== index))].sort() }
   };
   if (summary.tests !== testEvents.length) return {
-    valid: false, code: "test_proof_structured_test_inventory_incomplete"
+    valid: false, code: "test_proof_structured_test_inventory_incomplete",
+    detail: { summary_tests: summary.tests, observed_tests: testEvents.length }
   };
+  return { valid: true, events, summary, passEvents, failEvents, testEvents,
+    event_digest: parsed.event_digest, reporter_attestation: parsed.reporter_attestation };
+}
+
+export function projectLauncherNodeTestInventory(authenticated) {
+  if (authenticated?.valid !== true) throw new TypeError(
+    "inventory projection requires an authenticated structured-event population"
+  );
+  const tests = authenticated.testEvents.map(projectObservedTestFact).sort((left, right) =>
+    (left.file ?? "").localeCompare(right.file ?? "") || left.nesting - right.nesting ||
+    (left.name ?? "").localeCompare(right.name ?? "") || left.test_id.localeCompare(right.test_id));
+  const count = (status) => tests.filter((fact) => fact.status === status).length;
+  return {
+    schema_version: LAUNCHER_NODE_TEST_INVENTORY_SCHEMA_VERSION,
+    mechanism: "node_test_structured_events",
+    stable_identity: LAUNCHER_NODE_TEST_STABLE_IDENTITY,
+    complete: true,
+    event_digest: authenticated.event_digest,
+    reporter_attestation: authenticated.reporter_attestation,
+    counts: {
+      observed: tests.length,
+      executed: count("passed") + count("failed"),
+      passed: count("passed"),
+      failed: count("failed"),
+      skipped: count("skipped"),
+      todo: count("todo"),
+      summary: { ...authenticated.summary }
+    },
+    tests
+  };
+}
+
+export const TEST_PROOF_MODULE_FAULT_OBSERVATION_CODES = Object.freeze({
+  EXPECTATION_INVALID: "test_proof_module_fault_expectation_invalid",
+  WITNESS_IDENTITY_MISMATCH: "test_proof_module_fault_witness_identity_mismatch",
+  INSTRUMENTATION_UNAVAILABLE: "test_proof_module_fault_instrumentation_unavailable",
+  SELECTION_UNATTRIBUTABLE: "test_proof_module_fault_selection_unattributable"
+});
+
+function moduleFaultUnavailable(code, detail) {
+  return { valid: false, code, ...(detail === undefined ? {} : { detail }) };
+}
+
+function declaredCoverageFunctions(events, modulePath) {
+  const rows = events.filter(({ type }) => type === "test:coverage")
+    .flatMap(({ files }) => files ?? []).filter(({ path }) => path === modulePath);
+  return rows.length === 0 ? null : rows.flatMap(({ functions }) =>
+    Array.isArray(functions) ? functions : [null]);
+}
+
+function moduleFaultWitnessPopulation(events, attempt) {
+  const functions = declaredCoverageFunctions(events, attempt.witness_module_path) ?? [];
+  const counts = Object.fromEntries(Object.keys(attempt.witness_names).map(name => [name, null]));
+  let mismatched = 0;
+  let malformed = false;
+  for (const fn of functions) {
+    const parsed = parseTestProofModuleFaultWitnessName(fn?.name);
+    if (parsed === null) continue;
+    if (parsed.identity !== attempt.witness_identity || !Object.hasOwn(counts, parsed.base)) {
+      mismatched += 1;
+    } else if (!Number.isSafeInteger(fn.count) || fn.count < 0) malformed = true;
+    else counts[parsed.base] = (counts[parsed.base] ?? 0) + fn.count;
+  }
+  if (mismatched > 0) return moduleFaultUnavailable(
+    TEST_PROOF_MODULE_FAULT_OBSERVATION_CODES.WITNESS_IDENTITY_MISMATCH,
+    { witness_module_path: attempt.witness_module_path, mismatched_witness_count: mismatched });
+  const missing = Object.keys(counts).filter(name => counts[name] === null).sort();
+  if (malformed || missing.length > 0) return moduleFaultUnavailable(
+    TEST_PROOF_MODULE_FAULT_OBSERVATION_CODES.INSTRUMENTATION_UNAVAILABLE,
+    { witness_module_path: attempt.witness_module_path, missing_witnesses: missing,
+      malformed_witness_count: malformed });
+  return { valid: true, counts };
+}
+
+function declaredFunctionCount(events, modulePath, name) {
+  const functions = declaredCoverageFunctions(events, modulePath);
+  if (functions === null) return null;
+  let total = 0;
+  for (const fn of functions) {
+    if (fn?.name !== name) continue;
+    if (!Number.isSafeInteger(fn.count) || fn.count < 0) return null;
+    total += fn.count;
+  }
+  return total;
+}
+
+function forcedInvocationFacts(events, attempt, counts) {
+  const { configuration } = attempt;
+
+  const identityReasons = Object.entries(TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.reasons)
+    .filter(([, descriptor]) => counts[descriptor.witness] > 0).map(([reason]) => reason);
+  if (identityReasons.length > 1) {
+    return { valid: false, code: "test_proof_forced_invocation_identity_reason_inconsistent" };
+  }
+  if (identityReasons.length === 1) return {
+    valid: false, code: TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code,
+    detail: { reason: identityReasons[0], module_path: configuration.operation.module_path,
+      export_name: configuration.operation.export_name }
+  };
+  const entry = declaredFunctionCount(events, configuration.module_path, configuration.entry_export);
+  const operation = declaredFunctionCount(events, configuration.operation.module_path,
+    configuration.operation.export_name);
+  if (entry === null || operation === null) return moduleFaultUnavailable(
+    TEST_PROOF_MODULE_FAULT_OBSERVATION_CODES.INSTRUMENTATION_UNAVAILABLE,
+    { missing_module_paths: [...(entry === null ? [configuration.module_path] : []),
+      ...(operation === null ? [configuration.operation.module_path] : [])] });
+  const observation = { original_entry_count: entry, operation_entry_count: operation,
+    inspector_original_entry_count: counts.launcherObservedOriginalEntry,
+    inspector_ordered_operation_count: counts.launcherObservedOrderedOperationEntry,
+    invalid_order_count: counts.launcherObservedInvalidOrder,
+    inspection_failure_count: counts.launcherObservedInspectionFailure };
+  return { valid: true, observation,
+    selection: { entry_export: configuration.entry_export, operation: configuration.operation,
+      invocation: configuration.invocation },
+    reached: entry > 0 && operation > 0 && observation.inspector_original_entry_count > 0 &&
+      observation.inspector_ordered_operation_count > 0 && observation.invalid_order_count === 0 &&
+      observation.inspection_failure_count === 0 };
+}
+
+function dependencyFailureFacts(_events, _attempt, counts) {
+  const invocations = counts.launcherObservedDependencyInvocation;
+  return { valid: true, selection: {}, reached: invocations > 0,
+    observation: { dependency_invocation_count: invocations } };
+}
+
+const MODULE_FAULT_STRATEGY_FACTS = Object.freeze({
+  dependency_failure: dependencyFailureFacts,
+  forced_invocation: forcedInvocationFacts
+});
+
+function observeModuleFaultRun({ attempt, expectation, events, testEvents, inSelectedTree,
+  basePayload, structuredArtifact, targetPassObserved, targetFailureObserved }) {
+  const unattributed = [...new Set(testEvents.filter(event =>
+    (event.status === "passed" || event.status === "failed") && !inSelectedTree(event))
+    .map(({ test_id: id }) => id))].sort();
+  if (unattributed.length > 0) return moduleFaultUnavailable(
+    TEST_PROOF_MODULE_FAULT_OBSERVATION_CODES.SELECTION_UNATTRIBUTABLE,
+    { expected_test_id: expectation.target_test_id, unattributed_test_ids: unattributed });
+  const population = moduleFaultWitnessPopulation(events, attempt);
+  if (!population.valid) return population;
+  const facts = MODULE_FAULT_STRATEGY_FACTS[attempt.strategy](events, attempt, population.counts);
+  if (!facts.valid) return facts;
+  const { configuration } = attempt;
+  const mutation = {
+    mechanism: configuration.mechanism, strategy: configuration.strategy,
+    mutation_id: configuration.mutation_id, target_module_path: configuration.module_path,
+    ...facts.selection,
+    attempt_nonce: configuration.attempt_nonce,
+    fault_module_identity: expectation.fault_module_identity,
+    observer_module_path: attempt.witness_module_path,
+    witness_identity: attempt.witness_identity, target_test_id: expectation.target_test_id,
+    structured_event_digest: structuredArtifact.digest,
+    observation: { ...facts.observation, reached_assertion: targetFailureObserved,
+      selected_test_only: true, observed: facts.reached }
+  };
+  return { valid: true, status: targetPassObserved ? "passed" : "failed",
+    mutation_observed: facts.reached,
+    failure_reason_code: facts.reached ? attempt.failure_reason_code : null,
+    mutation, structured_result: basePayload,
+    artifacts: [structuredArtifact, launcherArtifact("falsifier_result", mutation)] };
+}
+
+export function observeLauncherNodeTestRun({
+  stdout,
+  exitCode,
+  expectation,
+  reporterProtocolOverflow = false
+} = {}) {
+  const authenticated = authenticateLauncherNodeTestEvents({ stdout, reporterProtocolOverflow });
+  if (!authenticated.valid) return { valid: false, code: authenticated.code };
+  let moduleFaultAttempt = null;
+  if (expectation?.capability === "falsifier_execution") {
+    try {
+      moduleFaultAttempt = verifyTestProofModuleFaultExpectation(expectation);
+    } catch (error) {
+      return moduleFaultUnavailable(TEST_PROOF_MODULE_FAULT_OBSERVATION_CODES.EXPECTATION_INVALID,
+        { message: error.message });
+    }
+  }
+  const { events, summary, passEvents, failEvents, testEvents } = authenticated;
   const coverageFiles = events.filter(({ type }) => type === "test:coverage")
     .flatMap(({ files }) => files ?? []).filter(({ covered_line_count: count }) => count > 0);
-  const observedFailureReasonCodes = [...new Set(failEvents.flatMap(
-    ({ error_codes: codes }) => codes ?? []
-  ))].sort();
   const basePayload = {
     mechanism: "node_test_structured_events",
     exit_code: exitCode,
     summary,
-    pass_events: passEvents,
-    fail_events: failEvents
+    pass_events: passEvents.map(structuredTestEvent),
+    fail_events: failEvents.map(structuredTestEvent)
   };
+
+  const inSelectedTree = ({ test_id: testId, ancestor_test_ids: ancestors }) =>
+    testId === expectation?.target_test_id ||
+    (Array.isArray(ancestors) && ancestors.includes(expectation?.target_test_id));
   const structuredArtifact = launcherArtifact("structured_test_result", basePayload);
   const targetPassObserved = passEvents.some(
     ({ test_id: testId, status }) => testId === expectation?.target_test_id && status === "passed"
@@ -192,44 +412,14 @@ export function observeLauncherNodeTestRun({
     },
     artifacts: [structuredArtifact]
   };
-  if (expectation?.capability === "falsifier_execution") {
-    const reason = expectation.failure_reason_code;
-    const declaredFailureReasonObserved = typeof reason === "string" &&
-      observedFailureReasonCodes.includes(reason);
-    const targetDeclaredFailureReasonObserved = declaredFailureReasonObserved &&
-      targetFailureEvents.some(({ error_codes: codes }) => codes?.includes(reason));
-    const mutationAttestationObserved = targetFailureEvents.some(
-      ({ error_codes: codes }) => codes?.includes(expectation.mutation_attestation_code)
-    );
-    const mutationObserved = targetFailureObserved && targetDeclaredFailureReasonObserved &&
-      mutationAttestationObserved;
-    const mutationPayload = {
-      mechanism: "module_substitution",
-      mutation_id: expectation.mutation_id,
-      strategy: expectation.strategy,
-      target_module_path: expectation.module_path,
-      fault_module_identity: expectation.fault_module_identity,
-      loader_module_path: expectation.loader_module_path,
-      loader_function_name: expectation.loader_function_name,
-      failure_reason_code: mutationObserved ? reason : null,
-      structured_failure_event_count: failEvents.length,
-      target_test_id: expectation.target_test_id,
-      target_failure_observed: targetFailureObserved,
-      structured_failure_error_codes: observedFailureReasonCodes,
-      structured_event_digest: structuredArtifact.digest
-    };
-    return {
-      valid: true,
-      status: targetPassObserved ? "passed" : "failed",
-      mutation_observed: mutationObserved,
-      failure_reason_code: mutationObserved ? reason : null,
-      mutation: mutationPayload,
-      structured_result: basePayload,
-      artifacts: [structuredArtifact, launcherArtifact("falsifier_result", mutationPayload)]
-    };
-  }
+  if (moduleFaultAttempt !== null) return observeModuleFaultRun({ attempt: moduleFaultAttempt,
+    expectation, events, testEvents, inSelectedTree, basePayload, structuredArtifact,
+    targetPassObserved, targetFailureObserved });
   if (expectation?.capability === "boundary_traversal") {
-    const observed = coverageFiles.some(({ path }) => path === expectation.module_path);
+
+    const observed = coverageFiles.some(({ path, functions }) =>
+      path === expectation.module_path && (functions ?? []).some(
+        ({ count }) => Number.isSafeInteger(count) && count > 0));
     const boundaryPayload = {
       mechanism: "node_test_v8_coverage",
       boundary_kind: "module",

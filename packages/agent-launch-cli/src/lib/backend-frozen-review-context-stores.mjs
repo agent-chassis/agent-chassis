@@ -37,13 +37,33 @@ export function createFrozenReviewContextStores() {
     context.diff_base_sha,
     context.committed_target_digest ?? context.worktree_identity_digest
   ]);
-  const committedSliceIntegrationTargetKey = (context) => JSON.stringify([
-    context.review_subject,
-    context.slice_ref,
-    context.reviewed_sha,
-    context.diff_base_sha,
-    context.committed_target_digest
-  ]);
+
+  const committedSliceIntegrationTargetKey = (context) => {
+    const identity = context.worktree_identity;
+    if (identity === null || typeof identity !== "object" || Array.isArray(identity)) {
+      throw new TypeError("committed-slice integration continuation requires canonical admission identity");
+    }
+    return JSON.stringify([
+      context.review_admission_kind,
+      context.review_subject,
+      context.slice_ref,
+      context.reviewed_sha,
+      context.diff_base_sha,
+      identity.schema_version ?? null,
+      identity.unit_address ?? null,
+      identity?.initiative ?? null,
+      identity?.record_id ?? null,
+      identity?.slice_id ?? null,
+      identity?.wk_ref ?? null,
+      identity?.wk_sha ?? null,
+      identity?.changed_paths ?? null,
+      identity?.write_scope ?? null,
+      identity?.source_digest ?? null,
+      identity?.commit_chain ?? null,
+      context.canonical_parent_wk_contract ?? null,
+      context.review_unit_contract ?? null
+    ]);
+  };
   const frozenSliceReviewContexts = Object.freeze({
     get(subject) {
       const key = currentSliceReviewTargetBySubject.get(subject);

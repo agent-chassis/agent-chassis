@@ -1,0 +1,941 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.design.implementation-readiness",
+  "profile_version": "4.0.0",
+  "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+  "description": "One authored design unit names independently bound repository-grounded implementation and test loci; declares a complete nonempty requirement population, an exact four-field warning shape with exact code, severity, message-template, and payload-schema values, an authored complete validation population equal to the requirement population, and a complete placeholder population with exact count zero.",
+  "parameters": [
+    {
+      "name": "design_unit",
+      "purpose": "Declare design unit for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "design_unit"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "requirement_population",
+      "purpose": "Declare requirement population for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "requirement_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "requirements",
+      "purpose": "Declare requirements for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "requirements"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "implementation_locus",
+      "purpose": "Declare implementation locus for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "implementation_locus"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "test_locus",
+      "purpose": "Declare test locus for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "test_locus"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/12",
+        "/claim_patterns/14",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_signal",
+      "purpose": "Declare warning signal for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_signal"
+      ],
+      "refinement_refs": [
+        "/reference_roles/5"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/14",
+        "/claim_patterns/3",
+        "/claim_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_shape_population",
+      "purpose": "Declare warning shape population for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "warning_shape_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/14",
+        "/claim_patterns/3",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_fields",
+      "purpose": "Declare warning fields for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "warning_fields"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "required_warning_shape_population",
+      "purpose": "Declare required warning shape population for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "required_warning_shape_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/14",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "required_warning_fields",
+      "purpose": "Declare required warning fields for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "required_warning_fields"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_code_field",
+      "purpose": "Declare warning code field for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_code_field"
+      ],
+      "refinement_refs": [
+        "/reference_roles/10"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_severity_field",
+      "purpose": "Declare warning severity field for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_severity_field"
+      ],
+      "refinement_refs": [
+        "/reference_roles/11"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/6",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_message_field",
+      "purpose": "Declare warning message field for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_message_field"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/7",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_payload_field",
+      "purpose": "Declare warning payload field for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_payload_field"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_code_value",
+      "purpose": "Declare warning code value for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_code_value"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_severity_value",
+      "purpose": "Declare warning severity value for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_severity_value"
+      ],
+      "refinement_refs": [
+        "/reference_roles/15"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_message_template",
+      "purpose": "Declare warning message template for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_message_template"
+      ],
+      "refinement_refs": [
+        "/reference_roles/16"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/7",
+        "/distinct_reference_role_sets/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_payload_schema",
+      "purpose": "Declare warning payload schema for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_payload_schema"
+      ],
+      "refinement_refs": [
+        "/reference_roles/17"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "validation_population",
+      "purpose": "Declare validation population for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "validation_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/18"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "validated_requirements",
+      "purpose": "Declare validated requirements for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "validated_requirements"
+      ],
+      "refinement_refs": [
+        "/reference_roles/19"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "placeholder_population",
+      "purpose": "Declare placeholder population for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "placeholder_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/20"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/13",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "placeholders",
+      "purpose": "Declare placeholders for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "placeholders"
+      ],
+      "refinement_refs": [
+        "/reference_roles/21"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/4",
+        "/reference_role_count_bindings/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "warning_shape_mismatch_condition",
+      "purpose": "Declare warning shape mismatch condition for proof.design.implementation-readiness. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "warning_shape_mismatch_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/22"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/14",
+        "/falsifier_condition_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "design_unit",
+      "kind": "semantic_parameter",
+      "parameter": "design_unit",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "requirement_population",
+      "kind": "semantic_parameter",
+      "parameter": "requirement_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/11",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "requirements",
+      "kind": "semantic_parameter",
+      "parameter": "requirements",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "implementation_locus",
+      "kind": "semantic_parameter",
+      "parameter": "implementation_locus",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "test_locus",
+      "kind": "semantic_parameter",
+      "parameter": "test_locus",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/12",
+        "/claim_patterns/14",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_signal",
+      "kind": "semantic_parameter",
+      "parameter": "warning_signal",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/14",
+        "/claim_patterns/3",
+        "/claim_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_shape_population",
+      "kind": "semantic_parameter",
+      "parameter": "warning_shape_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/14",
+        "/claim_patterns/3",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_fields",
+      "kind": "semantic_parameter",
+      "parameter": "warning_fields",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "required_warning_shape_population",
+      "kind": "semantic_parameter",
+      "parameter": "required_warning_shape_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/14",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "required_warning_fields",
+      "kind": "semantic_parameter",
+      "parameter": "required_warning_fields",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_code_field",
+      "kind": "semantic_parameter",
+      "parameter": "warning_code_field",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_severity_field",
+      "kind": "semantic_parameter",
+      "parameter": "warning_severity_field",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/6",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_message_field",
+      "kind": "semantic_parameter",
+      "parameter": "warning_message_field",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/7",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_payload_field",
+      "kind": "semantic_parameter",
+      "parameter": "warning_payload_field",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_code_value",
+      "kind": "semantic_parameter",
+      "parameter": "warning_code_value",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_severity_value",
+      "kind": "semantic_parameter",
+      "parameter": "warning_severity_value",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_message_template",
+      "kind": "semantic_parameter",
+      "parameter": "warning_message_template",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/7",
+        "/distinct_reference_role_sets/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_payload_schema",
+      "kind": "semantic_parameter",
+      "parameter": "warning_payload_schema",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "validation_population",
+      "kind": "semantic_parameter",
+      "parameter": "validation_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "validated_requirements",
+      "kind": "semantic_parameter",
+      "parameter": "validated_requirements",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "placeholder_population",
+      "kind": "semantic_parameter",
+      "parameter": "placeholder_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "placeholders",
+      "kind": "semantic_parameter",
+      "parameter": "placeholders",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/4",
+        "/reference_role_count_bindings/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_shape_mismatch_condition",
+      "kind": "semantic_parameter",
+      "parameter": "warning_shape_mismatch_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/14",
+        "/falsifier_condition_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "requirement_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "requirements"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "validation_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "validated_requirements"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "warning_field_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "required_warning_field_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "placeholder_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/reference_role_count_bindings/4"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "design_unit",
+      "requirement_population",
+      "requirements",
+      "implementation_locus",
+      "test_locus",
+      "warning_signal",
+      "warning_shape_population",
+      "warning_fields",
+      "required_warning_shape_population",
+      "required_warning_fields",
+      "warning_code_field",
+      "warning_severity_field",
+      "warning_message_field",
+      "warning_payload_field",
+      "warning_code_value",
+      "warning_severity_value",
+      "warning_message_template",
+      "warning_payload_schema",
+      "validation_population",
+      "validated_requirements",
+      "placeholder_population",
+      "placeholders",
+      "warning_shape_mismatch_condition"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.design.implementation-readiness.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.design.implementation-readiness constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.design.implementation-readiness.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

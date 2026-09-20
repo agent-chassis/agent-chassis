@@ -1,0 +1,155 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2461",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "Make controlled-contract assessment projection honor its declared byte bound",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "status": "done",
+  "priority": "medium",
+  "owner": "unassigned",
+  "created": "2026-09-01",
+  "updated": "2026-09-01",
+  "resolution": "unresolved",
+  "read_scope": [
+    "AGENTS.md",
+    "wiki/catalog.md",
+    "wiki/work-records/WK-2461.json",
+    "wiki/work-records/WK-2426.json",
+    "wiki/work-records/WK-2448.json",
+    "wiki/work-records/WK-2443.json",
+    "wiki/decisions/DEC-0118.json",
+    "docs/mcp-controlled-contract-operations.md",
+    "docs/mcp-integration.md",
+    "docs/mcp-operation-reference.md",
+    "the project documentation",
+    "packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+    "packages/controlled-contract/lib/assessment-collection-descriptors.d.mts",
+    "packages/wiki-core/src/operations/controlled-contract/semantic-projection-bounds.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/assessment-operations.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+    "packages/wiki-core/data/tool-discovery/controlled-contract-tools.json",
+    "tests/unit/controlled-contract-semantic-projection-boundaries.test.mjs",
+    "tests/unit/controlled-contract-assessment-semantic-projection.test.mjs",
+    "tests/unit/controlled-contract-mcp-package-parity.test.mjs",
+    "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs",
+    "packages/wiki-mcp/src/lib/mcp-response.mjs"
+  ],
+  "repo_paths": [
+    "packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+    "packages/controlled-contract/lib/assessment-collection-descriptors.d.mts",
+    "packages/wiki-core/src/operations/controlled-contract/semantic-projection-bounds.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/assessment-operations.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+    "packages/wiki-core/data/tool-discovery/controlled-contract-tools.json",
+    "tests/unit/controlled-contract-semantic-projection-boundaries.test.mjs",
+    "tests/unit/controlled-contract-assessment-semantic-projection.test.mjs",
+    "tests/unit/controlled-contract-mcp-package-parity.test.mjs",
+    "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs",
+    "docs/mcp-controlled-contract-operations.md",
+    "docs/mcp-integration.md",
+    "packages/wiki-mcp/src/lib/mcp-response.mjs"
+  ],
+  "write_scope": [
+    "packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+    "packages/controlled-contract/lib/assessment-collection-descriptors.d.mts",
+    "packages/wiki-core/src/operations/controlled-contract/semantic-projection-bounds.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/assessment-semantic-projection.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/assessment-operations.mjs",
+    "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+    "packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+    "packages/wiki-core/data/tool-discovery/controlled-contract-tools.json",
+    "tests/unit/controlled-contract-semantic-projection-boundaries.test.mjs",
+    "tests/unit/controlled-contract-assessment-semantic-projection.test.mjs",
+    "tests/unit/controlled-contract-mcp-package-parity.test.mjs",
+    "tests/integration/controlled-contract-integration-test-design-assessment-mcp.test.mjs",
+    "docs/mcp-controlled-contract-operations.md",
+    "docs/mcp-integration.md",
+    "packages/wiki-mcp/src/lib/mcp-response.mjs"
+  ],
+  "depends_on": [],
+  "blocks": [],
+  "related": [
+    "WK-2426",
+    "WK-2442",
+    "WK-2443",
+    "WK-2448",
+    "DEC-0118"
+  ],
+  "dispatch_intent": {
+    "intended_agent_role": null,
+    "target_unit": "none",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "REOPENED DEFECT. WK-2461 was cancelled after proving only that workspace_controlled_contract_integration_test_design_query could traverse 52 gaps. That did not exercise the final workspace_controlled_contract_assess transport envelope. The live proof-assessment call still fails with controlled_contract_semantic_projection_invalid and the message `controlled-contract semantic projection cannot satisfy its declared byte bound`.",
+      "ROOT CAUSE. The core proof and integration assessment summary projectors independently fill a summary to the 8,192-byte delivery ceiling. The MCP adapters then add assessment_identity and, for proof assessment, workspaceRepo, and reapply the same ceiling. The final envelope can therefore exceed the declared bound after the omitted semantic population has already been snapshot-bound, causing a refusal that returns no usable assessment identity.",
+      "ONE FINAL-ENVELOPE OWNER. A shared assessment-response materializer in packages/wiki-mcp/src/lib/controlled-contract-tools.mjs owns the complete final MCP envelope for both assessment families because it knows every transport-added field. It reserves those fields once and supplies wiki-core an explicit remaining allowance for semantic summary selection. Wiki-core must not independently claim the full 8,192-byte allowance. The returned summary, identity, exact counts, omitted counts, and supported query route fit as one deterministic result.",
+      "DEC-0118 LOSSLESSNESS. The 8,192-byte summary and 16,384-byte page sizes are delivery bounds only, never content caps. Every omitted public semantic row and every value within it remains reachable through the returned assessment identity and the existing authenticated snapshot/cursor owner in packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs. A successful assessment may not create an inaccessible snapshot or require rerun, inference, reconstruction, repository reads, hidden state, or a second snapshot registry.",
+      "TASK-RELEVANT SEMANTIC ACCESS. Agents receive only the semantic summary and specific typed collection rows or typed row-field ranges needed for their task. workspace_controlled_contract_assessment_query and workspace_controlled_contract_integration_test_design_query remain the complete public paths. Non-task-relevant source-derived digest fields are not part of the public assessment result. Any retained lossy derived value must name an operative complete semantic source path. Router and tool descriptions identify the appropriate collection and continuation without sending rationale, raw contract text, or unrelated rows.",
+      "RAW-ROUTE OWNERSHIP. WK-2426 remains the sole owner of no raw registered transport, controlled-contract exclusion from generic spill, role posture, and enforced-filesystem confidentiality distinctions. WK-2461 consumes those invariants without restating or changing them and grants no raw carrier, artifact, join-graph, filesystem, or generic content-reference recovery route.",
+      "ASSESSMENT ENCAPSULATION VOCABULARY. Remove the three assessment raw-source completeness exemptions, the public assessment completeness_exemption member, and non-task-relevant source-derived fields including detail_digest, result_digest, population_digest, and requirement_digest; do not relabel them. Package collection descriptors define the task-relevant public semantic collections. Internal carrier, artifact, proof-plan, evaluation-input, and join-graph bytes remain outside the assessment public contract. Assessment-specific docs describe API encapsulation and context efficiency, not a security or confidentiality guarantee.",
+      "OVERSIZED PUBLIC VALUES. The existing assessment snapshot registry retains every complete task-relevant public row. The two existing query routes extend their typed pagination contract so a row need not fit one page: structured or nested values use typed field projection, and an oversized scalar uses authenticated offset/length ranged retrieval with an exact total, all bound to assessment identity, collection, row identity, snapshot currentness, and cursor expiry. Reassembly reaches the exact complete public value. Do not reject or cap producer content to satisfy a delivery limit, add a second paginator or registry, byte-cut, ellipsize, silently drop, raw-spill, or terminate without an operative continuation.",
+      "BOTH ASSESSMENT FAMILIES AND NON-AUTHORITY. Apply final-envelope and lossless-continuation invariants to workspace_controlled_contract_assess and workspace_controlled_contract_integration_test_design_assess plus their two query routes. Export one assessment non-authority value from the semantic assessment boundary and consume it for both assessment summaries and integration-design refusals. Preserve package assessment semantics, source currentness, authenticated snapshot/cursor behavior, collection ordering, selectors, and advisory-only semantics.",
+      "REGRESSION AND MUTATION COVERAGE. Final registered MCP-response tests cover N-1, N, and N+1 summary envelopes for both assessment families after all adapter fields are added; complete multi-page and oversized-row/field traversal; exact counts and totals; cursor expiry/currentness; a near-bound summary that previously lost its assessment identity; and mutants that double-budget, omit identity, omit a row or field segment, miscount, cap producer content, recreate a completeness exemption or removed digest field, add a second paginator, or reinstate assessment security/confidentiality rationale.",
+      "DURABLE GUIDANCE. docs/mcp-controlled-contract-operations.md owns semantic-operation wording and docs/mcp-integration.md owns transport wording. They state that raw assessment sources remain server-owned for encapsulation and context control, agents obtain complete task-relevant semantic results through summaries and typed query continuation, and failed final-envelope or value-continuation budgeting is a defect. docs/mcp-operation-reference.md remains an index and changes only if a link must change.",
+      "SCOPE AND NON-GOALS. This WK repairs assessment-family final-envelope budgeting, task-relevant public descriptors, semantic summary/page/field projection, the existing snapshot/query path, tests, discovery wording, and the two owning durable docs. It does not grant direct carrier or artifact access, change underlying controlled-contract or proof-pack evaluation semantics, alter proof authority or CCE, broaden role permissions, change WK-2426 raw-route/filesystem policy, add a second paginator or registry, or put runtime protocol guidance in AGENTS.md."
+    ],
+    "validation": [
+      "Reproduce workspace_controlled_contract_assess at the pre-fix near-bound summary and prove the final response returns assessment_identity, exact counts, omitted counts, and the supported query route within the declared delivery bound.",
+      "Traverse every proof-assessment and integration-test-design semantic collection through the existing authenticated snapshot/cursor owner; reconcile rows and field/range continuations exactly to summary counts and totals with no duplicates, omissions, raw carrier fields, hidden reconstruction, content caps, or second paginator.",
+      "Run final-envelope N-1/N/N+1 tests after workspaceRepo and assessment_identity are materialized for both assessment families; inner-projector-only byte tests are insufficient.",
+      "Exercise a public row smaller than, equal to, and larger than the 16,384-byte page, including an oversized scalar and an oversized structured value. Prove typed field projection or offset/length ranged retrieval reconstructs the exact complete value with total, identity, snapshot, expiry, and currentness binding; no producer rejection, byte cut, ellipsis, spill, inaccessible snapshot, or terminal no-route refusal is allowed.",
+      "Mutation-test double budgeting, missing identity, incorrect totals, lost rows or field segments, invalid cursor/currentness, producer content caps, recreated completeness_exemption or source-derived digest output, a second paginator, duplicated non-authority literals, raw artifact recovery, and assessment security/confidentiality wording.",
+      "Run focused controlled-contract package descriptor, wiki-core assessment projection, existing snapshot registry, wiki-MCP registration/transport, tool-discovery, and documentation tests; run git diff --check, work-record validation, and workspace_generate_and_lint."
+    ]
+  },
+  "sections": {
+    "summary": "Describe the failure mode, system boundary, capability, or invariant this item tracks.",
+    "why_it_matters": "State the operational impact and what future readers should understand from this work.",
+    "scope": {
+      "items": [
+        "impacted boundary or area is explicit",
+        "intended invariant or behavior is explicit",
+        "out-of-scope work is explicit when useful"
+      ],
+      "out_of_scope": []
+    },
+    "tasks": [
+      {
+        "text": "",
+        "status": "todo"
+      }
+    ],
+    "references": [],
+    "agent_notes": "DESIGN LIFECYCLE COMPLETE — 2026-09-01. DRY review SLICE-001: run wkdb_e4774cbee5f18ac5, result SHA-256 403e191c8cc2ffd6c584dbbaf9c92221fea21cde810418a3a9a32e4ee2ce4941; all six findings accepted and D1 conformed. All-accepted-DEC review SLICE-002: run wkdb_7868229b7d87ee85, result SHA-256 dd8106c6cf9436042bc6c9af0ef2686e24da9b259eb01e49f9eab974ab9268fa; 51/51 accepted decisions reviewed, both findings accepted (remove producer byte caps in favor of lossless typed continuation; omit non-task-relevant source-derived digests).\n\nThe final controlled-acceptance-contract.v1 carrier digest is sha256:16a1a82987de8a41166c5e5226ca728787e71f1f91da9179ee5f630968f2a6e0. The admitted proof pack is proof.completeness.lossless-projection@2.0.0 with exact bindings source=4, compact=3, omitted=1, modes=2. The rebuilt proof-plan digest is sha256:b58d67b50c84a92b9500dd8a8312149bd8be91c21417c410621cc2fb00fe0c7e.\n\nThe complete canonical obligation map is present at content digest sha256:a13c6201e52246f0a63eeb821557c2954c6dfdc4a4cd86abbdf9a523e69e2a9b. It maps all 12/12 acceptance criteria to stable OBL-WK2461-01 through OBL-WK2461-12 identities, current controlled-contract nodes, exact owning mechanisms, and exactly one proof disposition each. OBL-WK2461-04 maps to lossless-recovery-verification and OBL-WK2461-05 maps to disclosure-names-recovery-path from proof.completeness.lossless-projection@2.0.0. The remaining ten rows carry explicit gaps: eight implementation_not_delivered, one existing_mechanism_unextended, and one review_only. In particular, oversized field/range reconstruction is not falsely credited to the pack because the pack explicitly excludes pagination-range/cursor semantics and member-byte equality.\n\nDesign redteam SLICE-003: run wkdb_8ef53585b26e4eb5, result SHA-256 46a7462235aa5c9209f9664b2561797432687220ff4dda85d010f7d163f5f306. One-time blueteam SLICE-004: run wkdb_c3842b2517309916, result SHA-256 9da5b8d81c7345efd353f587d500c350332afc7f76c46730cf4836a87f4100aa. Final disposition: retain and amend registered unexpected-exception forwarding through the shared registry and both assessment handlers; retire the proposed duplicate both-family/oversized proof; narrow documentation remediation to associating docs/mcp-integration.md with the existing documentation obligation. The controlled contract and stable test proof were amended once and the proof plan rebuilt; no further design review is permitted without operator intervention.\n\nImplementation is shaped but not dispatched. Ten strict-dispatchable, single-cluster units exist: SLICE-005 descriptor runtime; SLICE-014 descriptor declarations; SLICE-006 wiki-core projection; SLICE-007 wiki-MCP final-envelope/snapshot continuation; SLICE-008 discovery; SLICE-009 boundary tests; SLICE-010 semantic reconstruction tests; SLICE-011 package/registration/discovery parity and handler-fault tests; SLICE-012 integration-test-design MCP traversal; SLICE-013 owning durable docs. Each has explicit dependencies, exact read/write scope, acceptance, validation, targets, and one implementation-review obligation before integration.\n\nOBLIGATION-MAP CORRECTION — 2026-09-01. The prior obligation-map paragraph incorrectly treated post-implementation execution state as an obligation proof disposition. The current canonical obligation-coverage digest is sha256:ab33d22a93e87d6e2d0decd469198257c3ac240c917464757a607840dd20cfe5. All 12 obligations, owning mechanisms, expected observations, and falsifiers are defined pre-dispatch. OBL-WK2461-04 and OBL-WK2461-05 retain admitted lossless-projection mappings; OBL-WK2461-12 remains review_only; the other nine rows are catalog_gap because no currently admitted proof pack covers their already-authored proof mechanisms. Implementation later produces satisfaction or falsification evidence; it does not define the obligation.\n\nOPERATOR-DIRECTED COMBINED IMPLEMENTATION — 2026-09-01. The operator directed SLICE-005 through SLICE-014 to run in one escalated worker session, produce one combined commit, and receive one findings-only review of that exact combined candidate. Slice identities remain the obligation, scope, and closure labels for attribution; they are not separate commit or review boundaries for this operator-directed run. SLICE-005 is partially delivered in the shared worktree and remains active until the combined candidate is complete. Do not materialize, review, integrate, or mark an individual implementation slice done before the combined candidate exists.\n\nCOMBINED IMPLEMENTATION CANDIDATE — 2026-09-01. Operator-directed SLICE-005 through SLICE-014 implementation is complete in one exact 19-path commit. Base SHA: 2e319458111feb86be05b729a4afcc9d229fd8ab. Review target SHA: 5f0c72d7b9fffab1c4363eec4f7fb4c7733a61f6. Commit subject: fix(controlled-contract): make assessment projections lossless. Parent exactly equals base, the candidate worktree is clean, and shared branch HEAD was not moved. Reported validation: 11/11 syntax checks, 71/71 slice-focused tests, 44-route discovery parity, valid WK record, documentation policy, real wiki-MCP stdio readiness, disposable generation, and git diff --check all passed. Base-equivalent residue: five repository-lint failures and 2/8 additional non-slice exact-bound-aggregate-assessment failures. All implementation slices are in review for one combined findings-only boundary. Managed reviewer dispatch of WK-2461 with the exact SHA pair was refused before spawn by validation_failure / managed_lifecycle_required / launcher_transition.prospective_lifecycle_unavailable.v1; no run or review evidence exists, and the result reported no supported managed recovery route. Exact operator action: run one escalated findings-only reviewer over the bound base/target pair and return the complete advisory result without implementing fixes.",
+    "closure": {
+      "summary": "Completed through the operator-authorized direct-to-main path. SLICE-005 through SLICE-014 were implemented as one combined candidate, reviewed once in SLICE-015 with no actionable findings, and landed on main as commit 3172db0c5c2f630bd300f3ff6fc567dc981e1245 (parent e799144f32c74b7fa203202ec91ce8a6c0b3134b). The landed commit contains 18 changed paths because docs/mcp-integration.md already matched the candidate in its parent. All WK-2461 paths are clean; unrelated worktree changes were left untouched.",
+      "validation": [
+        "Combined findings-only review run wkdb_575f74c6c814b2b6 covered all 19 declared candidate paths and all 12 obligations at base 2e319458111feb86be05b729a4afcc9d229fd8ab through candidate 5f0c72d7b9fffab1c4363eec4f7fb4c7733a61f6; it reported no actionable findings.",
+        "Direct-to-main commit 3172db0c5c2f630bd300f3ff6fc567dc981e1245 has parent e799144f32c74b7fa203202ec91ce8a6c0b3134b, preserves the reviewed WK-2461 implementation alongside already-present main changes, and leaves no WK-2461 path dirty.",
+        "The final focused implementation suite passed 71/71 tests.",
+        "Implementation validation also passed 11/11 syntax checks, 44-route discovery parity, real wiki-MCP stdio readiness, disposable generation, documentation policy, work-record validation, and git diff --check.",
+        "Reviewer residual: 14 carrier-dependent tests could not run in its immutable snapshot because wiki/contracts fixtures were omitted; the remaining 26 focused review tests passed and the final implementation run passed 71/71.",
+        "Repository lint retained five failures identical at base and candidate; the additional exact-bound aggregate suite retained 2/8 failures identical at base and candidate. These were not introduced by WK-2461."
+      ],
+      "follow_ups": []
+    }
+  },
+  "children": [],
+  "slices": [],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "initiative": "IN-0038",
+  "derived_evidence": []
+}

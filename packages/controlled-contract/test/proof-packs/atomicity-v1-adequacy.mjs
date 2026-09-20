@@ -18,14 +18,14 @@ import {
 } from "./atomicity-v1-harness.mjs";
 
 const ATOMICITY_V1_PROFILE_DIGEST =
-  "15822312f93cc4208bfd5d71ee653d9271fcdf6eacdfac2e98e1014438238a43";
+  "ab3b0b152fbe27cd65c673f674789cecaf085b86dfe9dbb596b4476f6a054189";
 const ATOMICITY_V1_GUARANTEE_DIGEST =
   "3d9681b4aa9e3f75889648eb4d87f995da443f7768f7c7d1938d4e93701a9a98";
 
 const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
   "compound-operation-writes-constituent-effects": {
     pattern_id: "compound-operation-writes-constituent-effects",
-    required_by_stage: "pre_dispatch",
+
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],
     proposition_template: {
@@ -37,7 +37,7 @@ const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
   },
   "earlier-effect-population-membership": {
     pattern_id: "earlier-effect-population-membership",
-    required_by_stage: "pre_dispatch",
+
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],
     proposition_template: {
@@ -49,7 +49,7 @@ const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
   },
   "constituent-effect-order": {
     pattern_id: "constituent-effect-order",
-    required_by_stage: "pre_dispatch",
+
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],
     proposition_template: {
@@ -64,7 +64,7 @@ const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
   },
   "failure-boundary-precedes-later-effect": {
     pattern_id: "failure-boundary-precedes-later-effect",
-    required_by_stage: "pre_dispatch",
+
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],
     proposition_template: {
@@ -79,7 +79,7 @@ const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
   },
   "settlement-follows-later-effect": {
     pattern_id: "settlement-follows-later-effect",
-    required_by_stage: "pre_dispatch",
+
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],
     proposition_template: {
@@ -94,7 +94,7 @@ const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
   },
   "allowed-settlement-states-closed": {
     pattern_id: "allowed-settlement-states-closed",
-    required_by_stage: "pre_dispatch",
+
     claim_kind: "evidence",
     allowed_modalities: ["MUST"],
     proposition_template: {

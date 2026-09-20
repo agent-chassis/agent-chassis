@@ -1,3 +1,4 @@
+import { projectOrdinaryFieldRead } from "../lib/work-record-ordinary-field-read.mjs";
 import path from "node:path";
 import {
   parseWorkRecordSummaryUnit,
@@ -86,7 +87,9 @@ export async function getWorkRecordSummary({
   pathInput = null,
   recordStore = null,
   verbose = false,
-  include_full_summary = false
+  include_full_summary = false,
+  ordinary_field = null,
+  expected_source_digest = null
 } = {}) {
   const targetDir = path.resolve(String(dir));
 
@@ -162,6 +165,19 @@ export async function getWorkRecordSummary({
         }
       ]
     });
+  }
+
+  return summarizeLoadedWorkRecord({ loaded, parsedUnit, targetDir, recordStore,
+    verbose, include_full_summary, ordinary_field, expected_source_digest });
+}
+
+export async function summarizeLoadedWorkRecord({ loaded, parsedUnit = null, targetDir,
+  recordStore = null, verbose = false, include_full_summary = false,
+  ordinary_field = null, expected_source_digest = null, repository = null }) {
+  if (ordinary_field !== null) {
+    return projectOrdinaryFieldRead({ loaded, unit: parsedUnit, selection: ordinary_field,
+      expectedSourceDigest: expected_source_digest,
+      repository });
   }
 
   if (!loaded.record) {

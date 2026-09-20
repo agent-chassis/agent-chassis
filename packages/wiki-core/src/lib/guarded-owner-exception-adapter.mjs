@@ -87,6 +87,11 @@ function walk(node, visit) {
   for (const child of node.namedChildren) walk(child, visit);
 }
 
+function walkTokens(node, visit) {
+  visit(node);
+  for (const child of node.children) walkTokens(child, visit);
+}
+
 function nodeText(node, source) {
   return source.slice(node.startIndex, node.endIndex);
 }
@@ -214,6 +219,68 @@ function lineTextAt(source, line) {
   return source.split(/\r?\n/u)[line - 1] ?? "";
 }
 
+function reexportFromClauseRecovery(missing, source) {
+  if (missing.type !== ";" || missing.startIndex !== missing.endIndex) return null;
+  const fromStatement = missing.parent;
+  if (fromStatement?.type !== "expression_statement") return null;
+  const fromChildren = fromStatement.namedChildren.filter((child) => child.type !== "comment");
+  if (fromChildren.length !== 1 || fromChildren[0].type !== "identifier" ||
+      nodeText(fromChildren[0], source) !== "from") return null;
+  const clause = fromStatement.previousNamedSibling;
+  if (clause?.type !== "export_statement" ||
+      clause.namedChildren.at(-1)?.type !== "export_clause") return null;
+  const specifier = fromStatement.nextNamedSibling;
+  if (specifier?.type !== "expression_statement") return null;
+  const specifierChildren = specifier.namedChildren.filter((child) => child.type !== "comment");
+  if (specifierChildren.length !== 1 || specifierChildren[0].type !== "string") return null;
+  return Object.freeze({
+    recovery: "es_module_reexport_from_clause",
+    ...sourcePoint(clause),
+    start_index: clause.startIndex,
+    end_index: specifier.endIndex
+  });
+}
+
+function classifyParsedSource(tree, sourcePath, source) {
+  if (!tree.rootNode.hasError) return Object.freeze([]);
+  const recoveries = [];
+  const anomalies = [];
+  walkTokens(tree.rootNode, (node) => {
+    if (node.type === "ERROR") {
+      anomalies.push(Object.freeze({
+        anomaly: "error_node",
+        ...sourcePoint(node),
+        text: nodeText(node, source).slice(0, 120)
+      }));
+      return;
+    }
+    if (!node.isMissing) return;
+    const recovery = reexportFromClauseRecovery(node, source);
+    if (recovery) recoveries.push(recovery);
+    else anomalies.push(Object.freeze({ anomaly: "recovered_token", token: node.type, ...sourcePoint(node) }));
+  });
+  if (anomalies.length > 0 || recoveries.length === 0) {
+    fail(GUARDED_OWNER_EXCEPTION_DIAGNOSTICS.PARSE_FAILED, {
+      path: sourcePath,
+      anomaly_count: anomalies.length,
+      anomalies: anomalies.slice(0, 8)
+    });
+  }
+  return Object.freeze(recoveries.sort((left, right) => left.start_index - right.start_index));
+}
+
+function assertOutsideRecoveries(recoveries, node, sourcePath, siteKind) {
+  if (recoveries.length === 0) return;
+  if (!recoveries.some((entry) =>
+    node.startIndex >= entry.start_index && node.endIndex <= entry.end_index)) return;
+  fail(GUARDED_OWNER_EXCEPTION_DIAGNOSTICS.PARSE_FAILED, {
+    path: sourcePath,
+    reason: "census_site_inside_recovered_span",
+    site_kind: siteKind,
+    ...sourcePoint(node)
+  });
+}
+
 function mechanicalDefect(code, node, source, details = {}) {
   const point = sourcePoint(node);
   return Object.freeze({ code, ...point, details: Object.freeze({ source_line: lineTextAt(source, point.line).trim(), ...details }) });
@@ -229,9 +296,10 @@ export async function discoverGuardedMechanicalDefects({ path: sourcePath, sourc
   try {
     parser.setLanguage(language);
     tree = parser.parse(source);
-    if (tree.rootNode.hasError) fail(GUARDED_OWNER_EXCEPTION_DIAGNOSTICS.PARSE_FAILED, { path: sourcePath });
+    const recoveries = classifyParsedSource(tree, sourcePath, source);
     const defects = [];
     walk(tree.rootNode, (node) => {
+      if (node.type === "catch_clause") assertOutsideRecoveries(recoveries, node, sourcePath, "catch_clause");
       if (node.type === "catch_clause" && exportedFunctionBoundary(node, source) && !isEntryRethrow(node, source)) {
         const parameter = node.childForFieldName("parameter");
         const body = node.childForFieldName("body");
@@ -331,9 +399,7 @@ export async function discoverGuardedCatchAndCodeSites({ path: sourcePath, sourc
   try {
     parser.setLanguage(language);
     tree = parser.parse(source);
-    if (tree.rootNode.hasError) {
-      fail(GUARDED_OWNER_EXCEPTION_DIAGNOSTICS.PARSE_FAILED, { path: sourcePath });
-    }
+    const recoveries = classifyParsedSource(tree, sourcePath, source);
     const wantedCodes = new Set(codeLiterals);
     const catches = [];
     const excludedRethrows = [];
@@ -346,6 +412,7 @@ export async function discoverGuardedCatchAndCodeSites({ path: sourcePath, sourc
     let syntacticOrdinal = 0;
     walk(tree.rootNode, (node) => {
       if (node.type === "catch_clause") {
+        assertOutsideRecoveries(recoveries, node, sourcePath, "catch_clause");
         catchOrdinal += 1;
         syntacticOrdinal += 1;
         if (isEntryRethrow(node, source)) {
@@ -364,6 +431,7 @@ export async function discoverGuardedCatchAndCodeSites({ path: sourcePath, sourc
         const literal = decodeStringLiteral(source.slice(node.startIndex, node.endIndex));
         const useKind = literal === null ? null : qualifyingCodeUse(node, source);
         if (literal !== null && useKind && (CODE_IDENTITY.test(literal) || wantedCodes.has(literal))) {
+          assertOutsideRecoveries(recoveries, node, sourcePath, "code_literal");
           codeOrdinal += 1;
           syntacticOrdinal += 1;
           codes.push(Object.freeze({
@@ -379,6 +447,7 @@ export async function discoverGuardedCatchAndCodeSites({ path: sourcePath, sourc
         const property = node.childForFieldName("property");
         const code = property ? knownCodeByMember.get(nodeText(property, source)) : null;
         if (code) {
+          assertOutsideRecoveries(recoveries, node, sourcePath, "code_literal");
           codeOrdinal += 1;
           syntacticOrdinal += 1;
           codes.push(Object.freeze({
@@ -395,7 +464,8 @@ export async function discoverGuardedCatchAndCodeSites({ path: sourcePath, sourc
     return Object.freeze({
       catches: Object.freeze(catches),
       code_literals: Object.freeze(codes),
-      excluded_entry_rethrows: Object.freeze(excludedRethrows)
+      excluded_entry_rethrows: Object.freeze(excludedRethrows),
+      grammar_recoveries: recoveries
     });
   } catch (error) {
     if (error instanceof GuardedOwnerExceptionAdapterError) throw error;
@@ -557,6 +627,7 @@ export async function reconcileGuardedOwnerExceptionPopulation({
   ]);
   const indexes = buildOwnerIndexes(exceptionCorpus, refusalCorpus, asyncCorpus);
   const sites = [];
+  const grammarRecoveries = [];
   const sortedPaths = [...new Set(trackedPaths.filter(isGuardedOwnerProductionPath))].sort();
   const seenCatchOwners = new Set();
   const seenCodeOwners = new Set();
@@ -565,6 +636,14 @@ export async function reconcileGuardedOwnerExceptionPopulation({
     const found = await discoverGuardedCatchAndCodeSites({
       path: sourceFile, source, codeLiterals: indexes.knownCodes
     });
+    for (const entry of found.grammar_recoveries) {
+      grammarRecoveries.push(Object.freeze({
+        source_file: sourceFile,
+        recovery: entry.recovery,
+        line: entry.line,
+        column: entry.column
+      }));
+    }
     for (const site of found.excluded_entry_rethrows) {
       const sourceIdentity = `${sourceFile}#catch${site.ordinal}`;
       if (indexes.catches.has(sourceIdentity)) seenCatchOwners.add(sourceIdentity);
@@ -620,12 +699,16 @@ export async function reconcileGuardedOwnerExceptionPopulation({
     owned_wk2382: sites.filter((site) => site.owner?.semantic_owner === "WK-2382").length,
     unresolved: sites.filter((site) => site.owner === null).length,
     multiply_classified: 0,
-    owner_site_absent: ownerSiteAbsences.length
+    owner_site_absent: ownerSiteAbsences.length,
+    grammar_recoveries: grammarRecoveries.length
   });
   return Object.freeze({
     schema_version: "guarded-owner-exception-reconciliation.v1",
     totals,
     sites: Object.freeze(sites),
+    grammar_recoveries: Object.freeze(grammarRecoveries.sort((left, right) =>
+      left.source_file.localeCompare(right.source_file) || left.line - right.line ||
+      left.column - right.column)),
     owner_site_absences: ownerSiteAbsences,
     unresolved_facts: Object.freeze(sites.flatMap((site) => site.unresolved_fact ? [site.unresolved_fact] : []))
   });

@@ -1,0 +1,445 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.authorization.refusal-before-effects",
+  "profile_version": "4.0.0",
+  "profile_digest": "e5cfc6aec27a79ce6e0c165bbf29ea676b9a0a5a62093c0ed43e44116c968c0b",
+  "description": "Given one declared operation attempt, one declared refusal event, one declared authority, one declared unauthorized subject, one declared reusable operation, and one complete caller-supplied protected-effect list bound to an exact declared cardinality, this pack establishes only in the declared controlled graph that: the attempt performs the operation and uses the subject; the authority does not authorize that subject for the operation; the refusal rejects that exact attempt; the attempt precedes a protected-interval witness which precedes the refusal; before that refusal the same attempt neither writes nor mutates any listed protected effect; and the verification reads the exact attempt, refusal, operation, and every listed protected effect, with a positive same-attempt, same-population, same-refusal pre-refusal write or mutation as the corresponding falsifier.",
+  "parameters": [
+    {
+      "name": "operation",
+      "purpose": "Declare operation for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "operation"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/2",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "attempt",
+      "purpose": "Declare attempt for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "subject",
+      "purpose": "Declare subject for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "subject"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authority",
+      "purpose": "Declare authority for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "authority"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "refusal",
+      "purpose": "Declare refusal for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "refusal"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/3",
+        "/claim_patterns/5",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_condition_bindings/0",
+        "/falsifier_condition_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_interval",
+      "purpose": "Declare protected interval for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "bounded_observation",
+      "roles": [
+        "protected_interval"
+      ],
+      "refinement_refs": [
+        "/reference_roles/5"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_effect_population",
+      "purpose": "Declare protected effect population for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "protected_effect_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/6",
+        "/claim_patterns/7"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_effects",
+      "purpose": "Declare protected effects for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_effects"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/6",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.authorization.refusal-before-effects. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/8"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "operation",
+      "kind": "semantic_parameter",
+      "parameter": "operation",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/2",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "attempt",
+      "kind": "semantic_parameter",
+      "parameter": "attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "subject",
+      "kind": "semantic_parameter",
+      "parameter": "subject",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authority",
+      "kind": "semantic_parameter",
+      "parameter": "authority",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "refusal",
+      "kind": "semantic_parameter",
+      "parameter": "refusal",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/3",
+        "/claim_patterns/5",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_condition_bindings/0",
+        "/falsifier_condition_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_interval",
+      "kind": "semantic_parameter",
+      "parameter": "protected_interval",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_effect_population",
+      "kind": "semantic_parameter",
+      "parameter": "protected_effect_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/6",
+        "/claim_patterns/7"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_effects",
+      "kind": "semantic_parameter",
+      "parameter": "protected_effects",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/6",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/8"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_effect_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "protected_effects"
+      ],
+      "rule_refs": [
+        "/claim_patterns/7",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "operation",
+      "attempt",
+      "subject",
+      "authority",
+      "refusal",
+      "protected_interval",
+      "protected_effect_population",
+      "protected_effects",
+      "verification"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.authorization.refusal-before-effects.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.authorization.refusal-before-effects constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.authorization.refusal-before-effects.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

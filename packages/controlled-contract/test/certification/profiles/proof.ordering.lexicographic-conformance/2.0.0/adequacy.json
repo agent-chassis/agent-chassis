@@ -16,27 +16,15 @@
     "undeclared-coercion-null-nan-locale-collation-normalization-or-punctuation-semantics"
   ],
   "executable_module": "packages/controlled-contract/test/proof-packs/deterministic-lexicographic-ordering-v1-adequacy.mjs",
-  "executable_module_digest": "e809089bef0a261b1d87ff89117d16d361e9bbfc8ee0ef6129220baeed8eb33a",
+  "executable_module_digest": "a3d00d733a4817a5092fafcdf952fce9e9f84537bda330f33c1b0d28993adbd1",
   "executable_dependency_digests": [
     {
-      "path": "packages/controlled-contract/lib/authentication-provenance-occurrence-projection.mjs",
-      "sha256": "5840827cdab652e7d6dcd7c4d9d792f896602dc40cb0fd2eb69a68740869719d"
-    },
-    {
       "path": "packages/controlled-contract/lib/bounded-diagnostic-projection.mjs",
-      "sha256": "97ebe02ca4b7fbac890a19ec04211918734cd449f2c656065ee09ffdc5cbb067"
+      "sha256": "1ff4164683c3ed82cc184033d29bd437f9c349aab63036a8a0e6ac5241301e35"
     },
     {
-      "path": "packages/controlled-contract/lib/caller-input-authority-confinement-projection.mjs",
-      "sha256": "b8f183b384b0ff23b89e62ecb6b17c25f7f256db9220003d6b6bab5d951bd7f3"
-    },
-    {
-      "path": "packages/controlled-contract/lib/declared-boundary-record-consistency.mjs",
-      "sha256": "af18570472e47bbe07ab6371b4044ec9d4c794fd2cff981024d497c35e15e895"
-    },
-    {
-      "path": "packages/controlled-contract/lib/declared-limit-guidance-propagation.mjs",
-      "sha256": "4be7f45a81baf2ed5d894b4b882befd8082ef6c8beaf23c05411014bc100267d"
+      "path": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+      "sha256": "4615c3745a066497f67eb36b84228d3995250f354911c8f070aa7ef24224a4e4"
     },
     {
       "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
@@ -47,48 +35,16 @@
       "sha256": "2090a18c5d66ebb84008074ac06a5ae127d04cf061ea7fb826eda25b99d29f05"
     },
     {
-      "path": "packages/controlled-contract/lib/deterministic-projection.mjs",
-      "sha256": "7bc660f9fe302e2a1cbfde84ae988b15c6fa055f68e2b3104996457cf1028210"
-    },
-    {
       "path": "packages/controlled-contract/lib/equality-normalization-v1.mjs",
       "sha256": "eb2848ae678a33272b331bb7a741b46bdcff2a10882530172e3eabfa3d32dd1a"
     },
     {
-      "path": "packages/controlled-contract/lib/equality-normalization.mjs",
-      "sha256": "cc3d82139e6a1c2d2bcd35aeedc31861403864d0df0dab293530f5b23e457535"
-    },
-    {
-      "path": "packages/controlled-contract/lib/exact-binding-capture.mjs",
-      "sha256": "977d4484039e55fcfb517da744f39b32f7ca5384f7c300b509eacfc828fc48b4"
-    },
-    {
-      "path": "packages/controlled-contract/lib/exact-binding-common.mjs",
-      "sha256": "adda8677e098200ce6a7767c9eade4efa64cca5043aeaf4b1362c17d7a863a5f"
-    },
-    {
-      "path": "packages/controlled-contract/lib/exact-binding-plain-data.mjs",
-      "sha256": "f684eca8c688c4c6125c3d700f689f027ea7bbdd0272d6fb9996e352248bac7a"
-    },
-    {
       "path": "packages/controlled-contract/lib/exact-binding-runtime-registry.mjs",
-      "sha256": "4a5b4685384e5f15665d721a442031f7ad22d6388ca0e6eb17ea7d59bad7d584"
-    },
-    {
-      "path": "packages/controlled-contract/lib/exact-binding.mjs",
-      "sha256": "871c44cd3a3d3ed43a529de791259494b7f95a490c051d831a1ce46ad1fdaa55"
-    },
-    {
-      "path": "packages/controlled-contract/lib/mutation-pagination-complete-traversal.mjs",
-      "sha256": "35d3876cf407cd8585a2f0090443646437372f0e73451de5c972ac750893756f"
-    },
-    {
-      "path": "packages/controlled-contract/lib/mutation-pagination-trace-projection.mjs",
-      "sha256": "121e4eceb5b8f1cf687e21a75b92bad6ffc9d156590bb5b8f22eff786f09a47d"
+      "sha256": "c0aa33a3c1c0ec7977ca6f1df7f607d658fff52c3a33ca482d0d8fbec475b55a"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-carrier-v1.mjs",
-      "sha256": "ea22b65e829a2c79dba91b1d387e4d59a77c7d077e8aac101bdf6724c9d3a316"
+      "sha256": "c4cc2f8b24938471d0dc1f28005b119b6fcec40c207dca5115fc7c6a1e5f34ac"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
@@ -96,7 +52,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
-      "sha256": "154ee7614793ae6da2851834532f63d0bea91fc1c6b310d5ca35258d80eeadad"
+      "sha256": "a72d06fb070544f9d70a558d0dcecb9e9e35ebaca804bbf4914417d7af89fd5f"
     },
     {
       "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
@@ -111,24 +67,16 @@
       "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
     },
     {
-      "path": "packages/controlled-contract/lib/projected-contract-validation.mjs",
-      "sha256": "ca70a86f877ecba36e3109858ea720456fff0effa0dd362b321709bc8e65e325"
-    },
-    {
-      "path": "packages/controlled-contract/lib/projected-evaluation-binding.mjs",
-      "sha256": "0297b7f7dac21725c0446d1aa6728bc6f2c24972ba9d25d435b98cdb42cc67c1"
-    },
-    {
       "path": "packages/controlled-contract/lib/resource-policy.mjs",
       "sha256": "0d7e7370a5745f4215ac69260fb6cfefeb048778cec1e4fd43c5da6c71448505"
     },
     {
-      "path": "packages/controlled-contract/lib/sound-negative-observation-projection.mjs",
-      "sha256": "d20c2ef8dcf13885149f6444153a6f8795206a7f51a978aecb8a45a3c354ef7e"
-    },
-    {
       "path": "packages/controlled-contract/lib/stable-association-semantics.mjs",
       "sha256": "45df90f5d90670fbd22908302fa0d17884faf392f17c02d2368b338906e4aee7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-contract-schema-v1.mjs",
+      "sha256": "d6bb7568dc4bc223dddf24a92ae4cceaa9430a677c25c69d9984da3dcd5e6511"
     },
     {
       "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
@@ -147,12 +95,8 @@
       "sha256": "89a1186b6b2fd176e8e8db6b12e8160e116882f54f2a1804e2ab5572f3432ab7"
     },
     {
-      "path": "packages/controlled-contract/lib/supplementary-isolation-attempt-projection.mjs",
-      "sha256": "fcd4bc8d88b2d9bf7b675807397be8b20a73f4e4862e2225ccf942e0f5638574"
-    },
-    {
       "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
-      "sha256": "8b0eaa6b19178e1edcddf03a79ce269e4d5b825a36574e088e2963a496a7787a"
+      "sha256": "f7d2e9bf4e1fc57e8259b37f4e7af4600c34a47f153a33a46f738c576e1789e0"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-expanded-semantics.mjs",
@@ -164,7 +108,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-schema-v1.mjs",
-      "sha256": "2ea7520026444bf376575897a14e2c915f5127e27c77efc8b141ed7a959e3138"
+      "sha256": "ab405a66129332ef99241174ba088c2377f2ac251bc63515ff4845cdc27af227"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-semantics.mjs",
@@ -172,7 +116,7 @@
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
-      "sha256": "c2d5ae1d9f1806fe8e1aace14e0822a8e9ddbe97e7226d454732c9ee5b26729c"
+      "sha256": "512fe162febb3e2685812be2aedc576d952558b92d0120e66d74f4d806f04a21"
     },
     {
       "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
@@ -180,35 +124,15 @@
     },
     {
       "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
-      "sha256": "a2eea7c7cc0ffab8dc2f931ae147587ce5a350afeb7c8cde6e973e1ac6168d80"
+      "sha256": "ef4c49974e8169d82db660c1b779e03c0950459f37553ea17d3ee7db07b69caf"
     },
     {
-      "path": "packages/controlled-contract/schema/controlled-contract-admitted-proof-pack.v2.schema.json",
-      "sha256": "fc2e659512b5cf7c265c067e54d9429fee61e88b9e4a10fe9c47dabb2b22efd0"
-    },
-    {
-      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-assessment-request.v1.schema.json",
-      "sha256": "90fc47606e993120f614c455f3fe43a9874fea7c60f0e526812b592cdc34ebdc"
-    },
-    {
-      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-certification-result.v1.schema.json",
-      "sha256": "449ff9d502aaeab1ee39ea204a2b55d491a1789184dc19e96d209591ec5b9a6c"
-    },
-    {
-      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-declaration.v1.schema.json",
-      "sha256": "8d82e7670f71977a6975f23a5f279c4dc70a81adb22a50664b79199961abbdf8"
-    },
-    {
-      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-result.v1.schema.json",
-      "sha256": "d65fd8810194ccf0f0ef662964cf4f14fc17651d3feddfe68a181299ccc95184"
-    },
-    {
-      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-sources.v1.schema.json",
-      "sha256": "d47cacba6fa7c184d6fea3957b2a078561dcf269296b8d616c26ef2b050db6b6"
+      "path": "packages/controlled-contract/schema/controlled-acceptance-test-proof-definitions.v1.schema.json",
+      "sha256": "2a23773f0c36f70993b35d3f5dc5bd61de193ddae26c495671ec787d2915aab9"
     },
     {
       "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-input.v1.schema.json",
-      "sha256": "38bd0b388ba2c5a4bb108749e1ffd50bdb8147ae5521f1d9d1eaf04126ef0b72"
+      "sha256": "c5b4bead4886e96e5bbc661818cf4f5bf39596304d24a4d987ffb57f6717dfdc"
     },
     {
       "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-result.v1.schema.json",
@@ -232,7 +156,7 @@
     },
     {
       "path": "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs",
-      "sha256": "2695fc8d1e55558adf91846f142afbf0223dabe128a970ddfe38f327e258db86"
+      "sha256": "0ce9cd57dc3343339cbdfe28f15517754b99e813d1730dec104a2f64661b48fe"
     },
     {
       "path": "packages/controlled-contract/vocabulary/controlled-contract-vocabulary.v1.mjs",
@@ -933,7 +857,6 @@
     "declaration-permutation-sensitivity",
     "direction-reversal",
     "duplicated-result-member",
-    "fabricated-resolver-facts",
     "fact-declaration-order-invariant-missing-argument-input-snapshot",
     "fact-declaration-order-invariant-missing-argument-ordering-policy",
     "fact-declaration-order-invariant-missing-argument-result-snapshot",
@@ -973,7 +896,6 @@
     "prefix-only-sorting",
     "premature-tie-breaking",
     "punctuation-stripping-comparison",
-    "resolver-facts-bound-to-different-artifacts",
     "serialization-duplicate-members",
     "serialization-permutation-sensitivity",
     "substituted-result-member",

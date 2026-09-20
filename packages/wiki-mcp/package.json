@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/wiki-mcp",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -19,13 +19,13 @@
     "wiki-mcp": "bin/wiki-mcp"
   },
   "dependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.7.0",
-    "@agent-chassis/agent-launch-core": "^0.7.0",
-    "@agent-chassis/wiki-core": "^0.7.0",
+    "@agent-chassis/agent-launch-cli": "^0.8.0",
+    "@agent-chassis/agent-launch-core": "^0.8.0",
+    "@agent-chassis/wiki-core": "^0.8.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
     "zod": "^3.25.76"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.20.0"
   }
 }

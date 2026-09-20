@@ -56,7 +56,8 @@ export function collectDedupedSrcBinds(entries, label, validate = null) {
   return out;
 }
 
-export function buildSystemBaselineArgs({ systemReadOnlyRoots, shareNet, newSession = true, tmpfsDirs = [] }) {
+export function buildSystemBaselineArgs({ systemReadOnlyRoots, shareNet, newSession = true,
+  tmpfsDirs = [], useSystemTmp = false }) {
   const args = [
     "--unshare-user-try",
     "--unshare-ipc",
@@ -69,12 +70,9 @@ export function buildSystemBaselineArgs({ systemReadOnlyRoots, shareNet, newSess
   if (newSession) {
     args.push("--new-session");
   }
-  args.push(
-    "--clearenv",
-    "--proc", "/proc",
-    "--dev", "/dev",
-    "--tmpfs", "/tmp"
-  );
+  args.push("--clearenv", "--proc", "/proc", "--dev", "/dev");
+  if (useSystemTmp) args.push("--bind", "/tmp", "/tmp");
+  else args.push("--tmpfs", "/tmp");
 
   if (!Array.isArray(tmpfsDirs)) {
     fail(

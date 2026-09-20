@@ -21,7 +21,7 @@ test("assessment descriptors expose only task-relevant public semantics", () => 
         stable_id: "pack_id",
         fields: [
           "pack_id", "profile_id", "profile_version", "state",
-          "profile_discrimination", "exact_binding"
+          "profile_discrimination"
         ],
         selectors: ["id", "state"]
       },

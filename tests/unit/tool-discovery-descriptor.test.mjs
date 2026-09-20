@@ -14,12 +14,13 @@ import {
   TOOL_DISCOVERY_SCHEMA_VERSION,
   compactToolDiscoveryEntry,
   createToolDiscoveryEnvelope,
+  describeToolDiscoveryTools,
   digestToolDiscoveryDescriptor,
   isToolDiscoveryFragmentManifest,
+  listToolDiscoveryTools,
   loadToolDiscoveryDescriptor,
   loadToolDiscoveryEnvelope,
   projectToolDiscoveryEntryForTier,
-  queryToolDiscoveryDescriptor,
   rankToolDiscoveryTools,
   resolveToolTierVisibility,
   tierVisibilityAllows,
@@ -30,9 +31,7 @@ const PAID_ONLY_TOOL_NAMES = [
   "workspace_node_engine_admission_runtime_diagnostic",
   "workspace_record_graph_impact_evidence",
   "workspace_work_record_refresh_admission_metrics",
-  "workspace_work_record_refresh_target_resolution_evidence",
-  "workspace_code_index_impact_paths",
-  "workspace_code_index_graph_impact_paths"
+  "workspace_code_index_impact"
 ];
 
 const PAID_PROSE_TOKENS = [
@@ -49,7 +48,10 @@ const PAID_PROSE_TOKENS = [
   "worker-admission"
 ];
 
-const TARGET_RESOLUTION_TOOL_NAME = "workspace_work_record_refresh_target_resolution_evidence";
+const RETIRED_TARGET_RESOLUTION_TOOL_NAME =
+  "workspace_work_record_refresh_target_resolution_evidence";
+
+const DERIVED_EVIDENCE_REFRESH_TOOL_NAME = "workspace_work_record_refresh_admission_metrics";
 const LAUNCHER_GUIDANCE_FIELD_NAMES = [
   "use_when",
   "do_not_use_when",
@@ -103,7 +105,7 @@ async function writeFullDescriptorFixture(descriptor, { filename = TOOL_DISCOVER
   return { tempDir, descriptorPath };
 }
 
-test("tool discovery descriptor keeps task ids controlled and target-resolution refresh metadata fresh", async () => {
+test("tool discovery descriptor keeps task ids controlled and derived-evidence refresh metadata fresh", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
   const validation = validateToolDiscoveryDescriptor(descriptor);
 
@@ -118,18 +120,29 @@ test("tool discovery descriptor keeps task ids controlled and target-resolution 
 
   assert.deepEqual(uncontrolledTaskIds, []);
 
-  const targetResolutionTool = descriptor.tools.find(
-    (tool) => tool.tool_name === TARGET_RESOLUTION_TOOL_NAME
+  assert.equal(
+    descriptor.tools.some((tool) => tool.tool_name === RETIRED_TARGET_RESOLUTION_TOOL_NAME),
+    false,
+    "the retired target-resolution refresh route must not reappear in the descriptor"
   );
-  assert.ok(targetResolutionTool, "expected target-resolution refresh metadata in the descriptor");
-  assert.deepEqual(targetResolutionTool.task_ids, ["refresh-derived-evidence"]);
 
-  const rankedTools = queryToolDiscoveryDescriptor(descriptor, {
+  const derivedEvidenceTool = descriptor.tools.find(
+    (tool) => tool.tool_name === DERIVED_EVIDENCE_REFRESH_TOOL_NAME
+  );
+  assert.ok(derivedEvidenceTool, "expected derived-evidence refresh metadata in the descriptor");
+  assert.ok(derivedEvidenceTool.task_ids.includes("refresh-derived-evidence"));
+
+  const rankedTools = rankToolDiscoveryTools(descriptor, {
     task_id: "refresh-derived-evidence"
-  });
+  }, { verbose: false });
   assert.ok(
-    rankedTools.some((tool) => tool.tool_name === TARGET_RESOLUTION_TOOL_NAME),
-    "target-resolution refresh metadata should be discoverable through the approved task id"
+    rankedTools.some((tool) => tool.tool_name === DERIVED_EVIDENCE_REFRESH_TOOL_NAME),
+    "derived-evidence refresh metadata should be discoverable through the approved task id"
+  );
+  assert.equal(
+    rankedTools.some((tool) => tool.tool_name === RETIRED_TARGET_RESOLUTION_TOOL_NAME),
+    false,
+    "a retired route must not be rankable through an approved task id"
   );
 
   const envelope = createToolDiscoveryEnvelope({
@@ -148,12 +161,17 @@ test("tool discovery descriptor keeps task ids controlled and target-resolution 
     "workspace_tools_describe-equivalent validation should not report invalid_task_id"
   );
   assert.ok(
-    envelope.results.some((tool) => tool.tool_name === TARGET_RESOLUTION_TOOL_NAME),
-    "descriptor envelope should surface the target-resolution refresh tool"
+    envelope.results.some((tool) => tool.tool_name === DERIVED_EVIDENCE_REFRESH_TOOL_NAME),
+    "descriptor envelope should surface the derived-evidence refresh tool"
+  );
+  assert.equal(
+    envelope.results.some((tool) => tool.tool_name === RETIRED_TARGET_RESOLUTION_TOOL_NAME),
+    false,
+    "descriptor envelope must not surface the retired target-resolution refresh route"
   );
 });
 
-test("WK-2437 task-directed coverage intents are controlled and validate on both describe rows", async () => {
+test("task-directed coverage intents are controlled and validate on current read rows", async () => {
   const controlledTaskIds = new Set(TOOL_DISCOVERY_CONTROLLED_TASK_IDS);
   for (const taskId of WK_2437_CONTROLLED_TASK_IDS) {
     assert.equal(controlledTaskIds.has(taskId), true, `${taskId} must remain controlled`);
@@ -165,12 +183,7 @@ test("WK-2437 task-directed coverage intents are controlled and validate on both
   assert.deepEqual(validation.diagnostics.filter(({ code }) => code === "invalid_task_id"), []);
 
   const expectedRows = new Map([
-    ["workspace_controlled_contract_acceptance_coverage_describe", [
-      "controlled-contract-authoring",
-      "acceptance-gap-review",
-      "mapping-repair"
-    ]],
-    ["workspace_controlled_contract_obligation_coverage_describe", [
+    ["workspace_controlled_contract_obligation_coverage_query", [
       "controlled-contract-authoring",
       "obligation-inventory",
       "proof-obligation-map-inspection"
@@ -183,6 +196,20 @@ test("WK-2437 task-directed coverage intents are controlled and validate on both
     for (const taskId of expectedTaskIds) {
       assert.equal(controlledTaskIds.has(taskId), true, `${toolName}:${taskId}`);
     }
+  }
+
+  for (const retired of descriptor.tools.filter(({ tool_name: name }) =>
+    name.startsWith("workspace_controlled_contract_acceptance_coverage_"))) {
+    assert.fail(`${retired.tool_name} must not reappear in the assembled descriptor`);
+  }
+  for (const taskId of ["acceptance-gap-review", "mapping-repair"]) {
+    assert.equal(controlledTaskIds.has(taskId), true, `${taskId} must remain controlled`);
+    assert.deepEqual(
+      descriptor.tools.filter((tool) => tool.task_ids.includes(taskId))
+        .map(({ tool_name: name }) => name),
+      [],
+      `${taskId} has no advertised owner after the acceptance-coverage route retirement`
+    );
   }
 });
 
@@ -204,7 +231,7 @@ test("terminal-candidate task ids validate fresh and preserve launcher metadata"
       sideEffects: ["workspace_write"]
     }
   ]) {
-    const results = queryToolDiscoveryDescriptor(
+    const results = rankToolDiscoveryTools(
       descriptor,
       { task_id: expected.taskId },
       { verbose: true }
@@ -431,6 +458,23 @@ test("free/local discovery projection hides paid tool names and CLI operator ent
   assert.ok(freeNames.has("workspace_integrate_committed_slice"));
 });
 
+test("committed-slice integration discovery advertises the registered dispositions field", async () => {
+  const descriptor = await loadToolDiscoveryDescriptor();
+  const integration = descriptor.tools.find(
+    (entry) => entry.tool_name === "workspace_integrate_committed_slice"
+  );
+  assert.ok(integration);
+  assert.deepEqual(integration.recommended_first_call.arguments, {
+    subject: "$canonical_slice_subject",
+    dispositions: "$recorded_dispositions"
+  });
+  assert.equal(
+    Object.hasOwn(integration.recommended_first_call.arguments, "comment_dispositions"),
+    false
+  );
+  assert.match(integration.notes, /Input is closed to repo alias, canonical slice subject, and dispositions/u);
+});
+
 test("paid/CCE discovery projection exposes paid tools while free/local does not", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
   const paid = rankToolDiscoveryTools(descriptor, { registered_tier: "paid_cce" }, { verbose: true });
@@ -471,13 +515,13 @@ test("mixed-route tier_text projects paid detail only under the paid tier, fail-
   assert.equal("tier_text" in projectToolDiscoveryEntryForTier(mixed, "paid_cce"), false);
 });
 
-test("run-status/run-wait descriptors document free-tier structured_role_result.valid false", async () => {
+test("run-status descriptor documents free-tier structured_role_result.valid false", async () => {
   const descriptor = await loadToolDiscoveryDescriptor();
-  for (const name of ["workspace_agent_run_status", "workspace_agent_run_wait"]) {
+  for (const name of ["workspace_agent_run_status"]) {
     const row = descriptor.tools.find((tool) => tool.tool_name === name);
     assert.ok(row, `${name} present`);
     assert.match(row.notes, /structured_role_result\.valid:false/);
-    assert.match(row.notes, /DEC-0128/);
+    assert.match(row.notes, /expected non-attesting output/);
   }
 });
 
@@ -497,96 +541,88 @@ test("launcher discovery entries carry compact routing guidance metadata", async
       replacement_for_misuse: dispatch.replacement_for_misuse
     },
     {
+
       use_when: [
-        "The dispatch_role_call intent has a dispatchable workspace_validate_dispatch result for the same unit and role."
+        "Start a known canonical implementation slice: name the unit and omit role.",
+        "The dispatch_role_call intent names a known subject and an advisory role (reviewer or redteam), which the caller chooses rather than the reviewed unit."
       ],
       do_not_use_when: [
-        "Readiness is unknown; use workspace_validate_dispatch first.",
-        "The task asks about an existing run; use workspace_agent_run_status or workspace_agent_run_wait."
+        "The task asks the prospective question of whether a unit could start rather than asking to start it; use workspace_validate_dispatch.",
+        "The task asks about an existing run; use workspace_agent_run_status."
       ],
       authoritative_for: [
-        "dispatch_role_call:launch_after_dispatchable",
+        "dispatch_role_call:canonical_unit_start",
         "launcher-owned worker/reviewer/redteam process spawn"
       ],
-      recommended_first_call: undefined,
+      recommended_first_call: {
+        routing_intents: ["dispatch_role_call"],
+        operation: "start a known canonical unit by subject, omitting role",
+        arguments: {
+          subject: "WK-<id>#SLICE-<id>"
+        },
+        omit_null_arguments: true
+      },
       requires_prior_state: [
-        "Known subject and role.",
-        "Same-unit same-role workspace_validate_dispatch result with dispatchable=true."
+        "Known canonical subject; role is optional and is derived from the unit's dispatch_intent when omitted.",
+        "No prior workspace_validate_dispatch call: readiness runs inside dispatch through its existing owner, and an earlier assessment neither replaces that check nor grants launch permission."
       ],
-      replacement_for_misuse: [
-        {
-          misuse_code: "dispatch_without_readiness_validation",
-          routing_intent: "dispatch_role_call",
-          use_instead: "workspace_validate_dispatch"
-        }
-      ]
+      replacement_for_misuse: undefined
     }
   );
 
-  for (const [toolName, expectedGuidance] of [
-    [
-      "workspace_agent_run_status",
-      {
-        use_when: [
-          "The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."
-        ],
-        authoritative_for: ["run_monitoring:status", "launcher run lifecycle by monitor_handle"],
-        recommended_first_call: {
-          routing_intents: ["run_monitoring"],
-          arguments: {
-            monitor_handle: "$monitor_handle_if_known",
-            subject: "$unit_if_known"
-          },
-          omit_null_arguments: true
-        },
-        requires_prior_state: ["Server-minted monitor_handle from workspace_agent_dispatch."],
-        misuse_use_instead: "workspace_agent_run_status"
-      }
-    ],
-    [
-      "workspace_agent_run_wait",
-      {
-        use_when: [
-          "The run_monitoring intent asks to wait briefly for an already dispatched run to finish."
-        ],
-        authoritative_for: ["run_monitoring:bounded_wait", "launcher run lifecycle by monitor_handle"],
-        recommended_first_call: {
-          routing_intents: ["run_monitoring"],
-          operation: "bounded wait",
-          arguments: {
-            monitor_handle: "$monitor_handle_if_known",
-            subject: "$unit_if_known"
-          },
-          omit_null_arguments: true
-        },
-        requires_prior_state: [
-          "Server-minted monitor_handle from workspace_agent_dispatch.",
-          "A bounded wait request."
-        ],
-        misuse_use_instead: "workspace_agent_run_wait"
-      }
-    ]
-  ]) {
-    const tool = tools.get(toolName);
-    assert.ok(tool, `${toolName} present`);
-    assert.deepEqual(tool.use_when, expectedGuidance.use_when);
-    assert.deepEqual(tool.do_not_use_when, [
-      "The task is a new role launch; use workspace_validate_dispatch first.",
-      "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."
-    ]);
-    assert.deepEqual(tool.authoritative_for, expectedGuidance.authoritative_for);
-    assert.deepEqual(tool.recommended_first_call, expectedGuidance.recommended_first_call);
-    assert.deepEqual(tool.requires_prior_state, expectedGuidance.requires_prior_state);
-    assert.deepEqual(tool.replacement_for_misuse, [
-      {
-        misuse_code: "ignored_required_next_action",
-        routing_intent: "run_monitoring",
-        use_instead: expectedGuidance.misuse_use_instead
-      }
-    ]);
-  }
+  const dispatchGuidance = [
+    ...dispatch.use_when, ...dispatch.do_not_use_when,
+    ...dispatch.authoritative_for, ...dispatch.requires_prior_state
+  ].join("\n");
+  assert.doesNotMatch(dispatchGuidance, /must be dispatchable/u);
+  assert.doesNotMatch(dispatchGuidance, /workspace_validate_dispatch first/u);
+  assert.doesNotMatch(dispatchGuidance, /launch_after_dispatchable/u);
 
-  for (const toolName of ["workspace_agent_dispatch", "workspace_agent_run_status", "workspace_agent_run_wait"]) {
+  const validate = tools.get("workspace_validate_dispatch");
+  assert.ok(validate, "workspace_validate_dispatch present");
+  assert.deepEqual(validate.authoritative_for,
+    ["dispatch_readiness", "dispatch_readiness:prospective_assessment"]);
+  assert.match(validate.requires_prior_state.join("\n"),
+    /optional prospective assessment, and its result is neither permission to launch/u);
+  assert.match(validate.do_not_use_when.join("\n"),
+    /a start request goes to workspace_agent_dispatch/u);
+  assert.equal(validate.replacement_for_misuse
+    .some(({ misuse_code: code }) => code === "dispatch_without_readiness_validation"), false,
+  "the assessment row no longer claims a start is misuse without it");
+
+  const initiativeStatusRow = tools.get("workspace_initiative_status");
+  assert.ok(initiativeStatusRow, "workspace_initiative_status present");
+  assert.doesNotMatch(initiativeStatusRow.do_not_use_when.join("\n"),
+    /after readiness already returned dispatchable/u);
+  assert.match(initiativeStatusRow.do_not_use_when.join("\n"), /grants no launch permission/u);
+
+  const status = tools.get("workspace_agent_run_status");
+  assert.ok(status, "workspace_agent_run_status present");
+  assert.deepEqual(status.use_when, [
+    "The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."
+  ]);
+  assert.deepEqual(status.do_not_use_when, [
+    "The task is a new start or role launch; use workspace_agent_dispatch, which performs readiness through its existing owner."
+  ]);
+  assert.deepEqual(status.authoritative_for, [
+    "run_monitoring:status",
+    "launcher run lifecycle by canonical subject and retained attempt"
+  ]);
+  assert.deepEqual(status.recommended_first_call, {
+    routing_intents: ["run_monitoring"],
+    arguments: { subject: "$canonical_unit" },
+    omit_null_arguments: true
+  });
+  assert.deepEqual(status.requires_prior_state, [
+    "Canonical WK, slice, or IN dispatch subject; a monitor handle alone is not a status argument."
+  ]);
+  assert.deepEqual(status.replacement_for_misuse, [{
+    misuse_code: "ignored_required_next_action",
+    routing_intent: "run_monitoring",
+    use_instead: "workspace_agent_run_status"
+  }]);
+
+  for (const toolName of ["workspace_agent_dispatch", "workspace_agent_run_status"]) {
     const compact = compactToolDiscoveryEntry(tools.get(toolName));
     for (const fieldName of LAUNCHER_GUIDANCE_FIELD_NAMES) {
       assert.equal(fieldName in compact, false, `${toolName} compact projection must omit ${fieldName}`);
@@ -716,4 +752,59 @@ test("the advertised redteam example executes against the production ready-slice
   const refused = planWorkRecordReadySlice(record, withoutPurpose);
   assert.equal(refused.ok, false);
   assert.equal(refused.diagnostics[0].path, "review_purpose");
+});
+
+test("WK-2603 discovery uses one retained ranking owner", async () => {
+  const barrel = await import("../../packages/wiki-core/src/lib/tool-discovery.mjs");
+  const projection = await import("../../packages/wiki-core/src/lib/tool-discovery/projection.mjs");
+  for (const namespace of [barrel, projection]) {
+    assert.equal(Object.hasOwn(namespace, "queryToolDiscoveryDescriptor"), false,
+      "the test-only query alias is removed");
+  }
+
+  const taskId = "dispatch-worker";
+  const rows = [
+    makeFullDescriptorTool("beta", { priority: 5, task_ids: [taskId], entrypoint: "run beta" }),
+    makeFullDescriptorTool("alpha", { priority: 5, task_ids: [taskId], entrypoint: "run alpha z" }),
+    makeFullDescriptorTool("zeta", { priority: 50, task_ids: [taskId], entrypoint: "run zeta" }),
+    makeFullDescriptorTool("alpha", { priority: 5, task_ids: [taskId], entrypoint: "run alpha a" }),
+    makeFullDescriptorTool("other", { priority: 99, task_ids: ["read-canonical"], entrypoint: "run other" })
+  ];
+  const expected = ["zeta:run zeta", "alpha:run alpha a", "alpha:run alpha z", "beta:run beta"];
+  const identity = (entry) => `${entry.tool_name}:${entry.entrypoint}`;
+  for (const order of [rows, [...rows].reverse()]) {
+    const ranked = rankToolDiscoveryTools(order, { task_id: taskId }, { verbose: true });
+    assert.deepEqual(ranked.map(identity), expected);
+    ranked.forEach((entry, index) => assert.equal(entry.rank, index + 1));
+    assert.deepEqual(describeToolDiscoveryTools(order, { task_id: taskId }, { verbose: true }).map(identity), expected);
+    assert.deepEqual(
+      listToolDiscoveryTools(order, { task_id: taskId }, { createNextCalls: () => [] }).tools.map((row) => row.tool_name),
+      expected.map((value) => value.split(":")[0])
+    );
+    const cliEnvelope = createToolDiscoveryEnvelope({
+      interface: "cli",
+      source_kind: "checked_in_descriptor",
+      descriptor: makeFullDescriptor(order),
+      query: { task_id: taskId }
+    });
+    assert.deepEqual(cliEnvelope.results.map(identity), expected);
+  }
+
+  const descriptor = await loadToolDiscoveryDescriptor();
+  const query = { task_id: "inspect-provenance" };
+  const ranked = rankToolDiscoveryTools(descriptor, query, { verbose: true });
+  assert.ok(ranked.length > 1);
+  for (let index = 1; index < ranked.length; index += 1) {
+    const [left, right] = [ranked[index - 1], ranked[index]];
+    const ordered = left.priority > right.priority ||
+      (left.priority === right.priority && (left.tool_name.localeCompare(right.tool_name) < 0 ||
+        (left.tool_name === right.tool_name && left.entrypoint.localeCompare(right.entrypoint) <= 0)));
+    assert.ok(ordered, `${left.tool_name} precedes ${right.tool_name}`);
+  }
+  const names = ranked.map((entry) => entry.tool_name);
+  assert.deepEqual(describeToolDiscoveryTools(descriptor, query, { verbose: false }).map((entry) => entry.tool_name), names);
+  assert.deepEqual(listToolDiscoveryTools(descriptor, { ...query, limit: 10_000 },
+    { createNextCalls: () => [] }).tools.map((row) => row.tool_name), names);
+  assert.deepEqual(createToolDiscoveryEnvelope({ interface: "cli", descriptor, query }).results
+    .map((entry) => entry.tool_name), names);
 });

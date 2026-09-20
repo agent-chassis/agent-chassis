@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const FAILED_ATTEMPT_NONCONSUMPTION_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.authorization.failed-attempt-nonconsumption/2.0.0/profile.json",
+  "../certification/profiles/proof.authorization.failed-attempt-nonconsumption/3.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -261,7 +261,7 @@ function buildFailedAttemptNonconsumptionFixture({
 
   const input = {
     input_version: EVALUATION_INPUT_VERSION_V1,
-    evaluation_stage: "pre_dispatch",
+
     reference_bindings: Object.keys(roleReferenceIds).map((role) => ({
       role,
       reference_ids: [id(role)]

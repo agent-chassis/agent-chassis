@@ -24,7 +24,6 @@ import { controlledContractOperation } from "./refusal.mjs";
 export const CONTROLLED_CONTRACT_PROOF_PACK_SELECTION_PROJECTION_VERSION =
   "controlled-contract-proof-pack-task-context.v3";
 
-const PROOF_PACK_DESCRIBE_TOOL = "workspace_controlled_proof_pack_describe";
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/u;
 
 function freezeProjection(value) {
@@ -86,28 +85,6 @@ function assertSelectionProjectionInput({ selection, contractContentDigest,
   }
 }
 
-function exactInspectionCalls({ candidate, wkId, focus }) {
-  return [{
-    tool: PROOF_PACK_DESCRIBE_TOOL,
-    arguments: {
-      wk_id: wkId,
-      ...(focus === null ? {} : { focus }),
-      profile_id: candidate.profile_id,
-      profile_version: candidate.profile_version,
-      requested_intents: [...candidate.requested_intents]
-    }
-  }, {
-    tool: "workspace_controlled_proof_pack_bindings_inspect",
-    arguments: {
-      wk_id: wkId,
-      ...(focus === null ? {} : { focus }),
-      profile_id: candidate.profile_id,
-      profile_version: candidate.profile_version,
-      requested_intents: [...candidate.requested_intents]
-    }
-  }];
-}
-
 function candidateTaskContext({ candidate, authoring }) {
   const identityMatches = authoring.profile_id === candidate.profile_id &&
     authoring.profile_version === candidate.profile_version;
@@ -122,7 +99,6 @@ function candidateTaskContext({ candidate, authoring }) {
     intent_distinctions: structuredClone(authoring.intent_distinctions),
     guarantee: candidate.guarantee,
     compatibility: structuredClone(authoring.compatibility),
-    exact_binding_required: candidate.exact_binding_required,
     missing_compatible_reference_types:
       structuredClone(candidate.missing_compatible_reference_types),
     bindings: {
@@ -157,7 +133,7 @@ export function projectProofPackSelectionTaskContext({
     candidateTaskContext({ candidate, authoring: authoringProjections[index] }));
   const compatibleCandidates = selection.compatible_candidates.map((candidate) => ({
     ...structuredClone(candidate),
-    inspection_calls: exactInspectionCalls({ candidate, wkId, focus })
+    inspection_calls: []
   }));
   return freezeProjection({
     schema_version: CONTROLLED_CONTRACT_PROOF_PACK_SELECTION_PROJECTION_VERSION,
@@ -209,9 +185,17 @@ export async function queryControlledVocabularyOperation(input) {
 
 export async function discoverControlledProofIntentsOperation(input = {}) {
   return controlledContractOperation(async () => {
-    assertControlledContractOperationInput(input, ["query", "limit"]);
+    assertControlledContractOperationInput(input, ["query", "limit", "proof_name"]);
     const { discoverProofIntents } = await loadControlledContractPackage();
     return discoverProofIntents(input);
+  });
+}
+
+export async function discoverCompleteControlledProofIntentsOperation(input = {}) {
+  return controlledContractOperation(async () => {
+    assertControlledContractOperationInput(input, ["query"]);
+    const { discoverCompleteProofIntents } = await loadControlledContractPackage();
+    return discoverCompleteProofIntents(input);
   });
 }
 
@@ -239,12 +223,12 @@ export async function selectProofPacksOperation(input) {
       contract: carrier.content,
       requestedIntents
     });
-    const authoringProjections = selection.candidates.map((candidate) =>
+    const authoringProjections = await Promise.all(selection.candidates.map((candidate) =>
       describeProofPackAuthoring({
         profileId: candidate.profile_id,
         profileVersion: candidate.profile_version,
         requestedIntents: candidate.requested_intents
-      }));
+      })));
     return projectProofPackSelectionTaskContext({
       selection,
       contractContentDigest: carrier.content_digest,
@@ -332,35 +316,78 @@ export async function inspectProofPackBindingsOperation(input) {
   });
 }
 
+export const CONTROLLED_CONTRACT_PROOF_PLAN_PREPARATION_SCHEMA =
+  "controlled-contract-proof-plan-preparation.v1";
+
+export async function prepareControlledContractProofPlanBuild(input) {
+  assertControlledContractOperationInput(input, [
+    "repoRoot", "wkId", "focus", "expectedContentDigest"
+  ]);
+  await assertControlledContractCarrierExpectedDigest({
+    repoRoot: input.repoRoot,
+    wkId: input.wkId,
+    focus: input.focus ?? null,
+    carrierKind: "proof_plan",
+    expectedContentDigest: input.expectedContentDigest
+  });
+  const loaded = await readCanonicalProofPlanInputs(input);
+  const { buildProofPlan } = await loadControlledContractPackage();
+  const plan = await buildProofPlan({
+    contract: loaded.contract.content,
+    request: loaded.request.content,
+    evaluationInputs: loaded.evaluationInputs
+  });
+  return Object.freeze({
+    schema_version: CONTROLLED_CONTRACT_PROOF_PLAN_PREPARATION_SCHEMA,
+    owner: "buildProofPlan",
+    wk_id: input.wkId,
+    focus: input.focus ?? null,
+    carrier_kind: "proof_plan",
+    expected_content_digest: input.expectedContentDigest,
+    content: plan,
+    source_identity: Object.freeze({
+      contract_content_digest: loaded.contract.content_digest ?? null,
+      request_content_digest: loaded.request.content_digest ?? null,
+      evaluation_input_basenames: Object.freeze(
+        Object.keys(loaded.evaluationInputs).sort())
+    })
+  });
+}
+
+export function validateControlledContractProofPlanPreparation(prepared) {
+  if (prepared === null || typeof prepared !== "object" ||
+      prepared.schema_version !== CONTROLLED_CONTRACT_PROOF_PLAN_PREPARATION_SCHEMA ||
+      prepared.carrier_kind !== "proof_plan" || prepared.content === null ||
+      typeof prepared.content !== "object" || Array.isArray(prepared.content)) {
+    throw new ControlledContractToolError(
+      "controlled_contract_proof_plan_preparation_invalid",
+      "prospective proof-plan preparation is not one complete plan artifact",
+      { changed: false }
+    );
+  }
+  return prepared;
+}
+
+export async function commitControlledContractProofPlanBuild(prepared, { repoRoot }) {
+  validateControlledContractProofPlanPreparation(prepared);
+  return writeControlledContractProofPlanFile({
+    repoRoot,
+    wkId: prepared.wk_id,
+    focus: prepared.focus,
+    content: prepared.content,
+    expectedContentDigest: prepared.expected_content_digest
+  });
+}
+
 export async function buildProofPlanOperation(input) {
   return controlledContractOperation(async () => {
-    assertControlledContractOperationInput(input, [
-      "repoRoot", "wkId", "focus", "expectedContentDigest"
-    ]);
-    await assertControlledContractCarrierExpectedDigest({
-      repoRoot: input.repoRoot,
-      wkId: input.wkId,
-      focus: input.focus ?? null,
-      carrierKind: "proof_plan",
-      expectedContentDigest: input.expectedContentDigest
-    });
-    const loaded = await readCanonicalProofPlanInputs(input);
-    const { buildProofPlan } = await loadControlledContractPackage();
-    const plan = await buildProofPlan({
-      contract: loaded.contract.content,
-      request: loaded.request.content,
-      evaluationInputs: loaded.evaluationInputs
-    });
-    const write = await writeControlledContractProofPlanFile({
-      repoRoot: input.repoRoot,
-      wkId: input.wkId,
-      focus: input.focus ?? null,
-      content: plan,
-      expectedContentDigest: input.expectedContentDigest
-    });
+    const prepared = validateControlledContractProofPlanPreparation(
+      await prepareControlledContractProofPlanBuild(input));
+    const write = await commitControlledContractProofPlanBuild(prepared,
+      { repoRoot: input.repoRoot });
     return Object.freeze({
       schema_version: "controlled-contract-proof-plan-build.v1",
-      plan,
+      plan: prepared.content,
       carrier: write,
       authority: "non_authoritative"
     });

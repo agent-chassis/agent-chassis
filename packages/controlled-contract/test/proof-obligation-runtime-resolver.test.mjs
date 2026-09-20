@@ -6,17 +6,43 @@ import test from "node:test";
 import { loadExactAdmittedProofPack } from "../lib/admitted-proof-packs.mjs";
 import {
   ProofObligationResolutionError,
+  prepareProofObligationRuntime,
   resolveProofObligationRuntime
 } from "../lib/proof-obligation-runtime-resolver.mjs";
 
 const DIGEST = `sha256:${"a".repeat(64)}`;
-const minimal = JSON.parse(await readFile(new URL(
-  "../examples/minimal-controlled-acceptance-contract-v034.json", import.meta.url
+const example = JSON.parse(await readFile(new URL(
+  "../examples/minimal-controlled-acceptance-contract.v1.json", import.meta.url
 )));
-const postDeliveryPack = await loadExactAdmittedProofPack({
+const executionPack = await loadExactAdmittedProofPack({
   profileId: "proof.verification.test-validity",
-  profileVersion: "3.0.0",
-  evaluationStage: "post_delivery"
+  profileVersion: "10.0.0",
+
+});
+const definition = {
+  proof_name: executionPack.profile.profile_id,
+  proof_version: executionPack.profile.profile_version,
+  profile_digest: executionPack.profile_digest,
+  admission_digest: executionPack.admission_digest,
+  parameter_contract_digest: executionPack.parameter_contract_digest
+};
+
+test("retired test-validity profiles are not selectable", async () => {
+  await assert.rejects(loadExactAdmittedProofPack({
+    profileId: "proof.verification.test-validity",
+    profileVersion: "8.0.0"
+  }), (error) => {
+    assert.equal(error.code, "proof_pack_exact_version_not_current");
+    assert.deepEqual(error.details.requested, {
+      profile_id: "proof.verification.test-validity",
+      profile_version: "8.0.0"
+    });
+    assert.deepEqual(error.details.current, {
+      profile_id: "proof.verification.test-validity",
+      profile_version: "10.0.0"
+    });
+    return true;
+  });
 });
 
 function carrierDigest(value) {
@@ -58,7 +84,7 @@ function proof(claimId = "claim-suite-covers-component", suffix = "component") {
       },
       execution_provider: {
         provider_id: "launcher.node-test-module-fault",
-        provider_version: "1.0.0",
+        provider_version: "2.0.0",
         capability: "falsifier_execution"
       }
     }],
@@ -72,25 +98,13 @@ function proof(claimId = "claim-suite-covers-component", suffix = "component") {
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace"
     },
-    coverage_disposition: {
-      baseline_id: `coverage-baseline-${suffix}`,
-      baseline_state: "complete_executed_inventory",
-      items: [{ test_id: `test-${suffix}`, disposition: "preserved" }]
-    },
-    runtime_test_identity: { test_id: `test-${suffix}` },
+    test_selector: { name: `${suffix} result is returned`, nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
 }
 
 function contract() {
-  return {
-    ...structuredClone(minimal),
-    schema_version: "controlled-acceptance-contract.v1",
-    vocabulary_version: "controlled-contract-vocabulary.v1",
-    profile_id: "acceptance-contract.standard.v1",
-    test_proof_version: "controlled-contract-test-proof.v1",
-    test_proofs: [proof()]
-  };
+  return { ...structuredClone(example), test_proofs: [proof()] };
 }
 
 function coverage(nodeIds = [
@@ -99,12 +113,12 @@ function coverage(nodeIds = [
   "rel-suite-verifies-component"
 ]) {
   return {
-    schema_version: "controlled-contract-obligation-coverage.v1",
+    schema_version: "controlled-contract-obligation-coverage.v3",
     wk_id: "WK-2458",
+    selected_unit: null,
+    focus: null,
     obligations: [{
       obligation_id: "AC-001",
-      source_locator: "/acceptance/criteria/0",
-      source_locator_digest: DIGEST,
       statement: "The exact declared test proves the delivered behavior.",
       controlled_contract_node_ids: nodeIds,
       mechanism: {
@@ -112,31 +126,7 @@ function coverage(nodeIds = [
         kind: "test",
         selector: "declared node test"
       },
-      proof: {
-        kind: "pack_mapping",
-        pack_id: "pack-test-validity",
-        requested_intent: "controlled-proof-intent.test-verification-validity",
-        profile_id: "proof.verification.test-validity",
-        profile_version: "2.0.0",
-        selector: { kind: "claim", component_id: "suite-covers-component" },
-        evaluation_stage: "pre_dispatch"
-      }
-    }]
-  };
-}
-
-function proofPlan() {
-  return {
-    schema_version: "controlled-contract-proof-plan.v1",
-    requested_intents: ["controlled-proof-intent.test-verification-validity"],
-    digests: {},
-    packs: [{
-      profile_id: "proof.verification.test-validity",
-      profile_version: "2.0.0",
-      requested_intents: ["controlled-proof-intent.test-verification-validity"],
-      evaluation_input: { path: "WK-2458.evaluation-input.json" },
-      exact_binding: null,
-      source_digests: {}
+      selection: { ...definition, parameters: {} }
     }]
   };
 }
@@ -157,45 +147,141 @@ function target(verificationId = "claim-suite-covers-component") {
 function inputs(overrides = {}) {
   const controlledContract = overrides.controlledContract ?? contract();
   const obligationCoverage = overrides.obligationCoverage ?? coverage();
-  const plan = overrides.proofPlan ?? proofPlan();
   return {
+    wkId: "WK-2458",
     obligationId: "AC-001",
     obligationCoverage,
     obligationCoverageDigest: carrierDigest(obligationCoverage),
     controlledContract,
     contractDigest: carrierDigest(controlledContract),
     contractGeneration: DIGEST,
-    proofPlan: plan,
-    proofPlanDigest: carrierDigest(plan),
     declaredTargetProjection: target(),
-    postDeliveryPack,
+    executionPack,
     ...overrides
   };
 }
 
-test("resolves one exact obligation without rewriting the pre-dispatch proof plan", () => {
-  const result = resolveProofObligationRuntime(inputs());
+function selectedTestExecutionAssessment() {
+  return {
+    requirements: {
+      authored_case: "required",
+      native_test_binding: "required",
+      declared_test_target: "required",
+      test_execution_evidence: "required"
+    }
+  };
+}
+
+function resolve(value) {
+  const defaultResolvedRow = { definition, input_status: "valid",
+    resolved_identity: "b".repeat(64),
+    selected_proof_assessment: selectedTestExecutionAssessment() };
+  return resolveProofObligationRuntime({
+    ...value,
+    prepared: prepareProofObligationRuntime(value),
+    resolvedRow: { ...defaultResolvedRow, ...value.resolvedRow,
+      selected_proof_assessment: value.resolvedRow?.selected_proof_assessment ??
+        defaultResolvedRow.selected_proof_assessment },
+    resolvedNode: value.resolvedNode ?? { identity: "b".repeat(64), dependencies: [] },
+    executionSourceBinding: { binding_digest: DIGEST }
+  });
+}
+
+test("resolves the selected current application without a proof plan", () => {
+  const result = resolve(inputs());
+  assert.equal(result.schema_version, "controlled-contract-proof-obligation-resolution.v3");
   assert.equal(result.status, "executable");
   assert.equal(result.verification_id, "claim-suite-covers-component");
-  assert.equal(result.proof_plan_entry.profile_version, "2.0.0");
-  assert.equal(result.post_delivery_pack.profile.profile_version, "3.0.0");
+  assert.deepEqual(result.selected_definition, definition);
+  assert.equal(result.execution_pack.profile.profile_version, "10.0.0");
+  assert.equal(result.execution_pack.test_validity_evaluator.implementation_id,
+    "proof.verification.test-validity.execution-evaluator");
+  assert.equal(result.execution_pack.test_validity_evaluator.implementation_version, "8.0.0");
+  assert.deepEqual(result.execution_source_binding, { binding_digest: DIGEST });
+  assert.equal(Object.hasOwn(result, "planning_pack"), false);
+  assert.equal(Object.hasOwn(result, "proof_plan_entry"), false);
   assert.equal(Object.isFrozen(result), true);
 });
 
-test("missing runtime selection precedes declared-target evaluation", () => {
-  const value = inputs({ declaredTargetProjection: { status: "unavailable" } });
-  delete value.controlledContract.test_proofs[0].runtime_test_identity;
-  value.contractDigest = carrierDigest(value.controlledContract);
-  const result = resolveProofObligationRuntime(value);
-  assert.equal(result.status, "not_executable");
-  assert.equal(result.reason_code,
-    "verify_proof.runtime_test_selection_missing.v1");
+test("refuses a selected definition that differs from the authenticated evaluator", () => {
+  for (const field of Object.keys(definition)) {
+    const altered = { ...definition, [field]: field.endsWith("digest")
+      ? "0".repeat(64) : "noncurrent" };
+    assert.throws(() => resolve(inputs({ resolvedRow: {
+      definition: altered, input_status: "valid", resolved_identity: "b".repeat(64)
+    } })), { code: "verify_proof.execution_pack_binding_mismatch.v1" });
+  }
 });
 
-test("returns reason-coded non-executable outcomes for unsupported obligation shapes", () => {
+test("reports unavailable node inputs and unexecutable dependency edges explicitly", () => {
+  assert.equal(resolve(inputs({ resolvedRow: { input_status: "invalid" } })).reason_code,
+    "verify_proof.runtime_inputs_unavailable.v1");
+  assert.equal(resolve(inputs({ resolvedNode: {
+    identity: "b".repeat(64), dependencies: ["c".repeat(64)]
+  } })).reason_code, "verify_proof.runtime_dependency_unavailable.v1");
+});
+
+test("a malformed declarative selector is refused as a contract defect before any obligation resolves", () => {
+
+  const cases = [
+    ["absent", "binding_incomplete", (binding) => { delete binding.test_selector; }],
+    ["negative nesting", "contract_invalid",
+      (binding) => { binding.test_selector.nesting = -1; }],
+    ["empty name", "contract_invalid", (binding) => { binding.test_selector.name = ""; }],
+    ["unsupported member", "contract_invalid",
+      (binding) => { binding.test_selector.file = "test/x.test.mjs"; }]
+  ];
+  for (const [label, expectedStage, mutate] of cases) {
+    const value = inputs({ declaredTargetProjection: { status: "unavailable" } });
+    mutate(value.controlledContract.test_proofs[0]);
+    value.contractDigest = carrierDigest(value.controlledContract);
+    let details;
+    if (expectedStage === "binding_incomplete") {
+      const result = resolve(value);
+      assert.equal(result.status, "not_executable", label);
+      assert.equal(result.reason_code,
+        "verify_proof.test_proof_binding_incomplete.v1", label);
+      assert.equal(result.details.owner_code, "stable_test_proof_incomplete", label);
+      details = result.details;
+    } else {
+      assert.throws(() => resolve(value), (error) => {
+        assert.ok(error instanceof ProofObligationResolutionError, label);
+        assert.equal(error.code, "verify_proof.controlled_contract_invalid.v1", label);
+        details = error.details;
+        return true;
+      }, label);
+    }
+    const diagnostics = JSON.stringify(details.diagnostics);
+    assert.ok(diagnostics.includes("test_selector"), `${label}: ${diagnostics}`);
+    const serialized = JSON.stringify(details);
+    for (const retired of ["runtime_test", "readiness", "inventory", "capture"]) {
+      assert.equal(serialized.includes(retired), false, `${label}: ${retired}`);
+    }
+  }
+});
+
+test("a selector naming a test that does not exist yet is a complete definition", () => {
+  const value = inputs();
+  value.controlledContract.test_proofs[0].test_selector = {
+    name: "an assertion nobody has written", nesting: 3
+  };
+  value.contractDigest = carrierDigest(value.controlledContract);
+  const result = resolve(value);
+  assert.equal(result.status, "executable");
+  assert.deepEqual(result.test_proof.test_selector,
+    { name: "an assertion nobody has written", nesting: 3 });
+});
+
+test("uses selected proof capability and retains binding failures for code-symbol mechanisms", () => {
+  const executable = inputs();
+  executable.obligationCoverage.obligations[0].mechanism.kind = "code_symbol";
+  executable.obligationCoverageDigest = carrierDigest(executable.obligationCoverage);
+  assert.equal(resolve(executable).status, "executable");
+
   const cases = [
     ["verify_proof.obligation_not_test_backed.v1", (value) => {
-      value.obligationCoverage.obligations[0].mechanism.kind = "code_symbol";
+      value.resolvedRow = { definition, input_status: "valid", resolved_identity: "b".repeat(64),
+        selected_proof_assessment: { requirements: { test_execution_evidence: "not_applicable" } } };
     }],
     ["verify_proof.qualifying_verification_missing.v1", (value) => {
       value.controlledContract.claims.push({
@@ -207,7 +293,12 @@ test("returns reason-coded non-executable outcomes for unsupported obligation sh
       value.obligationCoverage = coverage(["claim-unverified-behavior"]);
     }],
     ["verify_proof.test_proof_binding_missing.v1", (value) => {
+      value.obligationCoverage.obligations[0].mechanism.kind = "code_symbol";
       value.controlledContract.test_proofs = [];
+    }],
+    ["verify_proof.test_proof_binding_incomplete.v1", (value) => {
+      value.obligationCoverage.obligations[0].mechanism.kind = "code_symbol";
+      delete value.controlledContract.test_proofs[0].test_selector;
     }],
     ["verify_proof.declared_target_missing.v1", (value) => {
       value.declaredTargetProjection = { status: "unavailable" };
@@ -220,7 +311,7 @@ test("returns reason-coded non-executable outcomes for unsupported obligation sh
     value.contractDigest = carrierDigest(value.controlledContract);
     let result;
     try {
-      result = resolveProofObligationRuntime(value);
+      result = resolve(value);
     } catch (error) {
       assert.fail(`${reason}: ${JSON.stringify(error.details ?? error)}`);
     }
@@ -228,7 +319,7 @@ test("returns reason-coded non-executable outcomes for unsupported obligation sh
   }
 });
 
-test("treats more than one qualifying test verification as the v1 execution limit", () => {
+test("treats more than one qualifying test verification as an ambiguous native binding", () => {
   const value = inputs();
   value.controlledContract.claims.push({
     claim_id: "claim-second-test",
@@ -256,7 +347,7 @@ test("treats more than one qualifying test verification as the v1 execution limi
   );
   value.obligationCoverageDigest = carrierDigest(value.obligationCoverage);
   value.contractDigest = carrierDigest(value.controlledContract);
-  const result = resolveProofObligationRuntime(value);
+  const result = resolve(value);
   assert.equal(result.reason_code, "verify_proof.qualifying_verification_ambiguous.v1");
   assert.deepEqual(result.details.verification_ids,
     ["claim-second-test", "claim-suite-covers-component"]);
@@ -286,7 +377,7 @@ test("requires every behavior in an applicable mandatory behavior collection", (
   ]);
   value.obligationCoverageDigest = carrierDigest(value.obligationCoverage);
   value.contractDigest = carrierDigest(value.controlledContract);
-  const result = resolveProofObligationRuntime(value);
+  const result = resolve(value);
   assert.equal(result.reason_code,
     "verify_proof.mandatory_behavior_coverage_incomplete.v1");
   assert.deepEqual(result.details.missing_behavior_claim_ids, ["claim-second-behavior"]);
@@ -307,15 +398,20 @@ test("refuses relation disagreement, target substitution, and coverage corruptio
     relation.obligationCoverage
   );
   relation.contractDigest = carrierDigest(relation.controlledContract);
-  assert.throws(() => resolveProofObligationRuntime(relation),
+  assert.throws(() => resolve(relation),
     (error) => error.code === "verify_proof.explicit_relation_disagreement.v1");
 
-  assert.throws(() => resolveProofObligationRuntime(inputs({
+  assert.throws(() => resolve(inputs({
     declaredTargetProjection: target("claim-arbitrary-test")
   })), (error) => error.code === "verify_proof.declared_target_verification_mismatch.v1");
 
-  assert.throws(() => resolveProofObligationRuntime(inputs({
+  assert.throws(() => resolve(inputs({
     obligationCoverageDigest: DIGEST
   })), (error) => error instanceof ProofObligationResolutionError &&
     error.code === "verify_proof.identity_digest_mismatch.v1");
+});
+
+test("a missing authenticated execution definition cannot execute", () => {
+  assert.equal(resolve(inputs({ executionPack: null })).reason_code,
+    "verify_proof.execution_pack_unavailable.v1");
 });

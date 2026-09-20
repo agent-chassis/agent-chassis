@@ -1,9 +1,9 @@
 
 
-import { projectLauncherRedactionReason } from
-  "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
-import { projectLauncherTransitionReadiness } from
-  "@agent-chassis/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
+import {
+  WORKER_SCOPE_PATH_REFUSED_DECISION_CODE as WORKER_SCOPE_PATH_REFUSED,
+  projectLauncherTransitionReadiness
+} from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
 import {
   createFailedLauncherTransitionPlan
 } from "@agent-chassis/agent-launch-core/src/lib/launcher-transition-plan.mjs";
@@ -75,15 +75,52 @@ export function evidenceFailureClassification(condition, issue) {
   });
 }
 
+const STACK_FRAME_RE = /^\s*at (?:.*? \()?(?:file:\/\/)?(\/[^()]*?):(\d+):(\d+)\)?\s*$/u;
+const PACKAGE_RELATIVE_RE = /(?:^|\/)((?:packages|node_modules)\/.+)$/u;
+
+function originFrame(stack) {
+  for (const line of stack.split("\n").slice(1)) {
+    const frame = STACK_FRAME_RE.exec(line);
+    const relative = frame === null ? null : PACKAGE_RELATIVE_RE.exec(frame[1]);
+    if (relative !== null) return `${relative[1]}:${frame[2]}:${frame[3]}`;
+  }
+  return null;
+}
+
+function redactDiagnosticStacks(value, location, redactions) {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((entry, index) =>
+      redactDiagnosticStacks(entry, `${location}[${index}]`, redactions)));
+  }
+  if (value === null || typeof value !== "object") return value;
+  const errorShaped = typeof value.stack === "string" &&
+    (typeof value.name === "string" || typeof value.message === "string");
+  const result = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (errorShaped && key === "stack") {
+      redactions.push(`${location}.stack`);
+      if (!Object.hasOwn(value, "origin_frame")) result.origin_frame = originFrame(entry);
+      continue;
+    }
+    result[key] = redactDiagnosticStacks(entry, `${location}.${key}`, redactions);
+  }
+  return Object.freeze(result);
+}
+
 export function projectPublicBackendDetail(classification, app) {
-  const { diagnostics } = classification;
+  const redactions = [];
+  const diagnostics = redactDiagnosticStacks(
+    classification.diagnostics,
+    "originating_detail",
+    redactions
+  );
   const projected = {
     app,
     classification_state: classification.state,
     refusal_code: classification.refusal_code,
     refusal_reason: classification.refusal_reason,
     cause: Object.freeze({
-      type: diagnostics.cause?.type ?? classification.cause.type,
+      type: classification.cause.type,
       code: classification.cause.code,
       source: classification.cause.source,
       classification_code: classification.cause.classification_code
@@ -92,28 +129,25 @@ export function projectPublicBackendDetail(classification, app) {
     actor_recovery: classification.actor_recovery,
     authority_limb: classification.authority_limb,
     transition_failure: classification.transition_failure.code,
-    redactions: Object.freeze(
-      classification.redactions.map((signal) => Object.freeze({
-        field: signal.field,
-        reason: projectLauncherRedactionReason(signal.reason)
-      }))
-    ),
+    originating_detail: diagnostics,
+    redactions: Object.freeze(redactions),
     schema_rejected: classification.schema_rejected
   };
-  for (const field of [
-    "cause_code", "next_action", "next_action_args",
-    "mismatch_field", "expected", "actual", "subject", "role",
-    "message", "detail", "error", "stderr", "stdout", "stack",
-    "explanation", "reason_detail", "diagnostic", "output"
-  ]) {
-    if (Object.hasOwn(diagnostics, field)) projected[field] = diagnostics[field];
+
+  for (const [field, value] of Object.entries(diagnostics)) {
+    if (value !== null && typeof value === "object") continue;
+    if (!Object.hasOwn(projected, field) && ![
+      "next_action", "next_action_args", "actor_recovery"
+    ].includes(field)) {
+      projected[field] = value;
+    }
   }
   return Object.freeze(projected);
 }
 
 export function routeExceptionRefusal(route) {
   return buildDispatchMechanicalRefusal({
-    code: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+    code: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
     decidingFacts: [{ field: "dispatch.route_completed", value: false }],
     observedFacts: { "dispatch.route_completed": false },
     noSupportedRoute: true,
@@ -291,11 +325,88 @@ export function reviewerShaSubjectRefusal({ subject, requestSchemaAuthority = nu
   });
 }
 
+const SCOPE_PATH_TEXT_LIMIT = 1024;
+
+function isDeclaredScopePathCause(classification) {
+  return classification?.state === "known" &&
+    classification.cause?.code === WORKER_SCOPE_PATH_REFUSED &&
+    classification.cause?.source === "detail.cause.code";
+}
+
+function declaredScopePathFacts(classification) {
+  if (!isDeclaredScopePathCause(classification)) return null;
+  const facts = classification.diagnostics?.worker_scope_path;
+  const text = (value) => typeof value === "string" && value.length > 0 &&
+    value.length <= SCOPE_PATH_TEXT_LIMIT;
+  if (facts === null || typeof facts !== "object" || facts.code !== WORKER_SCOPE_PATH_REFUSED ||
+      !text(facts.field) || !text(facts.cause) || !text(facts.path) ||
+      !(facts.component === null || text(facts.component))) {
+    return null;
+  }
+  return facts;
+}
+
 export function publicBackendBlockerCode(backendClassification) {
+  if (isDeclaredScopePathCause(backendClassification)) return WORKER_SCOPE_PATH_REFUSED;
   const refusalCode = backendClassification?.refusal_code ?? null;
   return refusalCode === backendClassification?.cause?.code && isRuntimeBlockerCode(refusalCode)
     ? refusalCode
     : backendClassification.blocker_code;
+}
+
+function scopePathCorrectionRefusal({ blockerCode, facts, role, subject, carried }) {
+  const correctedFact = "worker_scope_path.corrected";
+  const factEntries = [
+    ["dispatch.backend_accepted", false],
+    ["dispatch.backend_cause", WORKER_SCOPE_PATH_REFUSED],
+    ["worker_scope_path.field", facts.field],
+    ["worker_scope_path.path", facts.path],
+    ["worker_scope_path.component", facts.component],
+    ["worker_scope_path.cause", facts.cause],
+    [correctedFact, false]
+  ];
+  const decidingFacts = factEntries.map(([field, value]) => ({ field, value }));
+  const observedFacts = Object.fromEntries(factEntries);
+  const continuation = typeof role === "string" && typeof subject === "string"
+    ? buildDispatchContinuation({
+        tool: AGENT_DISPATCH_TOOL_NAME,
+        arguments: { role, subject },
+        successPredicate: { fact: correctedFact, operator: "is_true" }
+      })
+    : null;
+  if (continuation === null) {
+    return buildDispatchMechanicalRefusal({
+      code: blockerCode,
+      decidingFacts,
+      observedFacts,
+      noSupportedRoute: true,
+      recovery: NO_SUPPORTED_ROUTE_RECOVERY,
+      route: AGENT_DISPATCH_TOOL_NAME,
+      carried
+    });
+  }
+  const sameCallContinuation = Object.freeze({
+    ...continuation,
+    prerequisite_predicate: continuation.success_predicate
+  });
+  return buildDispatchMechanicalRefusal({
+    code: blockerCode,
+    decidingFacts,
+    observedFacts,
+    nextCalls: [sameCallContinuation],
+    recovery: {
+      state: "callable",
+      prerequisite:
+        "the declared scope path named by worker_scope_path does not resolve at the authenticated scope base; its author corrects the canonical slice contract, or delivers the path at that base, before this call",
+      operation: sameCallContinuation.tool,
+      success_condition:
+        "every declared scope path resolves at the authenticated scope base and workspace_agent_dispatch applies its remaining checks to the same role and subject",
+      success_predicate: sameCallContinuation.success_predicate,
+      selected_from: decidingFacts.map((fact) => fact.field)
+    },
+    route: AGENT_DISPATCH_TOOL_NAME,
+    carried
+  });
 }
 
 export function backendRefusalCarrier(backendClassification, {
@@ -304,42 +415,71 @@ export function backendRefusalCarrier(backendClassification, {
 } = {}) {
   const causeCode = backendClassification?.cause?.code ?? null;
   const blockerCode = publicBackendBlockerCode(backendClassification);
-  if (causeCode === "agent_launch.review_target_resolution.failed.v1" &&
-      typeof role === "string" && typeof subject === "string") {
-    const continuation = buildDispatchContinuation({
-      tool: AGENT_DISPATCH_TOOL_NAME,
-      arguments: { role, subject },
-      successPredicate: { fact: "request.review_target_range_valid", operator: "is_true" }
+  const classifiedRecovery = backendClassification?.recovery ?? null;
+
+  const carriedBackendRefusal = Object.freeze({
+    blocker_code: blockerCode,
+    cause: causeCode,
+    originating_detail_location: "blocker.detail.originating_detail"
+  });
+  const scopePathFacts = declaredScopePathFacts(backendClassification);
+  if (scopePathFacts !== null) {
+    return scopePathCorrectionRefusal({
+      blockerCode,
+      facts: scopePathFacts,
+      role,
+      subject,
+      carried: { launcher_backend_refusal: carriedBackendRefusal }
     });
-    const sameCallContinuation = Object.freeze({
-      ...continuation,
-      prerequisite_predicate: continuation.success_predicate
+  }
+
+  if (classifiedRecovery?.state === "callable" &&
+      typeof classifiedRecovery.route === "string") {
+    const successPredicate = Object.freeze({
+      fact: `${classifiedRecovery.route}.accepted`,
+      operator: "is_true"
     });
-    return buildDispatchMechanicalRefusal({
-      code: blockerCode,
-      decidingFacts: [
-        { field: "request.review_target_range_valid", value: false },
-        { field: "dispatch.backend_cause", value: causeCode }
-      ],
-      observedFacts: {
-        "request.review_target_range_valid": false,
-        "dispatch.backend_cause": causeCode
-      },
-      nextCalls: [sameCallContinuation],
-      recovery: {
-        state: "callable",
-        prerequisite: "the current review call carries an unreadable commit range",
-        operation: AGENT_DISPATCH_TOOL_NAME,
-        success_condition:
-          "re-call with a complete valid diff_base_sha/reviewed_sha pair, or omit both to use the canonical selector",
-        success_predicate: sameCallContinuation.success_predicate,
-        selected_from: ["request.review_target_range_valid"]
-      },
-      route: AGENT_DISPATCH_TOOL_NAME,
-      carried: {
-        launcher_backend_refusal: { blocker_code: blockerCode, cause: causeCode }
-      }
+    const validatedContinuation = buildDispatchContinuation({
+      tool: classifiedRecovery.route,
+      arguments: classifiedRecovery.args ?? undefined,
+      successPredicate
     });
+    if (validatedContinuation !== null) {
+      const continuation = classifiedRecovery.route === AGENT_DISPATCH_TOOL_NAME
+        ? Object.freeze({
+            ...validatedContinuation,
+            prerequisite_predicate: validatedContinuation.success_predicate
+          })
+        : validatedContinuation;
+      const observedFacts = {
+        "dispatch.backend_accepted": false,
+        "dispatch.backend_cause": causeCode,
+        [`${classifiedRecovery.route}.accepted`]: false
+      };
+      return buildDispatchMechanicalRefusal({
+        code: blockerCode,
+        decidingFacts: [
+          { field: "dispatch.backend_accepted", value: false },
+          { field: "dispatch.backend_cause", value: causeCode },
+          { field: `${classifiedRecovery.route}.accepted`, value: false }
+        ],
+        observedFacts,
+        nextCalls: [continuation],
+        recovery: {
+          state: "callable",
+          prerequisite:
+            "the classified launcher recovery names a registered operation whose request has not yet been accepted",
+          operation: continuation.tool,
+          success_condition:
+            "the named operation accepts the advertised arguments after applying its own checks",
+          success_predicate: continuation.success_predicate
+        },
+        route: AGENT_DISPATCH_TOOL_NAME,
+        carried: {
+          launcher_backend_refusal: carriedBackendRefusal
+        }
+      });
+    }
   }
   return buildDispatchMechanicalRefusal({
     code: blockerCode,
@@ -355,7 +495,7 @@ export function backendRefusalCarrier(backendClassification, {
     recovery: NO_SUPPORTED_ROUTE_RECOVERY,
     route: AGENT_DISPATCH_TOOL_NAME,
     carried: {
-      launcher_backend_refusal: { blocker_code: blockerCode, cause: causeCode }
+      launcher_backend_refusal: carriedBackendRefusal
     }
   });
 }
@@ -440,6 +580,7 @@ export function buildTransitionRefusal({
           success_predicate: continuation.call.success_predicate
         }
       }));
+  const readiness = projectPublicReadiness(readinessSource, launcherTransitionPlan);
   return Object.freeze({
     ...buildBlockedDispatchResult({
       blockerCode,
@@ -448,8 +589,11 @@ export function buildTransitionRefusal({
       nextAction,
       refusal: projectedRefusal
     }),
-    readiness: projectPublicReadiness(readinessSource, launcherTransitionPlan),
-    launcher_transition_plan: launcherTransitionPlan
+    readiness,
+
+    ...(readiness?.launcher_transition_plan === launcherTransitionPlan
+      ? {}
+      : { launcher_transition_plan: launcherTransitionPlan })
   });
 }
 

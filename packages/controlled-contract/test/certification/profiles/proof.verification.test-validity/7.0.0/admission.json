@@ -1,0 +1,23 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "7.0.0",
+  "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+  "guarantee": "For every stable-v1 test_execution verification, one exact test-proof binding and one execution witness establish exact versioned launcher-registry provider bindings and capability-snapshot evidence for candidate execution, every falsifier, and traversal; launcher-owned Node test structured events and content-addressed artifacts that ignore test-controlled output; identity-matched system-under-test traversal observed through launcher-owned V8 coverage and an exact node_test_structured_assertion observation seam; a complete unchanged candidate pass; isolated execution of every discriminating launcher-applied module-substitution falsifier against its declared proposition with its exact strategy-bound structured failure reason; exactly one declared test, the one the binding's declarative test selector names, present in the launcher-observed inventory and passed rather than skipped or failed, with sibling tests observed in the same run neither substituting for it nor counting against it and no authored baseline inventory participating; and no prohibited source-text inspection or caller-injected executor. Unsupported traversal is registry-authenticated and remains review_only. Mechanical evaluation does not determine whether the coordinator selected the semantically correct boundary, observable, falsifiers, test selector, or provider.",
+  "guarantee_digest": "9b0750f485dea8b2ac48d3b55e88431cc9f81d102da63ea3126a77081386fe40",
+  "explicit_exclusions": [
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "delivered-runtime-truth",
+    "provider-support-invention"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "cfe8ec25d7afb0bb6240e7f3d64ad2b1a36f2de0ae4e49310982df3b7ae65545",
+    "adequacy_result_digest": "9a414d66c0c96a83c85e459ec0baec522674ffee5baf4da14120f085bb07cc21",
+    "executable_control_count": 41,
+    "negative_fixture_count": 39,
+    "coverage_witness_count": 39
+  }
+}

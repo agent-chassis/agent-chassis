@@ -28,55 +28,199 @@ const SLICE_021_BANNED_SCHEMA_TOKENS = [
 const SLICE_021_DUP_SENTENCE_MIN_CHARS = 100;
 const SLICE_021_DUP_SENTENCE_MAX_NOTES = 2;
 
-let assembledNotesCache = null;
-
-async function loadAssembledNotes() {
-  if (assembledNotesCache) {
-    return assembledNotesCache;
+function collectDiscoveryProse(descriptor) {
+  const prose = [];
+  for (const tool of descriptor.tools) {
+    if (typeof tool.notes === "string" && tool.notes.trim().length > 0) {
+      prose.push({ tool_name: tool.tool_name, surface: "notes", text: tool.notes });
+    }
+    for (const [tier, block] of Object.entries(tool.tier_text ?? {})) {
+      for (const [field, text] of Object.entries(block ?? {})) {
+        if (typeof text === "string" && text.trim().length > 0) {
+          prose.push({ tool_name: tool.tool_name, surface: `tier_text.${tier}.${field}`, text });
+        }
+      }
+    }
   }
-  const descriptor = await loadToolDiscoveryDescriptor();
-  assembledNotesCache = descriptor.tools
-    .filter((tool) => typeof tool.notes === "string" && tool.notes.trim().length > 0)
-    .map((tool) => ({ tool_name: tool.tool_name, notes: tool.notes }));
-  assert.ok(
-    assembledNotesCache.length > 0,
-    "expected the assembled corpus to carry at least one notes entry to guard"
-  );
-  return assembledNotesCache;
+  return prose;
 }
 
-test("WK-1010#SLICE-021: discovery notes stay within the per-entry verbosity budget", async () => {
-  const noted = await loadAssembledNotes();
-  for (const { tool_name, notes } of noted) {
+function findDiscoveryProseViolations(prose) {
+  const violations = [];
+  for (const { tool_name, surface, text } of prose) {
+    const at = { tool_name, surface };
+    if (text.length > SLICE_021_MAX_NOTES_CHARS) {
+      violations.push({ ...at, rule: "per_note_ceiling", detail: text.length });
+    }
+    const sliceTokens = text.replace(/\b(WK-\d{3,})#SLICE-\d+\b/g, "$1").match(/\bSLICE-\d+\b/g);
+    if (sliceTokens) {
+      violations.push({ ...at, rule: "slice_provenance", detail: sliceTokens });
+    }
+    const wkIds = [...new Set(text.match(/\bWK-\d{3,}\b/g) ?? [])];
+    if (wkIds.length > SLICE_021_MAX_DISTINCT_WK_IDS_PER_NOTE) {
+      violations.push({ ...at, rule: "wk_provenance", detail: wkIds });
+    }
+    const modulePaths = text.match(/[\w-]+\.mjs\b/g);
+    if (modulePaths) {
+      violations.push({ ...at, rule: "module_path", detail: modulePaths });
+    }
+    const schemaToken = SLICE_021_BANNED_SCHEMA_TOKENS.find((token) => text.includes(token));
+    if (schemaToken) {
+      violations.push({ ...at, rule: "schema_inventory", detail: schemaToken });
+    }
+  }
+  const sentenceToTools = new Map();
+  for (const { tool_name, text } of prose) {
+    const sentences = text
+      .split(/(?<=[.!?])\s+/)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length >= SLICE_021_DUP_SENTENCE_MIN_CHARS);
+    for (const sentence of sentences) {
+      if (!sentenceToTools.has(sentence)) sentenceToTools.set(sentence, new Set());
+      sentenceToTools.get(sentence).add(tool_name);
+    }
+  }
+  for (const [sentence, tools] of sentenceToTools) {
+    if (tools.size > SLICE_021_DUP_SENTENCE_MAX_NOTES) {
+      violations.push({ tool_name: [...tools].join(", "), surface: "sentence", rule: "duplicate_sentence", detail: sentence });
+    }
+  }
+  return violations;
+}
+
+function violationsFor(prose, rule) {
+  return findDiscoveryProseViolations(prose).filter((violation) => violation.rule === rule);
+}
+
+let assembledProseCache = null;
+
+async function loadAssembledProse() {
+  if (!assembledProseCache) {
+    assembledProseCache = collectDiscoveryProse(await loadToolDiscoveryDescriptor());
     assert.ok(
-      notes.length <= SLICE_021_MAX_NOTES_CHARS,
-      `${tool_name} discovery notes are ${notes.length} chars; per-entry budget is ` +
-        `${SLICE_021_MAX_NOTES_CHARS}. Trim to one or two selection caveats rather than ` +
-        "regrowing a changelog/schema essay in the notes."
+      assembledProseCache.some(({ surface }) => surface === "notes"),
+      "expected the assembled corpus to carry at least one notes entry to guard"
     );
   }
+  return assembledProseCache;
+}
+
+test("WK-1010#SLICE-021: discovery notes and tier overrides stay within the per-note verbosity budget", async () => {
+  assert.deepEqual(
+    violationsFor(await loadAssembledProse(), "per_note_ceiling"),
+    [],
+    `each base note and tier override must stay within ${SLICE_021_MAX_NOTES_CHARS} chars; ` +
+      "trim to selection guidance rather than regrowing a changelog/schema essay."
+  );
 });
 
-test("WK-2194: aggregate discovery-notes budget remains exact after recovery", async () => {
+test("tier overrides are enumerated from the corpus and counted apart from the raw-notes aggregate", async () => {
+  const [descriptor, manifest] = await Promise.all([
+    loadToolDiscoveryDescriptor(),
+    loadToolDiscoveryManifest()
+  ]);
+  const prose = collectDiscoveryProse(descriptor);
+  const expectedOverrides = descriptor.tools.flatMap((tool) =>
+    Object.entries(tool.tier_text ?? {}).flatMap(([tier, block]) =>
+      Object.keys(block ?? {}).map((field) => `${tool.tool_name}:tier_text.${tier}.${field}`)));
+  const overrides = prose.filter(({ surface }) => surface !== "notes");
+  assert.ok(overrides.length > 0, "the corpus carries tier overrides to guard");
+  assert.deepEqual(
+    overrides.map(({ tool_name, surface }) => `${tool_name}:${surface}`),
+    expectedOverrides
+  );
+  const report = evaluateAgentToolTokenBudgetDebt(descriptor, manifest).raw_discovery_notes;
+  assert.equal(report.denominator, prose.filter(({ surface }) => surface === "notes").length);
+  assert.equal(
+    report.current_value,
+    prose.filter(({ surface }) => surface === "notes").reduce((sum, { text }) => sum + text.length, 0),
+    "tier overrides are not part of the historical raw-notes aggregate"
+  );
+});
+
+test("a tier-only overlong, historical, mechanical, or copied essay is detected without changing base debt", async () => {
+  const [descriptor, manifest] = await Promise.all([
+    loadToolDiscoveryDescriptor(),
+    loadToolDiscoveryManifest()
+  ]);
+  const baseline = evaluateAgentToolTokenBudgetDebt(descriptor, manifest).raw_discovery_notes;
+  assert.deepEqual(findDiscoveryProseViolations(collectDiscoveryProse(descriptor)), []);
+  const subject = descriptor.tools.find((tool) => typeof tool.notes === "string" && !tool.tier_text);
+  assert.ok(subject, "fixture precondition: a noted row without a tier override exists");
+
+  const essays = [
+    ["per_note_ceiling", "x".repeat(SLICE_021_MAX_NOTES_CHARS + 1)],
+    ["wk_provenance", "Paid guidance restored after WK-1111 and reverted by WK-2222."],
+    ["slice_provenance", "Paid guidance landed in SLICE-004 of the rollout."],
+    ["module_path", "Paid dispatch is wired through agent-dispatch-launch-route.mjs."],
+    ["schema_inventory", "Paid output carries schema_version and finding_count_total."]
+  ];
+  for (const [rule, essay] of essays) {
+    const mutated = structuredClone(descriptor);
+    mutated.tools.find((tool) => tool.tool_name === subject.tool_name).tier_text = {
+      paid_cce: { notes: essay }
+    };
+    const violations = findDiscoveryProseViolations(collectDiscoveryProse(mutated));
+    assert.deepEqual(
+      violations.map(({ tool_name, surface, rule: found }) => [tool_name, surface, found]),
+      [[subject.tool_name, "tier_text.paid_cce.notes", rule]],
+      rule
+    );
+    const report = evaluateAgentToolTokenBudgetDebt(mutated, manifest).raw_discovery_notes;
+    assert.equal(report.current_value, baseline.current_value, `${rule} leaves base debt unchanged`);
+    assert.equal(report.debt_added, baseline.debt_added, `${rule} leaves base debt unchanged`);
+  }
+
+  const copied = structuredClone(descriptor);
+  const boilerplate = "This copied paid-tier boilerplate sentence explains the same launcher internals " +
+    "again for every single route that carries it.";
+  const hosts = copied.tools.filter((tool) => typeof tool.notes === "string").slice(0, 3);
+  for (const tool of hosts) tool.tier_text = { paid_cce: { notes: boilerplate } };
+  assert.deepEqual(
+    findDiscoveryProseViolations(collectDiscoveryProse(copied)).map(({ rule }) => rule),
+    ["duplicate_sentence"]
+  );
+});
+
+test("WK-2194: aggregate discovery-notes budget remains bounded after adapter retirement", async () => {
   const [descriptor, manifest] = await Promise.all([
     loadToolDiscoveryDescriptor(),
     loadToolDiscoveryManifest()
   ]);
   const report = evaluateAgentToolTokenBudgetDebt(descriptor, manifest).raw_discovery_notes;
   assert.equal(report.target, SLICE_021_MAX_AGGREGATE_NOTES_CHARS);
-  assert.equal(report.current_value, 55788);
-  assert.equal(report.denominator, 148);
-  assert.equal(report.debt_added, 0);
-  assert.equal(report.debt_retired, 6213);
-  assert.deepEqual(report.added_entry_names, []);
+
+  assert.ok(report.current_value < 46752);
+  assert.equal(report.denominator, 106);
+  assert.equal(report.debt_added, 204);
+  assert.ok(report.debt_retired >= 17937);
+  assert.deepEqual(report.added_entry_names, [
+    "wiki-validate-dispatch",
+    "wiki-work-records-cleanup-derived-evidence",
+    "wiki-work-records-set-task"
+  ]);
   assert.equal(report.remaining_excess, 0);
   assert.equal(report.within_target, true, "the measured corpus must remain within 62,000 chars");
-  assert.equal(report.growth_free, true);
+  assert.equal(report.growth_free, false);
   assert.equal(report.owner, "tool-discovery notes/description budget test family");
   assert.equal(report.target_wk, "WK-2194");
+  assert.equal(
+    manifest.agent_tool_token_budget_debt.raw_discovery_notes.baseline_lengths
+      .workspace_work_record_set_list_field,
+    670
+  );
+  assert.equal(
+    manifest.agent_tool_token_budget_debt.live_paid_operator_descriptions.baseline_lengths
+      .workspace_work_record_set_list_field,
+    319
+  );
+  assert.equal(
+    report.retired_entry_names.includes("workspace_work_record_set_list_field"),
+    true
+  );
 });
 
-test("WK-2253: new or enlarged notes cannot hide behind aggregate reductions", async () => {
+test("WK-2253: per-entry debt applies only while structured metadata is incomplete", async () => {
   const [descriptor, manifest] = await Promise.all([
     loadToolDiscoveryDescriptor(),
     loadToolDiscoveryManifest()
@@ -88,88 +232,55 @@ test("WK-2253: new or enlarged notes cannot hide behind aggregate reductions", a
   const changed = structuredClone(descriptor);
   const enlarged = changed.tools.find((tool) => tool.tool_name === "workspace_tools_list");
   const reduced = changed.tools.find((tool) => tool.tool_name === "workspace_authoring_ergonomics_report");
-  enlarged.notes += " Added prose.";
+
+  const growth = " Added prose.".length;
+  enlarged.notes = "x".repeat(
+    manifest.agent_tool_token_budget_debt.raw_discovery_notes.baseline_lengths.workspace_tools_list + growth
+  );
   reduced.notes = reduced.notes.slice(0, -100);
+  const completeReport = evaluateAgentToolTokenBudgetDebt(changed, manifest).raw_discovery_notes;
+  assert.equal(completeReport.debt_added, baseline.debt_added);
+  assert.ok(completeReport.metadata_complete_growth_names.includes("workspace_tools_list"));
+
+  enlarged.use_when = [];
   const report = evaluateAgentToolTokenBudgetDebt(changed, manifest).raw_discovery_notes;
   assert.equal(report.current_value < report.baseline_value, true);
-  assert.equal(report.debt_added - baseline.debt_added, " Added prose.".length);
+  assert.equal(report.debt_added - baseline.debt_added, growth);
   assert.ok(report.added_entry_names.includes("workspace_tools_list"));
   assert.ok(report.debt_retired >= 100);
   assert.equal(report.growth_free, false);
 });
 
-test("WK-1010#SLICE-021: discovery notes carry no WK/SLICE changelog provenance", async () => {
-  const noted = await loadAssembledNotes();
-  for (const { tool_name, notes } of noted) {
-    const notesWithoutWorkedExamples = notes.replace(
-      /\b(WK-\d{3,})#SLICE-\d+\b/g,
-      "$1"
-    );
-    const sliceTokens = notesWithoutWorkedExamples.match(/\bSLICE-\d+\b/g);
-    assert.equal(
-      sliceTokens,
-      null,
-      `${tool_name} notes must not cite slice provenance (found ${JSON.stringify(sliceTokens)}); ` +
-        "notes teach selection, not changelog history."
-    );
-    const wkIds = [...new Set(notes.match(/\bWK-\d{3,}\b/g) ?? [])];
-    assert.ok(
-      wkIds.length <= SLICE_021_MAX_DISTINCT_WK_IDS_PER_NOTE,
-      `${tool_name} notes cite ${wkIds.length} distinct WK ids (${JSON.stringify(wkIds)}); at most ` +
-        `${SLICE_021_MAX_DISTINCT_WK_IDS_PER_NOTE} is allowed as a worked example. Multiple WK ids is ` +
-        "the changelog-essay smell — move provenance to the WK record and docs."
-    );
-  }
+test("WK-1010#SLICE-021: discovery notes and tier overrides carry no WK/SLICE changelog provenance", async () => {
+  const prose = await loadAssembledProse();
+  assert.deepEqual(
+    [...violationsFor(prose, "slice_provenance"), ...violationsFor(prose, "wk_provenance")],
+    [],
+    `notes may not cite slice provenance or more than ${SLICE_021_MAX_DISTINCT_WK_IDS_PER_NOTE} ` +
+      "distinct WK id; provenance belongs in the WK record and docs."
+  );
 });
 
-test("WK-1010#SLICE-021: discovery notes dump no backend/source .mjs module paths", async () => {
-  const noted = await loadAssembledNotes();
-  for (const { tool_name, notes } of noted) {
-    const modulePaths = notes.match(/[\w-]+\.mjs\b/g);
-    assert.equal(
-      modulePaths,
-      null,
-      `${tool_name} notes must not dump backend/source module paths (found ${JSON.stringify(modulePaths)}); ` +
-        "implementation wiring belongs in source comments and the WK, not selection notes."
-    );
-  }
+test("WK-1010#SLICE-021: discovery notes and tier overrides dump no backend/source .mjs module paths", async () => {
+  assert.deepEqual(
+    violationsFor(await loadAssembledProse(), "module_path"),
+    [],
+    "implementation wiring belongs in source comments and the WK, not selection notes."
+  );
 });
 
-test("WK-1010#SLICE-021: discovery notes dump no schema/response-shape field inventories", async () => {
-  const noted = await loadAssembledNotes();
-  for (const { tool_name, notes } of noted) {
-    const hit = SLICE_021_BANNED_SCHEMA_TOKENS.find((token) => notes.includes(token));
-    assert.equal(
-      hit,
-      undefined,
-      `${tool_name} notes must not inventory response-shape/schema fields (found "${hit}"); ` +
-        "keep field/response shapes in docs/tool-discovery.md and the live schema, not the notes."
-    );
-  }
+test("WK-1010#SLICE-021: discovery notes and tier overrides dump no schema/response-shape field inventories", async () => {
+  assert.deepEqual(
+    violationsFor(await loadAssembledProse(), "schema_inventory"),
+    [],
+    "keep field/response shapes in docs/tool-discovery.md and the live schema, not the notes."
+  );
 });
 
 test("WK-1010#SLICE-021: no long boilerplate sentence is duplicated across discovery notes", async () => {
-
-  const noted = await loadAssembledNotes();
-  const sentenceToTools = new Map();
-  for (const { tool_name, notes } of noted) {
-    const sentences = notes
-      .split(/(?<=[.!?])\s+/)
-      .map((sentence) => sentence.trim())
-      .filter((sentence) => sentence.length >= SLICE_021_DUP_SENTENCE_MIN_CHARS);
-    for (const sentence of sentences) {
-      if (!sentenceToTools.has(sentence)) {
-        sentenceToTools.set(sentence, new Set());
-      }
-      sentenceToTools.get(sentence).add(tool_name);
-    }
-  }
-  for (const [sentence, tools] of sentenceToTools) {
-    assert.ok(
-      tools.size <= SLICE_021_DUP_SENTENCE_MAX_NOTES,
-      `the same ${sentence.length}-char sentence is duplicated across ${tools.size} discovery notes ` +
-        `(${[...tools].join(", ")}); move shared boilerplate to docs/tool-discovery.md instead of ` +
-        `pasting it onto every entry. Sentence: ${JSON.stringify(sentence)}`
-    );
-  }
+  assert.deepEqual(
+    violationsFor(await loadAssembledProse(), "duplicate_sentence"),
+    [],
+    "move shared boilerplate to docs/tool-discovery.md instead of pasting it onto every entry."
+  );
 });

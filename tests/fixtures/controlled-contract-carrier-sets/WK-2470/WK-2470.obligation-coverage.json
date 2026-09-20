@@ -1,0 +1,383 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2470",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK-2470-01",
+      "statement": "PURPOSE. Provide one bounded controlled-contract refactoring lifecycle for identity-only renames and explicit semantic subgraph replacement, eliminating the current need to coordinate separate contract, verification-bundle, test-proof, obligation-coverage, acceptance-coverage, proof-plan, and assessment mutations through multiple caller-managed CAS operations.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-01",
+        "claim-criterion-01",
+        "claim-verify-criterion-01"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_refactor_plan/workspace_controlled_contract_refactor_apply"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-02",
+      "statement": "EXISTING OWNERSHIP. Reuse the stable-v1 controlled-contract package as semantic owner, wiki-core as repository/WK/focus, canonical-generation, continuation, reconciliation, and publication owner, wiki-MCP as a thin bounded adapter, the existing coverage rebase owners from WK-2427/WK-2438, and the atomic generation-publication machinery from WK-2096 and subsequent proof-authoring work. Add exactly one package-owned refactor graph closure and semantic-classification primitive, extending or succeeding the existing proof-graph composition owner. Wiki-core resolves canonical carrier bytes and currentness, passes the complete live population to that primitive, and consumes its result unchanged for planning, apply, and assessment. Do not create parallel schema, identity, closure, classification, validation, persistence, continuation, replay, receipt, or refusal owners.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-02",
+        "claim-criterion-02",
+        "claim-verify-criterion-02"
+      ],
+      "mechanism": {
+        "owner": "controlled-contract",
+        "kind": "code_symbol",
+        "selector": "controlled_refactor_graph_closure_and_classification"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-03",
+      "statement": "CURRENT-STATE INTEGRITY. Extend workspace_controlled_contract_assess and workspace_controlled_contract_assessment_query with a bounded cross-carrier integrity axis for current live state. The axis consumes the same package-owned refactor closure/classification result as planning and apply; it does not implement a second identity graph or classifier. It identifies dangling live references, orphan live verification/test-proof bindings, obligation or acceptance mappings to absent nodes, stale derived proof plans/assessments, and current-generation identity conflicts. Do not create a separate generic audit tool.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-03",
+        "claim-criterion-03",
+        "claim-verify-criterion-03"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_assess/workspace_controlled_contract_assessment_query"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-04",
+      "statement": "PLAN OPERATION. workspace_controlled_contract_refactor_plan is read-only and accepts one canonical WK/focus, the exact current generation or digest precondition, exactly one mode, and only the caller-authored semantics required by that mode. Wiki-core resolves canonical carrier bytes and currentness server-side, delegates complete closure and semantic classification to the package owner, and projects that result without recomputation. The operation accepts no raw complete carrier, caller path/root/basename, environment, authority claim, proof result, historical evidence payload, or derived artifact bytes.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-04",
+        "claim-criterion-04",
+        "claim-verify-criterion-04"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_refactor_plan"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-05",
+      "statement": "COMPLETE LIVE CLOSURE. The package-owned refactor graph primitive receives the complete canonical current carrier population resolved by wiki-core and owns every affected current reference, proposition, claim, relation, collection membership, verification bundle, stable test-proof reference, obligation mapping, acceptance mapping, proof-plan source binding, and assessment source binding. Unknown or unresolved live references refuse with bounded exact identities; callers are never asked to reconstruct hidden carrier state. Plan, apply, and assessment consume this one closure result and must not maintain parallel traversal or classification logic.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-05",
+        "claim-criterion-05",
+        "claim-verify-criterion-05"
+      ],
+      "mechanism": {
+        "owner": "controlled-contract",
+        "kind": "code_symbol",
+        "selector": "controlled_refactor_graph_closure_and_classification"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-06",
+      "statement": "RENAME IDENTITY. rename_identity changes only one stable identity and every live reference to it. The package must mechanically establish graph isomorphism and proposition, modality, applicability, verification-method, relation-role, collection-membership, and proof-requirement equivalence. Any semantic difference refuses and requires replace_subgraph.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-06",
+        "claim-criterion-06",
+        "claim-verify-criterion-06"
+      ],
+      "mechanism": {
+        "owner": "controlled-contract",
+        "kind": "code_symbol",
+        "selector": "plan_controlled_contract_identity_rename"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-07",
+      "statement": "REPLACE SUBGRAPH. replace_subgraph permits a semantic change only with an explicit old-to-new node correspondence, a nonempty reason, and complete treatment of every affected live edge and coverage mapping. The package planner translates that correspondence into the existing obligation/acceptance coverage rebase conflict, currentness, and disposition model; those existing owners validate the prospective changes under the shared generation lease. Generic package patch composition may aggregate the resulting carrier bytes for atomic publication but must not redefine coverage conflicts, row currentness, dispositions, locks, CAS, or receipt classification. Removed, added, split, merged, or changed requirements receive honest new coverage/proof disposition; absence of proof is represented as an explicit gap rather than inherited credit.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-07",
+        "claim-criterion-07",
+        "claim-verify-criterion-07"
+      ],
+      "mechanism": {
+        "owner": "controlled-contract",
+        "kind": "code_symbol",
+        "selector": "plan_controlled_contract_subgraph_replacement"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-08",
+      "statement": "BOUNDED REVIEWABLE PLAN. Planning returns the first bounded semantic page containing mode, affected live identities and truthful complete/returned/omitted counts, explicit old-to-new correspondence, semantic-change classification, coverage effects, proof and derived-artifact invalidation, and unresolved facts. When detail remains, it returns exactly one next call to workspace_controlled_contract_refactor_query; only the final complete page returns the apply continuation. The apply continuation is mutation capability and never substitutes for retrieval.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-08",
+        "claim-criterion-08",
+        "claim-verify-criterion-08"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_refactor_plan"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-09",
+      "statement": "LOSSLESS PLAN AND RECEIPT RETRIEVAL. workspace_controlled_contract_refactor_query is the single read-only complete path for one exact refactor plan or publication receipt. It accepts only the server-issued resource identity, resource_kind plan or receipt, an optional bounded semantic selector, and an integrity- and currentness-bound cursor. Every page reports complete, returned, omitted, and remaining counts and exactly one next query until final. A changed plan snapshot or invalid cursor refuses with a fresh-plan or exact-receipt recovery; pages from different snapshots cannot be stitched. Any individually oversized semantic item uses the existing workspace_read_mcp_content_reference ranged path. No result is byte-cut, silently omitted, or made recoverable only through apply.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-09",
+        "claim-criterion-09",
+        "claim-verify-criterion-09"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_refactor_query"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-10",
+      "statement": "GENERATION-BOUND CONTINUATION. An applicable plan extends the existing wiki-core controlled-contract authoring-continuation transition and reconciliation machinery; it does not add a registry, continuation type, source-lease owner, or replay ledger. The opaque continuation is bound to repository, WK/focus, exact current generation, the complete server-resolved proposal, package/schema identities, and source lease. A concurrent change makes it stale and returns one executable re-plan route; blind retry, caller-supplied source declarations, and semantic reconstruction are forbidden.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-10",
+        "claim-criterion-10",
+        "claim-verify-criterion-10"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "code_symbol",
+        "selector": "controlled_contract_authoring_continuation_transition"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-11",
+      "statement": "ATOMIC APPLY. workspace_controlled_contract_refactor_apply consumes only the apply continuation through the existing continuation state machine and canonical carrier-set publisher, then publishes one completely validated new canonical generation. Contract nodes and all affected current dependent carriers change together or none change. Prospective package validation, coverage-rebase validation, source-lease validation, staging, publication selection, transition reconciliation, and receipt durability complete before success; no temporary invalid state, partial carrier set, cleanup guess, or multi-CAS race is observable.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-11",
+        "claim-criterion-11",
+        "claim-verify-criterion-11",
+        "claim-attempt-performs-compound-operation",
+        "claim-compound-operation-writes-constituent-effects",
+        "claim-constituent-effect-population-members",
+        "claim-earlier-effect-population-membership",
+        "claim-later-effect-population-membership",
+        "claim-constituent-effect-population-cardinality",
+        "claim-constituent-effect-population-plurality",
+        "claim-constituent-effect-order",
+        "claim-failure-boundary-follows-earlier-effect",
+        "claim-failure-boundary-precedes-later-effect",
+        "claim-failure-injected-at-boundary",
+        "claim-settlement-follows-injected-failure",
+        "claim-settlement-follows-later-effect",
+        "claim-earlier-effect-settled-state",
+        "claim-later-effect-settled-state",
+        "claim-population-settled-state",
+        "claim-settled-result-composition",
+        "claim-earlier-effect-observation-record",
+        "claim-later-effect-observation-record",
+        "claim-earlier-effect-observation-read",
+        "claim-later-effect-observation-read",
+        "claim-fully-committed-state-allowed",
+        "claim-fully-uncommitted-state-allowed",
+        "claim-allowed-settlement-states-closed",
+        "claim-partial-commit-condition-state",
+        "claim-settled-outcome-is-fully-uncommitted",
+        "claim-settled-outcome-within-allowed-states",
+        "claim-atomic-settlement-verification",
+        "claim-partial-state-not-allowed"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "code_symbol",
+        "selector": "writeControlledContractCarrierSet"
+      },
+      "selection": {
+        "proof_name": "proof.atomicity.failure-boundary",
+        "proof_version": "4.0.0",
+        "profile_digest": "ab3b0b152fbe27cd65c673f674789cecaf085b86dfe9dbb596b4476f6a054189",
+        "parameter_contract_digest": "19510d87460c76011178b0689d5bc10920707e03509e54f384490f8d74a51b85",
+        "admission_digest": "7e69ff84d6551354bb307e627182f5e83ef81470fe3a6fea5bed2bb26e9a7a58",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-12",
+      "statement": "DERIVED STATE. Proof plans and assessments whose source bindings changed become explicitly stale through their normal generation/digest semantics. The refactor never edits or deletes their historical bytes and returns exact supported rebuild/reassessment calls rather than silently rebuilding or treating stale output as current.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-12",
+        "claim-criterion-12",
+        "claim-verify-criterion-12"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "code_symbol",
+        "selector": "resolveCanonicalControlledContractCarrierSet"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-13",
+      "statement": "HISTORY AND PROOF CREDIT. Historical contract generations, review/redteam/blueteam evidence, proof results, runtime receipts, and assessment bundles are immutable. Existing historical references are allowed to continue naming their original generation. Refactor operations refuse attempts to rewrite them and never silently transfer authenticated proof credit to a renamed or replacement identity.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-13",
+        "claim-criterion-13",
+        "claim-verify-criterion-13"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "durable_record",
+        "selector": "canonical controlled-contract generations and evidence identities"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-14",
+      "statement": "DURABLE RECEIPT AND REPLAY. The apply result returns the first bounded page of an immutable receipt derived from the existing canonical continuation/publication transition and reconciliation record, not a new persistence mechanism. It binds old and new generation identities, mode, correspondence, reason, changed carrier digests, invalidated derived identities/counts, package identity, and written/no-op outcome with truthful complete/returned/omitted counts and the workspace_controlled_contract_refactor_query next call when detail remains. Identical replay is a durable no-op; restart and concurrent replay converge through the existing state machine on the same receipt identity and bytes.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-14",
+        "claim-criterion-14",
+        "claim-verify-criterion-14"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "code_symbol",
+        "selector": "controlled_contract_authoring_continuation_reconciliation"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-15",
+      "statement": "POST-APPLY CONVERGENCE. The existing assessment surface consumes the package-owned closure/classification result to verify current cross-carrier integrity after apply and direct callers to rebuild proof plans, reassess, repair explicit gaps, and invoke workspace_verify_proof for the exact affected executable obligations. It grants no review, dispatch, integration, completion, policy, or proof authority.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-15",
+        "claim-criterion-15",
+        "claim-verify-criterion-15"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_assess"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-16",
+      "statement": "REVIEWER ERGONOMICS. Reviewers need no generic semantic-diff tool. Through the bounded initial result and workspace_controlled_contract_refactor_query complete path they can read the full plan and final receipt: rename_identity states mechanically verified semantic equivalence; replace_subgraph states the explicit correspondence, reason, affected obligations, existing-rebase dispositions, and required reevaluation. Reviewer access remains read-only and non-authorizing.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-16",
+        "claim-criterion-16",
+        "claim-verify-criterion-16"
+      ],
+      "mechanism": {
+        "owner": "wiki-core",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_refactor_query"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-17",
+      "statement": "FAILURE CONTRACT AND LIMBS. Every failure reports exactly one limb, mechanical_failure or returned_policy_decision, the owning operation, stable code, deciding facts, concrete invariant that would break if execution continued, and one supported recovery when one exists. Invalid mode, malformed correspondence, ambiguous selector, incomplete live closure, dangling prospective reference, semantic change under rename_identity, stale or conflicting continuation, cross-WK/focus identity, package incompatibility, coverage-rebase conflict, semantic proposal bound exceeded, persistence failure, and replay conflict are mechanical because a unique valid complete plan or atomic publication cannot be produced. Response-size overflow is not a refusal while cursor, ranged, or item-reference recovery applies. The refactor operations synthesize no policy judgments; any returned policy decision must come from and preserve the exact CCE result, with no local fallback or reclassification. Existing package, continuation, publication, and coverage owners retain their refusal codes; the refactor projection creates no aliases or competing taxonomy.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-17",
+        "claim-criterion-17",
+        "claim-verify-criterion-17"
+      ],
+      "mechanism": {
+        "owner": "controlled-contract",
+        "kind": "code_symbol",
+        "selector": "controlled_refactor_failure_classification"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-18",
+      "statement": "NON-GOALS. Do not add generic generation diff, rollback, aliases, tombstones, cross-WK cloning/migration, automatic conflict merging, automatic proof-credit migration, a separate audit tool, a refactor-specific continuation registry or replay ledger, duplicate coverage currentness/conflict/disposition semantics, a generic artifact-query surface, or a new historical-evidence store. Do not alter accepted DECs or broaden CCE, review, dispatch, integration, or completion authority.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-18",
+        "claim-criterion-18",
+        "claim-verify-criterion-18"
+      ],
+      "mechanism": {
+        "owner": "WK-2470",
+        "kind": "configuration",
+        "selector": "declared non-goals and authority exclusions"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "The behavior is fully specified by the controlled contract but implementation and executable proof have not yet been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK-2470-19",
+      "statement": "DESIGN-FIRST DELIVERY. Before implementation, complete the required DRY review and all-accepted-decision review, author the controlled contract and comprehensive obligation/acceptance maps, run one design redteam and any single required blueteam/disposition, then decompose package semantics, wiki-core canonical transaction/public operations, and MCP/discovery/docs/regressions into independently executable implementation slices.",
+      "controlled_contract_node_ids": [
+        "ref-criterion-19",
+        "claim-criterion-19",
+        "claim-verify-criterion-19"
+      ],
+      "mechanism": {
+        "owner": "WK-2470",
+        "kind": "durable_record",
+        "selector": "design lifecycle evidence and slice graph"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The DRY review, all-accepted-DEC review, controlled contract, proof plan, complete obligation and acceptance maps, single design redteam, exact blueteam challenge, one disposition, and independently executable implementation slice graph are complete. Later implementation reviews remain governed by launcher-required exact-slice review and terminal whole-WK review policy."
+      }
+    }
+  ]
+}

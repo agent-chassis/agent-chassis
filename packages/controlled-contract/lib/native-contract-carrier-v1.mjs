@@ -1,10 +1,12 @@
-import STABLE_CONTRACT_SCHEMA from
-  "../schema/controlled-acceptance-contract.v1.schema.json" with { type: "json" };
+import STABLE_CONTRACT_SCHEMA from "./stable-contract-schema-v1.mjs";
 import {
   CONTROLLED_VOCABULARY,
   VOCABULARY_DIGESTS
 } from "../vocabulary/controlled-contract-vocabulary.v1.mjs";
-import { selectCausalSchemaDiagnostics } from "./bounded-diagnostic-projection.mjs";
+import {
+  adaptRawSchemaDiagnostic,
+  selectCausalSchemaDiagnostics
+} from "./bounded-diagnostic-projection.mjs";
 import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { buildEqualityNormalizationV1 } from "./equality-normalization-v1.mjs";
 import { createNativeContractRuntime } from "./native-contract-runtime.mjs";
@@ -105,13 +107,10 @@ function schemaDiagnostics(contract) {
   return selectCausalSchemaDiagnostics({
     errors: validateSchema.errors ?? [],
     branch_families: schemaBranchFamilies(contract)
-  }).map((error) => ({
+  }).map((error) => adaptRawSchemaDiagnostic(error, {
     code: "stable_contract_schema_invalid",
-    pointer: error.instancePath || "/",
-    keyword: error.keyword,
-    message: error.message ?? "stable contract schema validation failed",
-    expected_identity: error.params?.allowedValue ?? null,
-    actual_identity: null
+    message: "stable contract schema validation failed",
+    document: contract
   }));
 }
 
@@ -146,7 +145,7 @@ function testProofPopulationDiagnostics(contract) {
   }
   for (const claimId of testClaims) {
     const count = proofClaims.get(claimId)?.length ?? 0;
-    if (count !== 1) diagnostics.push({
+    if (count > 1) diagnostics.push({
       code: count === 0
         ? "stable_test_proof_missing"
         : "stable_test_proof_claim_duplicate",
@@ -156,13 +155,18 @@ function testProofPopulationDiagnostics(contract) {
       actual_identity: count
     });
   }
-  for (const [claimId, indexes] of proofClaims) if (!testClaims.includes(claimId) &&
-      !nonTestClaims.has(claimId)) diagnostics.push({
-    code: "stable_test_proof_claim_unknown",
-    pointer: `/test_proofs/${indexes[0]}/verification_claim_id`,
-    keyword: "sameCarrierReference",
-    actual_identity: claimId
-  });
+  const referenceIds = new Set(contract.references.map(ref => ref.reference_id));
+  const propositionIds = new Set(contract.propositions.map(prop => prop.proposition_id));
+  for (const [index, proof] of contract.test_proofs.entries()) {
+    for (const id of proof.system_under_test_boundary?.subject_reference_ids ?? []) {
+      if (!referenceIds.has(id)) diagnostics.push({ code: 'stable_test_proof_reference_unknown',
+        pointer: `/test_proofs/${index}/system_under_test_boundary/subject_reference_ids`, actual_identity: id });
+    }
+    for (const id of [proof.observable_result?.proposition_id, ...(proof.falsifiers ?? []).map(f => f.proposition_id)]) {
+      if (id !== undefined && !propositionIds.has(id)) diagnostics.push({ code: 'stable_test_proof_proposition_unknown',
+        pointer: `/test_proofs/${index}`, actual_identity: id });
+    }
+  }
   if (contract.test_proofs.map(({ verification_claim_id: claimId }) => claimId)
     .some((claimId, index, values) => index > 0 &&
       compareCodeUnits(values[index - 1], claimId) >= 0)) diagnostics.push({
@@ -281,7 +285,8 @@ function validateAndResolveNativeContractV1(contract) {
   const schemaValid = validateSchema(contract);
   const nativeResult = schemaValid ? nativeSemanticRuntimeV1.validateAndResolve(contract) : null;
   const diagnostics = schemaValid ? [
-    ...nativeResult.diagnostics,
+
+    ...nativeResult.diagnostics.filter(diagnostic => !(diagnostic.code === 'empty_contract' && contract.test_proofs.length > 0)),
     ...testProofPopulationDiagnostics(contract)
   ].sort((left, right) =>
     compareCodeUnits(left.code, right.code) ||

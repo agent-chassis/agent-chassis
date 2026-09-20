@@ -165,15 +165,15 @@ test("worker surface construction registers exactly commit and never instantiate
 test("production worker wiki MCP profile exposes exactly commit and excludes the rest", () => {
 
   const profile = parseToolProfile({ WIKI_MCP_TOOL_PROFILE: "worker" });
-  const workerWikiTools = [WORKER_COMMIT_TOOL_NAME, "workspace_worker_run_declared_test"];
+  const workerWikiTools = [WORKER_COMMIT_TOOL_NAME];
   const nonWorkerWikiTools = [
+    "workspace_worker_run_declared_test",
     "workspace_submit_for_review",
     "workspace_read_page",
     "workspace_get_record",
     "workspace_search_repo",
     "workspace_tools_list",
     "workspace_tools_describe",
-    "workspace_tools_query",
     "workspace_work_record_validate",
     "workspace_run_validation",
     "workspace_agent_dispatch",

@@ -249,10 +249,12 @@ export function evaluateToolDispositionCompatibility({
   const agentRoles = roles.filter((role) => role !== "operator");
   const hasOnlyOperatorGrant = roles.length > 0 && roles.every((role) => role === "operator");
 
-  if (disposition !== SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT && agentRoles.length > 0) {
+  const agentCallableDisposition = disposition === SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT ||
+    disposition === SESSION_ROLE_TOOL_DISPOSITIONS.SERVER_ISSUED_CONTINUATION;
+  if (!agentCallableDisposition && agentRoles.length > 0) {
     conflicts.push({
       kind: "grant",
-      message: "an indirect/operator-only disposition cannot retain a direct non-operator role grant"
+      message: "an indirect/operator-only disposition cannot retain a non-operator role grant"
     });
   }
   if (agentRoles.length === 0 && roles.includes("operator") && !resolvedAudience.includes("operator")) {

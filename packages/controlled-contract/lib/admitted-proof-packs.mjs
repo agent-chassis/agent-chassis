@@ -1,44 +1,41 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
 
 import { compiledValidators } from "./compiled-validator-cache.mjs";
+import { validateProfileSchemaV1 } from "./verification-profile-schema-v1.mjs";
+import { canonicalDigest as parameterDigest } from "./deterministic-projection-primitives.mjs";
+import { validatePackParameterContract } from "./pack-parameter-contract.mjs";
 import { profileDigest } from "./profile-digest.mjs";
-import { loadExactBindingAdmissionV1 } from "./exact-binding-admission.mjs";
-import { resolveExactProofEvaluator } from "./proof-evaluator-registry.mjs";
+
+const exactProofEvaluator = async (request) => (
+  await import("./proof-evaluator-registry.mjs")
+).resolveExactProofEvaluator(request);
 
 const packageRoot = new URL("../", import.meta.url);
 const catalogUrl = new URL("profiles/catalog.json", packageRoot);
-const [catalogSchema, admissionSchema, admissionSchemaV2,
+const [catalogSchema, admissionSchema,
   componentExclusionApplicabilitySchema] = await Promise.all([
   readJson(new URL(
     "schema/controlled-contract-proof-pack-catalog.v1.schema.json",
     packageRoot
   )),
   readJson(new URL(
-    "schema/controlled-contract-admitted-proof-pack.v1.schema.json",
+    "schema/controlled-contract-admitted-proof-pack.v3.schema.json",
     packageRoot
   )),
   readJson(new URL(
-    "schema/controlled-contract-admitted-proof-pack.v2.schema.json",
-    packageRoot
-  )),
-  readJson(new URL(
-    "schema/controlled-contract-component-exclusion-applicability.v1.schema.json",
+    "schema/controlled-contract-component-exclusion-applicability.v2.schema.json",
     packageRoot
   ))
 ]);
 const {
   validateCatalog,
   validateAdmission,
-  validateAdmissionV2,
   validateComponentExclusionApplicability
 } = await compiledValidators("controlled-contract.admitted-proof-packs", {
   validators: {
     validateCatalog: catalogSchema,
     validateAdmission: admissionSchema,
-    validateAdmissionV2: admissionSchemaV2,
     validateComponentExclusionApplicability: componentExclusionApplicabilitySchema
   }
 });
@@ -51,6 +48,13 @@ class AdmittedProofPackError extends Error {
     this.code = code;
     this.details = structuredClone(details);
   }
+}
+
+function assertCurrentDefinition(profile) {
+  if (!validateProfileSchemaV1(profile)) throw new AdmittedProofPackError(
+    "proof_pack_profile_invalid", "the exact definition does not use the current profile schema",
+    { diagnostics: structuredClone(validateProfileSchemaV1.errors) }
+  );
 }
 
 async function readJson(url) {
@@ -105,7 +109,7 @@ async function readProofPackCatalog() {
   return structuredClone(catalog);
 }
 
-async function loadAdmittedProofPack(profileId) {
+async function readAdmittedProofPack(profileId, { evaluator }) {
   const catalog = await readProofPackCatalog();
   const entry = catalog.packs.find(({ profile_id: candidate }) => candidate === profileId);
   if (!entry) throw new AdmittedProofPackError(
@@ -115,8 +119,7 @@ async function loadAdmittedProofPack(profileId) {
   );
   const directory = new URL(`${entry.path}/`, packageRoot);
   const names = [
-    "profile.json", "admission.json", "exact-binding.json",
-    "exact-binding-certification.json", "component-exclusion-applicability.json"
+    "profile.json", "admission.json", "component-exclusion-applicability.json"
   ];
   const reads = await Promise.allSettled(names.map(
     (name) => readFile(new URL(name, directory))
@@ -141,53 +144,17 @@ async function loadAdmittedProofPack(profileId) {
     );
   }
   const companion = await readComponentExclusionApplicability(
-    reads[4], profileId
+    reads[2], profileId
   );
-  if (admission.schema_version === "controlled-contract-admitted-proof-pack.v2") {
-    if (!validateAdmissionV2(admission)) throw new AdmittedProofPackError(
-      "proof_pack_admission_invalid",
-      "the shipped v2 proof-pack admission is schema-invalid",
-      { profile_id: profileId, diagnostics: structuredClone(validateAdmissionV2.errors) }
-    );
-    const exactPack = await loadExactBindingAdmissionV1(
-      path.resolve(fileURLToPath(directory)), profileId,
-      {
-        rawFiles: reads.map((reading) =>
-          reading.status === "fulfilled" ? reading.value : null
-        ).slice(0, 4)
-      }
-    );
-    const mismatches = [];
-    if (entry.profile_version !== exactPack.profile.profile_version) mismatches.push({
-      field: "catalog.profile_version",
-      expected: entry.profile_version,
-      actual: exactPack.profile.profile_version
-    });
-    if (mismatches.length > 0) throw new AdmittedProofPackError(
-      "proof_pack_admission_binding_mismatch",
-      "the shipped catalog and v2 admission do not identify one artifact",
-      { profile_id: profileId, mismatches }
-    );
-    const result = deepFreeze({
-      ...structuredClone(exactPack),
-      admission_digest: canonicalDigest(exactPack.admission),
-      catalog_entry: structuredClone(entry),
-      admission_version: 2,
-      ...assertComponentExclusionApplicability(companion, exactPack.profile,
-        exactPack.admission)
-    });
-    ADMITTED_PACK_SNAPSHOTS.add(result);
-    return result;
-  }
-  if (!validateAdmission(admission)) throw new AdmittedProofPackError(
+  const admissionVersion = 3;
+  const validateAdmissionCarrier = validateAdmission;
+  if (!validateAdmissionCarrier(admission)) throw new AdmittedProofPackError(
     "proof_pack_admission_invalid",
     "the shipped proof-pack admission is schema-invalid",
-    { profile_id: profileId, diagnostics: structuredClone(validateAdmission.errors) }
+    { profile_id: profileId, diagnostics: structuredClone(validateAdmissionCarrier.errors) }
   );
-  const actualProfileDigest = profile.schema_version ===
-    "controlled-contract-test-validity-profile.v1"
-    ? canonicalDigest(profile)
-    : profileDigest(profile);
+  assertCurrentDefinition(profile);
+  const actualProfileDigest = profileDigest(profile);
   const mismatches = [];
   const expect = (field, expected, actual) => {
     if (expected !== actual) mismatches.push({ field, expected, actual });
@@ -210,46 +177,60 @@ async function loadAdmittedProofPack(profileId) {
     profile_digest: actualProfileDigest,
     admission_digest: canonicalDigest(admission),
     catalog_entry: structuredClone(entry),
-    admission_version: 1,
+    admission_version: admissionVersion,
+    certification_identity: {
+      method: admission.certification.method,
+      adequacy_declaration_digest: `sha256:${admission.certification.adequacy_declaration_digest}`,
+      adequacy_result_digest: `sha256:${admission.certification.adequacy_result_digest}`
+    },
+    ...await readParameterCompanion(directory, profile, admission),
     ...assertComponentExclusionApplicability(companion, profile, admission)
   };
-  if (profile.profile_id === "proof.verification.test-validity") {
-    const evaluator = await resolveExactProofEvaluator({
-      proofPack: resultValue,
-      evaluationStage: profile.evaluation_stages[0]
-    });
-    if (evaluator.status !== "resolved") throw new AdmittedProofPackError(
+  if (evaluator && profile.profile_id === "proof.verification.test-validity") {
+    const resolved = await exactProofEvaluator({ proofPack: resultValue });
+    if (resolved.status !== "resolved") throw new AdmittedProofPackError(
       "proof_pack_exact_evaluator_unavailable",
       "the admitted test-validity pack has no exact evaluator",
       { profile_id: profile.profile_id, profile_version: profile.profile_version }
     );
-    resultValue.test_validity_evaluator = evaluator;
+    resultValue.test_validity_evaluator = resolved;
   }
   const result = deepFreeze(resultValue);
   ADMITTED_PACK_SNAPSHOTS.add(result);
   return result;
 }
 
-async function loadExactAdmittedProofPack({
-  profileId,
-  profileVersion,
-  evaluationStage
-}) {
-  for (const [field, value] of Object.entries({ profileId, profileVersion, evaluationStage })) {
+async function readExactAdmittedProofPack(identity, { evaluator }) {
+  if (identity === null || typeof identity !== "object" || Array.isArray(identity) ||
+      Object.keys(identity).some((key) => !["profileId", "profileVersion"].includes(key))) {
+    throw new AdmittedProofPackError("proof_pack_exact_identity_invalid",
+      "exact proof-pack selection accepts only profileId and profileVersion");
+  }
+  const { profileId, profileVersion } = identity;
+  for (const [field, value] of Object.entries({ profileId, profileVersion })) {
     if (typeof value !== "string" || value.length === 0) throw new AdmittedProofPackError(
       "proof_pack_exact_identity_invalid",
       `${field} must be a non-empty exact identity`, { field }
     );
   }
   if (!/^proof\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/u.test(profileId) ||
-      !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(profileVersion) ||
-      !/^[a-z][a-z0-9_]*$/u.test(evaluationStage)) {
+      !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(profileVersion)) {
     throw new AdmittedProofPackError(
       "proof_pack_exact_identity_invalid",
-      "exact proof-pack identities must use the closed profile, version, and stage grammar"
+      "exact proof-pack identities must use the closed profile and version grammar"
     );
   }
-  const directory = new URL(`profiles/${profileId}/${profileVersion}/`, packageRoot);
+  const catalog = await readProofPackCatalog();
+  const current = catalog.packs.find(entry => entry.profile_id === profileId);
+  if (!current) throw new AdmittedProofPackError("proof_pack_not_found",
+    "No current proof pack has this identity", { profile_id: profileId });
+  if (current.profile_version !== profileVersion) throw new AdmittedProofPackError(
+    "proof_pack_exact_version_not_current", "The requested saved proof pin is not current", {
+      authority_limb: "mechanical_failure",
+      requested: { profile_id: profileId, profile_version: profileVersion },
+      current: { profile_id: current.profile_id, profile_version: current.profile_version }
+    });
+  const directory = new URL(`${current.path}/`, packageRoot);
   let profileBytes;
   let admissionBytes;
   try {
@@ -276,21 +257,20 @@ async function loadExactAdmittedProofPack({
       { cause: error.message }
     );
   }
-  if (!validateAdmission(admission)) throw new AdmittedProofPackError(
+  const admissionVersion = 3;
+  const validateAdmissionCarrier = validateAdmission;
+  if (!validateAdmissionCarrier(admission)) throw new AdmittedProofPackError(
     "proof_pack_admission_invalid", "the exact proof-pack admission is schema-invalid",
-    { diagnostics: structuredClone(validateAdmission.errors) }
+    { diagnostics: structuredClone(validateAdmissionCarrier.errors) }
   );
-  const profileDigestValue = profile.schema_version ===
-    "controlled-contract-test-validity-profile.v1"
-    ? canonicalDigest(profile) : profileDigest(profile);
+  assertCurrentDefinition(profile);
+  const profileDigestValue = profileDigest(profile);
   const mismatches = [];
   const expect = (field, expected, actual) => {
     if (expected !== actual) mismatches.push({ field, expected, actual });
   };
   expect("profile.profile_id", profileId, profile.profile_id);
   expect("profile.profile_version", profileVersion, profile.profile_version);
-  expect("profile.evaluation_stage", true,
-    profile.evaluation_stages?.includes(evaluationStage) === true);
   expect("admission.profile_id", profileId, admission.profile_id);
   expect("admission.profile_version", profileVersion, admission.profile_version);
   expect("admission.profile_digest", profileDigestValue, admission.profile_digest);
@@ -298,7 +278,7 @@ async function loadExactAdmittedProofPack({
     admission.guarantee_digest);
   if (mismatches.length > 0) throw new AdmittedProofPackError(
     "proof_pack_admission_binding_mismatch",
-    "the exact profile, stage, and admission do not identify one artifact",
+    "the exact profile and admission do not identify one artifact",
     { mismatches }
   );
   const base = {
@@ -306,19 +286,18 @@ async function loadExactAdmittedProofPack({
     admission: structuredClone(admission),
     profile_digest: profileDigestValue,
     admission_digest: canonicalDigest(admission),
-    admission_version: 1,
-    evaluation_stage: evaluationStage,
+    admission_version: admissionVersion,
+    ...await readParameterCompanion(directory, profile, admission),
     certification_identity: {
       method: admission.certification.method,
       adequacy_declaration_digest: `sha256:${admission.certification.adequacy_declaration_digest}`,
       adequacy_result_digest: `sha256:${admission.certification.adequacy_result_digest}`
     }
   };
-  const evaluator = await resolveExactProofEvaluator({
-    proofPack: base,
-    evaluationStage
-  });
-  if (evaluator.status === "resolved") base.test_validity_evaluator = evaluator;
+  if (evaluator) {
+    const resolved = await exactProofEvaluator({ proofPack: base });
+    if (resolved.status === "resolved") base.test_validity_evaluator = resolved;
+  }
   const result = deepFreeze(base);
   ADMITTED_PACK_SNAPSHOTS.add(result);
   return result;
@@ -364,7 +343,6 @@ function profileComponents(profile) {
   ].flatMap(([kind, patterns]) => (patterns ?? []).map((pattern) => ({
     kind,
     component_id: pattern.pattern_id,
-    evaluation_stage: pattern.required_by_stage
   })));
 }
 
@@ -380,6 +358,55 @@ function assertSorted(values, field) {
   }
 }
 
+function rebindComponentExclusionApplicability(companion, profile, admission) {
+  if (!validateComponentExclusionApplicability(companion)) throw new AdmittedProofPackError(
+    "proof_pack_component_exclusion_applicability_invalid",
+    "the component exclusion applicability companion is schema-invalid",
+    { diagnostics: structuredClone(validateComponentExclusionApplicability.errors) }
+  );
+  const known = new Map(profileComponents(profile).map((component) => [
+    `${component.kind}\u0000${component.component_id}`, component
+  ]));
+  const domain = [...new Set(admission.explicit_exclusions)].sort(compareCodeUnits);
+  const unbound = [];
+  const components = companion.components.map((component) => {
+    const key = `${component.selector.kind}\u0000${component.selector.component_id}`;
+    const declared = known.get(key);
+    if (!declared) {
+      unbound.push({ field: "companion.components", component: key });
+      return component;
+    }
+    const applicable = [...new Set(component.applicable_exclusion_ids)]
+      .sort(compareCodeUnits);
+    for (const exclusionId of applicable) {
+      if (!domain.includes(exclusionId)) unbound.push({
+        field: `component.${key}.applicable_exclusion_ids`, exclusion_id: exclusionId
+      });
+    }
+    return {
+      ...component,
+      exclusion_ids: [...domain],
+      applicable_exclusion_ids: applicable
+    };
+  });
+  if (unbound.length > 0) throw new AdmittedProofPackError(
+    "proof_pack_component_exclusion_applicability_binding_mismatch",
+    "an authored companion component is not admitted by the current profile and admission",
+    { mismatches: unbound }
+  );
+  return {
+    ...companion,
+    profile_id: profile.profile_id,
+    profile_version: profile.profile_version,
+    profile_digest: profileDigest(profile),
+    admission_digest: canonicalDigest(admission),
+    components: components.sort((left, right) => compareCodeUnits(
+      `${left.selector.kind}\u0000${left.selector.component_id}`,
+      `${right.selector.kind}\u0000${right.selector.component_id}`
+    ))
+  };
+}
+
 function assertComponentExclusionApplicability(companion, profile, admission) {
   if (companion === null) return {
     component_exclusion_applicability: null,
@@ -390,10 +417,7 @@ function assertComponentExclusionApplicability(companion, profile, admission) {
     "the component exclusion applicability companion is schema-invalid",
     { diagnostics: structuredClone(validateComponentExclusionApplicability.errors) }
   );
-  const actualProfileDigest = profile.schema_version ===
-    "controlled-contract-test-validity-profile.v1"
-    ? canonicalDigest(profile)
-    : profileDigest(profile);
+  const actualProfileDigest = profileDigest(profile);
   const actualAdmissionDigest = canonicalDigest(admission);
   const mismatches = [];
   const expect = (field, expected, actual) => {
@@ -403,7 +427,6 @@ function assertComponentExclusionApplicability(companion, profile, admission) {
   expect("companion.profile_version", profile.profile_version, companion.profile_version);
   expect("companion.profile_digest", actualProfileDigest, companion.profile_digest);
   expect("companion.admission_digest", actualAdmissionDigest, companion.admission_digest);
-  const stageSet = new Set(profile.evaluation_stages ?? []);
   const known = new Map(profileComponents(profile).map((component) => [
     `${component.kind}\u0000${component.component_id}`, component
   ]));
@@ -413,15 +436,13 @@ function assertComponentExclusionApplicability(companion, profile, admission) {
   );
   assertSorted(componentKeys, "companion.components");
   for (const component of companion.components) {
-    const { selector, evaluation_stage: stage, exclusion_ids: exclusions,
+    const { selector, exclusion_ids: exclusions,
       applicable_exclusion_ids: applicable } = component;
     const key = `${selector.kind}\u0000${selector.component_id}`;
     if (seen.has(key)) mismatches.push({ field: "companion.components", component: key });
     seen.add(key);
     const expected = known.get(key);
     if (!expected) mismatches.push({ field: "companion.components", component: key });
-    else expect(`component.${key}.evaluation_stage`, expected.evaluation_stage, stage);
-    if (!stageSet.has(stage)) mismatches.push({ field: `component.${key}.evaluation_stage`, actual: stage });
     const normalizedDomain = [...new Set(admission.explicit_exclusions)].sort(compareCodeUnits);
     const normalizedExclusions = [...new Set(exclusions)].sort(compareCodeUnits);
     if (JSON.stringify(exclusions) !== JSON.stringify(normalizedExclusions) ||
@@ -445,6 +466,26 @@ function assertComponentExclusionApplicability(companion, profile, admission) {
   };
 }
 
+async function readParameterCompanion(directory, profile, admission) {
+  let companion;
+  try { companion = await readJson(new URL("parameter-contract.json", directory)); }
+  catch (error) {
+    throw new AdmittedProofPackError(error.code === "ENOENT"
+      ? "proof_pack_parameter_companion_missing" : "proof_pack_parameter_companion_invalid",
+    "the required parameter companion could not be read", {
+      limb: "mechanical_failure", field: "parameter-contract.json", cause: error.message
+    });
+  }
+  const digest = parameterDigest(companion);
+  if (digest !== admission.parameter_contract_digest) throw new AdmittedProofPackError(
+    "proof_pack_parameter_binding_mismatch", "parameter bytes do not match their admission", {
+      limb: "mechanical_failure", field: "admission.parameter_contract_digest",
+      expected: admission.parameter_contract_digest, actual: digest
+    });
+  const validated = validatePackParameterContract(companion, profile);
+  return { parameter_contract: validated, parameter_contract_digest: digest };
+}
+
 function assertAdmittedProofPackSnapshot(pack) {
   if (!ADMITTED_PACK_SNAPSHOTS.has(pack) || !Object.isFrozen(pack)) {
     throw new AdmittedProofPackError(
@@ -455,11 +496,25 @@ function assertAdmittedProofPackSnapshot(pack) {
   return pack;
 }
 
+const loadAdmittedProofPack = (profileId) =>
+  readAdmittedProofPack(profileId, { evaluator: true });
+const loadExactAdmittedProofPack = (identity) =>
+  readExactAdmittedProofPack(identity, { evaluator: true });
+
+const loadAdmittedProofPackMeaning = (profileId) =>
+  readAdmittedProofPack(profileId, { evaluator: false });
+const loadExactAdmittedProofPackMeaning = (identity) =>
+  readExactAdmittedProofPack(identity, { evaluator: false });
+
 export {
+  canonicalDigest as admissionDigest,
   AdmittedProofPackError,
   assertAdmittedProofPackSnapshot,
   assertComponentExclusionApplicability,
   loadExactAdmittedProofPack,
+  loadExactAdmittedProofPackMeaning,
   loadAdmittedProofPack,
-  readProofPackCatalog
+  loadAdmittedProofPackMeaning,
+  readProofPackCatalog,
+  rebindComponentExclusionApplicability
 };

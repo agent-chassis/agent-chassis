@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { run } from "../../packages/wiki-cli/src/run.mjs";
+import { loadWorkRecordById } from
+  "../../packages/wiki-core/src/lib/work-record-store.mjs";
+import { projectOrdinaryFieldRead } from
+  "../../packages/wiki-core/src/lib/work-record-ordinary-field-read.mjs";
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -629,6 +633,16 @@ test("help text names edit commands and contract edits leave admission evidence 
     assert.match(await runHelp(["work-records", "set-task", "--help"]), /--index/);
     assert.match(await runHelp(["work-records", "set-closure", "--help"]), /--summary/);
     assert.match(await runHelp(["work-records", "set-closure", "--help"]), /--json-file/);
+    const listHelp = await runHelp(["work-records", "set-list-field", "--help"]);
+    assert.match(listHelp, /Record-scope fields: sections\.material_refs, read_scope, repo_paths, write_scope, depends_on, related, blocks\./);
+    assert.match(listHelp, /Slice-scope fields: sections\.material_refs, read_scope, repo_paths, write_scope, depends_on\./);
+    assert.match(listHelp, /\[--mode <replace\|append>\]/);
+    assert.match(listHelp, /Modes: replace, append \(default: replace\)\./);
+    assert.match(listHelp, /append: --values-json is an array with exactly one entry/);
+    assert.match(listHelp, /sections\.material_refs entries, which are \{"ref"/);
+    assert.match(listHelp, /agents should use workspace_work_record_edit/);
+    assert.doesNotMatch(listHelp, /fields: [^\n]*\bdocs\b/);
+    assert.doesNotMatch(listHelp, /acceptance\.criteria/);
 
     await runWiki(["work-records", "refresh-admission-metrics", "--id", "WK-9203"], { dir: repo.dir });
 
@@ -665,6 +679,30 @@ test("help text names edit commands and contract edits leave admission evidence 
     await runWiki(["work-records", "refresh-admission-metrics", "--id", "WK-9203"], { dir: repo.dir });
     const afterRefresh = await runWiki(["work-records", "admission", "--unit", "WK-9203"], { dir: repo.dir });
     assert.equal(afterRefresh.json.admission_refusal, null);
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("operator set-list-field rejects acceptance.criteria and docs without mutation", async () => {
+  const repo = await setupRepo();
+  try {
+    const before = await readFile(repo.recordPath, "utf8");
+    for (const field of ["acceptance.criteria", "docs"]) {
+      const result = await runWiki([
+        "work-records",
+        "set-list-field",
+        "--unit",
+        "WK-9203",
+        "--field",
+        field,
+        "--values-json",
+        JSON.stringify(["refused"])
+      ], { dir: repo.dir, expectFailure: true });
+      assert.equal(result.json.written, false, field);
+      assert.equal(result.json.diagnostics[0].code, "unsupported_list_field", field);
+      assert.equal(await readFile(repo.recordPath, "utf8"), before, field);
+    }
   } finally {
     await repo.cleanup();
   }
@@ -716,6 +754,61 @@ test("WK-0857 upsert-slice allocates the next ordinal for an omitted id and refu
       before,
       "a refused upsert must leave the on-disk record untouched"
     );
+  } finally {
+    await repo.cleanup();
+  }
+});
+
+test("upsert-slice resolves text, reference, and parts carriers through the shared writer", async () => {
+  const repo = await setupRepo();
+  try {
+    const loaded = await loadWorkRecordById({ dir: repo.dir, id: "WK-9203" });
+    const projected = projectOrdinaryFieldRead({
+      loaded,
+      unit: "WK-9203",
+      selection: { field: "sections.summary", reference_only: true },
+      repository: "agent-chassis/agent-chassis"
+    });
+    assert.equal(projected.valid, true, JSON.stringify(projected.diagnostics));
+    const ref = projected.ordinary_field.reference;
+    const written = await runWiki([
+      "work-records", "upsert-slice", "--unit", "WK-9203", "--slice-json",
+      JSON.stringify({
+        id: "edit-command-cli-core",
+        sections: {
+          summary: { text: "CLI text carrier" },
+          why_it_matters: { ref },
+          agent_notes: { parts: [{ text: "CLI parts: " }, { ref }] }
+        }
+      }),
+      "--expected-source-digest", loaded.source_digest
+    ], { dir: repo.dir });
+    assert.equal(written.json.written, true, JSON.stringify(written.json.diagnostics));
+    const slice = (await readRecord(repo.recordPath)).slices.find(({ id }) =>
+      id === "edit-command-cli-core");
+    assert.equal(slice.sections.summary, "CLI text carrier");
+    assert.equal(slice.sections.why_it_matters, "Fixture.");
+    assert.equal(slice.sections.agent_notes, "CLI parts: Fixture.");
+
+    const before = await readFile(repo.recordPath, "utf8");
+    const refused = await runWiki([
+      "work-records", "upsert-slice", "--unit", "WK-9203", "--slice-json",
+      JSON.stringify({ id: "edit-command-cli-core",
+        sections: { summary: "obsolete bare string" } })
+    ], { dir: repo.dir, expectFailure: true });
+    assert.equal(refused.json.written, false);
+    assert.match(refused.json.diagnostics[0].message,
+      /exactly \{text\}, \{ref\}, or \{parts/u);
+    assert.equal(await readFile(repo.recordPath, "utf8"), before);
+
+    const stale = await runWiki([
+      "work-records", "upsert-slice", "--unit", "WK-9203", "--slice-json",
+      JSON.stringify({ id: "edit-command-cli-core",
+        sections: { summary: { text: "stale" } } }),
+      "--expected-source-digest", loaded.source_digest
+    ], { dir: repo.dir, expectFailure: true });
+    assert.equal(stale.json.diagnostics[0].code, "stale_source_digest");
+    assert.equal(await readFile(repo.recordPath, "utf8"), before);
   } finally {
     await repo.cleanup();
   }

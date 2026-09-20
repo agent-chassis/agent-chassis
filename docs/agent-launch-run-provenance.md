@@ -81,6 +81,31 @@ written so far, stderr tails, and provenance metadata while a run is active.
 Those observations are runtime evidence only. Durable conclusions must still be
 promoted into the WK, initiative, decision, or docs after the run completes.
 
+The stdio MCP transcript session also derives a local
+`controlled-authoring-journey-measurement.v2` summary at capture completion.
+It pairs request and result IDs and retains successful, refused, failed, retried,
+and unmatched calls in the denominator. Invalid frames, duplicate IDs, orphaned
+observations, unobserved required phases, and mixed run/source identities make
+the capture explicitly incomplete. When per-call observations exist, the
+summary records phase and elapsed milliseconds; otherwise timing is explicitly
+unavailable.
+
+The summary separates observed facts from classification and attribution.
+Ordinary semantic upsert and remove calls are authoring; snapshot, cursor,
+collection, or field-path selectors are retrieval; workspace tool catalog operations are
+discovery; and remaining calls are preparation. Canonical request equality and
+canonical semantic-response equality are counted independently; a retry is
+reported only when an observation binds it to an earlier request ID. A refusal or
+failure is not assigned to the caller: responsibility remains `unknown` unless
+a separate observation supplies both an attribution and supporting evidence.
+Raw identifiable frames remain in the private transcript files, outside the
+summary and outside admission metrics.
+
+Transport bytes are retained only as bytes. Model-visible tokens are populated
+only from an observable client projection carrying the client, model, tokenizer,
+and projection identities and the observed input/output counts. Absence is a
+recorded measurement gap, not a byte-based estimate or a launch blocker.
+
 The shared `agent-launch-core` provenance construction owner validates and
 serializes both reviewed-launch and direct-capture facts. Reviewed-launch
 observation ends at `launchReview` finalization, while direct role capture
@@ -190,8 +215,8 @@ without a usable answer publish different envelopes:
   accepted and ran under the containment backend still publishes
   `disposition: "enforced_backend"`. An empty or `missing_result` payload is a
   result-quality fact, not a containment fact.
-- A **launcher-synthesized envelope** — `executor_terminal_without_final_result`
-  or `probe_terminal_without_final_result`, built when there is no executor
+- A **launcher-synthesized envelope** — `probe_terminal_without_final_result`,
+  built when there is no executor
   final-result object to carry provenance at all. It may contain no
   `provenance`, and therefore no `enforcement_provenance`, block whatsoever.
 

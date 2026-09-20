@@ -1,0 +1,4568 @@
+{
+  "schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "profile_id": "acceptance-contract.standard.v1",
+  "references": [
+    {
+      "reference_id": "ref-wk2092-design",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/contracts/WK-2092.controlled-acceptance.json"
+      }
+    },
+    {
+      "reference_id": "ref-proof-graph-continuation",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "proof-graph-authoring-continuation"
+      }
+    },
+    {
+      "reference_id": "ref-proof-graph-proposal",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "controlled-proof-graph-proposal.v1"
+      }
+    },
+    {
+      "reference_id": "ref-coordinator",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "orchestrator-operator-authoring-authority"
+      }
+    },
+    {
+      "reference_id": "ref-selected-pack",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "exact-selected-proof-pack"
+      }
+    },
+    {
+      "reference_id": "ref-wk2024-skeleton",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/proof-authoring-skeleton.mjs",
+        "symbol": "buildProofAuthoringSkeleton"
+      }
+    },
+    {
+      "reference_id": "ref-wk2024-state",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/lib/controlled-contract-authoring-state.mjs",
+        "symbol": "controlled contract authoring state"
+      }
+    },
+    {
+      "reference_id": "ref-wk2096-bundle",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+        "symbol": "applyStableVerificationBundles"
+      }
+    },
+    {
+      "reference_id": "ref-contract-carrier",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "canonical-controlled-acceptance-contract"
+      }
+    },
+    {
+      "reference_id": "ref-evaluation-input-carrier",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "exact-pack-evaluation-input"
+      }
+    },
+    {
+      "reference_id": "ref-proof-plan-request-carrier",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "selected-pack-proof-plan-request"
+      }
+    },
+    {
+      "reference_id": "ref-carrier-set",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "canonical-proof-graph-carrier-set"
+      }
+    },
+    {
+      "reference_id": "ref-carrier-set-lock",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "canonical-controlled-carrier-write-lock"
+      }
+    },
+    {
+      "reference_id": "ref-carrier-set-transaction",
+      "type_term": "cc:process",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "symbol": "writeControlledContractCarrierSet"
+      }
+    },
+    {
+      "reference_id": "ref-pre-call-carrier-set",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "complete-pre-call-canonical-carrier-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-partial-carrier-set",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "mixed-partial-carrier-generation"
+      }
+    },
+    {
+      "reference_id": "ref-final-carrier-set",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "complete-planned-final-canonical-carrier-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-proposal-operations",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "ordered-proof-graph-proposal-operations"
+      }
+    },
+    {
+      "reference_id": "ref-request-bytes",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "proof-graph-continuation-request-utf8-bytes"
+      }
+    },
+    {
+      "reference_id": "ref-unresolved-semantic-pointers",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "unresolved-semantic-json-pointers"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-implementation-locus-package",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-implementation-locus-core",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-implementation-locus-mcp",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-mcp/src"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-test-locus",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-requirement-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-design-obligations"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-validation-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-design-validations"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-placeholder-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "implementation-readiness-placeholders"
+      }
+    },
+    {
+      "reference_id": "ref-violation-001",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-001-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-002",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-002-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-003",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-003-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-004",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-004-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-005",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-005-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-006",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-006-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-007",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-007-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-008",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-008-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-009",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-009-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-010",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-010-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-011",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-011-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-012",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-012-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-013",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-obligation-013-violated"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-allowed-settlement-states",
+      "type_term": "cc:entity",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-allowed-settlement-states"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-constituent-effect-population",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "canonical-carrier-set-constituent-effects"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-earlier-effect-observation",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "earlier-carrier-effect-observation"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-later-effect-observation",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "later-carrier-effect-observation"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-failure-boundary",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "between-canonical-carrier-publish-steps"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-injected-failure",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "injected-persistence-failure"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-operation-attempt",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "proof-graph-continuation-attempt"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-partial-condition",
+      "type_term": "cc:invariant",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "mixed-generation-observed"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-settlement-event",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "carrier-set-transaction-settled"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-verification",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "carrier-set-failure-injection-verification"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-required-warning-shape-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "required-design-blocker-warning-shape"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-shape-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "observed-design-blocker-warning-shape"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-code-field",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "warning-field-code"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-severity-field",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "warning-field-severity"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-message-field",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "warning-field-message"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-payload-field",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "warning-field-payload"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-code-value",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "controlled_proof_graph_design_incomplete"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-severity-value",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "blocking"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-message-template",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "WK-2092-proof-graph-authoring-design-is-incomplete"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-payload-schema",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "controlled-proof-graph-design-warning.v1"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-shape-mismatch-condition",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "design-warning-shape-mismatch"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-warning-signal",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "wiki/work-records/WK-2092.json"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-001",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-001"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-002",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-002"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-003",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-003"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-004",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-004"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-005",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-005"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-006",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-006"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-007",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-007"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-008",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-008"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-009",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-009"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-010",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-010"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-011",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-011"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-012",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-012"
+      }
+    },
+    {
+      "reference_id": "ref-obligation-013",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "acceptance-criterion-013"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-earlier-effect-settled-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "earlier-contract-carrier-effect-settled"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-later-effect-settled-state",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "later-evaluation-input-effect-settled"
+      }
+    },
+    {
+      "reference_id": "ref-existing-carrier-patch-owner",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/carrier-patch-v1.mjs",
+        "symbol": "applyControlledContractCarrierPatch"
+      }
+    },
+    {
+      "reference_id": "ref-authoring-reason-vocabulary",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/lib/controlled-contract-authoring-state.mjs",
+        "symbol": "CONTROLLED_CONTRACT_AUTHORING_REASONS"
+      }
+    },
+    {
+      "reference_id": "ref-violation-014",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "existing-carrier-patch-owner-delegation-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-015",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "existing-authoring-reason-vocabulary-delegation-violated"
+      }
+    },
+    {
+      "reference_id": "ref-canonical-generation-manifest",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "canonical-authoring-generation-manifest.v1"
+      }
+    },
+    {
+      "reference_id": "ref-canonical-generation-resolver",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "symbol": "resolveCanonicalControlledContractCarrierSet"
+      }
+    },
+    {
+      "reference_id": "ref-canonical-source-lease",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "symbol": "withCanonicalControlledContractSourceLease"
+      }
+    },
+    {
+      "reference_id": "ref-expected-absence-set",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "controlled-contract",
+        "value": "prospective-carrier-expected-absence-set"
+      }
+    },
+    {
+      "reference_id": "ref-owner-local-recovery",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "symbol": "recoverControlledContractCarrierSetPublication"
+      }
+    },
+    {
+      "reference_id": "ref-equality-normalizer",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/equality-normalization-v1.mjs",
+        "symbol": "stableSemanticKey"
+      }
+    },
+    {
+      "reference_id": "ref-binding-compatibility-owner",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/controlled-contract/lib/proof-pack-binding-assistance.mjs",
+        "symbol": "validateSuppliedProofPackBindings"
+      }
+    },
+    {
+      "reference_id": "ref-fixed-proposal-byte-projection",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "controlled-proof-graph-proposal-byte-projection.v1"
+      }
+    },
+    {
+      "reference_id": "ref-violation-016",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "canonical-generation-publication-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-017",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "canonical-generation-read-resolution-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-018",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "prospective-absence-lease-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-019",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "owner-local-restart-recovery-violated"
+      }
+    },
+    {
+      "reference_id": "ref-violation-020",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "cross-carrier-existing-normalization-violated"
+      }
+    },
+    {
+      "reference_id": "ref-readiness-implementation-locus",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-001",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-001"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-002",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-002"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-003",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-003"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-004",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-004"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-005",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-005"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-006",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-006"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-007",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-007"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-008",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-008"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-009",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-009"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-010",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-010"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-011",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-011"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-012",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-012"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-013",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-013"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-014",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-014"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-015",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-015"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-016",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-016"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-017",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-017"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-018",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-018"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-019",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-019"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-020",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-020"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-021",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-021"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-022",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-022"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-023",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-023"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-024",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-024"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-025",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-025"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-026",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-026"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-027",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-027"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-028",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-028"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-029",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-029"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-030",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-030"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-031",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-031"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-032",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-032"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-033",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-033"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-034",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-034"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-035",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-035"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-036",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-036"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-037",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-037"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-038",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-038"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-039",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-039"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-040",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-040"
+      }
+    },
+    {
+      "reference_id": "ref-atomic-obligation-041",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2092",
+        "value": "atomic-obligation-041"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-continuation-creates-carrier-set",
+      "subject_reference_id": "ref-proof-graph-continuation",
+      "operator": "reference:creates",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-contract-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-evaluation-input-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-plan-request-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-proposal-targets-selected-pack",
+      "subject_reference_id": "ref-proof-graph-proposal",
+      "operator": "reference:targets",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-selected-pack"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-coordinator-authoritative-for-semantics",
+      "subject_reference_id": "ref-coordinator",
+      "operator": "reference:authoritative_for",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-proposal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-continuation-uses-existing-skeleton",
+      "subject_reference_id": "ref-proof-graph-continuation",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2024-skeleton"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-continuation-uses-existing-state",
+      "subject_reference_id": "ref-proof-graph-continuation",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2024-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-continuation-uses-existing-bundle",
+      "subject_reference_id": "ref-proof-graph-continuation",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-wk2096-bundle"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2096-bundle"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-proposal-operation-bound",
+      "subject_reference_id": "ref-proposal-operations",
+      "operator": "range:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "range",
+          "minimum": 0,
+          "maximum": 64
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-request-byte-bound",
+      "subject_reference_id": "ref-request-bytes",
+      "operator": "range:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "range",
+          "minimum": 0,
+          "maximum": 1048576
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-unresolved-semantics-blocks-continuation",
+      "subject_reference_id": "ref-unresolved-semantic-pointers",
+      "operator": "reference:blocks",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-unresolved-semantic-pointers"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-continuation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-transaction-uses-lock",
+      "subject_reference_id": "ref-carrier-set-transaction",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-proof-graph-continuation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-carrier-set-lock"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-transaction-preserves-pre-call",
+      "subject_reference_id": "ref-carrier-set-transaction",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unless",
+        "operand_reference_ids": [
+          "ref-final-carrier-set"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-pre-call-carrier-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-transaction-omits-partial",
+      "subject_reference_id": "ref-carrier-set-transaction",
+      "operator": "reference:omits",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-partial-carrier-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-transaction-returns-final",
+      "subject_reference_id": "ref-carrier-set-transaction",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-proof-graph-continuation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-final-carrier-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-design-names-grounded-loci",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:includes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-implementation-locus"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-test-locus"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-implementation-locus-targets-requirements",
+      "subject_reference_id": "ref-readiness-implementation-locus",
+      "operator": "reference:targets",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-requirement-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-test-locus-covers-validation",
+      "subject_reference_id": "ref-readiness-test-locus",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-validation-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-validation-covers-all-requirements",
+      "subject_reference_id": "ref-readiness-validation-population",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-requirement-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-placeholder-population-empty",
+      "subject_reference_id": "ref-readiness-placeholder-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-continuation-creates-carrier-set",
+      "subject_reference_id": "ref-violation-001",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-continuation-creates-carrier-set",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-continuation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-proposal-targets-selected-pack",
+      "subject_reference_id": "ref-violation-002",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-proposal-targets-selected-pack",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-proposal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-coordinator-authoritative-for-semantics",
+      "subject_reference_id": "ref-violation-003",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-coordinator-authoritative-for-semantics",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-coordinator"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-continuation-uses-existing-skeleton",
+      "subject_reference_id": "ref-violation-004",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-continuation-uses-existing-skeleton",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-continuation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-continuation-uses-existing-state",
+      "subject_reference_id": "ref-violation-005",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-continuation-uses-existing-state",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-continuation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-continuation-uses-existing-bundle",
+      "subject_reference_id": "ref-violation-006",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-continuation-uses-existing-bundle",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-continuation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-proposal-operation-bound",
+      "subject_reference_id": "ref-violation-007",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-proposal-operation-bound",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proposal-operations"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-request-byte-bound",
+      "subject_reference_id": "ref-violation-008",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-request-byte-bound",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-request-bytes"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-unresolved-semantics-blocks-continuation",
+      "subject_reference_id": "ref-violation-009",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-unresolved-semantics-blocks-continuation",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-unresolved-semantic-pointers"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-transaction-uses-lock",
+      "subject_reference_id": "ref-violation-010",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-transaction-uses-lock",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-carrier-set-transaction"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-transaction-preserves-pre-call",
+      "subject_reference_id": "ref-violation-011",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-transaction-preserves-pre-call",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-carrier-set-transaction"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-transaction-omits-partial",
+      "subject_reference_id": "ref-violation-012",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-transaction-omits-partial",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-carrier-set-transaction"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-transaction-returns-final",
+      "subject_reference_id": "ref-violation-013",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-transaction-returns-final",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-carrier-set-transaction"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-allowed-settlement-states-closed",
+      "subject_reference_id": "ref-atomic-allowed-settlement-states",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-atomic-settlement-verification",
+      "subject_reference_id": "ref-atomic-verification",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-constituent-effect-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-attempt-performs-compound-operation",
+      "subject_reference_id": "ref-atomic-operation-attempt",
+      "operator": "reference:performs",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-graph-continuation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-compound-operation-writes-constituent-effects",
+      "subject_reference_id": "ref-proof-graph-continuation",
+      "operator": "reference:writes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-contract-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-evaluation-input-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-plan-request-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-constituent-effect-order",
+      "subject_reference_id": "ref-contract-carrier",
+      "operator": "reference:precedes",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-atomic-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-evaluation-input-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-constituent-effect-population-cardinality",
+      "subject_reference_id": "ref-atomic-constituent-effect-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-constituent-effect-population-members",
+      "subject_reference_id": "ref-atomic-constituent-effect-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-contract-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-evaluation-input-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-proof-plan-request-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-constituent-effect-population-plurality",
+      "subject_reference_id": "ref-atomic-constituent-effect-population",
+      "operator": "range:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "range",
+          "minimum": 2
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-earlier-effect-observation-read",
+      "subject_reference_id": "ref-atomic-verification",
+      "operator": "reference:reads",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-earlier-effect-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-earlier-effect-observation-record",
+      "subject_reference_id": "ref-atomic-earlier-effect-observation",
+      "operator": "reference:records",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-earlier-effect-settled-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-earlier-effect-population-membership",
+      "subject_reference_id": "ref-contract-carrier",
+      "operator": "reference:member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-constituent-effect-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-earlier-effect-settled-state",
+      "subject_reference_id": "ref-contract-carrier",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-earlier-effect-settled-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-failure-boundary-follows-earlier-effect",
+      "subject_reference_id": "ref-atomic-failure-boundary",
+      "operator": "reference:follows",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-atomic-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-contract-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-failure-boundary-precedes-later-effect",
+      "subject_reference_id": "ref-atomic-failure-boundary",
+      "operator": "reference:precedes",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-atomic-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-evaluation-input-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-failure-injected-at-boundary",
+      "subject_reference_id": "ref-atomic-injected-failure",
+      "operator": "reference:targets",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-atomic-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-failure-boundary"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-fully-committed-state-allowed",
+      "subject_reference_id": "ref-final-carrier-set",
+      "operator": "reference:member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-allowed-settlement-states"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-fully-uncommitted-state-allowed",
+      "subject_reference_id": "ref-pre-call-carrier-set",
+      "operator": "reference:member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-allowed-settlement-states"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-later-effect-observation-read",
+      "subject_reference_id": "ref-atomic-verification",
+      "operator": "reference:reads",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-later-effect-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-later-effect-observation-record",
+      "subject_reference_id": "ref-atomic-later-effect-observation",
+      "operator": "reference:records",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-later-effect-settled-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-later-effect-population-membership",
+      "subject_reference_id": "ref-evaluation-input-carrier",
+      "operator": "reference:member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-constituent-effect-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-later-effect-settled-state",
+      "subject_reference_id": "ref-evaluation-input-carrier",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-later-effect-settled-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-partial-commit-condition-state",
+      "subject_reference_id": "ref-atomic-constituent-effect-population",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-atomic-partial-condition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-partial-carrier-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-partial-state-not-allowed",
+      "subject_reference_id": "ref-partial-carrier-set",
+      "operator": "reference:member_of",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-allowed-settlement-states"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-population-settled-state",
+      "subject_reference_id": "ref-atomic-constituent-effect-population",
+      "operator": "reference:has_state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-final-carrier-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-settled-outcome-is-fully-uncommitted",
+      "subject_reference_id": "ref-final-carrier-set",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-pre-call-carrier-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-settled-outcome-within-allowed-states",
+      "subject_reference_id": "ref-final-carrier-set",
+      "operator": "reference:member_of",
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-allowed-settlement-states"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-settled-result-composition",
+      "subject_reference_id": "ref-final-carrier-set",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-atomic-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-earlier-effect-settled-state"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-later-effect-settled-state"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-settlement-follows-injected-failure",
+      "subject_reference_id": "ref-atomic-settlement-event",
+      "operator": "reference:follows",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-atomic-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-injected-failure"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-settlement-follows-later-effect",
+      "subject_reference_id": "ref-atomic-settlement-event",
+      "operator": "reference:follows",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-atomic-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-evaluation-input-carrier"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-atomic-settlement-verification-falsifier",
+      "subject_reference_id": "ref-final-carrier-set",
+      "operator": "reference:not_member_of",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-atomic-partial-condition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-allowed-settlement-states"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-proposal-uses-existing-carrier-patch-owner",
+      "subject_reference_id": "ref-proof-graph-proposal",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-carrier-patch-owner"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-continuation-uses-existing-reason-vocabulary",
+      "subject_reference_id": "ref-proof-graph-continuation",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-reason-vocabulary"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-proposal-uses-existing-carrier-patch-owner",
+      "subject_reference_id": "ref-violation-014",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-proposal-uses-existing-carrier-patch-owner",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-existing-carrier-patch-owner"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-continuation-uses-existing-reason-vocabulary",
+      "subject_reference_id": "ref-violation-015",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-continuation-uses-existing-reason-vocabulary",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-authoring-reason-vocabulary"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-canonical-generation-publication",
+      "subject_reference_id": "ref-carrier-set-transaction",
+      "operator": "reference:creates",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-generation-manifest"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-canonical-generation-publication",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-generation-manifest"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-canonical-generation-publication",
+      "subject_reference_id": "ref-violation-016",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-canonical-generation-read-resolution",
+      "subject_reference_id": "ref-wk2024-state",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-generation-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-canonical-generation-read-resolution",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-canonical-generation-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-canonical-generation-read-resolution",
+      "subject_reference_id": "ref-violation-017",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-prospective-absence-lease",
+      "subject_reference_id": "ref-canonical-source-lease",
+      "operator": "reference:accepts",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-expected-absence-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-prospective-absence-lease",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-expected-absence-set"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-prospective-absence-lease",
+      "subject_reference_id": "ref-violation-018",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-owner-local-restart-recovery",
+      "subject_reference_id": "ref-carrier-set-transaction",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-owner-local-recovery"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-owner-local-restart-recovery",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-owner-local-recovery"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-owner-local-restart-recovery",
+      "subject_reference_id": "ref-violation-019",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-cross-carrier-existing-normalization",
+      "subject_reference_id": "ref-proof-graph-proposal",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-equality-normalizer"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-binding-compatibility-owner"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-cross-carrier-existing-normalization",
+      "subject_reference_id": "ref-wk2092-design",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-equality-normalizer"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-cross-carrier-existing-normalization",
+      "subject_reference_id": "ref-violation-020",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-test-locus-targets-implementation",
+      "subject_reference_id": "ref-readiness-test-locus",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-implementation-locus"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-code-value-exact",
+      "subject_reference_id": "ref-readiness-warning-code-field",
+      "operator": "reference:has_value",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-code-value"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-severity-value-exact",
+      "subject_reference_id": "ref-readiness-warning-severity-field",
+      "operator": "reference:has_value",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-severity-value"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-message-template-exact",
+      "subject_reference_id": "ref-readiness-warning-message-field",
+      "operator": "reference:has_value",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-message-template"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-payload-schema-exact",
+      "subject_reference_id": "ref-readiness-warning-payload-field",
+      "operator": "reference:conforms_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-payload-schema"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-shape-exact",
+      "subject_reference_id": "ref-readiness-warning-shape-population",
+      "operator": "reference:equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-required-warning-shape-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-shape-includes-required-fields",
+      "subject_reference_id": "ref-readiness-warning-shape-population",
+      "operator": "reference:includes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-code-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-severity-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-message-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-payload-field"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-shape-verification",
+      "subject_reference_id": "ref-readiness-test-locus",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-signal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-signal-carries-exact-values",
+      "subject_reference_id": "ref-readiness-warning-signal",
+      "operator": "reference:has_value",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-code-value"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-severity-value"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-message-template"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-payload-schema"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-signal-contains-shape",
+      "subject_reference_id": "ref-readiness-warning-signal",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-shape-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-shape-falsifier",
+      "subject_reference_id": "ref-readiness-warning-shape-population",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-readiness-warning-shape-mismatch-condition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-required-warning-shape-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-requirement-population-definition",
+      "subject_reference_id": "ref-readiness-requirement-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-001"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-002"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-003"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-004"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-005"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-006"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-007"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-008"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-009"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-010"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-011"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-012"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-013"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-014"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-015"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-016"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-017"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-018"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-019"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-020"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-021"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-022"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-023"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-024"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-025"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-026"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-027"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-028"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-029"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-030"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-031"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-032"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-033"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-034"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-035"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-036"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-037"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-038"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-039"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-040"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-041"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-validation-population-definition",
+      "subject_reference_id": "ref-readiness-validation-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-001"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-002"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-003"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-004"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-005"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-006"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-007"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-008"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-009"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-010"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-011"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-012"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-013"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-014"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-015"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-016"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-017"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-018"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-019"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-020"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-021"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-022"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-023"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-024"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-025"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-026"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-027"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-028"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-029"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-030"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-031"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-032"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-033"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-034"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-035"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-036"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-037"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-038"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-039"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-040"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-atomic-obligation-041"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-required-warning-shape-population-definition",
+      "subject_reference_id": "ref-readiness-required-warning-shape-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-code-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-severity-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-message-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-payload-field"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-shape-population-definition",
+      "subject_reference_id": "ref-readiness-warning-shape-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-code-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-severity-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-message-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-readiness-warning-payload-field"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-requirement-population-definition-count",
+      "subject_reference_id": "ref-readiness-requirement-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 41
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-validation-population-definition-count",
+      "subject_reference_id": "ref-readiness-validation-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 41
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-required-warning-shape-population-definition-count",
+      "subject_reference_id": "ref-readiness-required-warning-shape-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-readiness-warning-shape-population-definition-count",
+      "subject_reference_id": "ref-readiness-warning-shape-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 4
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-continuation-creates-carrier-set",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-continuation-creates-carrier-set"
+    },
+    {
+      "claim_id": "claim-verification-continuation-creates-carrier-set",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-continuation-creates-carrier-set",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-continuation-creates-carrier-set"
+    },
+    {
+      "claim_id": "claim-proposal-targets-selected-pack",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-proposal-targets-selected-pack"
+    },
+    {
+      "claim_id": "claim-verification-proposal-targets-selected-pack",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-proposal-targets-selected-pack",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-proposal-targets-selected-pack"
+    },
+    {
+      "claim_id": "claim-coordinator-authoritative-for-semantics",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-coordinator-authoritative-for-semantics"
+    },
+    {
+      "claim_id": "claim-verification-coordinator-authoritative-for-semantics",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-coordinator-authoritative-for-semantics",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-coordinator-authoritative-for-semantics"
+    },
+    {
+      "claim_id": "claim-continuation-uses-existing-skeleton",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-continuation-uses-existing-skeleton"
+    },
+    {
+      "claim_id": "claim-verification-continuation-uses-existing-skeleton",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-continuation-uses-existing-skeleton",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-continuation-uses-existing-skeleton"
+    },
+    {
+      "claim_id": "claim-continuation-uses-existing-state",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-continuation-uses-existing-state"
+    },
+    {
+      "claim_id": "claim-verification-continuation-uses-existing-state",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-continuation-uses-existing-state",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-continuation-uses-existing-state"
+    },
+    {
+      "claim_id": "claim-continuation-uses-existing-bundle",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-continuation-uses-existing-bundle"
+    },
+    {
+      "claim_id": "claim-verification-continuation-uses-existing-bundle",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-continuation-uses-existing-bundle",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-continuation-uses-existing-bundle"
+    },
+    {
+      "claim_id": "claim-proposal-operation-bound",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-proposal-operation-bound"
+    },
+    {
+      "claim_id": "claim-verification-proposal-operation-bound",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-proposal-operation-bound",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-proposal-operation-bound"
+    },
+    {
+      "claim_id": "claim-request-byte-bound",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-request-byte-bound"
+    },
+    {
+      "claim_id": "claim-verification-request-byte-bound",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-request-byte-bound",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-request-byte-bound"
+    },
+    {
+      "claim_id": "claim-unresolved-semantics-blocks-continuation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-unresolved-semantics-blocks-continuation"
+    },
+    {
+      "claim_id": "claim-verification-unresolved-semantics-blocks-continuation",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-unresolved-semantics-blocks-continuation",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-unresolved-semantics-blocks-continuation"
+    },
+    {
+      "claim_id": "claim-transaction-uses-lock",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-transaction-uses-lock"
+    },
+    {
+      "claim_id": "claim-verification-transaction-uses-lock",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-transaction-uses-lock",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-transaction-uses-lock"
+    },
+    {
+      "claim_id": "claim-transaction-preserves-pre-call",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-transaction-preserves-pre-call"
+    },
+    {
+      "claim_id": "claim-verification-transaction-preserves-pre-call",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-transaction-preserves-pre-call",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-transaction-preserves-pre-call"
+    },
+    {
+      "claim_id": "claim-transaction-omits-partial",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-transaction-omits-partial"
+    },
+    {
+      "claim_id": "claim-verification-transaction-omits-partial",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-transaction-omits-partial",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-transaction-omits-partial"
+    },
+    {
+      "claim_id": "claim-transaction-returns-final",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-transaction-returns-final"
+    },
+    {
+      "claim_id": "claim-verification-transaction-returns-final",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-transaction-returns-final",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-transaction-returns-final"
+    },
+    {
+      "claim_id": "claim-readiness-design-names-grounded-loci",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-design-names-grounded-loci"
+    },
+    {
+      "claim_id": "claim-readiness-implementation-locus-targets-requirements",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-implementation-locus-targets-requirements"
+    },
+    {
+      "claim_id": "claim-readiness-test-locus-covers-validation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-test-locus-covers-validation"
+    },
+    {
+      "claim_id": "claim-readiness-validation-covers-all-requirements",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-validation-covers-all-requirements"
+    },
+    {
+      "claim_id": "claim-readiness-placeholder-population-empty",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-placeholder-population-empty"
+    },
+    {
+      "claim_id": "claim-atomic-allowed-settlement-states-closed",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-allowed-settlement-states-closed"
+    },
+    {
+      "claim_id": "claim-atomic-atomic-settlement-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-atomic-settlement-verification",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-atomic-settlement-verification-falsifier"
+    },
+    {
+      "claim_id": "claim-atomic-attempt-performs-compound-operation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-attempt-performs-compound-operation"
+    },
+    {
+      "claim_id": "claim-atomic-compound-operation-writes-constituent-effects",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-compound-operation-writes-constituent-effects"
+    },
+    {
+      "claim_id": "claim-atomic-constituent-effect-order",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-constituent-effect-order"
+    },
+    {
+      "claim_id": "claim-atomic-constituent-effect-population-cardinality",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-constituent-effect-population-cardinality"
+    },
+    {
+      "claim_id": "claim-atomic-constituent-effect-population-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-constituent-effect-population-members"
+    },
+    {
+      "claim_id": "claim-atomic-constituent-effect-population-plurality",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-constituent-effect-population-plurality"
+    },
+    {
+      "claim_id": "claim-atomic-earlier-effect-observation-read",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-earlier-effect-observation-read"
+    },
+    {
+      "claim_id": "claim-atomic-earlier-effect-observation-record",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-earlier-effect-observation-record"
+    },
+    {
+      "claim_id": "claim-atomic-earlier-effect-population-membership",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-earlier-effect-population-membership"
+    },
+    {
+      "claim_id": "claim-atomic-earlier-effect-settled-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-earlier-effect-settled-state"
+    },
+    {
+      "claim_id": "claim-atomic-failure-boundary-follows-earlier-effect",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-failure-boundary-follows-earlier-effect"
+    },
+    {
+      "claim_id": "claim-atomic-failure-boundary-precedes-later-effect",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-failure-boundary-precedes-later-effect"
+    },
+    {
+      "claim_id": "claim-atomic-failure-injected-at-boundary",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-failure-injected-at-boundary"
+    },
+    {
+      "claim_id": "claim-atomic-fully-committed-state-allowed",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-fully-committed-state-allowed"
+    },
+    {
+      "claim_id": "claim-atomic-fully-uncommitted-state-allowed",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-fully-uncommitted-state-allowed"
+    },
+    {
+      "claim_id": "claim-atomic-later-effect-observation-read",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-later-effect-observation-read"
+    },
+    {
+      "claim_id": "claim-atomic-later-effect-observation-record",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-later-effect-observation-record"
+    },
+    {
+      "claim_id": "claim-atomic-later-effect-population-membership",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-later-effect-population-membership"
+    },
+    {
+      "claim_id": "claim-atomic-later-effect-settled-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-later-effect-settled-state"
+    },
+    {
+      "claim_id": "claim-atomic-partial-commit-condition-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-partial-commit-condition-state"
+    },
+    {
+      "claim_id": "claim-atomic-partial-state-not-allowed",
+      "kind": "evidence",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-atomic-partial-state-not-allowed"
+    },
+    {
+      "claim_id": "claim-atomic-population-settled-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-population-settled-state"
+    },
+    {
+      "claim_id": "claim-atomic-settled-outcome-is-fully-uncommitted",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-settled-outcome-is-fully-uncommitted"
+    },
+    {
+      "claim_id": "claim-atomic-settled-outcome-within-allowed-states",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-settled-outcome-within-allowed-states"
+    },
+    {
+      "claim_id": "claim-atomic-settled-result-composition",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-settled-result-composition"
+    },
+    {
+      "claim_id": "claim-atomic-settlement-follows-injected-failure",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-settlement-follows-injected-failure"
+    },
+    {
+      "claim_id": "claim-atomic-settlement-follows-later-effect",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-settlement-follows-later-effect"
+    },
+    {
+      "claim_id": "claim-proposal-uses-existing-carrier-patch-owner",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-proposal-uses-existing-carrier-patch-owner"
+    },
+    {
+      "claim_id": "claim-verification-proposal-uses-existing-carrier-patch-owner",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-proposal-uses-existing-carrier-patch-owner",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-proposal-uses-existing-carrier-patch-owner"
+    },
+    {
+      "claim_id": "claim-continuation-uses-existing-reason-vocabulary",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-continuation-uses-existing-reason-vocabulary"
+    },
+    {
+      "claim_id": "claim-verification-continuation-uses-existing-reason-vocabulary",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-continuation-uses-existing-reason-vocabulary",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-continuation-uses-existing-reason-vocabulary"
+    },
+    {
+      "claim_id": "claim-canonical-generation-publication",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-canonical-generation-publication"
+    },
+    {
+      "claim_id": "claim-verification-canonical-generation-publication",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-canonical-generation-publication",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-canonical-generation-publication"
+    },
+    {
+      "claim_id": "claim-canonical-generation-read-resolution",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-canonical-generation-read-resolution"
+    },
+    {
+      "claim_id": "claim-verification-canonical-generation-read-resolution",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-canonical-generation-read-resolution",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-canonical-generation-read-resolution"
+    },
+    {
+      "claim_id": "claim-prospective-absence-lease",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-prospective-absence-lease"
+    },
+    {
+      "claim_id": "claim-verification-prospective-absence-lease",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-prospective-absence-lease",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-prospective-absence-lease"
+    },
+    {
+      "claim_id": "claim-owner-local-restart-recovery",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-owner-local-restart-recovery"
+    },
+    {
+      "claim_id": "claim-verification-owner-local-restart-recovery",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-owner-local-restart-recovery",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-owner-local-restart-recovery"
+    },
+    {
+      "claim_id": "claim-cross-carrier-existing-normalization",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-cross-carrier-existing-normalization"
+    },
+    {
+      "claim_id": "claim-verification-cross-carrier-existing-normalization",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-cross-carrier-existing-normalization",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-falsifier-cross-carrier-existing-normalization"
+    },
+    {
+      "claim_id": "claim-readiness-test-locus-targets-implementation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-test-locus-targets-implementation"
+    },
+    {
+      "claim_id": "claim-readiness-warning-code-value-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-code-value-exact"
+    },
+    {
+      "claim_id": "claim-readiness-warning-message-template-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-message-template-exact"
+    },
+    {
+      "claim_id": "claim-readiness-warning-payload-schema-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-payload-schema-exact"
+    },
+    {
+      "claim_id": "claim-readiness-warning-severity-value-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-severity-value-exact"
+    },
+    {
+      "claim_id": "claim-readiness-warning-shape-exact",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-shape-exact"
+    },
+    {
+      "claim_id": "claim-readiness-warning-shape-includes-required-fields",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-shape-includes-required-fields"
+    },
+    {
+      "claim_id": "claim-readiness-warning-signal-carries-exact-values",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-signal-carries-exact-values"
+    },
+    {
+      "claim_id": "claim-readiness-warning-signal-contains-shape",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-signal-contains-shape"
+    },
+    {
+      "claim_id": "claim-readiness-warning-shape-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-shape-verification",
+      "verification_method": "analysis",
+      "falsifying_proposition_id": "prop-readiness-warning-shape-falsifier"
+    },
+    {
+      "claim_id": "claim-readiness-requirement-population-definition",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-requirement-population-definition"
+    },
+    {
+      "claim_id": "claim-readiness-validation-population-definition",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-validation-population-definition"
+    },
+    {
+      "claim_id": "claim-readiness-required-warning-shape-population-definition",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-required-warning-shape-population-definition"
+    },
+    {
+      "claim_id": "claim-readiness-warning-shape-population-definition",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-shape-population-definition"
+    },
+    {
+      "claim_id": "claim-readiness-requirement-population-definition-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-requirement-population-definition-count"
+    },
+    {
+      "claim_id": "claim-readiness-validation-population-definition-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-validation-population-definition-count"
+    },
+    {
+      "claim_id": "claim-readiness-required-warning-shape-population-definition-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-required-warning-shape-population-definition-count"
+    },
+    {
+      "claim_id": "claim-readiness-warning-shape-population-definition-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-readiness-warning-shape-population-definition-count"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verification-continuation-creates-carrier-set",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-continuation-creates-carrier-set",
+      "target_claim_id": "claim-continuation-creates-carrier-set"
+    },
+    {
+      "relation_id": "rel-verification-proposal-targets-selected-pack",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-proposal-targets-selected-pack",
+      "target_claim_id": "claim-proposal-targets-selected-pack"
+    },
+    {
+      "relation_id": "rel-verification-coordinator-authoritative-for-semantics",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-coordinator-authoritative-for-semantics",
+      "target_claim_id": "claim-coordinator-authoritative-for-semantics"
+    },
+    {
+      "relation_id": "rel-verification-continuation-uses-existing-skeleton",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-continuation-uses-existing-skeleton",
+      "target_claim_id": "claim-continuation-uses-existing-skeleton"
+    },
+    {
+      "relation_id": "rel-verification-continuation-uses-existing-state",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-continuation-uses-existing-state",
+      "target_claim_id": "claim-continuation-uses-existing-state"
+    },
+    {
+      "relation_id": "rel-verification-continuation-uses-existing-bundle",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-continuation-uses-existing-bundle",
+      "target_claim_id": "claim-continuation-uses-existing-bundle"
+    },
+    {
+      "relation_id": "rel-verification-proposal-operation-bound",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-proposal-operation-bound",
+      "target_claim_id": "claim-proposal-operation-bound"
+    },
+    {
+      "relation_id": "rel-verification-request-byte-bound",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-request-byte-bound",
+      "target_claim_id": "claim-request-byte-bound"
+    },
+    {
+      "relation_id": "rel-verification-unresolved-semantics-blocks-continuation",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-unresolved-semantics-blocks-continuation",
+      "target_claim_id": "claim-unresolved-semantics-blocks-continuation"
+    },
+    {
+      "relation_id": "rel-verification-transaction-uses-lock",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-transaction-uses-lock",
+      "target_claim_id": "claim-transaction-uses-lock"
+    },
+    {
+      "relation_id": "rel-verification-transaction-preserves-pre-call",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-transaction-preserves-pre-call",
+      "target_claim_id": "claim-transaction-preserves-pre-call"
+    },
+    {
+      "relation_id": "rel-verification-transaction-omits-partial",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-transaction-omits-partial",
+      "target_claim_id": "claim-transaction-omits-partial"
+    },
+    {
+      "relation_id": "rel-verification-transaction-returns-final",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-transaction-returns-final",
+      "target_claim_id": "claim-transaction-returns-final"
+    },
+    {
+      "relation_id": "rel-atomic-verification-target-settled-outcome",
+      "role": "verifies",
+      "source_claim_id": "claim-atomic-atomic-settlement-verification",
+      "target_claim_id": "claim-atomic-settled-outcome-within-allowed-states"
+    },
+    {
+      "relation_id": "rel-verification-proposal-uses-existing-carrier-patch-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-proposal-uses-existing-carrier-patch-owner",
+      "target_claim_id": "claim-proposal-uses-existing-carrier-patch-owner"
+    },
+    {
+      "relation_id": "rel-verification-continuation-uses-existing-reason-vocabulary",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-continuation-uses-existing-reason-vocabulary",
+      "target_claim_id": "claim-continuation-uses-existing-reason-vocabulary"
+    },
+    {
+      "relation_id": "rel-verification-canonical-generation-publication",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-canonical-generation-publication",
+      "target_claim_id": "claim-canonical-generation-publication"
+    },
+    {
+      "relation_id": "rel-verification-canonical-generation-read-resolution",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-canonical-generation-read-resolution",
+      "target_claim_id": "claim-canonical-generation-read-resolution"
+    },
+    {
+      "relation_id": "rel-verification-prospective-absence-lease",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-prospective-absence-lease",
+      "target_claim_id": "claim-prospective-absence-lease"
+    },
+    {
+      "relation_id": "rel-verification-owner-local-restart-recovery",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-owner-local-restart-recovery",
+      "target_claim_id": "claim-owner-local-restart-recovery"
+    },
+    {
+      "relation_id": "rel-verification-cross-carrier-existing-normalization",
+      "role": "verifies",
+      "source_claim_id": "claim-verification-cross-carrier-existing-normalization",
+      "target_claim_id": "claim-cross-carrier-existing-normalization"
+    },
+    {
+      "relation_id": "rel-readiness-verification-targets-warning-shape",
+      "role": "verifies",
+      "source_claim_id": "claim-readiness-warning-shape-verification",
+      "target_claim_id": "claim-readiness-warning-shape-exact"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-wk2092-operative-claims",
+      "collection_kind": "ordered_sequence",
+      "purpose": "design_obligations",
+      "member_claim_ids": [
+        "claim-continuation-creates-carrier-set",
+        "claim-proposal-targets-selected-pack",
+        "claim-coordinator-authoritative-for-semantics",
+        "claim-continuation-uses-existing-skeleton",
+        "claim-continuation-uses-existing-state",
+        "claim-continuation-uses-existing-bundle",
+        "claim-proposal-operation-bound",
+        "claim-request-byte-bound",
+        "claim-unresolved-semantics-blocks-continuation",
+        "claim-transaction-uses-lock",
+        "claim-transaction-preserves-pre-call",
+        "claim-transaction-omits-partial",
+        "claim-transaction-returns-final",
+        "claim-readiness-design-names-grounded-loci",
+        "claim-readiness-implementation-locus-targets-requirements",
+        "claim-readiness-test-locus-covers-validation",
+        "claim-readiness-validation-covers-all-requirements",
+        "claim-readiness-placeholder-population-empty",
+        "claim-readiness-test-locus-targets-implementation",
+        "claim-readiness-warning-code-value-exact",
+        "claim-readiness-warning-message-template-exact",
+        "claim-readiness-warning-payload-schema-exact",
+        "claim-readiness-warning-severity-value-exact",
+        "claim-readiness-warning-shape-exact",
+        "claim-readiness-warning-shape-includes-required-fields",
+        "claim-readiness-warning-signal-carries-exact-values",
+        "claim-readiness-warning-signal-contains-shape",
+        "claim-readiness-warning-shape-verification",
+        "claim-readiness-requirement-population-definition",
+        "claim-readiness-validation-population-definition",
+        "claim-readiness-required-warning-shape-population-definition",
+        "claim-readiness-warning-shape-population-definition",
+        "claim-readiness-requirement-population-definition-count",
+        "claim-readiness-validation-population-definition-count",
+        "claim-readiness-required-warning-shape-population-definition-count",
+        "claim-readiness-warning-shape-population-definition-count"
+      ]
+    },
+    {
+      "collection_id": "set-atomic-proof-population",
+      "collection_kind": "closed_set",
+      "purpose": "profile_proof_population",
+      "member_claim_ids": [
+        "claim-atomic-attempt-performs-compound-operation",
+        "claim-atomic-constituent-effect-order",
+        "claim-atomic-failure-boundary-follows-earlier-effect",
+        "claim-atomic-failure-boundary-precedes-later-effect",
+        "claim-atomic-failure-injected-at-boundary",
+        "claim-atomic-settlement-follows-injected-failure",
+        "claim-atomic-settlement-follows-later-effect",
+        "claim-atomic-earlier-effect-settled-state",
+        "claim-atomic-later-effect-settled-state",
+        "claim-atomic-population-settled-state",
+        "claim-atomic-settled-result-composition",
+        "claim-atomic-earlier-effect-observation-record",
+        "claim-atomic-later-effect-observation-record",
+        "claim-atomic-earlier-effect-observation-read",
+        "claim-atomic-later-effect-observation-read"
+      ]
+    },
+    {
+      "collection_id": "set-atomic-proof-sequence-earlier",
+      "collection_kind": "ordered_sequence",
+      "purpose": "profile_proof_sequence_earlier_effect",
+      "member_claim_ids": [
+        "claim-atomic-attempt-performs-compound-operation",
+        "claim-atomic-constituent-effect-order",
+        "claim-atomic-failure-boundary-follows-earlier-effect",
+        "claim-atomic-failure-injected-at-boundary",
+        "claim-atomic-settlement-follows-injected-failure",
+        "claim-atomic-settlement-follows-later-effect",
+        "claim-atomic-earlier-effect-settled-state",
+        "claim-atomic-earlier-effect-observation-record",
+        "claim-atomic-earlier-effect-observation-read"
+      ]
+    },
+    {
+      "collection_id": "set-atomic-proof-sequence-later",
+      "collection_kind": "ordered_sequence",
+      "purpose": "profile_proof_sequence_later_effect",
+      "member_claim_ids": [
+        "claim-atomic-attempt-performs-compound-operation",
+        "claim-atomic-constituent-effect-order",
+        "claim-atomic-failure-boundary-precedes-later-effect",
+        "claim-atomic-failure-injected-at-boundary",
+        "claim-atomic-settlement-follows-injected-failure",
+        "claim-atomic-settlement-follows-later-effect",
+        "claim-atomic-later-effect-settled-state",
+        "claim-atomic-later-effect-observation-record",
+        "claim-atomic-later-effect-observation-read"
+      ]
+    }
+  ],
+  "residue": [],
+  "annotations": [
+    {
+      "annotation_id": "ann-obligation-001",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 1: Purpose and closure."
+    },
+    {
+      "annotation_id": "ann-obligation-002",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 2: Ownership and non-duplication."
+    },
+    {
+      "annotation_id": "ann-obligation-003",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 3: Closed proposal."
+    },
+    {
+      "annotation_id": "ann-obligation-004",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 4: No semantic invention."
+    },
+    {
+      "annotation_id": "ann-obligation-005",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 5: Proposal completeness."
+    },
+    {
+      "annotation_id": "ann-obligation-006",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 6: Deduplication and conflicts."
+    },
+    {
+      "annotation_id": "ann-obligation-007",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 7: Continuation binding."
+    },
+    {
+      "annotation_id": "ann-obligation-008",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 8: Bounds."
+    },
+    {
+      "annotation_id": "ann-obligation-009",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 9: Multi-source CAS."
+    },
+    {
+      "annotation_id": "ann-obligation-010",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 10: Atomic prospective persistence."
+    },
+    {
+      "annotation_id": "ann-obligation-011",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 11: Task-directed result."
+    },
+    {
+      "annotation_id": "ann-obligation-012",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 12: Failure vocabulary."
+    },
+    {
+      "annotation_id": "ann-obligation-013",
+      "kind": "provenance",
+      "text": "WK-2092 acceptance criterion 13: Implementation handoff."
+    },
+    {
+      "annotation_id": "ann-dry-001",
+      "kind": "rationale",
+      "text": "DRY-001 accepted: writeControlledContractCarrierSet is the single publication, locking, staging, cleanup, recovery, and receipt owner; WK-2092 generalizes its admitted carrier population and introduces no second transaction."
+    },
+    {
+      "annotation_id": "ann-dry-002",
+      "kind": "rationale",
+      "text": "DRY-002 accepted: applyControlledContractCarrierPatch owns every per-carrier mutation and applyStableVerificationBundles owns test_execution graphs; WK-2092 adds only cross-carrier completeness and prospective-set composition."
+    },
+    {
+      "annotation_id": "ann-dry-003",
+      "kind": "rationale",
+      "text": "DRY-003 accepted: CONTROLLED_CONTRACT_AUTHORING_REASONS and its existing projector own stale, conflict, and replacement-call outcomes; WK-2092 adds only proposal-specific reasons that have no existing equivalent."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-001",
+      "kind": "rationale",
+      "text": "RT-001 KEEP after blueteam: canonical authoring reads must resolve the generation manifest published by writeControlledContractCarrierSet; no second transaction or general artifact-store redesign is allowed."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-002",
+      "kind": "rationale",
+      "text": "RT-002 KEEP after blueteam: writeControlledContractCarrierSet gains owner-local dead-owner lock quarantine and orphan staging reconciliation; live or unverifiable owners remain untouched."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-003",
+      "kind": "rationale",
+      "text": "RT-003 KEEP after blueteam: the pure applyControlledContractCarrierPatch primitive moves to controlled-contract and wiki-core imports/re-exports it, preserving one implementation and the accepted DRY-002 disposition."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-004",
+      "kind": "rationale",
+      "text": "RT-004 KEEP after blueteam: the existing canonical source lease is generalized over a server-derived prospective basename population so present and expected-absent carriers are locked and snapshotted together."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-005",
+      "kind": "rationale",
+      "text": "RT-005 KEEP after blueteam: operation and byte maxima use inclusive range:has_cardinality semantics rather than exact cardinality."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-006",
+      "kind": "rationale",
+      "text": "RT-006 NARROW after blueteam: bytes mean Buffer.byteLength(JSON.stringify of the fixed-key server-created proposal projection), utf8; canonical JSON and raw-wire preservation are excluded."
+    },
+    {
+      "annotation_id": "ann-redteam-rt-007",
+      "kind": "rationale",
+      "text": "RT-007 NARROW after blueteam: cross-carrier comparison binds stableSemanticKey plus validateSuppliedProofPackBindings compatibility semantics and adds only carrier provenance; no new identity model is introduced."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-001",
+      "kind": "provenance",
+      "text": "OBL-001: Bind one exact selected-pack authoring skeleton input. Mechanism=workspace_controlled_proof_authoring_skeleton; inputs=exact pack/version, intents, bindings; outputs=server-held continuation plus missing-role state; authority=package catalog and continuation identity; failure/effect boundary=cross-pack or unresolved input refuses; proof=implementation-readiness; fixture=complete-selection and wrong-pack fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-002",
+      "kind": "provenance",
+      "text": "OBL-002: Freeze a closed proposal identity over WK, focus, contract digest, pack, intents, and continuation. Mechanism=proof-graph-composition-v1.mjs proposal constructor; inputs=closed identity tuple; outputs=controlled-proof-graph-proposal.v1; authority=package schema; failure/effect boundary=unknown or mismatched identity refuses; proof=implementation-readiness; fixture=exact identity and cross-WK fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-003",
+      "kind": "provenance",
+      "text": "OBL-003: Represent carrier operations only with the existing carrier-patch target/op/id/value grammar. Mechanism=applyControlledContractCarrierPatch; inputs=ordered carrier operations; outputs=prospective carrier bytes or typed refusal; authority=controlled-contract package; failure/effect boundary=unsupported carrier or operation refuses; proof=implementation-readiness; fixture=supported and unsupported operation fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-004",
+      "kind": "provenance",
+      "text": "OBL-004: Route test_execution graphs only through the stable verification-bundle owner. Mechanism=applyStableVerificationBundles; inputs=test_execution entries; outputs=validated prospective graph or typed refusal; authority=controlled-contract package; failure/effect boundary=bundle conflict refuses; proof=implementation-readiness; fixture=inspection versus test_execution fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-005",
+      "kind": "provenance",
+      "text": "OBL-005: Refuse unknown proposal keys, unsupported carriers/operations, identity conflicts, and more than 64 operations. Mechanism=proof-graph-composition-v1.mjs closed schema; inputs=proposal object; outputs=typed refusal before effects; authority=controlled-contract package; failure/effect boundary=closed-schema or range violation; proof=implementation-readiness;refusal-before-effects; fixture=unknown-key and 65-operation fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-006",
+      "kind": "provenance",
+      "text": "OBL-006: Require caller-authored reference identities and type terms. Mechanism=proof-graph-composition-v1.mjs semantic completeness; inputs=reference selections; outputs=bound references; authority=coordinator input only; failure/effect boundary=missing or ambiguous JSON pointer; proof=implementation-readiness; fixture=missing-reference fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-007",
+      "kind": "provenance",
+      "text": "OBL-007: Require caller-authored population identities, membership, and applicability. Mechanism=proof-graph-composition-v1.mjs semantic completeness; inputs=population selections; outputs=bound populations; authority=coordinator input only; failure/effect boundary=missing or ambiguous JSON pointer; proof=implementation-readiness; fixture=missing-membership/applicability fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-008",
+      "kind": "provenance",
+      "text": "OBL-008: Require caller-authored proposition subjects, operators, contexts, and operands. Mechanism=proof-graph-composition-v1.mjs semantic completeness; inputs=proposition selections; outputs=bound propositions; authority=coordinator input only; failure/effect boundary=missing or ambiguous JSON pointer; proof=implementation-readiness; fixture=missing-operand fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-009",
+      "kind": "provenance",
+      "text": "OBL-009: Require caller-authored claim, verification, falsifier, relation, collection, residue, annotation, binding, intent, and pack choices. Mechanism=proof-graph-composition-v1.mjs semantic completeness; inputs=remaining graph selections; outputs=complete proposal; authority=coordinator input only; failure/effect boundary=exact unresolved JSON pointer; proof=implementation-readiness; fixture=missing-verification/relation/binding/intent fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-010",
+      "kind": "provenance",
+      "text": "OBL-010: Derive only immutable schema/version fields, basenames, carrier ordering, and digests. Mechanism=proof-graph-composition-v1.mjs derivation allowlist; inputs=complete semantic selection; outputs=closed derived envelope; authority=package-owned deterministic projection; failure/effect boundary=semantic invention is forbidden; proof=implementation-readiness;caller-input-authority-confinement; fixture=mutation removing semantic input."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-011",
+      "kind": "provenance",
+      "text": "OBL-011: Return exact unresolved semantic JSON pointers and persist nothing when choices are missing. Mechanism=proof-graph-composition-v1.mjs unresolved projection; inputs=incomplete selection; outputs=bounded pointer list and refusal; authority=package planner is pure; failure/effect boundary=no candidate or carrier mutation; proof=implementation-readiness;refusal-before-effects; fixture=each missing semantic class."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-012",
+      "kind": "provenance",
+      "text": "OBL-012: Require the exact selected pack skeleton to have no unresolved required roles. Mechanism=workspace_controlled_proof_authoring_skeleton plus planner completeness; inputs=skeleton role state; outputs=executable or unresolved proposal; authority=package pack profile; failure/effect boundary=missing role blocks publication; proof=implementation-readiness; fixture=complete and one-role-missing fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-013",
+      "kind": "provenance",
+      "text": "OBL-013: Admit every operation through its existing per-carrier owner. Mechanism=applyControlledContractCarrierPatch/applyStableVerificationBundles; inputs=composed operations; outputs=owner-admitted prospective carrier; authority=existing package owners; failure/effect boundary=owner refusal preserved; proof=implementation-readiness;behavioral-preservation; fixture=owner mutation fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-014",
+      "kind": "provenance",
+      "text": "OBL-014: Require every referenced identity to exist in the final prospective carrier set. Mechanism=proof-graph-composition-v1.mjs final-target check; inputs=prospective carriers; outputs=complete reference closure; authority=package planner; failure/effect boundary=missing target refuses; proof=implementation-readiness; fixture=missing-final-target fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-015",
+      "kind": "provenance",
+      "text": "OBL-015: Require exact population members to be distinct and present. Mechanism=proof-graph-composition-v1.mjs population completeness; inputs=prospective populations; outputs=closed population set; authority=package planner plus existing normalizer; failure/effect boundary=duplicate/missing member refuses; proof=implementation-readiness; fixture=duplicate and absent-member fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-016",
+      "kind": "provenance",
+      "text": "OBL-016: Require every selected intent to be admitted by the exact selected pack. Mechanism=proof-pack selection/admission owner; inputs=pack/version and intents; outputs=admitted selection; authority=controlled-contract package catalog; failure/effect boundary=unsupported intent refuses; proof=implementation-readiness; fixture=admitted and foreign-intent fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-017",
+      "kind": "provenance",
+      "text": "OBL-017: Co-validate prospective contract, evaluation input, and proof-plan request before publication. Mechanism=proof-graph-composition-v1.mjs composition validator; inputs=three prospective carriers; outputs=validated carrier set; authority=controlled-contract package; failure/effect boundary=any invalid carrier refuses; proof=implementation-readiness; fixture=one-invalid-carrier fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-018",
+      "kind": "provenance",
+      "text": "OBL-018: Preserve same-carrier duplicate, conflict, ordering, dangling-reference, canonicalization, and bundle semantics. Mechanism=applyControlledContractCarrierPatch/applyStableVerificationBundles; inputs=same-carrier operations; outputs=unchanged stable-v1 results; authority=existing owners; failure/effect boundary=existing exact errors preserved; proof=implementation-readiness;behavioral-preservation; fixture=legacy regression corpus."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-019",
+      "kind": "provenance",
+      "text": "OBL-019: Use stableSemanticKey and validateSuppliedProofPackBindings only for cross-carrier equality and compatibility. Mechanism=stableSemanticKey/validateSuppliedProofPackBindings; inputs=cross-carrier identities; outputs=collapsed compatible binding or typed conflict; authority=existing package owners; failure/effect boundary=type/kind/value mismatch refuses; proof=implementation-readiness; fixture=NFC equal and mismatch fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-020",
+      "kind": "provenance",
+      "text": "OBL-020: Treat exact replay as no-op only when every owner no-ops and manifest bytes still match. Mechanism=planner no-op aggregation plus canonical manifest; inputs=exact repeated proposal; outputs=no-op receipt; authority=package and core owners jointly; failure/effect boundary=any byte/digest drift refuses; proof=implementation-readiness;idempotent-effect-nonduplication; fixture=exact replay and drift fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-021",
+      "kind": "provenance",
+      "text": "OBL-021: Bind continuation to exact identities, bindings, package version, role state, and proposal digest. Mechanism=controlled-contract-authoring-state continuation; inputs=server-held authoring state; outputs=content-addressed continuation; authority=wiki-core state owner; failure/effect boundary=stale/tampered/cross-identity refuses; proof=implementation-readiness;fenced-handoff; fixture=single-field tamper fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-022",
+      "kind": "provenance",
+      "text": "OBL-022: Permit continuation reuse only at proof_graph_required for its exact purpose. Mechanism=controlled-contract-authoring-state; inputs=continuation and stage; outputs=one allowed next call; authority=wiki-core state owner; failure/effect boundary=wrong-stage/reuse refuses; proof=implementation-readiness;caller-input-authority-confinement; fixture=stage-reuse fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-023",
+      "kind": "provenance",
+      "text": "OBL-023: Reuse CONTROLLED_CONTRACT_AUTHORING_REASONS/projector and add only three named proposal reasons. Mechanism=controlled-contract-authoring-state reason vocabulary; inputs=typed failures; outputs=existing compact refusal envelope; authority=wiki-core vocabulary owner; failure/effect boundary=unnamed fallback forbidden; proof=implementation-readiness;result-shape-conformance; fixture=each existing and new reason fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-024",
+      "kind": "provenance",
+      "text": "OBL-024: Enforce inclusive carrier_operations length 0 through 64. Mechanism=proof-graph-composition-v1.mjs range check; inputs=closed operation array; outputs=accepted count or bound refusal; authority=package planner; failure/effect boundary=65 refuses before candidate construction; proof=implementation-readiness;refusal-before-effects; fixture=0,1,64,65 fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-025",
+      "kind": "provenance",
+      "text": "OBL-025: Enforce inclusive UTF-8 JSON byte count 0 through 1048576 over the fixed-key server projection. Mechanism=proof-graph-composition-v1.mjs byte projection; inputs=server-created fixed-key projection; outputs=accepted count or bound refusal; authority=package planner; failure/effect boundary=1048577 refuses before candidate construction; proof=implementation-readiness;refusal-before-effects; fixture=below,exact,N+1 byte fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-026",
+      "kind": "provenance",
+      "text": "OBL-026: On either bound overflow, return controlled_contract_proof_graph_bound_exceeded before effects with no paging/narrowing. Mechanism=proof-graph-composition-v1.mjs refusal branch; inputs=oversize proposal; outputs=typed bounded refusal; authority=package planner; failure/effect boundary=no partial candidate or mutation; proof=implementation-readiness;refusal-before-effects; fixture=operation and byte overflow fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-027",
+      "kind": "provenance",
+      "text": "OBL-027: Derive the complete prospective canonical basename set server-side and reject caller paths/basenames. Mechanism=withCanonicalControlledContractSourceLease generalization; inputs=WK/focus/pack/intents/catalog/proposal; outputs=sorted canonical basenames; authority=wiki-core resolver authority; failure/effect boundary=caller path/root/env is forbidden; proof=implementation-readiness;caller-input-authority-confinement; fixture=injected path/root/env fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-028",
+      "kind": "provenance",
+      "text": "OBL-028: Under one ordered lease, snapshot every prospective basename as present-with-digest or absent and re-resolve all bound sources. Mechanism=withCanonicalControlledContractSourceLease; inputs=server-derived basename set; outputs=leased source snapshot; authority=wiki-core lease owner; failure/effect boundary=source mismatch refuses; proof=implementation-readiness;fenced-handoff; fixture=present/absent and each stale-source fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-029",
+      "kind": "provenance",
+      "text": "OBL-029: Refuse any leased-source mismatch before candidate construction through the existing projector. Mechanism=canonical source lease plus refusal projector; inputs=post-proposal source state; outputs=exact stale/conflict refusal; authority=wiki-core owners; failure/effect boundary=no mutation; proof=implementation-readiness;refusal-before-effects; fixture=each source changes independently."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-030",
+      "kind": "provenance",
+      "text": "OBL-030: Publish a complete verified private generation by atomically switching one canonical generation manifest. Mechanism=writeControlledContractCarrierSet canonical_authoring profile; inputs=validated carrier population; outputs=manifest-selected generation receipt; authority=wiki-core publisher; failure/effect boundary=write/verify/manifest failure never exposes partial; proof=implementation-readiness;atomicity.failure-boundary; fixture=failure injection at every boundary."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-031",
+      "kind": "provenance",
+      "text": "OBL-031: Resolve all canonical authoring reads through one manifest and never mix root and generation members. Mechanism=canonical generation resolver; inputs=manifest-selected generation; outputs=single-generation carrier set; authority=wiki-core resolver; failure/effect boundary=missing/inconsistent member refuses; proof=implementation-readiness;visibility-after-durable-settlement; fixture=mixed-root/generation mutation fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-032",
+      "kind": "provenance",
+      "text": "OBL-032: Use legacy root carriers only as the locked seed for the first generation. Mechanism=canonical generation resolver; inputs=no-manifest root snapshot; outputs=generation-one seed; authority=wiki-core resolver/lease; failure/effect boundary=post-manifest root use forbidden; proof=implementation-readiness;behavioral-preservation; fixture=first-generation and post-manifest fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-033",
+      "kind": "provenance",
+      "text": "OBL-033: Route later single-carrier create/patch and proof-plan build through complete next-generation publication. Mechanism=writeControlledContractCarrierSet canonical_authoring profile; inputs=single-carrier logical edit; outputs=complete next generation; authority=wiki-core publisher; failure/effect boundary=direct root write forbidden; proof=implementation-readiness;atomicity.failure-boundary; fixture=each legacy entrypoint fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-034",
+      "kind": "provenance",
+      "text": "OBL-034: Return success/no-op only after manifest re-resolution and authoring-state re-read match the plan. Mechanism=canonical publisher plus authoring-state resolver; inputs=planned generation; outputs=verified receipt and next-state call; authority=wiki-core publisher/state owners; failure/effect boundary=post-publish mismatch refuses; proof=implementation-readiness;visibility-after-durable-settlement; fixture=success, no-op, and mismatch fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-035",
+      "kind": "provenance",
+      "text": "OBL-035: Expose proof_graph_required with exact pack, missing identities, unresolved pointers, and one next call; never claim proof or dispatch readiness. Mechanism=workspace_controlled_contract_authoring_state; inputs=current carriers and selection; outputs=compact task-directed state; authority=wiki-core state owner; failure/effect boundary=complete carriers/candidate populations excluded; proof=implementation-readiness;result-shape-conformance; fixture=required-stage compactness fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-036",
+      "kind": "provenance",
+      "text": "OBL-036: Recover only a proven-dead exact lock owner via atomic quarantine, fresh exclusive acquisition, and dead-owner artifact reconciliation. Mechanism=writeControlledContractCarrierSet owner-local recovery; inputs=lock token plus process/start identity; outputs=new exclusive owner or busy; authority=wiki-core lock owner; failure/effect boundary=unproven death cannot reclaim; proof=implementation-readiness;single-winner-effect; fixture=process-death/restart fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-037",
+      "kind": "provenance",
+      "text": "OBL-037: Leave live or unverifiable lock owners and their artifacts untouched. Mechanism=writeControlledContractCarrierSet contention path; inputs=current lock identity; outputs=busy refusal; authority=wiki-core lock owner; failure/effect boundary=no expiry guess or cleanup; proof=implementation-readiness;forbidden-operation-noninvocation; fixture=live and unverifiable owner fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-038",
+      "kind": "provenance",
+      "text": "OBL-038: Clean ordinary failures in-invocation and expose only complete prior or planned generations; never canonicalize partial state. Mechanism=writeControlledContractCarrierSet failure paths; inputs=failure at each write/verify/manifest boundary; outputs=cleanup or recoverable dead-owner state; authority=wiki-core publisher; failure/effect boundary=partial manifest/generation forbidden; proof=implementation-readiness;atomicity.failure-boundary; fixture=ordinary failure and kill/restart fixtures."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-039",
+      "kind": "provenance",
+      "text": "OBL-039: Assign package extraction, proposal planning, bounds, joins, and package tests only to WK-2098. Mechanism=WK-2098 contract/write scope; inputs=WK-2092 package obligations; outputs=independent package delivery; authority=WK-2098 worker; failure/effect boundary=wiki-core/MCP edits out of scope; proof=implementation-readiness; fixture=scope-confinement review fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-040",
+      "kind": "provenance",
+      "text": "OBL-040: Assign core import/re-export, generation/lease/recovery/state integration, and core tests only to dependent WK-2099. Mechanism=WK-2099 contract/write scope; inputs=WK-2092 core obligations after WK-2098; outputs=independent core delivery; authority=WK-2099 worker; failure/effect boundary=package/MCP edits out of scope; proof=implementation-readiness; fixture=dependency and scope fixture."
+    },
+    {
+      "annotation_id": "ann-atomic-obligation-041",
+      "kind": "provenance",
+      "text": "OBL-041: Assign MCP route/discovery/docs/tests only to dependent WK-2100 and dispatch no implementation from WK-2092. Mechanism=WK-2100 contract/write scope plus WK-2092 closure; inputs=WK-2092 MCP obligations after WK-2099; outputs=independent MCP delivery records; authority=WK-2100 worker; coordinator owns dispatch; failure/effect boundary=implementation dispatch from WK-2092 forbidden; proof=implementation-readiness;write-confinement; fixture=dependency, scope, and no-dispatch fixture."
+    },
+    {
+      "annotation_id": "ann-obligation-coverage-gate",
+      "kind": "rationale",
+      "text": "Obligation-coverage gate: 41/41 atomic obligations mapped to exact implementation mechanisms, preserved inputs/outputs, authority and failure/effect boundaries, applicable proof packs, and named discriminating fixtures; 0 unresolved gaps and 0 placeholders."
+    }
+  ],
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": []
+}

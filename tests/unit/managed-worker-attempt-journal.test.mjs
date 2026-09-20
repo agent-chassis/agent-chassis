@@ -418,3 +418,69 @@ test("mintAttemptEvent refuses an unbound or misordered event", () => {
   assert.throws(() => mintAttemptEvent({ ...args, attempt: { assigned_unit: "x" } }), /complete launcher-minted tuple/);
   assert.throws(() => mintAttemptEvent({ ...args, generationDigest: "" }), /generationDigest/);
 });
+
+test("recorded proof verification is informational, invocation-identified and paged by snapshot", async () => {
+  const { pageManagedAttemptDetail } = await import(
+    "../../packages/agent-launch-core/src/lib/managed-run-observation.mjs");
+  const dispatchTuple = { ...tuple("wkdb_0123456789abcdef"), launch_ref: "wkmh_0123456789abcdef" };
+  let events = buildPrefix([ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED]);
+  events = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events, attempt: tuple(),
+    kind: ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED, payload: { dispatch_tuple: dispatchTuple } }).events;
+  const record = (invocationId, verification, payload = {}) => admitAttemptCommand({ repository: REPO,
+    subject: SUBJECT, events, attempt: tuple(), kind: ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED,
+    payload: { dispatch_tuple: dispatchTuple, invocation_id: invocationId, verification, ...payload } });
+  const before = reduce(events);
+  const verificationFor = (index, outcome) => ({ outcome,
+    status: outcome === "refused" ? "not_executable" : "satisfied",
+    reason_code: outcome === "refused" ? "obligation_coverage_source_not_found" : null,
+    counts: { proofs: outcome === "refused" ? 0 : 2 }, request: { subject: SUBJECT },
+    caller: { assigned_unit: SUBJECT }, record_identity: `record-${index}`,
+    tested_source: outcome === "refused" ? null : { candidate: `candidate-${index}`,
+      source_snapshot_digest: `snapshot-${index}`, cases: Array.from({ length: 50 }, () => "not-inline") } });
+  for (const [index, outcome] of ["completed", "completed", "refused"].entries()) {
+    const admitted = record(`inv-${index}`, verificationFor(index, outcome));
+    assert.equal(admitted.appended, true);
+    events = admitted.events;
+  }
+  assert.deepEqual(reduce(events).next_command, before.next_command, "recording advances no lifecycle");
+  assert.equal(record("inv-0", verificationFor(0, "completed")).appended, false,
+    "an identical replay is idempotent");
+  assert.equal(record("inv-0", { outcome: "refused", status: "not_executable" }).admitted, false,
+    "one invocation cannot be rebound to another outcome");
+  assert.equal(record("inv-9", { outcome: "completed" }, {
+    dispatch_tuple: { ...dispatchTuple, run_id: "wkdb_ffffffffffffffff" } }).admitted, false,
+  "evidence cannot attach to another retained dispatch binding");
+  assert.equal(record("inv-9", "not an object").admitted, false);
+  const tampered = structuredClone(events);
+  tampered.at(-1).payload.verification = "altered";
+  assert.equal(validateAttemptJournal({ repository: REPO, subject: SUBJECT, events: tampered }).valid, false);
+
+  const page = (args) => pageManagedAttemptDetail({ repository: REPO, subject: SUBJECT, events,
+    attemptId: dispatchTuple.run_id, kind: "proof_verification", ...args });
+  const first = page({ limit: 2 });
+  assert.deepEqual([first.total_count, first.items.map((item) => item.invocation_id)], [3, ["inv-0", "inv-1"]]);
+  assert.deepEqual(first.summary.outcome_counts, { completed: 2, refused: 1 });
+  assert.deepEqual(first.summary.last_recorded_invocation, {
+    invocation_id: "inv-2", sequence: first.snapshot.sequence, event_digest: first.snapshot.digest,
+    record_identity: "record-2", requested_unit: SUBJECT, assigned_unit: SUBJECT,
+    outcome: "refused", status: "not_executable", reason_code: "obligation_coverage_source_not_found",
+    selected_proof_count: 0, tested_source: null, coverage_scope: "requested_selection_only",
+    grants_authority: false
+  });
+  events = record("inv-3", { outcome: "completed", status: "unsatisfied" }).events;
+  const rest = page({ limit: 2, cursor: first.cursor });
+  assert.deepEqual([rest.items.map((item) => item.invocation_id), rest.cursor, rest.snapshot],
+    [["inv-2"], null, first.snapshot], "an open walk stays bound to its snapshot");
+  assert.equal(rest.summary.last_recorded_invocation.invocation_id, "inv-2",
+    "the last observation stays inside the cursor snapshot");
+  const latest = page({ limit: 1 }).summary.last_recorded_invocation;
+  assert.deepEqual([latest.invocation_id, latest.selected_proof_count], ["inv-3", null],
+    "a fresh observation selects greatest journal sequence, not page.items[0]");
+  assert.deepEqual(page({ invocationId: "inv-3" }).items.map((item) => item.verification.status), ["unsatisfied"]);
+  assert.equal(page({ invocationId: "inv-404" }).code, "proof_verification_invocation_unknown");
+  assert.equal(page({ invocationId: "inv-3", cursor: first.cursor }).code, "attempt_detail_request_invalid");
+  assert.equal(pageManagedAttemptDetail({ repository: REPO, subject: SUBJECT, events,
+    attemptId: dispatchTuple.run_id, kind: "failure_history", invocationId: "inv-3" }).code,
+  "attempt_detail_request_invalid");
+  assert.equal(page({ cursor: first.cursor.replace(/.$/u, "A") }).ok, false);
+});

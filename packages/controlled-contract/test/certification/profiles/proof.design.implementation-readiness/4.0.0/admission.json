@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+  "profile_id": "proof.design.implementation-readiness",
+  "profile_version": "4.0.0",
+  "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+  "guarantee": "One authored design unit names independently bound repository-grounded implementation and test loci; declares a complete nonempty requirement population, an exact four-field warning shape with exact code, severity, message-template, and payload-schema values, an authored complete validation population equal to the requirement population, and a complete placeholder population with exact count zero.",
+  "guarantee_digest": "4a2c1a5cfc099cfecef4b0983db5bb81b941ddcfb5dcddfae7d23fd0437c228c",
+  "explicit_exclusions": [
+    "authored-population-truth",
+    "grounded-identity-existence",
+    "omitted-authored-requirement",
+    "product-sufficiency",
+    "runtime-and-repository-truth",
+    "warning-runtime-execution"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "5575f263f5cbf0e5854f90f164eee0da2422aeb9af6354dd724dc8a8cf2fc08a",
+    "adequacy_result_digest": "d3d9b232f8d1fe0dfdffb1f8a6c1587a55bb6cad6fd3f27265b773bbea79a4f9",
+    "executable_control_count": 32,
+    "negative_fixture_count": 99,
+    "coverage_witness_count": 99
+  }
+}

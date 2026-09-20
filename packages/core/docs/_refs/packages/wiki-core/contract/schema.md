@@ -97,7 +97,7 @@ Rules:
 - allocated IDs are monotonic within a repository and type
 - allocated IDs are never reused
 - allocated IDs are identity tokens, not a guaranteed chronology signal under concurrent creation
-- local filenames may remain canonical as `WK-0001.json`, `IN-0001.md`, `decision.md`, or `source record.md`
+- local filenames may remain canonical as `WK-0001.json`, `IN-0001.json`, `decision.md`, or `source record.md`; `IN-0001.md` is generated
 - `wiki/issues/WK-0001.md` may exist only as a legacy Markdown issue surface, generated projection, or compatibility fixture for `WK-*` records
 - area page identity is the slug and should remain stable once created
 

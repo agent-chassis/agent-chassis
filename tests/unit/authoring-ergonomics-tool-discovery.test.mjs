@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   describeToolDiscoveryTools,
   loadToolDiscoveryDescriptor,
-  queryToolDiscoveryDescriptor,
+  rankToolDiscoveryTools,
   resolveToolTierVisibility,
   validateToolDiscoveryDescriptor
 } from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
@@ -128,9 +128,9 @@ test("the discovery read surfaces return the entry", async () => {
   assert.equal(described[0].runtime_posture, "supported");
   assert.ok(described[0].summary.length > 0, "the describe projection must carry a summary");
 
-  const queried = queryToolDiscoveryDescriptor(descriptor, {
+  const queried = rankToolDiscoveryTools(descriptor, {
     tool_name: AUTHORING_ERGONOMICS_REPORT_TOOL_NAME
-  });
+  }, { verbose: false });
   assert.equal(queried.length, 1);
   assert.equal(queried[0].tool_name, AUTHORING_ERGONOMICS_REPORT_TOOL_NAME);
 });

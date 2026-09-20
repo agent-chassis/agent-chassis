@@ -29,7 +29,7 @@ const ACCEPTANCE_VALIDATION = Object.freeze([
 ]);
 
 const PROMPT_BYTE_BUDGETS = Object.freeze({
-  reviewer: 1200,
+  reviewer: 1330,
   redteam: 4096
 });
 
@@ -43,11 +43,14 @@ function assertTaskSpecificContract(prompt, role, { schemaConstrained }) {
     assert.ok(!prompt.includes(body), `${role}: mutable inline contract body must be omitted`);
   }
   assert.match(prompt, /Snapshot acceptance: workspace_read_page/u);
-  assert.match(prompt, /"path":"wiki\/work-records\/WK-1577\.json","selected_slice":"SLICE-007"/u);
+  assert.ok(prompt.includes('{"path":"wiki/work-records/WK-1577.json","selected_slice":"SLICE-007",' +
+    '"member":{"path":["acceptance"]}} and parent {"path":"wiki/work-records/WK-1577.json",' +
+    '"member":{"path":["acceptance"]}}'), `${role}: slice and parent acceptance are selected member reads`);
+  assert.doesNotMatch(prompt, /accept_full_read|include_record/u);
   assert.doesNotMatch(prompt, /"selected_slice":"WK-1577#SLICE-007"/u);
   assert.match(prompt, /Assigned unit: WK-1577#SLICE-007/u);
   assert.match(prompt, /selected_slice is only the bare slice id/u);
-  assert.match(prompt, /Use its criteria and validation/u);
+  assert.match(prompt, /Follow returned member calls for criteria and validation/u);
   assert.doesNotMatch(prompt, /workspace_frozen_review_contract_query|read its index|paging|cursor|omitted=0/u);
   assert.match(prompt, /Report findings by severity with file\/line references/u);
   if (schemaConstrained) {

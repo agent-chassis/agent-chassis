@@ -4,6 +4,13 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync } from "node:fs";
 import path from "node:path";
 
+import {
+  CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
+
+import { createWorkerScopeTreeReader } from "./backend-worker-scope-tree.mjs";
+import { deriveCanonicalUnitScope } from "./canonical-unit-scope.mjs";
+import { resolveCommitWriteScopeMatcher } from "./exact-slice-commit-binding.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 
 const SUBJECT_RE = /^(WK-\d{4})#(SLICE-\d{3})$/u;
@@ -20,19 +27,34 @@ export const COMMITTED_SLICE_REVIEW_ADMISSION_CODES = Object.freeze({
 });
 
 export class CommittedSliceReviewAdmissionError extends Error {
-  constructor(message, { code = COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED, detail = null } = {}) {
-    super(`agent-launch committed-slice review admission: ${message}`);
+  constructor(message, {
+    code = COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED,
+    detail = null,
+    cause = undefined
+  } = {}) {
+
+    super(`agent-launch committed-slice review admission: ${message}`,
+      cause === undefined ? undefined : { cause });
     this.name = "CommittedSliceReviewAdmissionError";
     this.code = code;
     if (detail !== null) this.detail = detail;
   }
 }
 
-function fail(reason, detail = null, code = COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED) {
+function fail(reason, detail = null, code = COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED,
+  cause = undefined) {
   throw new CommittedSliceReviewAdmissionError(reason, {
     code,
-    detail: { reason, ...(detail ?? {}) }
+    detail: { reason, ...(detail ?? {}) },
+    cause
   });
+}
+
+export const COMMITTED_SLICE_SCOPE_CORRECTION_CONDITION = "committed_slice_scope_inputs_changed";
+const SCOPE_REFUSAL_CORRECTIONS = new WeakMap();
+
+export function committedSliceScopeRefusalCorrection(value) {
+  return SCOPE_REFUSAL_CORRECTIONS.get(value) ?? null;
 }
 
 function canonicalize(value) {
@@ -64,31 +86,59 @@ function oid(value, label) {
   return value;
 }
 
-function parseReviewContract(reviewUnit) {
+const COMMITTED_SLICE_SCOPE_EXCLUSIONS = Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]);
+
+function parseReviewContract(reviewUnit, scopeSource) {
   let slice;
   try {
     slice = JSON.parse(reviewUnit.review_unit_contract);
   } catch (error) {
-    fail("canonical_review_contract_malformed", { message: error?.message ?? String(error) });
+    fail("canonical_review_contract_malformed", { message: error?.message ?? String(error) },
+      COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED, error);
   }
   if (slice?.id !== reviewUnit.slice_id || slice?.work_kind !== "implementation" ||
       !Array.isArray(slice.write_scope) ||
       slice.write_scope.length === 0) {
-    fail("canonical_review_contract_inconsistent");
+    fail("canonical_review_contract_inconsistent", {
+      expected_slice_id: reviewUnit.slice_id ?? null,
+      slice_id: slice?.id ?? null,
+      work_kind: slice?.work_kind ?? null,
+      write_scope: slice?.write_scope ?? null
+    });
   }
-  const scope = [...new Set(slice.write_scope)].sort();
-  if (scope.length !== slice.write_scope.length || scope.some((entry) =>
-    typeof entry !== "string" || entry.length === 0 || entry !== entry.trim() ||
-    path.posix.isAbsolute(entry) || path.posix.normalize(entry) !== entry ||
-    entry === "." || entry.split("/").some((part) => !part || part === "." || part === "..")
-  )) {
-    fail("canonical_write_scope_malformed");
-  }
-  return { slice, writeScope: Object.freeze(scope) };
+  const writeScope = deriveCanonicalUnitScope(slice.write_scope, "write_scope", scopeSource, {
+    forbidGitMetadata: true,
+
+    invalid: (_message, facts = null) => fail("canonical_write_scope_malformed", {
+      write_scope: slice.write_scope,
+      path: facts?.path ?? null,
+      kind: facts?.kind ?? null
+    })
+  });
+  return { slice, writeScope };
 }
 
-function pathInWriteScope(changedPath, writeScope) {
-  return writeScope.some((entry) => changedPath === entry || changedPath.startsWith(`${entry}/`));
+function resolveScopeMembership({ runGit, mainRepo, writeScope, diffBaseSha }) {
+  let reader;
+  try {
+    reader = createWorkerScopeTreeReader({ runGit, mainRepo, baseSha: diffBaseSha });
+  } catch (error) {
+    fail("committed_slice_scope_base_unresolvable", {
+      diff_base_sha: diffBaseSha,
+      message: error?.message ?? String(error)
+    }, COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED, error);
+  }
+  try {
+    return Object.freeze({
+      baseTreeSha: reader.root_tree,
+      matcher: resolveCommitWriteScopeMatcher(reader, writeScope, COMMITTED_SLICE_SCOPE_EXCLUSIONS)
+    });
+  } catch (error) {
+    fail("committed_slice_scope_membership_unresolvable", {
+      diff_base_sha: diffBaseSha,
+      message: error?.message ?? String(error)
+    }, COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED, error);
+  }
 }
 
 function parseNulList(raw) {
@@ -252,6 +302,45 @@ function resolveExactWorktree({
   return worktreePath;
 }
 
+function deriveScopeDecisionInputs({ runGit, mainRepo, subject, reviewUnit, recordId, sliceId }) {
+  const { slice, writeScope } = parseReviewContract(
+    reviewUnit, `wiki/work-records/${recordId}.json#${sliceId}`
+  );
+  const initiative = reviewUnit.initiative;
+  const sliceRef = `refs/heads/slice/${initiative}/${recordId}/${sliceId}`;
+  const wkRef = `refs/heads/wk/${initiative}/${recordId}`;
+  const reviewedSha = oid(git(runGit, mainRepo, ["rev-parse", "--verify", `${sliceRef}^{commit}`], "slice_target_missing"), "reviewed_sha");
+  const wkSha = oid(git(runGit, mainRepo, ["rev-parse", "--verify", `${wkRef}^{commit}`], "wk_target_missing"), "wk_sha");
+  const diffBaseSha = oid(git(runGit, mainRepo, ["merge-base", wkSha, reviewedSha], "slice_diff_base_unresolvable"), "diff_base_sha");
+  const scope = resolveScopeMembership({ runGit, mainRepo, writeScope, diffBaseSha });
+  return {
+    slice, writeScope, initiative, sliceRef, wkRef, reviewedSha, wkSha, diffBaseSha,
+    scopeMatcher: scope.matcher,
+    decision_inputs: Object.freeze({
+      subject,
+      write_scope: writeScope,
+      diff_base_sha: diffBaseSha,
+      base_tree_sha: scope.baseTreeSha,
+      reviewed_sha: reviewedSha
+    })
+  };
+}
+
+export function resolveCommittedSliceScopeDecisionInputs({
+  mainRepo,
+  subject,
+  reviewUnit,
+  runGit = defaultRunGit
+} = {}) {
+  const match = typeof subject === "string" ? SUBJECT_RE.exec(subject) : null;
+  if (!match || typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
+      reviewUnit?.subject !== subject || !/^IN-\d{4}$/u.test(reviewUnit?.initiative ?? "")) {
+    fail("canonical_review_state_unavailable");
+  }
+  const [, recordId, sliceId] = match;
+  return deriveScopeDecisionInputs({ runGit, mainRepo, subject, reviewUnit, recordId, sliceId });
+}
+
 export function resolveCommittedSliceReviewAdmission({
   mainRepo,
   worktreeRoot,
@@ -269,13 +358,10 @@ export function resolveCommittedSliceReviewAdmission({
     fail("canonical_review_state_unavailable");
   }
   const [, recordId, sliceId] = match;
-  const { slice, writeScope } = parseReviewContract(reviewUnit);
-  const initiative = reviewUnit.initiative;
-  const sliceRef = `refs/heads/slice/${initiative}/${recordId}/${sliceId}`;
-  const wkRef = `refs/heads/wk/${initiative}/${recordId}`;
-  const reviewedSha = oid(git(runGit, mainRepo, ["rev-parse", "--verify", `${sliceRef}^{commit}`], "slice_target_missing"), "reviewed_sha");
-  const wkSha = oid(git(runGit, mainRepo, ["rev-parse", "--verify", `${wkRef}^{commit}`], "wk_target_missing"), "wk_sha");
-  const diffBaseSha = oid(git(runGit, mainRepo, ["merge-base", wkSha, reviewedSha], "slice_diff_base_unresolvable"), "diff_base_sha");
+  const {
+    slice, writeScope, initiative, sliceRef, wkRef, reviewedSha, wkSha, diffBaseSha,
+    scopeMatcher, decision_inputs: decisionInputs
+  } = deriveScopeDecisionInputs({ runGit, mainRepo, subject, reviewUnit, recordId, sliceId });
   const remaining = resolveRemainingDelta({
     runGit, mainRepo, diffBaseSha, wkSha, reviewedSha
   });
@@ -290,8 +376,30 @@ export function resolveCommittedSliceReviewAdmission({
   const commits = assertServerMintedCommitChain({
     runGit, mainRepo, subject, baseSha: diffBaseSha, reviewedSha
   });
-  if (changedPaths.some((entry) => !pathInWriteScope(entry, writeScope))) {
-    fail("trusted_commit_scope_mismatch", { changed_paths: changedPaths });
+
+  const offendingPaths = Object.freeze([...new Set(changedPaths.filter((entry) =>
+    scopeMatcher.matches(entry) !== true))].sort());
+  if (offendingPaths.length > 0) {
+    const reason = "trusted_commit_scope_mismatch";
+    const refusal = new CommittedSliceReviewAdmissionError(reason, {
+      code: COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED,
+      detail: {
+        reason,
+        subject,
+        offending_paths: offendingPaths,
+        write_scope: writeScope,
+        diff_base_sha: diffBaseSha,
+        reviewed_sha: reviewedSha,
+        changed_path_count: new Set(changedPaths).size,
+        offending_path_count: offendingPaths.length
+      }
+    });
+    SCOPE_REFUSAL_CORRECTIONS.set(refusal, Object.freeze({
+      condition: COMMITTED_SLICE_SCOPE_CORRECTION_CONDITION,
+      reason,
+      decision_inputs: decisionInputs
+    }));
+    throw refusal;
   }
 
   const worktreePath = requireWorktree

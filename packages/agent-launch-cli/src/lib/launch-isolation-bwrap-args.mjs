@@ -9,12 +9,14 @@ export function buildBubblewrapArgs({
   systemRoots,
   shareNet,
   newSession,
+  useSystemTmp,
   tmpfsDirsResolved,
   sparseWorkerNamespace,
   repoReal,
   maskTmpfsDirsResolved,
   privateReadOnlyMaskDirsResolved = [],
   inRepoSecretFileMasks,
+  gitStatusWrapperReadOnlyBinds = [],
   readOnly,
   homeReads,
   homeWritableFiles,
@@ -35,7 +37,8 @@ export function buildBubblewrapArgs({
 }) {
 
   const bwrapArgs = [];
-  bwrapArgs.push(...buildSystemBaselineArgs({ systemReadOnlyRoots: systemRoots, shareNet, newSession, tmpfsDirs: tmpfsDirsResolved }));
+  bwrapArgs.push(...buildSystemBaselineArgs({ systemReadOnlyRoots: systemRoots, shareNet,
+    newSession, tmpfsDirs: tmpfsDirsResolved, useSystemTmp }));
   if (stdioMcpConduit !== null) {
     bwrapArgs.push(...projectStdioMcpChannelNamespaceArgs(stdioMcpConduit));
   }
@@ -77,6 +80,10 @@ export function buildBubblewrapArgs({
     bwrapArgs.push("--remount-ro", repoReal);
   }
   for (const { src, dst } of readOnly) {
+    bwrapArgs.push("--ro-bind", src, dst);
+  }
+
+  for (const { src, dst } of gitStatusWrapperReadOnlyBinds) {
     bwrapArgs.push("--ro-bind", src, dst);
   }
   for (const { src, dst } of homeReads) {

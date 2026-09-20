@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "launcher-tools.json",
   "summary": "Dispatch, run-status, committed-slice integration, coordination preflight, and runtime-blocker-taxonomy tools.",
-  "tool_count": 9,
+  "tool_count": 8,
   "tools": [
     {
       "tool_name": "workspace_agent_dispatch",
@@ -45,27 +45,40 @@
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
         "packages/wiki-mcp/src/server.mjs",
         "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json",
+        "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-route.mjs",
+        "packages/wiki-core/src/operations/validate-dispatch.mjs"
       ],
-      "notes": "MCP-only worker, reviewer, and redteam dispatch after same-unit, same-role readiness. The caller supplies its already-known canonical WK or slice subject; the server does not infer or search for a WK from a SHA. Reviewer example: {\"role\":\"reviewer\",\"subject\":\"WK-1234#SLICE-005\",\"diff_base_sha\":\"<40-character base commit>\",\"reviewed_sha\":\"<40-character reviewed commit>\"}. A commit SHA is a review locator, never the subject; the pair is added to the same request. The same registered dispatcher performs the read-only review. No external reviewer, shell command, wrapper, alternate transport, terminal candidate, ref creation, attestation append, or provenance repair is required. Launcher configuration selects app/model; caller identity and policy carriers are refused. Reviewer/redteam effective write_scope is empty. Locators grant no mutation or lifecycle authority. A missing backend fails closed; never change confinement.",
-      "use_when": ["The dispatch_role_call intent has a dispatchable workspace_validate_dispatch result for the same unit and role."],
-      "do_not_use_when": ["Readiness is unknown; use workspace_validate_dispatch first.", "The task asks about an existing run; use workspace_agent_run_status or workspace_agent_run_wait."],
-      "authoritative_for": ["dispatch_role_call:launch_after_dispatchable", "launcher-owned worker/reviewer/redteam process spawn"],
-      "requires_prior_state": ["Known subject and role.", "Same-unit same-role workspace_validate_dispatch result with dispatchable=true."],
-      "replacement_for_misuse": [{"misuse_code": "dispatch_without_readiness_validation", "routing_intent": "dispatch_role_call", "use_instead": "workspace_validate_dispatch"}],
+      "notes": "Start a canonical unit, or dispatch a reviewer or redteam by canonical subject. Omitting role starts the unit as the agent its dispatch_intent.intended_agent_role declares, derived by the wiki-core dispatch owner; the system resolves task, scope, acceptance, validation, selected material and runtime from that canonical unit and authenticated launcher facts, so a caller-authored prompt, request, argv or env is refused rather than silently discarded. Readiness runs internally through its existing owner; workspace_validate_dispatch remains available for an explicit \"can this start?\" question and is not a required pre-call. Managed workers require an explicit existing canonical implementation slice, even for a one-slice WK; dispatch never creates or selects one. Reviews use empty write_scope and the same dispatcher; no external reviewer, shell, wrapper or alternate transport. backend_unavailable fails closed. Supply an already-known WK or slice plus diff_base_sha/reviewed_sha for exact review; no WK is inferred from a SHA. Implementation requires complete or opted-out proof posture; CCE policy remains separate. Reviews can precede authoring. Caller identity/policy carriers refuse.",
+      "use_when": [
+        "Start a known canonical implementation slice: name the unit and omit role.",
+        "The dispatch_role_call intent names a known subject and an advisory role (reviewer or redteam), which the caller chooses rather than the reviewed unit."
+      ],
+      "do_not_use_when": [
+        "The task asks the prospective question of whether a unit could start rather than asking to start it; use workspace_validate_dispatch.",
+        "The task asks about an existing run; use workspace_agent_run_status."
+      ],
+      "authoritative_for": [
+        "dispatch_role_call:canonical_unit_start",
+        "launcher-owned worker/reviewer/redteam process spawn"
+      ],
+      "requires_prior_state": [
+        "Known canonical subject; role is optional and is derived from the unit's dispatch_intent when omitted.",
+        "No prior workspace_validate_dispatch call: readiness runs inside dispatch through its existing owner, and an earlier assessment neither replaces that check nor grants launch permission."
+      ],
       "recommended_first_call": {
-        "operation": "dispatch a read-only reviewer for an immutable commit range",
+        "routing_intents": [
+          "dispatch_role_call"
+        ],
+        "operation": "start a known canonical unit by subject, omitting role",
         "arguments": {
-          "role": "reviewer",
-          "subject": "WK-1234#SLICE-005",
-          "diff_base_sha": "$complete_base_commit_sha",
-          "reviewed_sha": "$complete_reviewed_commit_sha"
+          "subject": "WK-<id>#SLICE-<id>"
         },
         "omit_null_arguments": true
       },
       "tier_text": {
         "paid_cce": {
-          "notes": "MCP-only agent role dispatch for worker, reviewer, and redteam. A commit SHA is a review locator, never the coordination subject. The caller supplies its already-known canonical WK or slice; the server does not infer or search for a WK from a SHA. Reviewer example: {\"role\":\"reviewer\",\"subject\":\"WK-1234#SLICE-005\",\"diff_base_sha\":\"<40-character base commit>\",\"reviewed_sha\":\"<40-character reviewed commit>\"}. The same registered workspace_agent_dispatch performs the review. No external reviewer, shell command, wrapper, alternate transport, terminal candidate, ref creation, attestation append, or provenance repair is required. On every dispatch the launcher reads the role model from repo-root agent-launch.toml and derives app/backend through the neutral model registry; typed app/model are explicit per-dispatch overrides only. Missing or invalid role configuration refuses with no family fallback. Same-user stdio MCP is not an authentication boundary; the real boundary is the launcher sandbox plus work-record admission. Caller-supplied identity carriers (request payload, prompt text, ambient env, argv, claimed_identity.role) are refused and never become selection authority. Worker and reviewer accept a WK or slice; redteam also accepts an IN. Non-dispatchable subjects refuse with work_record_readiness_failure. Reviewer mutation authority is always empty. Empty authenticated effective write_scope alone selects findings. An implementation-slice target uses an exact full-commit diff_base_sha/reviewed_sha pair or one-time canonical slice-ref dereference; no status=review is required. Locators grant no mutation, integration, acceptance, veto, or lifecycle authority. Non-empty reviewer scope refuses with role_policy_violation / reviewer_write_scope_nonempty and requires a separate findings-only unit. Confined Claude and Codex sessions receive exactly one launcher-owned host wiki-MCP server through two private named FIFOs bound into the final bubblewrap namespace and the pinned copy-only relay; exact initialize and tools/list readiness is mandatory. Agy is unsupported and fails closed. Refusals use stable runtime-blocker taxonomy codes. When CCE/Node Engine refusal output includes a valid worker_admission.recovery.v1 object, treat it as the primary recovery projection: pack_result.recovery is current-decision recovery, while top-level route-problem recovery applies before a pack_result exists. Both are advisory, non-authorizing, resubmission-only guidance; they do not satisfy review evidence, accepted authority, launcher policy, or admission. Legacy reason-fact recovery is compatibility-only when no valid recovery object is present. Malformed, unknown-version, unknown-field, or projection-mismatched recovery fails closed: preserve the underlying refusal, report bounded recovery-contract mismatch guidance, resubmit through CCE, and do not infer local admission, hidden controls, bypasses, or synthesized authorities. Use this MCP route alone. An unconfigured backend is a blocker; never fall back to wrappers, shell, env, another transport, or bwrap changes."
+          "notes": "Dispatch a worker, reviewer, or redteam by canonical subject such as WK-<id>#SLICE-<id>; a commit SHA is only a review locator, and no WK is inferred or searched from a SHA. The same registered workspace_agent_dispatch performs the review; no external reviewer, shell command, wrapper, alternate transport, terminal candidate, ref creation, attestation append, or provenance repair is needed. Reviewer accepts a WK or slice; redteam also accepts an IN. Reviewer and redteam never enter worker readiness; invalid review material refuses as agent_launch.advisory_review.material_invalid.v1. Reviewer mutation authority is empty, and locators grant no lifecycle authority. A worker needs an explicit existing implementation slice; a non-dispatchable worker refuses with work_record_readiness_failure. Role configuration selects app and model: an explicit model applies only where the role binding permits, app is an assertion, and a mismatch refuses without family fallback. Caller identity carriers refuse. A valid worker_admission.recovery.v1 object is advisory, resubmission-only guidance; invalid recovery fails closed, and reason facts without one report no supported route."
         }
       }
     },
@@ -107,81 +120,40 @@
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
         "packages/wiki-mcp/src/server.mjs",
         "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json",
+        "packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-run.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-run-proof-verification.mjs"
       ],
-      "notes": "Monitor-handle status query for workspace_agent_dispatch. Refuses caller identity carriers and handle mismatch, replay, or unknown cases. NOT read-only for managed exact-slice worker runs: polling may prepare review state, integrate, update Git refs, and update canonical slice status. child_terminal reports only child exit; terminal:true means the COMPLETE managed run is finalized. For a registered managed attempt, the call remains bounded while lifecycle advancement continues uncancelled; retry the same handle and preserve the exact scalar next_action, including caller-action prompts. The bounded closeout_continuation is advisory only: it orders review, coordinator disposition for canonical changes_requested, integration, original-monitor resumption, terminal review, and handoff, and exposes at most the current safe call from retained canonical state. It grants no authority. Free/local structured_role_result.valid:false is expected under DEC-0128.",
-      "use_when": ["The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."],
-      "do_not_use_when": ["The task is a new role launch; use workspace_validate_dispatch first.", "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."],
-      "authoritative_for": ["run_monitoring:status", "launcher run lifecycle by monitor_handle"],
+      "notes": "Subject-addressed observation for workspace_agent_dispatch. Closed input accepts repo, subject, optional backend run attempt_id, optional timeout_ms 1..300000, include_final_result, or read-only failure_history/attempts/proof_verification detail, and rejects caller identity carriers. Omitted timeout observes once immediately. Timeout returns settled:false without cancellation. NOT read-only for a managed exact-slice worker: observation may prepare review state, integrate, move Git refs and update canonical slice status, but only by advancing an already-authorized settlement; it cannot launch, grant integration authority, or publish to forge. child_terminal means child exit; terminal:true means the COMPLETE managed run is finalized. Follow exact next_action. The attempt journal keeps complete managed reports and exact failure history. Findings are process-local; registry loss is explicit. Free/local structured_role_result.valid:false is expected non-attesting output. Worker status reports recorded explicit workspace_verify_proof calls (none_recorded is not a pass); proof_verification detail pages them and invocation_id reads one. Reads execute nothing.",
+      "use_when": [
+        "The run_monitoring intent asks for status, output, failure, or completion of an already dispatched run."
+      ],
+      "do_not_use_when": [
+        "The task is a new start or role launch; use workspace_agent_dispatch, which performs readiness through its existing owner."
+      ],
+      "authoritative_for": [
+        "run_monitoring:status",
+        "launcher run lifecycle by canonical subject and retained attempt"
+      ],
       "recommended_first_call": {
         "routing_intents": [
           "run_monitoring"
         ],
         "arguments": {
-          "monitor_handle": "$monitor_handle_if_known",
-          "subject": "$unit_if_known"
+          "subject": "$canonical_unit"
         },
         "omit_null_arguments": true
       },
-      "requires_prior_state": ["Server-minted monitor_handle from workspace_agent_dispatch."],
-      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "run_monitoring", "use_instead": "workspace_agent_run_status"}]
-    },
-    {
-      "tool_name": "workspace_agent_run_wait",
-      "display_name": "Workspace agent run wait",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_agent_run_wait",
-      "task_ids": [
-        "query-agent-run-status"
+      "requires_prior_state": [
+        "Canonical WK, slice, or IN dispatch subject; a monitor handle alone is not a status argument."
       ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
-      ],
-      "priority": 127,
-      "side_effects": [
-        "workspace_write",
-        "record_write"
-      ],
-      "authority": [
-        "launcher_registry",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local",
-        "paid_cce"
-      ],
-      "docs_refs": [
-        "docs/mcp-integration.md",
-        "docs/agent-launch-quickstart.md",
-        "docs/operating-model.md",
-        "docs/mcp-dispatch-monitoring-and-ownership.md"
-      ],
-      "source_files": [
-        "packages/wiki-mcp/src/lib/dispatch-tools.mjs",
-        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
-        "docs/mcp-integration.md"
-      ],
-      "notes": "Bounded-wait companion to run-status: waits for a dispatched run to finish or until a bounded polling window expires, one response per call. For a registered managed attempt, lifecycle advancement continues uncancelled beyond the call boundary. A caller-action block returns promptly with timed_out:false and its exact next_action; clean window expiry returns timed_out:true. Retry the same launcher-minted handle. NOT read-only for managed exact-slice worker runs: polling may prepare review state, integrate, update Git refs, and update canonical slice status. child_terminal reports only child exit; terminal:true means the COMPLETE managed run is finalized. The bounded advisory closeout_continuation orders the current safe coordination call and grants no authority. Free/local structured_role_result.valid:false is expected under DEC-0128.",
-      "use_when": ["The run_monitoring intent asks to wait briefly for an already dispatched run to finish."],
-      "do_not_use_when": ["The task is a new role launch; use workspace_validate_dispatch first.", "No monitor handle is available; ask for it instead of searching, reading records, or relaunching."],
-      "authoritative_for": ["run_monitoring:bounded_wait", "launcher run lifecycle by monitor_handle"],
-      "recommended_first_call": {
-        "routing_intents": [
-          "run_monitoring"
-        ],
-        "operation": "bounded wait",
-        "arguments": {
-          "monitor_handle": "$monitor_handle_if_known",
-          "subject": "$unit_if_known"
-        },
-        "omit_null_arguments": true
-      },
-      "requires_prior_state": ["Server-minted monitor_handle from workspace_agent_dispatch.", "A bounded wait request."],
-      "replacement_for_misuse": [{"misuse_code": "ignored_required_next_action", "routing_intent": "run_monitoring", "use_instead": "workspace_agent_run_wait"}]
+      "replacement_for_misuse": [
+        {
+          "misuse_code": "ignored_required_next_action",
+          "routing_intent": "run_monitoring",
+          "use_instead": "workspace_agent_run_status"
+        }
+      ]
     },
     {
       "tool_name": "workspace_runtime_blocker_taxonomy",
@@ -220,7 +192,21 @@
         "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Read-only schema-backed runtime blocker taxonomy: the canonical code catalog, categories, the deterministic degraded-state mapping, and the bootstrap-state subset. Dispatch (workspace_agent_dispatch) and the launcher must select blocker codes from this taxonomy rather than inventing ad hoc strings. reviewer_write_scope_nonempty is a structured reason on role_policy_violation (not a separate code); committed implementation slices use launcher-owned immutable-target admission with empty reviewer authority independent of WK status, while other non-empty reviewer subjects require a separate findings-only review unit."
+      "notes": "Read-only schema-backed runtime blocker taxonomy: canonical codes, categories, recovery guidance, the deterministic degraded-state mapping, and the bootstrap-state subset. Compact by default; verbose:true adds full detail and mappings. Dispatch, launcher, and coordination refusals report codes from this taxonomy rather than ad hoc strings.",
+      "use_when": [
+        "A refusal or preflight reports a runtime blocker code whose category or recovery guidance is needed."
+      ],
+      "do_not_use_when": [
+        "The question is whether a unit is dispatchable or how a run is progressing; the owning readiness or run-status route answers that."
+      ],
+      "authoritative_for": [
+        "runtime blocker code catalog, categories, and recovery guidance"
+      ],
+      "recommended_first_call": {
+        "operation": "read the runtime blocker taxonomy",
+        "arguments": {},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_coordination_preflight",
@@ -289,15 +275,30 @@
       "display_name": "Workspace integrate committed slice",
       "kind": "mcp_tool",
       "entrypoint": "workspace_integrate_committed_slice",
-      "task_ids": ["worker-delivery"],
+      "task_ids": [
+        "worker-delivery"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 126,
-      "side_effects": ["workspace_write", "record_write"],
-      "authority": ["launcher_registry", "workspace_repo", "launcher_backend"],
-      "tier_visibility": ["free_local", "paid_cce"],
+      "side_effects": [
+        "workspace_write",
+        "record_write"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
       "docs_refs": [
         "docs/mcp-operation-reference.md",
         "docs/mcp-dispatch-runtime-contract.md",
@@ -306,41 +307,66 @@
       "source_files": [
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs",
         "packages/agent-launch-cli/src/lib/slice-integration.mjs",
-      "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
-      "packages/wiki-mcp/src/lib/server-composition-helpers.mjs",
-      "packages/wiki-mcp/src/server.mjs",
-      "packages/wiki-core/data/tool-discovery/manifest.json",
-      "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+        "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+        "packages/wiki-mcp/src/lib/server-composition-helpers.mjs",
+        "packages/wiki-mcp/src/server.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
-      "notes": "Separate orchestrator continuation for exact committed-slice integration. Review evidence and comment dispositions are advisory; neither they nor the request authorize integration. CCE owns any configured policy gate. Paid-tier presence alone configures no gate; no configured gate follows DEC-0133 and reports non-audit posture. Input is closed to repo alias, canonical slice subject, and comment dispositions; authority carriers are rejected. The server re-derives the exact target and performs CAS-safe idempotent integration. Successful and idempotently recovered results advise resuming workspace_agent_run_status or workspace_agent_run_wait with the original launcher-minted handle; integration neither accepts nor returns that handle. Refusals omit the success continuation.",
-      "use_when": ["A committed implementation slice is parked after review preparation and the orchestrator is ready to disposition advisory comments and request integration."],
-      "do_not_use_when": ["The task is to dispatch or monitor a reviewer; use workspace_agent_dispatch or workspace_agent_run_status.", "The caller intends to supply a ref, SHA, receipt, policy verdict, CCE attestation, or other authority carrier."],
-      "authoritative_for": ["committed_slice_integration:coordinator_request", "launcher-owned exact-target CAS integration"],
-      "requires_prior_state": ["A canonical committed implementation slice in review with launcher-owned frozen target state."],
-    "replacement_for_misuse": [],
-    "recommended_first_call": {
-      "operation": "integrate one reviewed committed slice",
-      "arguments": {
-        "subject": "$canonical_slice_subject",
-        "comment_dispositions": "$recorded_comment_dispositions"
-      },
-      "omit_null_arguments": true
-    }
+      "notes": "Separate orchestrator continuation for exact committed-slice integration. Review evidence and dispositions are advisory; neither they nor the request authorize integration. CCE owns any configured policy gate. Paid-tier presence alone configures no gate; without one, the result reports non-audit posture. Input is closed to repo alias, canonical slice subject, and dispositions; authority carriers are rejected. The server re-derives the exact target and performs CAS-safe idempotent integration. Successful and idempotently recovered results advise resuming workspace_agent_run_status with the canonical slice subject. Refusals omit the success continuation.",
+      "use_when": [
+        "A committed implementation slice is parked after review preparation and the orchestrator is ready to disposition advisory comments and request integration."
+      ],
+      "do_not_use_when": [
+        "The task is to dispatch or monitor a reviewer; use workspace_agent_dispatch or workspace_agent_run_status.",
+        "The caller intends to supply a ref, SHA, receipt, policy verdict, CCE attestation, or other authority carrier."
+      ],
+      "authoritative_for": [
+        "committed_slice_integration:coordinator_request",
+        "launcher-owned exact-target CAS integration"
+      ],
+      "requires_prior_state": [
+        "A canonical committed implementation slice in review with launcher-owned frozen target state."
+      ],
+      "replacement_for_misuse": [],
+      "recommended_first_call": {
+        "operation": "integrate one reviewed committed slice",
+        "arguments": {
+          "subject": "$canonical_slice_subject",
+          "dispositions": "$recorded_dispositions"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_wk_forge_handoff",
       "display_name": "Workspace WK forge handoff",
       "kind": "mcp_tool",
       "entrypoint": "workspace_wk_forge_handoff",
-      "task_ids": ["worker-delivery"],
+      "task_ids": [
+        "worker-delivery"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 120,
-      "side_effects": ["workspace_write", "process_spawn"],
-      "authority": ["launcher_registry", "workspace_repo", "launcher_backend"],
-      "tier_visibility": ["free_local", "paid_cce"],
+      "side_effects": [
+        "workspace_write",
+        "process_spawn"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
       "docs_refs": [
         "docs/mcp-operation-reference.md",
         "docs/mcp-integration.md"
@@ -350,86 +376,156 @@
         "packages/agent-launch-cli/src/lib/trusted-operation-contracts.mjs",
         "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
         "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json",
+        "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs"
       ],
-      "notes": "Orchestrator/operator continuation for byte-identical publication of the exact terminal candidate. Reviewer results and monitor guidance are advisory: clean output cannot authorize and findings cannot veto. CCE alone decides a configured policy gate; no gate follows DEC-0133 and reports non-audit posture. Caller input is closed to workspace alias and WK assigned_unit; the server derives candidate, repository, remote, branch, and pull-request identity. Cold recovery reads only refs/agent-launch/terminal-current-v2/<WK> and accepts only an already-present, directly commit-valued, mechanically authenticated target; absence fails closed with terminal_candidate_recovery_current_ref_absent. Absent-ref construction remains confined to the hot post-worker lifecycle, where launcher-bound B/W/contracts exist and absence is the expected-old CAS state. Later landing movement does not invalidate unchanged C, and merge readiness remains with forge and policy. A retained canonically eligible clean terminal review may recommend this route, while changes_requested requires coordinator disposition. Candidate construction and handoff authority remain launcher-owned.",
-      "use_when": ["A terminal candidate is frozen and quiescent and the orchestrator is ready to request its exact forge publication."],
-      "do_not_use_when": ["The work record is still active, or an implementation slice or managed run is still open; finish the lifecycle first.", "The task asks to merge, approve, rebase, or update an existing branch; the forge and organization policy own those."],
-      "authoritative_for": ["wk_forge_handoff:squash_branch_and_pull_request", "launcher-owned forge branch creation and pull-request create-or-observe"],
-      "requires_prior_state": ["A launcher-frozen exact terminal candidate with canonical initiative assignment and a quiescent lifecycle.", "Launcher-configured landing branch and a forge credential available host-side to the trusted server."],
-      "replacement_for_misuse": []
+      "notes": "Orchestrator/operator continuation for byte-identical publication of the exact terminal candidate. Reviewer results and monitor guidance are advisory: clean output cannot authorize and findings cannot veto. CCE alone decides a configured policy gate; without one, the result reports non-audit posture. Caller input is closed to repo alias and WK assigned_unit; the server derives candidate, repository, remote, branch, and pull-request identity. Cold recovery accepts only an already-present, directly commit-valued, authenticated refs/agent-launch/terminal-current-v2/<WK> candidate; absence refuses with terminal_candidate_recovery_current_ref_absent. Later landing movement does not invalidate an unchanged candidate, and merge readiness remains with the forge and policy. A clean retained terminal review may recommend this route; changes_requested needs coordinator disposition. Publication is independent of terminal review: the same squash candidate, whose tree is the selected integrated WK tip's and whose sole parent is the fixed authenticated fork, is published byte-for-byte whether or not the repository's selected delivery workflow includes a terminal review. A workflow without one needs no terminal-review unit, review evidence or reviewer checkout, while candidate identity, tree and sole parent, version selection and controlled generation are authenticated either way, and the result names the workflow it ran under. Publication neither merges nor completes the WK.",
+      "use_when": [
+        "A terminal candidate is frozen and quiescent and the orchestrator is ready to request its exact forge publication."
+      ],
+      "do_not_use_when": [
+        "The work record is still active, or an implementation slice or managed run is still open; finish the lifecycle first.",
+        "The task asks to merge, approve, rebase, or update an existing branch; the forge and organization policy own those."
+      ],
+      "authoritative_for": [
+        "wk_forge_handoff:squash_branch_and_pull_request",
+        "launcher-owned forge branch creation and pull-request create-or-observe"
+      ],
+      "requires_prior_state": [
+        "A launcher-frozen exact terminal candidate with canonical initiative assignment and a quiescent lifecycle.",
+        "Launcher-configured landing branch and a forge credential available host-side to the trusted server."
+      ],
+      "replacement_for_misuse": [],
+      "recommended_first_call": {
+        "operation": "publish one WK's reviewed terminal candidate",
+        "arguments": {
+          "assigned_unit": "$canonical_wk_id"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_terminal_review_candidate_status",
       "display_name": "Terminal review candidate status",
       "kind": "mcp_tool",
       "entrypoint": "workspace_terminal_review_candidate_status",
-      "task_ids": ["query-terminal-review-candidate"],
+      "task_ids": [
+        "query-terminal-review-candidate"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 125,
-      "side_effects": ["read_only"],
-      "authority": ["launcher_registry", "workspace_repo", "launcher_backend"],
-      "tier_visibility": ["free_local", "paid_cce"],
-      "docs_refs": ["docs/mcp-dispatch-terminal-review.md", "docs/mcp-dispatch-slice-integration.md"],
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "docs/mcp-dispatch-slice-integration.md"
+      ],
       "source_files": [
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-terminal-candidate-coordination.mjs",
-      "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
-      "packages/wiki-mcp/src/lib/dispatch-diagnostic-routes.mjs",
-      "packages/wiki-core/data/tool-discovery/manifest.json",
-      "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+        "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-diagnostic-routes.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
       "notes": "Use only for a launcher-built managed terminal candidate. Do not use for an operator-authorized direct-to-main review: commit the exact scoped candidate, then call workspace_agent_dispatch with canonical subject plus complete diff_base_sha/reviewed_sha. The reviewer is read-only and creates no Git objects.",
-      "use_when": ["A launcher-built managed terminal candidate may be absent, bound, stale, divergent, or healthy and the coordinator needs exact current state."],
-      "do_not_use_when": ["The caller intends to supply candidate, ref, SHA, path, lock, schema, or policy authority.", "The lifecycle is an operator-authorized direct-to-main review; use workspace_agent_dispatch with the canonical subject and complete SHA pair after the scoped commit lands."],
-      "authoritative_for": ["terminal_review_candidate:read_only_status"],
-      "requires_prior_state": ["A canonical WK id in the selected workspace."],
-    "replacement_for_misuse": [],
-    "recommended_first_call": {
-      "operation": "read terminal candidate status",
-      "arguments": {
-        "wk_id": "$canonical_wk_id"
-      },
-      "omit_null_arguments": true
-    }
+      "use_when": [
+        "A launcher-built managed terminal candidate may be absent, bound, stale, divergent, or healthy and the coordinator needs exact current state."
+      ],
+      "do_not_use_when": [
+        "The caller intends to supply candidate, ref, SHA, path, lock, schema, or policy authority.",
+        "The lifecycle is an operator-authorized direct-to-main review; use workspace_agent_dispatch with the canonical subject and complete SHA pair after the scoped commit lands."
+      ],
+      "authoritative_for": [
+        "terminal_review_candidate:read_only_status"
+      ],
+      "requires_prior_state": [
+        "A canonical WK id in the selected workspace."
+      ],
+      "replacement_for_misuse": [],
+      "recommended_first_call": {
+        "operation": "read terminal candidate status",
+        "arguments": {
+          "wk_id": "$canonical_wk_id"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_terminal_review_candidate_advance",
       "display_name": "Advance stale terminal review candidate",
       "kind": "mcp_tool",
       "entrypoint": "workspace_terminal_review_candidate_advance",
-      "task_ids": ["advance-terminal-review-candidate"],
+      "task_ids": [
+        "advance-terminal-review-candidate"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 124,
-      "side_effects": ["workspace_write"],
-      "authority": ["launcher_registry", "workspace_repo", "launcher_backend"],
-      "tier_visibility": ["free_local", "paid_cce"],
-      "docs_refs": ["docs/mcp-dispatch-terminal-review.md", "docs/mcp-dispatch-slice-integration.md"],
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "docs/mcp-dispatch-slice-integration.md"
+      ],
       "source_files": [
         "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-terminal-candidate-coordination.mjs",
-      "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
-      "packages/wiki-mcp/src/lib/dispatch-diagnostic-routes.mjs",
-      "packages/wiki-core/data/tool-discovery/manifest.json",
-      "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+        "packages/wiki-mcp/src/lib/dispatch-terminal-candidate-runtime.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-diagnostic-routes.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
       ],
-      "notes": "Closed-input stale-W-only continuation. The launcher evaluates status before and inside its per-WK exclusion, chooses v2/v3 from exact W, derives deterministic C once, and advances only refs/agent-launch/terminal-current-v2/<WK> through one no-deref CAS. Input is closed to repo and wk_id.",
-      "use_when": ["workspace_terminal_review_candidate_status returns candidate_stale_w and its exact next_call names this route."],
-      "do_not_use_when": ["Status is absent, invalid, bound, coordination-inadmissible, divergent, or healthy."],
-      "authoritative_for": ["terminal_review_candidate:stale_w_advance"],
-      "requires_prior_state": ["A candidate_stale_w status re-proven inside the launcher exclusion."],
-    "replacement_for_misuse": [],
-    "recommended_first_call": {
-      "operation": "advance the stale candidate returned by status",
-      "arguments": {
-        "wk_id": "$canonical_wk_id"
-      },
-      "omit_null_arguments": true
-    }
+      "notes": "Closed-input continuation for a stale-W candidate only. The launcher re-evaluates status inside its per-WK exclusion, derives the candidate, and advances only refs/agent-launch/terminal-current-v2/<WK> by CAS. Input is closed to repo and wk_id; caller candidate or Git authority refuses.",
+      "use_when": [
+        "workspace_terminal_review_candidate_status returns candidate_stale_w and its exact next_call names this route."
+      ],
+      "do_not_use_when": [
+        "Status is absent, invalid, bound, coordination-inadmissible, divergent, or healthy."
+      ],
+      "authoritative_for": [
+        "terminal_review_candidate:stale_w_advance"
+      ],
+      "requires_prior_state": [
+        "A candidate_stale_w status re-proven inside the launcher exclusion."
+      ],
+      "replacement_for_misuse": [],
+      "recommended_first_call": {
+        "operation": "advance the stale candidate returned by status",
+        "arguments": {
+          "wk_id": "$canonical_wk_id"
+        },
+        "omit_null_arguments": true
+      }
     }
   ]
 }

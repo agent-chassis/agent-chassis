@@ -12,6 +12,8 @@ import {
   rememberControlledContractRefactorContinuation,
   updateControlledContractRefactorContinuation
 } from "../../packages/wiki-core/src/lib/controlled-contract-authoring-continuations.mjs";
+import { retainControlledContractRefactorResource } from
+  "../../packages/wiki-core/src/lib/controlled-contract-refactor-staging.mjs";
 import { queryControlledContractRefactorReceipt } from
   "../../packages/wiki-core/src/operations/controlled-contract/refactor-operations.mjs";
 import { prepareControlledContractRefactorCoverageSettlement } from
@@ -73,16 +75,24 @@ async function repository(t) {
 
 test("immutable receipt settlement survives restart-style lookup and pages losslessly", async (t) => {
   const repoRoot = await repository(t);
+  const source = { generation: "old", manifest_digest: `sha256:${"2".repeat(64)}` };
+  const transaction = await retainControlledContractRefactorResource({ repoRoot,
+    resourceKind: "finalized_transaction", payload: {
+      schema_version: "controlled-contract-refactor-retained-transaction.v1",
+      plan_identity: `sha256:${"3".repeat(64)}`,
+      snapshot_digest: `sha256:${"4".repeat(64)}`,
+      source,
+      package_result: { schema_version: "controlled-contract-refactor-graph.v1",
+        result_digest: `sha256:${"5".repeat(64)}` },
+      coverage: { obligation: null, acceptance: null }
+    } });
   const planned = await rememberControlledContractRefactorContinuation({
     repoRoot, wkId: "WK-2470", contractContentDigest: `sha256:${"1".repeat(64)}`,
     packageGeneration: "1.0.0",
-    source: { generation: "old", manifest_digest: `sha256:${"2".repeat(64)}` },
+    source,
     planIdentity: `sha256:${"3".repeat(64)}`,
     snapshotDigest: `sha256:${"4".repeat(64)}`,
-    packageResult: { schema_version: "controlled-contract-refactor-graph.v1",
-      result_digest: `sha256:${"5".repeat(64)}` },
-    coverage: { obligation: null, acceptance: null },
-    sourceLease: { generation: "old", manifest_digest: `sha256:${"2".repeat(64)}` }
+    transactionIdentity: transaction.identity
   });
   const receipt = { schema_version: "controlled-contract-refactor-receipt.v1",
     source: { generation: "old" }, target: { generation: "new" },
@@ -97,17 +107,20 @@ test("immutable receipt settlement survives restart-style lookup and pages lossl
       result_digest: `sha256:${"5".repeat(64)}`, package_generation: "1.0.0" },
     counts: { carrier_changes: 1, coverage_changes: 0, correspondence: 1,
       invalidated_derived: 0, proof_gaps: 0 } };
-  const published = await updateControlledContractRefactorContinuation({
+  const retainedReceipt = await retainControlledContractRefactorResource({ repoRoot,
+    resourceKind: "receipt", payload: receipt });
+  await updateControlledContractRefactorContinuation({
     repoRoot, wkId: "WK-2470", identity: planned.identity,
-    changes: { status: "published", receipt }
+    changes: { status: "published", receipt_identity: retainedReceipt.identity }
   });
   const first = await queryControlledContractRefactorReceipt({ repoRoot,
-    resourceIdentity: published.identity, selector: null,
+    resourceIdentity: retainedReceipt.identity,
+    selector: { kind: "carrier_change", stable_id: null },
     authenticatedCursorPayload: null });
-  assert.equal(first.counts.complete, 2);
-  assert.equal(first.counts.returned, 2);
+  assert.equal(first.counts.complete, 1);
+  assert.equal(first.counts.returned, 1);
   assert.equal(first.counts.remaining, 0);
-  assert.equal(first.resource_identity, published.identity);
+  assert.equal(first.resource_identity, retainedReceipt.identity);
 });
 
 test("coverage settlement rejects observed presence for an expected-absent source", async (t) => {

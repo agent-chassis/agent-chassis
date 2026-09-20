@@ -8,7 +8,7 @@ import {
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest,
   projectSliceReviewReceiptContracts
-} from "../../../wiki-core/src/index.mjs";
+} from "../../../wiki-core/src/lib/work-record-schema.mjs";
 import {
   evaluateWorkRecordParentLifecycleContract,
   PARENT_LIFECYCLE_CONTRACT_FACTS
@@ -54,11 +54,6 @@ import {
   authenticatedControlledContractGenerationsEqual
 } from
   "@agent-chassis/wiki-core/src/lib/controlled-contract-generation-authentication.mjs";
-import {
-  runAllTerminalCandidateValidations,
-  runTerminalCandidateValidation,
-  verifyTerminalCandidateDependencies
-} from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-validation.mjs";
 import {
   CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES,
   canonicalCurrentTerminalReviewContract,
@@ -179,7 +174,12 @@ function statusResult({ state, cause = null, nextCall = null, candidate = null, 
     next_call: appendAcceptedRepository(nextCall, acceptedRepository),
     candidate,
     divergence,
-    version_lifecycle: versionLifecycle,
+    version_lifecycle: versionLifecycle === null || !plainNonProxyObject(versionLifecycle)
+      ? versionLifecycle
+      : Object.freeze({
+          ...versionLifecycle,
+          next_call: appendAcceptedRepository(versionLifecycle.next_call ?? null, acceptedRepository)
+        }),
     ...(decidingFacts === null ? {} : { deciding_facts: decidingFacts }),
     ...(workflowGuidance === null ? {} : { workflow_guidance: workflowGuidance })
   });
@@ -567,7 +567,7 @@ export async function evaluateTerminalReviewCandidateStatus({
         version_decision: bound.version_decision,
         next_call: Object.freeze({
           tool: "workspace_agent_dispatch",
-          arguments: Object.freeze({ role: "reviewer", assigned_unit: live.review_subject })
+          arguments: Object.freeze({ role: "reviewer", subject: live.review_subject })
         })
       })
     });
@@ -693,7 +693,7 @@ export async function evaluateTerminalReviewCandidateStatus({
     nextCall: reviewerDispatchAllowed
       ? Object.freeze({
           tool: "workspace_agent_dispatch",
-          arguments: Object.freeze({ role: "reviewer", assigned_unit: live.review_subject })
+          arguments: Object.freeze({ role: "reviewer", subject: live.review_subject })
         })
       : null,
     candidate: candidateProjection,
@@ -703,7 +703,7 @@ export async function evaluateTerminalReviewCandidateStatus({
       next_call: reviewerDispatchAllowed
         ? Object.freeze({
             tool: "workspace_agent_dispatch",
-            arguments: Object.freeze({ role: "reviewer", assigned_unit: live.review_subject })
+            arguments: Object.freeze({ role: "reviewer", subject: live.review_subject })
           })
         : null
     })

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import test from "node:test";
 
 import {
   ProofAuthoringSkeletonError,
   buildProofAuthoringSkeleton
 } from "../lib/proof-authoring-skeleton.mjs";
+import { TEST_PROOF_PROVIDER_CATALOG } from "../lib/test-proof-provider-registry.mjs";
 import {
   PROOF_GRAPH_PROPOSAL_FIELDS,
   PROOF_GRAPH_PROPOSAL_SCHEMA_VERSION,
@@ -16,8 +16,8 @@ import {
 } from "../lib/proof-graph-proposal-v1.mjs";
 import { inspectProofPackBindingsPage } from
   "../lib/proof-pack-binding-assistance.mjs";
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../lib/stable-v1-migration.mjs";
+import { readCarrierSetFixture } from
+  "../../../tests/helpers/controlled-contract-carrier-set-fixtures.mjs";
 import { buildRefusalBeforeEffectsFixture } from
   "./proof-packs/refusal-before-effects-fixture.mjs";
 import { buildResultShapeConformanceFixture } from
@@ -28,72 +28,62 @@ import { buildAuthenticationProvenanceFixture } from
   "./proof-packs/authentication-provenance-v1-fixture.mjs";
 import { buildStableTestProofPopulation } from
   "./support/stable-v1-proof-pack-runtime.mjs";
+import { readProofPackCatalog } from "../lib/admitted-proof-packs.mjs";
+import { controlledContractPackCarrierFilename } from
+  "../../wiki-core/src/lib/controlled-contract-tools.mjs";
+
+const ADMITTED_PACKS = (await readProofPackCatalog()).packs;
+function admittedPack(profileId) {
+  const matches = ADMITTED_PACKS.filter(({ profile_id: id }) => id === profileId);
+  assert.equal(matches.length, 1, `${profileId} must have one admitted version`);
+  return Object.freeze({ profile_id: profileId, profile_version: matches[0].profile_version,
+    path: matches[0].path });
+}
+const packIdentity = ({ profile_id, profile_version }) =>
+  Object.freeze({ profile_id, profile_version });
+const testValidityPack = packIdentity(admittedPack("proof.verification.test-validity"));
+const dormancyPack = packIdentity(admittedPack("proof.dormancy.nonactivation"));
+const integrationPack = packIdentity(admittedPack("proof.integration.prefix-safety"));
 
 function stabilizeFixture(value) {
   const fixture = structuredClone(value);
   fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
-  fixture.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixture.input.input_version = "controlled-contract-verification-profile-input.v2";
   fixture.input.stable_evaluation = {};
   return fixture;
 }
 
-const selectedPack = {
-  profile_id: "proof.authorization.refusal-before-effects",
-  profile_version: "2.0.0"
-};
+const selectedPack = packIdentity(admittedPack("proof.authorization.refusal-before-effects"));
 const requestedIntents = ["controlled-proof-intent.refusal-before-effects"];
-const resultShapePack = {
-  profile_id: "proof.result-shape.conformance",
-  profile_version: "2.0.0"
-};
+const resultShapePack = packIdentity(admittedPack("proof.result-shape.conformance"));
 const resultShapeIntents = ["controlled-proof-intent.result-shape-conformance"];
-const REPOSITORY_ROOT = path.resolve(import.meta.dirname, "../../..");
 
-async function canonicalWk2063Input() {
-  const json = async (relativePath) => JSON.parse(await readFile(
-    path.join(REPOSITORY_ROOT, relativePath), "utf8"
-  ));
-  const canonicalRecord = await json("wiki/work-records/WK-2063.json");
-  const proofPlanRequest = await json("wiki/contracts/WK-2063.proof-plan-request.json");
-  const evaluationInputs = {};
-  for (const selected of proofPlanRequest.selected_packs) {
-    evaluationInputs[selected.evaluation_input_path] = await json(
-      `wiki/contracts/${selected.evaluation_input_path}`
-    );
-  }
-  evaluationInputs["WK-2063.evaluation-input.json"] = await json(
-    "wiki/contracts/WK-2063.evaluation-input.json"
-  );
+async function fixtureWk2063Input() {
+  const target = await readCarrierSetFixture("WK-2063");
+  const mapping = await readCarrierSetFixture("WK-2071");
+  const storedRequest = target.members.get("WK-2063.proof-plan-request.json");
+  const evaluationInputs = {
+    "WK-2063.evaluation-input.json": target.members.get("WK-2063.evaluation-input.json")
+  };
+  const selectedPacks = storedRequest.selected_packs.map((stored) => {
+    const pack = packIdentity(admittedPack(stored.profile_id));
+    const evaluationInputPath = controlledContractPackCarrierFilename({
+      wkId: target.wkId, focus: null,
+      profileId: pack.profile_id, profileVersion: pack.profile_version
+    });
+    evaluationInputs[evaluationInputPath] = target.members.get(stored.evaluation_input_path);
+    return { ...pack, evaluation_input_path: evaluationInputPath };
+  });
+  const contract = structuredClone(target.members.get("WK-2063.controlled-acceptance.json"));
+  contract.test_proofs = buildStableTestProofPopulation(contract);
   return {
-    canonicalRecord,
-    contract: await json("wiki/contracts/WK-2063.controlled-acceptance.json"),
-    mappingContract: await json("wiki/contracts/WK-2071.controlled-acceptance.json"),
-    slices: canonicalRecord.slices,
-    proofPlanRequest,
+    canonicalRecord: target.record,
+    contract,
+    mappingContract: mapping.members.get("WK-2071.controlled-acceptance.json"),
+    slices: target.record.slices,
+    proofPlanRequest: { ...storedRequest, selected_packs: selectedPacks },
     evaluationInputs,
     focus: null
-  };
-}
-
-async function canonicalStableWk2063Input() {
-  const input = await canonicalWk2063Input();
-  const proofPlanRequest = structuredClone(input.proofPlanRequest);
-  const [selected] = proofPlanRequest.selected_packs;
-  selected.profile_version = "2.0.0";
-  const evaluationInputs = structuredClone(input.evaluationInputs);
-  const evaluationInput = evaluationInputs[selected.evaluation_input_path];
-  evaluationInput.input_version = "controlled-contract-verification-profile-input.v1";
-  evaluationInput.stable_evaluation = {};
-  const migrate = (contract) => migrateControlledAcceptanceContractV02ToV1({
-    contract,
-    testProofs: buildStableTestProofPopulation(contract)
-  });
-  return {
-    ...input,
-    contract: migrate(input.contract),
-    mappingContract: migrate(input.mappingContract),
-    proofPlanRequest,
-    evaluationInputs
   };
 }
 
@@ -110,21 +100,23 @@ function request(overrides = {}) {
 
 async function testValidityFixture() {
   const json = (url) => readFile(url, "utf8").then(JSON.parse);
-  const [base, input] = await Promise.all([
-    json(new URL("../examples/minimal-controlled-acceptance-contract-v034.json",
+  const [base, template] = await Promise.all([
+    json(new URL("../examples/minimal-controlled-acceptance-contract.v1.json",
       import.meta.url)),
     json(new URL(
-      "../profiles/proof.verification.test-validity/1.0.0/evaluation-input.template.json",
+      `../${admittedPack("proof.verification.test-validity").path}/evaluation-input.template.json`,
       import.meta.url))
   ]);
+
+  const input = { ...template.stable_evaluation.test_validity[0] };
   input.verification_id = "claim-suite-covers-component";
   input.test_proof_id = "test-proof-suite-covers-component";
-  input.evaluation_stage = "pre_dispatch";
   input.falsifier_executions[0].failure_proposition_id = "prop-component-absent";
   input.falsifier_executions[0].mutation.target_verification_id = input.verification_id;
   const modulePath = "packages/controlled-contract/lib/test-proof-contract.mjs";
   const provider = (provider_id, capability) => ({
-    provider_id, provider_version: "1.0.0", capability
+    provider_id, capability, provider_version: TEST_PROOF_PROVIDER_CATALOG.providers.find(
+      ({ provider_id: id }) => id === provider_id).provider_version
   });
   const proof = {
     test_proof_id: input.test_proof_id,
@@ -154,30 +146,24 @@ async function testValidityFixture() {
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace"
     },
-    coverage_disposition: {
-      baseline_id: "coverage-baseline-package-suite",
-      baseline_state: "complete_executed_inventory",
-      items: input.test_inventory.declared_test_ids.map((test_id) => ({
-        test_id, disposition: "preserved"
-      }))
-    },
+    test_selector: { name: "package result is returned for the covered component",
+      nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
-  const { input_version: _inputVersion, evaluation_stage, ...testValidity } = input;
+  const testValidity = input;
+
   return {
-    contract: migrateControlledAcceptanceContractV02ToV1({
-      contract: base, testProofs: [proof]
-    }),
+    contract: { ...base, test_proofs: [proof] },
     input: {
-      input_version: "controlled-contract-verification-profile-input.v1",
-      evaluation_stage,
+      input_version: "controlled-contract-verification-profile-input.v2",
       reference_bindings: [
         { role: "component", reference_ids: ["ref-component"] },
         { role: "suite", reference_ids: ["ref-suite"] }
       ],
       number_bindings: [], claim_pattern_bindings: [], resolver_facts: [],
-      delivered_evidence: [], stable_evaluation: { test_validity: [testValidity] }
-    }
+      delivered_evidence: [], stable_evaluation: {}
+    },
+    executionObservation: testValidity
   };
 }
 
@@ -204,69 +190,35 @@ test("builds a stable test-validity skeleton without altering its test-proof pop
     const before = structuredClone(fixture.contract.test_proofs);
     const result = await buildProofAuthoringSkeleton({
       contract: fixture.contract,
-      selectedPack: {
-        profile_id: "proof.verification.test-validity",
-        profile_version: "2.0.0"
-      },
+      selectedPack: testValidityPack,
       requestedIntents: ["controlled-proof-intent.test-verification-validity"],
       evaluationInput: fixture.input
     });
     assert.deepEqual(result.evaluation_input_diagnostics, []);
     assert.deepEqual(result.unresolved_required_roles, []);
-    assert.equal(result.evaluation_input.evaluation_stage, "pre_dispatch");
+
     assert.deepEqual(fixture.contract.test_proofs, before);
     assert.equal(Object.hasOwn(before[0], "runtime_test_selection"), false);
+
+    await assert.rejects(buildProofAuthoringSkeleton({
+      contract: fixture.contract,
+      selectedPack: testValidityPack,
+      requestedIntents: ["controlled-proof-intent.test-verification-validity"],
+      evaluationInput: { ...fixture.input,
+        stable_evaluation: { test_validity: [fixture.executionObservation] } }
+    }), (error) => error instanceof ProofAuthoringSkeletonError &&
+      error.code === "evaluation_input_execution_observation_authored" &&
+      error.details.execution_owner === "workspace_verify_proof");
     const invalid = structuredClone(fixture.contract);
     invalid.test_proofs[0].candidate_execution_provider.provider_id = "launcher.unknown";
     await assert.rejects(buildProofAuthoringSkeleton({
       contract: invalid,
-      selectedPack: {
-        profile_id: "proof.verification.test-validity",
-        profile_version: "2.0.0"
-      },
+      selectedPack: testValidityPack,
       requestedIntents: ["controlled-proof-intent.test-verification-validity"],
       evaluationInput: fixture.input
     }), (error) => error.code === "proof_authoring_contract_invalid" &&
       error.details.diagnostics.diagnostics.length > 0);
   });
-
-test("derives a uniquely allowed post-delivery stage on typed bindings", async () => {
-  const fixture = stabilizeFixture(buildAuthenticationProvenanceFixture());
-  const result = await buildProofAuthoringSkeleton({
-    contract: fixture.contract,
-    selectedPack: {
-      profile_id: "proof.authentication.direct-source-provenance",
-      profile_version: "2.0.0"
-    },
-    requestedIntents: ["controlled-proof-intent.direct-source-authentication-provenance"],
-    bindings: Object.fromEntries(Object.entries(fixture.input).filter(([key]) =>
-      key !== "evaluation_stage"))
-  });
-  assert.equal(result.evaluation_input.evaluation_stage, "post_delivery");
-});
-
-test("rejects an unsupported typed evaluation stage before resolution", async () => {
-  await assert.rejects(
-    buildProofAuthoringSkeleton({
-      ...request({ bindings: { evaluationStage: "post_delivery" } }),
-      evaluationInput: undefined
-    }),
-    (error) => error instanceof ProofAuthoringSkeletonError &&
-      error.code === "proof_authoring_evaluation_stage_invalid"
-  );
-});
-
-test("rejects an unsupported evaluationInput stage before resolution", async () => {
-  await assert.rejects(
-    buildProofAuthoringSkeleton({
-      ...request({
-        evaluationInput: { ...request().evaluationInput, evaluation_stage: "post_delivery" }
-      })
-    }),
-    (error) => error instanceof ProofAuthoringSkeletonError &&
-      error.code === "proof_authoring_evaluation_stage_invalid"
-  );
-});
 
 test("preserves camelCase semantic typed bindings", async () => {
   const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
@@ -284,7 +236,7 @@ test("preserves camelCase semantic typed bindings", async () => {
   const result = await buildProofAuthoringSkeleton({
     contract: fixture.contract, selectedPack, requestedIntents,
     bindings: {
-      evaluationStage: "pre_dispatch",
+
       referenceBindings: fixture.input.reference_bindings,
       numberBindings: fixture.input.number_bindings,
       ...semantic
@@ -321,7 +273,7 @@ test("omits unsupplied optional zero-cardinality roles despite candidate counts"
   const dormancyInspection = await inspectProofPackBindingsPage({
     contract: dormancyFixture.contract,
     profileId: "proof.dormancy.nonactivation",
-    profileVersion: "2.0.0",
+    profileVersion: dormancyPack.profile_version,
     requestedIntents: ["controlled-proof-intent.dormancy-nonactivation"],
     evaluationInput: dormancyFixture.input,
     roles: ["activation_events"], maximumItems: 0
@@ -332,9 +284,7 @@ test("omits unsupplied optional zero-cardinality roles despite candidate counts"
   assert.equal(activationRole.status, "one_compatible_candidate");
   const dormancyResult = await buildProofAuthoringSkeleton({
     contract: dormancyFixture.contract,
-    selectedPack: {
-      profile_id: "proof.dormancy.nonactivation", profile_version: "2.0.0"
-    },
+    selectedPack: dormancyPack,
     requestedIntents: ["controlled-proof-intent.dormancy-nonactivation"],
     evaluationInput: dormancyFixture.input
   });
@@ -353,7 +303,7 @@ test("omits unsupplied optional zero-cardinality roles despite candidate counts"
   const ambiguousDormancyInspection = await inspectProofPackBindingsPage({
     contract: ambiguousDormancyFixture.contract,
     profileId: "proof.dormancy.nonactivation",
-    profileVersion: "2.0.0",
+    profileVersion: dormancyPack.profile_version,
     requestedIntents: ["controlled-proof-intent.dormancy-nonactivation"],
     evaluationInput: ambiguousDormancyFixture.input,
     roles: ["activation_events"], maximumItems: 0
@@ -364,9 +314,7 @@ test("omits unsupplied optional zero-cardinality roles despite candidate counts"
   assert.equal(ambiguousActivationRole.status, "ambiguous");
   const ambiguousDormancyResult = await buildProofAuthoringSkeleton({
     contract: ambiguousDormancyFixture.contract,
-    selectedPack: {
-      profile_id: "proof.dormancy.nonactivation", profile_version: "2.0.0"
-    },
+    selectedPack: dormancyPack,
     requestedIntents: ["controlled-proof-intent.dormancy-nonactivation"],
     evaluationInput: ambiguousDormancyFixture.input
   });
@@ -476,22 +424,10 @@ test("keeps incompatible caller bindings unresolved", async () => {
     role === "protected_effect_count").status, "incompatible");
 });
 
-test("a supplied evaluation input must state its own pack-allowed stage", async () => {
-  const { evaluation_stage: stage, ...stageless } = request().evaluationInput;
-  assert.equal(stage, "pre_dispatch");
-  await assert.rejects(
-    buildProofAuthoringSkeleton(request({ evaluationInput: stageless })),
-    (error) => error instanceof ProofAuthoringSkeletonError &&
-      error.code === "proof_authoring_evaluation_stage_unresolved" &&
-      error.details.allowed_evaluation_stages.includes("pre_dispatch")
-  );
-});
-
 test("root, focused, and existing-request authoring compose one request population",
   async () => {
     const otherPack = {
-      profile_id: "proof.result-shape.conformance",
-      profile_version: "2.0.0",
+      ...resultShapePack,
       evaluation_input_path: "WK-9001-shape.evaluation-input.json"
     };
     const otherIntent = "controlled-proof-intent.result-shape-conformance";
@@ -616,127 +552,16 @@ test("root, focused, and existing-request authoring compose one request populati
           error.code === "controlled_contract_proof_graph_proposal_invalid" &&
           error.details.pointer === pointer, pointer);
     }
-
-    const minimalOperations = (count) => Array.from({ length: count }, () => ({
-      kind: "carrier_patch", carrier_kind: "contract"
-    }));
-    assert.throws(() => validateProofGraphProposal(proposalFor(root, {
-      carrier_operations: minimalOperations(65)
-    })), (error) => error instanceof ProofGraphProposalError &&
-      error.code === "controlled_contract_proof_graph_bound_exceeded" &&
-      error.details.pointer === "/carrier_operations" &&
-      error.details.actual === 65 &&
-      error.details.maximum === 64);
-    assert.equal(validateProofGraphProposal(proposalFor(root, {
-      carrier_operations: minimalOperations(64)
-    })).operation_count, 64);
   });
 
-const CONFLICT_DETAILS = Object.freeze({
-  canonical_field: "evaluation_stage",
-  supplied_aliases: ["evaluation_stage", "evaluationStage"]
-});
-
-function typedStageRequest(stage) {
+test("typed bindings reject removed classification fields", async () => {
   const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
-  return {
-    contract: fixture.contract,
-    selectedPack,
-    requestedIntents,
-    bindings: {
-      referenceBindings: fixture.input.reference_bindings,
-      numberBindings: fixture.input.number_bindings,
-      ...stage
-    }
-  };
-}
-
-test("both evaluation-stage aliases refuse as one fact supplied twice", async () => {
-
-  for (const [snake, camel] of [
-    ["pre_dispatch", "post_delivery"],
-    ["post_delivery", "pre_dispatch"],
-
-    ["pre_dispatch", "pre_dispatch"]
-  ]) {
-    const request = typedStageRequest({
-      evaluation_stage: snake, evaluationStage: camel
-    });
-    const before = JSON.stringify(request);
-    await assert.rejects(buildProofAuthoringSkeleton(request), (error) => {
-      assert.ok(error instanceof ProofAuthoringSkeletonError);
-      assert.equal(error.code, "proof_authoring_evaluation_stage_conflict");
-
-      assert.deepEqual(error.details, {
-        evaluation_stage: snake,
-        evaluationStage: camel,
-        ...CONFLICT_DETAILS
-      });
-      assert.deepEqual(Object.keys(error.details), [
-        "evaluation_stage", "evaluationStage", "canonical_field",
-        "supplied_aliases"
-      ]);
-      return true;
-    });
-
-    assert.equal(JSON.stringify(request), before);
-  }
-});
-
-test("the stage conflict refuses before any continuation or skeleton exists", async () => {
-
-  const request = typedStageRequest({
-    evaluation_stage: "pre_dispatch", evaluationStage: "post_delivery"
-  });
-  const settled = await buildProofAuthoringSkeleton(request).then(
-    (result) => ({ result }), (error) => ({ error }));
-  assert.equal(settled.result, undefined,
-    "a contradictory stage pair must not produce a skeleton");
-  assert.equal(settled.error.code, "proof_authoring_evaluation_stage_conflict");
-
-  const carried = JSON.stringify(settled.error.details);
-  for (const field of [
-    "continuation", "identity_digest", "contract_digest", "package_version",
-    "proof_plan_request", "evaluation_input", "unresolved_required_roles"
-  ]) assert.equal(carried.includes(field), false, field);
-
-  const { bindings } = request;
-  delete bindings.evaluationStage;
-  const issued = await buildProofAuthoringSkeleton(request);
-  assert.equal(issued.evaluation_input.evaluation_stage, "pre_dispatch");
-  assert.equal(typeof issued.continuation.identity_digest, "string");
-});
-
-test("either alias alone canonicalizes to the same evaluation_stage", async () => {
-  const [snakeOnly, camelOnly, neither] = await Promise.all([
-    buildProofAuthoringSkeleton(typedStageRequest({ evaluation_stage: "pre_dispatch" })),
-    buildProofAuthoringSkeleton(typedStageRequest({ evaluationStage: "pre_dispatch" })),
-
-    buildProofAuthoringSkeleton(typedStageRequest({}))
-  ]);
-  for (const result of [snakeOnly, camelOnly, neither]) {
-    assert.equal(result.evaluation_input.evaluation_stage, "pre_dispatch");
-    assert.equal(Object.hasOwn(result.evaluation_input, "evaluationStage"), false);
-  }
-
-  assert.deepEqual(camelOnly, snakeOnly);
-  assert.deepEqual(neither, snakeOnly);
-
-  for (const result of [snakeOnly, camelOnly, neither]) {
-    assert.equal(JSON.stringify(result).includes("proof-authoring-stage"), false);
-    assert.equal(Object.getOwnPropertySymbols(result.evaluation_input).length, 0);
-  }
-});
-
-test("a single unsupported stage keeps its own refusal identity", async () => {
-
-  for (const stage of [
-    { evaluation_stage: "post_delivery" }, { evaluationStage: "post_delivery" }
-  ]) {
-    await assert.rejects(buildProofAuthoringSkeleton(typedStageRequest(stage)),
-      (error) => error.code === "proof_authoring_evaluation_stage_invalid" &&
-        error.details.evaluation_stage === "post_delivery" &&
-        error.details.allowed_evaluation_stages.includes("pre_dispatch"));
+  for (const key of ["evaluation_stage", "evaluationStage"]) {
+    await assert.rejects(buildProofAuthoringSkeleton({
+      contract: fixture.contract, selectedPack, requestedIntents,
+      bindings: { referenceBindings: fixture.input.reference_bindings,
+        numberBindings: fixture.input.number_bindings, [key]: "pre_dispatch" }
+    }), { code: "proof_authoring_bindings_invalid" });
   }
 });
 
@@ -781,38 +606,63 @@ test("rejects conflicting aliases and malformed continuation identity", async ()
   );
 });
 
-test("canonical pre-stable integration authoring refuses before constructing artifacts", async () => {
-  const input = await canonicalWk2063Input();
-  await assert.rejects(buildProofAuthoringSkeleton(input), {
-    code: "integration_prefix_contract_invalid"
+test("a retired contract family refuses integration authoring before constructing artifacts",
+  async () => {
+
+    const input = await fixtureWk2063Input();
+    for (const retired of [
+      { schema_version: "controlled-acceptance-contract.v0.2" },
+      { profile_id: "acceptance-contract.standard.v0.2" },
+      { vocabulary_version: "controlled-contract-vocabulary.v0.2" }
+    ]) {
+      await assert.rejects(buildProofAuthoringSkeleton({
+        ...input, contract: { ...input.contract, ...retired }
+      }), { code: "integration_prefix_contract_invalid" });
+      await assert.rejects(buildProofAuthoringSkeleton({
+        ...input, mappingContract: { ...input.mappingContract, ...retired }
+      }), { code: "integration_prefix_contract_invalid" });
+    }
+
+    const { test_proofs: _proofs, ...withoutProofs } = input.contract;
+    await assert.rejects(buildProofAuthoringSkeleton({
+      ...input, contract: withoutProofs
+    }), { code: "integration_prefix_contract_invalid" });
   });
-});
 
 test("authors stable-v1 integration prefixes with the package-owned evaluation input", async () => {
-  const input = await canonicalStableWk2063Input();
+  const input = await fixtureWk2063Input();
   const result = await buildProofAuthoringSkeleton(input);
+
+  for (const pack of input.proofPlanRequest.selected_packs) {
+    assert.deepEqual(result.proof_plan_request.selected_packs.find(
+      ({ profile_id: id }) => id === pack.profile_id), pack);
+  }
   const evaluationPath = result.proof_plan_request.selected_packs.find(({ profile_id }) =>
     profile_id === "proof.integration.prefix-safety")?.evaluation_input_path;
   assert.ok(evaluationPath);
   assert.deepEqual(result.evaluation_inputs[evaluationPath].stable_evaluation, {});
   assert.equal(result.identity.profile_id, "proof.integration.prefix-safety");
-  assert.equal(result.identity.profile_version, "2.0.0");
+  assert.equal(result.identity.profile_version, integrationPack.profile_version);
   assert.equal(result.proof_plan_request.selected_packs.some(({ profile_id, profile_version }) =>
-    profile_id === "proof.integration.prefix-safety" && profile_version === "2.0.0"), true);
+    profile_id === integrationPack.profile_id &&
+    profile_version === integrationPack.profile_version), true);
 });
 
-test("canonical integration authoring rejects caller authority and exact focus mismatches", async () => {
-  const input = await canonicalWk2063Input();
-  await assert.rejects(buildProofAuthoringSkeleton({ ...input, graph: {} }), {
-    code: "integration_prefix_authority_forbidden"
+test("integration authoring rejects caller authority, focus mismatches, and incomplete ownership",
+  async () => {
+    const input = await fixtureWk2063Input();
+    await assert.rejects(buildProofAuthoringSkeleton({ ...input, graph: {} }), {
+      code: "integration_prefix_authority_forbidden"
+    });
+    await assert.rejects(buildProofAuthoringSkeleton({ ...input, focus: "other-focus" }), {
+      code: "integration_prefix_cross_focus"
+    });
+
+    const annotationOnly = structuredClone(input.mappingContract);
+    annotationOnly.propositions = annotationOnly.propositions.filter(({ proposition_id: id }) =>
+      !id.startsWith("prop-wk2063-map-"));
+    await assert.rejects(buildProofAuthoringSkeleton({ ...input, mappingContract: annotationOnly }),
+      (error) => error instanceof ProofAuthoringSkeletonError &&
+        error.code === "integration_prefix_claim_ownership_incomplete" &&
+        error.details.claim_ids.length > 0);
   });
-  await assert.rejects(buildProofAuthoringSkeleton({ ...input, focus: "other-focus" }), {
-    code: "integration_prefix_cross_focus"
-  });
-  const annotationOnly = structuredClone(input.mappingContract);
-  annotationOnly.propositions = annotationOnly.propositions.filter(({ proposition_id: id }) =>
-    !id.startsWith("prop-wk2063-map-"));
-  await assert.rejects(buildProofAuthoringSkeleton({ ...input, mappingContract: annotationOnly }), {
-    code: "integration_prefix_contract_invalid"
-  });
-});

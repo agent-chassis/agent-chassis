@@ -277,17 +277,8 @@ test("every taxonomy entry has category and actor_recovery fields", () => {
 });
 
 const WK_1509_REGISTERED_COMPACT_READ_LABELS = Object.freeze([
-  "compact_first_required",
-  "compact_read_token_missing",
-  "compact_read_token_malformed",
-  "compact_read_token_wrong_schema",
-  "compact_read_token_wrong_tool_family",
-  "compact_read_token_wrong_scope",
-  "compact_read_token_wrong_selector",
-  "compact_read_token_stale_source_digest",
-  "compact_read_token_expired",
   "selected_slice_compact_detail_required",
-  "compact_read_selected_detail_required",
+  "selected_read_stale_source_digest",
   "controlled_contract_proof_plan_request_missing",
   "controlled_contract_evaluation_input_missing",
   "controlled_contract_proof_plan_missing",
@@ -392,7 +383,36 @@ test("transient/accepted compact-read states are NOT registered as reason labels
   }
 });
 
-test("compact-read reason labels carry no cryptographic-authenticity wording (WK-1599 SLICE-004)", () => {
+test("WK-2612 retired compact-read acknowledgement labels are absent from the active registry", () => {
+  const retired = [
+    "compact_first_required",
+    "compact_read_token_missing",
+    "compact_read_token_malformed",
+    "compact_read_token_wrong_schema",
+    "compact_read_token_wrong_tool_family",
+    "compact_read_token_wrong_scope",
+    "compact_read_token_wrong_selector",
+    "compact_read_token_stale_source_digest",
+    "compact_read_token_expired",
+    "compact_read_selected_detail_required"
+  ];
+  for (const code of retired) {
+    assert.equal(isRuntimeBlockerCode(code), false, `${code} must not be an active taxonomy code`);
+    assert.equal(getRuntimeBlockerEntry(code), null);
+  }
+
+  const activeText = JSON.stringify(RUNTIME_BLOCKER_DESCRIPTOR.codes);
+  assert.equal(activeText.includes("compact_read_token"), false);
+  for (const code of retired) assert.equal(activeText.includes(code), false, `${code} must not appear in active guidance`);
+
+  const stale = getRuntimeBlockerEntry("selected_read_stale_source_digest");
+  assert.ok(stale, "the selected-read stale-source code is registered");
+  assert.deepEqual([stale.category, stale.actor_recovery, stale.blocking], ["read_disclosure", "caller_retry", false]);
+  assert.match(stale.detail, /slice_offset 0/u);
+  assert.match(stale.detail, /current digest/u);
+});
+
+test("read_disclosure reason labels carry no cryptographic-authenticity wording (WK-1599 SLICE-004)", () => {
 
   const forbidden = /\b(signature|signatures|signed|signing|hmac|mac|authenticit\w*|issuer|issuance|cryptograph\w*|unforgeab\w*|verif(?:y|ies|ied|ication))\b/i;
   for (const code of WK_1509_REGISTERED_COMPACT_READ_LABELS) {
@@ -408,9 +428,6 @@ test("compact-read reason labels carry no cryptographic-authenticity wording (WK
       );
     }
   }
-
-  const malformed = getRuntimeBlockerEntry("compact_read_token_malformed");
-  assert.match(malformed.summary, /acknowledgment/i);
 });
 
 test("monitor_handle_* codes are present with category monitor_handle (WK-0526 dispatch contract)", () => {
@@ -916,4 +933,66 @@ test("the reviewer remediation names the exact structured authoring call (AUTHRE
   assert.equal(Object.hasOwn(remediation, "repo_paths"), false);
   assert.match(remediation.summary, /server-allocated slice id/i);
   assert.doesNotMatch(JSON.stringify(remediation), /WK-#####/u);
+});
+
+import { readFileSync } from "node:fs";
+import { loadRuntimeBlockerDescriptor } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+import { loadInitiativeStatusTaxonomy } from "../../packages/wiki-core/src/lib/initiative-status.mjs";
+import { workspaceInitiativeStatus } from "../../packages/wiki-core/src/operations/initiative-status.mjs";
+const manifestPath = fileURLToPath(new URL("../../packages/wiki-core/data/runtime-blocker-codes.v1.json", import.meta.url));
+function compositionFixture() {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const shards = Object.fromEntries(manifest.code_shards.map(name => [name,
+    JSON.parse(readFileSync(path.join(path.dirname(manifestPath), name), "utf8"))]));
+  return { manifest, shards, load() {
+    return loadRuntimeBlockerDescriptor({ descriptorPath: "/data/manifest.json", realpath: value => value,
+      read: file => {
+        if (file === "/data/manifest.json") return JSON.stringify(manifest);
+        const shard = shards[path.relative("/data", file)];
+        if (!shard) throw Object.assign(new Error(`missing ${file}`), { code: "ENOENT" });
+        return typeof shard === "string" ? shard : JSON.stringify(shard);
+      } });
+  } };
+}
+test("WK-2515 composition retains exact ordered entries and every manifest metadata value", () => {
+  const f = compositionFixture();
+  const composed = f.load();
+  assert.deepEqual(composed.codes, f.manifest.code_shards.flatMap(name => f.shards[name].codes));
+  for (const [key, value] of Object.entries(f.manifest)) {
+    if (key !== "code_shards") assert.deepEqual(composed[key], value);
+  }
+  assert.deepEqual(composed, RUNTIME_BLOCKER_DESCRIPTOR);
+  const recognized = loadInitiativeStatusTaxonomy().runtimeBlockerCodes;
+  for (const { code } of composed.codes) assert.ok(recognized.includes(code), code);
+});
+for (const [label, corrupt] of [
+  ["embedded codes", f => { f.manifest.codes = []; }],
+  ["missing shard", f => { delete f.shards[f.manifest.code_shards[0]]; }],
+  ["malformed JSON", f => { f.shards[f.manifest.code_shards[0]] = "{"; }],
+  ["bad schema", f => { f.shards[f.manifest.code_shards[0]].schema_version = "unknown"; }],
+  ["unknown shard field", f => { f.shards[f.manifest.code_shards[0]].extra = true; }],
+  ["invalid entries", f => { f.shards[f.manifest.code_shards[0]].codes = [null]; }],
+  ["duplicate shard", f => { f.manifest.code_shards.push(f.manifest.code_shards[0]); }],
+  ["escape", f => { f.manifest.code_shards[0] = "../escape.v1.json"; }],
+  ["absolute path", f => { f.manifest.code_shards[0] = "/escape.v1.json"; }],
+  ["duplicate code", f => { f.shards[f.manifest.code_shards[1]].codes.push(f.shards[f.manifest.code_shards[0]].codes[0]); }],
+  ["conflicting code", f => { f.shards[f.manifest.code_shards[1]].codes.push({ ...f.shards[f.manifest.code_shards[0]].codes[0], summary: "conflict" }); }],
+  ["bootstrap drift", f => { f.manifest.wk_0532_bootstrap_subset.push("not_registered"); }]
+]) test(`WK-2515 composition rejects ${label}`, () => {
+  const f = compositionFixture(); corrupt(f); assert.throws(() => f.load());
+});
+test("WK-2515 actual initiative status detects a composed runtime blocker", () => {
+  const result = workspaceInitiativeStatus({ repoRoot: path.dirname(manifestPath), unit: "WK-9700", verbose: true,
+    records: [{ id: "WK-9700", initiative: "IN-TEST", status: "active",
+      derived_evidence: [{ target_unit: "WK-9700", runtime_blocker_code: "read_only_mount" }] }] });
+  assert.equal(result.next_action.reason_code, "runtime_blocker_present");
+  assert.equal(result.next_action.kind, "resolve_runtime_blocker");
+  assert.equal(result.next_action.blocking, true);
+});
+
+test("WK-2524 removes all five obsolete production probe causes", () => {
+  for (const cause of ["permission_probe_spawn_failed", "permission_probe_timed_out", "permission_probe_process_failed",
+    "permission_probe_authentication_failed", "claude_native_permission_enforcement_unproven"]) {
+    assert.equal(getRuntimeBlockerEntry(cause), null, cause);
+  }
 });

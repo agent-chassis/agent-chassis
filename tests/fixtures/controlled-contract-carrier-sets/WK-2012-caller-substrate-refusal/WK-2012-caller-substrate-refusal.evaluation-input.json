@@ -1,0 +1,72 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "attempt",
+      "reference_ids": [
+        "ref-attempt"
+      ]
+    },
+    {
+      "role": "subject",
+      "reference_ids": [
+        "ref-subject"
+      ]
+    },
+    {
+      "role": "authority",
+      "reference_ids": [
+        "ref-authority"
+      ]
+    },
+    {
+      "role": "refusal",
+      "reference_ids": [
+        "ref-refusal"
+      ]
+    },
+    {
+      "role": "protected_interval",
+      "reference_ids": [
+        "ref-protected-interval"
+      ]
+    },
+    {
+      "role": "protected_effect_population",
+      "reference_ids": [
+        "ref-protected-effect-population"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "protected_effects",
+      "reference_ids": [
+        "ref-protected-pack-invocation",
+        "ref-protected-assessment-execution",
+        "ref-protected-exact-capture",
+        "ref-protected-assessment-bundle"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "protected_effect_count",
+      "value": 4
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

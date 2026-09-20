@@ -12,11 +12,18 @@ import {
 } from "../lib/test-proof-assessment.mjs";
 import {
   TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST
-} from "../lib/test-proof-contract.mjs";
+} from "../lib/test-proof-provider-registry.mjs";
 
-const base = JSON.parse(await readFile(new URL(
-  "../examples/minimal-controlled-acceptance-contract-v034.json", import.meta.url
+const example = JSON.parse(await readFile(new URL(
+  "../examples/minimal-controlled-acceptance-contract.v1.json", import.meta.url
 )));
+
+const experimental = Object.freeze({
+  ...structuredClone(example),
+  schema_version: "controlled-acceptance-contract.experimental.v0.2",
+  vocabulary_version: "cv.experimental.0.34",
+  profile_id: "acceptance-contract.standard.experimental.v0.2"
+});
 
 function proof(claimId = "claim-suite-covers-component", suffix = "component") {
   return {
@@ -42,31 +49,20 @@ function proof(claimId = "claim-suite-covers-component", suffix = "component") {
       expected_outcome: "verification_fails",
       mutation: { mutation_id: `mutation-${suffix}`, mechanism: "module_substitution",
         target_kind: "module", module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs" },
-      execution_provider: { provider_id: "launcher.node-test-module-fault", provider_version: "1.0.0",
+      execution_provider: { provider_id: "launcher.node-test-module-fault", provider_version: "2.0.0",
         capability: "falsifier_execution" }
     }],
     traversal_provider: { mode: "provider", provider_id: "launcher.node-test-v8-coverage",
       provider_version: "1.0.0", capability: "boundary_traversal", boundary_kind: "module",
       observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion", evidence_artifact_type: "boundary_trace" },
-    coverage_disposition: {
-      baseline_id: `coverage-baseline-${suffix}`,
-      baseline_state: "complete_executed_inventory",
-      items: [{test_id: `test-${suffix}`, disposition: "preserved"}]
-    },
+    test_selector: { name: `${suffix} result is returned`, nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
 }
 
 function migrated() {
-  return {
-    ...structuredClone(base),
-    schema_version: "controlled-acceptance-contract.v1",
-    vocabulary_version: "controlled-contract-vocabulary.v1",
-    profile_id: "acceptance-contract.standard.v1",
-    test_proof_version: "controlled-contract-test-proof.v1",
-    test_proofs: [proof()]
-  };
+  return { ...structuredClone(example), test_proofs: [proof()] };
 }
 
 function multiVerification() {
@@ -120,6 +116,27 @@ test("reports stable field-addressed missing and invalid diagnostics", () => {
     field.startsWith("/test_proofs/0")));
 });
 
+test("reports bounded complete-binding schema diagnostics at the affected fields", () => {
+  const contract = migrated();
+  delete contract.test_proofs[0].candidate_execution_provider.provider_version;
+  delete contract.test_proofs[0].traversal_provider.observation_seam;
+
+  const first = assessTestProofContract(contract).results[0];
+  const second = assessTestProofContract(contract).results[0];
+  assert.equal(first.status, "invalid");
+  assert.deepEqual(second.diagnostics, first.diagnostics);
+  assert.ok(first.diagnostics.some(({ code, field, package_diagnostic: diagnostic }) =>
+    code === "test_proof_stable_test_proof_incomplete" &&
+    field === "/test_proofs/0/candidate_execution_provider/provider_version" &&
+    diagnostic.keyword === "required" &&
+    diagnostic.property_kind === "missing"));
+  assert.ok(first.diagnostics.some(({ code, field, package_diagnostic: diagnostic }) =>
+    code === "test_proof_stable_test_proof_incomplete" &&
+    field === "/test_proofs/0/traversal_provider/observation_seam" &&
+    diagnostic.keyword === "required" &&
+    diagnostic.property_kind === "missing"));
+});
+
 test("reports package-owned provider diagnostics at exact binding fields", () => {
   const contract = migrated();
   contract.test_proofs[0].candidate_execution_provider.provider_id = "launcher.unknown";
@@ -128,6 +145,12 @@ test("reports package-owned provider diagnostics at exact binding fields", () =>
   assert.ok(result.diagnostics.some(({code, field}) =>
     code === "test_proof_stable_test_proof_provider_unknown" &&
     field === "/test_proofs/0/candidate_execution_provider/provider_id"));
+  const diagnostic = result.diagnostics.find(({ code }) =>
+    code === "test_proof_stable_test_proof_provider_unknown");
+  assert.equal(diagnostic.package_diagnostic.reason_code,
+    "stable_test_proof_provider_refused");
+  assert.equal(diagnostic.package_diagnostic.field_pointer,
+    "/candidate_execution_provider/provider_id");
   assert.equal(result.semantic_judgment, "not_performed_coordinator_owned");
 });
 
@@ -159,7 +182,7 @@ test("compact output is bounded while the artifact remains lossless", () => {
 });
 
 test("experimental carriers remain readable only as refused assessment input", () => {
-  const assessment = assessTestProofContract(structuredClone(base));
+  const assessment = assessTestProofContract(structuredClone(experimental));
   assert.equal(assessment.result_count, 1);
   assert.equal(assessment.compact_index.status, "not_proven");
   assert.equal(assessment.results[0].status, "invalid");
@@ -169,8 +192,12 @@ test("experimental carriers remain readable only as refused assessment input", (
 
 const digest = (character) => `sha256:${character.repeat(64)}`;
 
+const canonicalValue = (value) => Array.isArray(value) ? value.map(canonicalValue)
+  : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort()
+    .map((key) => [key, canonicalValue(value[key])])) : value;
+
 function artifact(kind, value) {
-  const payload = { fixture: value };
+  const payload = canonicalValue(value);
   const content = `sha256:${createHash("sha256").update(
     `${JSON.stringify(payload)}\n`, "utf8"
   ).digest("hex")}`;
@@ -178,10 +205,43 @@ function artifact(kind, value) {
     owner: "launcher", payload };
 }
 
+function candidateResult(suffix) {
+  return { mechanism: "node_test_structured_events", exit_code: 0,
+    summary: { passed: 1, failed: 0, skipped: 0, cancelled: 0, todo: 0, tests: 1 },
+    pass_events: [{ type: "test:pass", test_id: `test-${"1".repeat(64)}`,
+      name: suffix, file: `test/${suffix}.test.mjs`, nesting: 0,
+      status: "passed" }],
+    fail_events: [] };
+}
+
+function withCandidateResult(evidence, change) {
+  const structured = structuredClone(evidence.execution_result.structured_result);
+  change(structured);
+  const previous = evidence.execution_result.evidence_artifact_ids[0];
+  const candidate = artifact("structured_test_result", structured);
+  evidence.execution_result.structured_result = structured;
+  evidence.execution_result.evidence_artifact_ids = [candidate.artifact_id];
+  evidence.artifacts = [...evidence.artifacts.filter(({ artifact_id: id }) => id !== previous),
+    candidate].sort((left, right) => left.artifact_id < right.artifact_id ? -1 : 1);
+  return evidence;
+}
+
 function receipt(claimId = "claim-suite-covers-component", suffix = "component") {
-  const candidate = artifact("structured_test_result", `candidate-${suffix}`);
-  const boundary = artifact("boundary_trace", `boundary-${suffix}`);
-  const falsifier = artifact("falsifier_result", `falsifier-${suffix}`);
+  const structuredResult = candidateResult(suffix);
+  const candidate = artifact("structured_test_result", structuredResult);
+
+  const modulePath = "packages/controlled-contract/lib/test-proof-contract-v1.mjs";
+  const boundary = artifact("boundary_trace", { mechanism: "node_test_v8_coverage",
+    boundary_kind: "module", module_path: modulePath,
+    observable_seam: "node_test_structured_assertion", target_test_id: `test-${suffix}`,
+    target_pass_observed: true, observed: true, covered_module_paths: [modulePath],
+    structured_event_digest: candidate.digest });
+  const falsifier = artifact("falsifier_result", { mechanism: "module_substitution",
+    strategy: "dependency_failure", mutation_id: `mutation-${suffix}`,
+    target_module_path: modulePath, target_test_id: `test-${suffix}`,
+    witness_identity: "f".repeat(64), structured_event_digest: candidate.digest,
+    observation: { dependency_invocation_count: 1, reached_assertion: true,
+      selected_test_only: true, observed: true } });
   return {
     schema_version: "controlled-contract-test-proof-runtime-evidence.v2",
     test_proof_version: "controlled-contract-test-proof.v1",
@@ -199,23 +259,16 @@ function receipt(claimId = "claim-suite-covers-component", suffix = "component")
       test_proof_id: `test-proof-${suffix}` },
     execution_result: { status: "passed", exit_code: 0,
       attempt_id: `attempt-${"a".repeat(64)}`,
-      structured_result: { mechanism: "node_test_structured_events", exit_code: 0,
-        summary: { passed: 1, failed: 0, skipped: 0, cancelled: 0, todo: 0, tests: 1 },
-        pass_events: [{ type: "test:pass", test_id: `test-${"1".repeat(64)}`,
-          name: suffix, file: `test/${suffix}.test.mjs`, nesting: 0,
-          status: "passed" }],
-        fail_events: [] },
+      structured_result: structuredClone(structuredResult),
       evidence_artifact_ids: [candidate.artifact_id],
       provider: { provider_id: "launcher.node-test", provider_version: "1.0.0",
         capability: "candidate_execution",
         capability_snapshot_digest: TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
         observation_mechanism: "node_test_structured_events",
         evidence_artifact_types: ["structured_test_result"] } },
-    test_inventory: { baseline_id: `coverage-baseline-${suffix}`,
+    test_inventory: { selected_test_id: `test-${suffix}`,
       declared_test_ids: [`test-${suffix}`], discovered_test_ids: [`test-${suffix}`],
-      executed_test_ids: [`test-${suffix}`], skipped_test_ids: [],
-      removed_baseline_test_ids: [], renamed_baseline_tests: [], unexpected_test_ids: [],
-      newly_skipped_test_ids: [], undispositioned_coverage_test_ids: [] },
+      executed_test_ids: [`test-${suffix}`], skipped_test_ids: [] },
     boundary_traversals: [{ boundary_id: `sut-boundary-${suffix}`,
       observable_id: `observable-${suffix}`, provider_support: "supported",
       provider: { provider_id: "launcher.node-test-v8-coverage",
@@ -225,23 +278,25 @@ function receipt(claimId = "claim-suite-covers-component", suffix = "component")
         evidence_artifact_types: ["boundary_trace", "structured_test_result"] },
       authenticated: true, boundary_kind: "module",
       observation_mechanism: "node_test_v8_coverage",
-      observation_seam: "node_test_structured_assertion", status: "proven",
+      observation_seam: "node_test_structured_assertion", status: "proven", limitation: null,
       evidence_artifact_ids: [boundary.artifact_id] }],
     falsifier_executions: [{ falsifier_id: `falsifier-${suffix}`,
       attempt_id: `attempt-${"f".repeat(64)}`,
       target_verification_id: claimId,
       provider: { provider_id: "launcher.node-test-module-fault",
-        provider_version: "1.0.0", capability: "falsifier_execution",
+        provider_version: "2.0.0", capability: "falsifier_execution",
         capability_snapshot_digest: TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
         observation_mechanism: "node_test_structured_events",
         evidence_artifact_types: ["falsifier_result", "structured_test_result"] },
+      provider_support: "supported",
       isolated: true, candidate_status: "passed", falsified_status: "failed",
       failure_reason_code: "test_proof_fault.dependency_failure.v1",
       mutation: { mutation_id: `mutation-${suffix}`, strategy: "dependency_failure",
         mechanism: "module_substitution", target_kind: "module",
         module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
-        observed: true }, status: "detected",
+        observed: true }, status: "detected", limitation: null,
       evidence_artifact_ids: [falsifier.artifact_id] }],
+    capability_limitations: [],
     observed_shortcuts: [],
     artifacts: [candidate, boundary, falsifier].sort(
       (left, right) => left.artifact_id < right.artifact_id ? -1 : 1
@@ -361,7 +416,7 @@ test("one failed candidate anywhere in a multi-verification population refuses",
   const failed = second();
   failed.execution_result.status = "failed";
   failed.execution_result.exit_code = 1;
-  failed.execution_result.structured_result.exit_code = 1;
+  withCandidateResult(failed, (result) => { result.exit_code = 1; });
   assert.deepEqual(refusalCodes(multiVerification(), [receipt(), failed]),
     ["test_proof_runtime_candidate_failed"]);
 });
@@ -396,7 +451,7 @@ test("runtime diagnostics address the receipt that produced them", () => {
   const failed = second();
   failed.execution_result.status = "failed";
   failed.execution_result.exit_code = 1;
-  failed.execution_result.structured_result.exit_code = 1;
+  withCandidateResult(failed, (result) => { result.exit_code = 1; });
   try {
     assessTestProofContract(multiVerification(), runtime([receipt(), failed]));
   } catch (error) {
@@ -419,7 +474,7 @@ test("missing, duplicate, unexpected, and invalid receipts refuse", () => {
   assert.deepEqual(refusalCodes(migrated(), [unexpected]).sort(),
     ["test_proof_runtime_receipt_missing", "test_proof_runtime_receipt_unexpected"]);
   const invalid = receipt();
-  invalid.artifacts[0].payload.fixture = "tampered";
+  invalid.artifacts.find(({ kind }) => kind === "falsifier_result").payload.fixture = "tampered";
   assert.deepEqual(refusalCodes(migrated(), [invalid]),
     ["test_proof_runtime_receipt_invalid"]);
   const malformed = receipt();
@@ -435,22 +490,40 @@ test("a mismatched contract binding refuses", () => {
     ["test_proof_runtime_binding_mismatch"]);
 });
 
-test("a failed candidate or a newly skipped population refuses", () => {
+test("a failed candidate or an unselected, skipped, or unexecuted selection refuses", () => {
   const failed = receipt();
   failed.execution_result.status = "failed";
   failed.execution_result.exit_code = 1;
-  failed.execution_result.structured_result.exit_code = 1;
+  withCandidateResult(failed, (result) => { result.exit_code = 1; });
   assert.deepEqual(refusalCodes(migrated(), [failed]),
     ["test_proof_runtime_candidate_failed"]);
   const skipped = receipt();
-  skipped.test_inventory.newly_skipped_test_ids = ["test-component"];
+  skipped.test_inventory.skipped_test_ids = ["test-component"];
   assert.deepEqual(refusalCodes(migrated(), [skipped]),
-    ["test_proof_runtime_newly_skipped_population"]);
-  const unexpectedTest = receipt();
-  unexpectedTest.test_inventory.discovered_test_ids = ["test-component", "test-extra"];
-  unexpectedTest.test_inventory.unexpected_test_ids = ["test-extra"];
-  assert.deepEqual(refusalCodes(migrated(), [unexpectedTest]),
-    ["test_proof_runtime_unexpected_test_population"]);
+    ["test_proof_runtime_selected_test_skipped"]);
+  const notExecuted = receipt();
+  notExecuted.test_inventory.discovered_test_ids = ["test-component", "test-sibling"];
+  notExecuted.test_inventory.executed_test_ids = ["test-sibling"];
+  assert.deepEqual(refusalCodes(migrated(), [notExecuted]),
+    ["test_proof_runtime_selected_test_not_executed"]);
+
+  const mismatch = receipt();
+  mismatch.test_inventory.selected_test_id = "test-sibling";
+  mismatch.test_inventory.declared_test_ids = ["test-sibling"];
+  assert.deepEqual(refusalCodes(migrated(), [mismatch]),
+    ["test_proof_runtime_receipt_invalid"]);
+});
+
+test("sibling tests observed in the same run neither earn nor withhold credit", () => {
+  const withSiblings = receipt();
+  withSiblings.test_inventory.discovered_test_ids =
+    ["test-component", "test-sibling", "test-sibling-skipped"];
+  withSiblings.test_inventory.executed_test_ids = ["test-component", "test-sibling"];
+  withSiblings.test_inventory.skipped_test_ids = ["test-sibling-skipped"];
+  const assessment = assessTestProofContract(migrated(), runtime([withSiblings]));
+  assert.equal(assessment.assessment_status, "proven");
+  assert.equal(assessment.runtime_truth, "proven");
+  assert.equal(assessment.diagnostics.length, 0);
 });
 
 test("an inert falsifier or an unproven traversal refuses", () => {
@@ -493,7 +566,7 @@ test("a runtime failure never falls back to a planning assessment", () => {
   const failed = receipt();
   failed.execution_result.status = "error";
   failed.execution_result.exit_code = null;
-  failed.execution_result.structured_result.exit_code = null;
+  withCandidateResult(failed, (result) => { result.exit_code = null; });
   assert.throws(() => assessTestProofContract(migrated(), runtime([failed])),
     (error) => error instanceof TestProofRuntimeAssessmentError &&
       error.code === "test_proof_runtime_candidate_failed" &&
@@ -505,7 +578,7 @@ test("a runtime failure never falls back to a planning assessment", () => {
   assert.throws(() =>
     assessTestProofContract(migrated(), { runtime: { receipts: [], extra: 1 } }),
   (error) => error.code === "test_proof_runtime_input_invalid");
-  assert.throws(() => assessTestProofContract(structuredClone(base),
+  assert.throws(() => assessTestProofContract(structuredClone(experimental),
     runtime([receipt()])),
   (error) => error.code === "test_proof_runtime_contract_invalid");
 });

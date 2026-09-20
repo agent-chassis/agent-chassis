@@ -5,7 +5,6 @@ import { LAUNCHER_DURABLE_STATE_CODES } from
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import {
-  AGENT_DISPATCH_ROLE_VALUES,
   AGENT_DISPATCH_TOOL_NAME,
   DISPATCH_BLOCKER_CODES
 } from "../dispatch-tool-constants.mjs";
@@ -26,16 +25,110 @@ import {
 } from "./agent-dispatch-request-admission.mjs";
 import {
   buildTransitionRefusal,
+  callerSuppliedAuthorityRefusal,
   projectPublicReadiness,
   readinessFailure,
   routeExceptionRefusal
 } from "./agent-dispatch-refusal-projection.mjs";
+import {
+  deriveAgentDispatchRole,
+  loadDispatchSubject
+} from "@agent-chassis/wiki-core/src/operations/validate-dispatch.mjs";
+import { AGENT_DISPATCH_ROLE_VALUES } from "../dispatch-tool-constants.mjs";
 import { orchestrateAgentDispatchReadiness } from "./agent-dispatch-readiness.mjs";
+import { agentDispatchSelectionShape } from "./agent-dispatch-selection-contract.mjs";
 import {
   LAUNCHER_TRANSITION_FAILURES,
   executeAdvisoryReviewDispatch,
   executeAgentDispatchLaunch
 } from "./agent-dispatch-launch-route.mjs";
+
+export const CALLER_REVIEW_AUTHORITY_FIELD_REASONS = Object.freeze({
+  terminal_candidate: "caller_supplied_committed_slice_authority",
+  reviewer_launch_identity: "caller_supplied_identity_carrier"
+});
+
+export const CALLER_ASSIGNMENT_AUTHORITY_FIELDS = Object.freeze([
+  "prompt", "request", "argv", "env"
+]);
+
+function refuseCallerAssignmentAuthority(args, jsonContent) {
+  const fields = CALLER_ASSIGNMENT_AUTHORITY_FIELDS
+    .filter((field) => Object.prototype.hasOwnProperty.call(args ?? {}, field));
+  if (fields.length === 0) return null;
+  return jsonContent(buildBlockedDispatchResult({
+    blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
+    reason: "caller_supplied_assignment_authority",
+    detail: { refused_fields: fields,
+      assignment_source: "canonical unit and authenticated launcher facts" },
+    refusal: callerSuppliedAuthorityRefusal({
+      role: args?.role,
+      subject: args?.subject,
+      refusedFields: fields
+    })
+  }));
+}
+
+function refuseCallerReviewAuthority(args, jsonContent) {
+  const fields = Object.keys(CALLER_REVIEW_AUTHORITY_FIELD_REASONS)
+    .filter((field) => Object.prototype.hasOwnProperty.call(args ?? {}, field));
+  if (fields.length === 0) return null;
+  return jsonContent(buildBlockedDispatchResult({
+    blockerCode: DISPATCH_BLOCKER_CODES.CALLER_SUPPLIED_IDENTITY,
+    reason: CALLER_REVIEW_AUTHORITY_FIELD_REASONS[fields[0]],
+    detail: { refused_fields: fields },
+    refusal: callerSuppliedAuthorityRefusal({
+      role: args?.role,
+      subject: args?.subject,
+      refusedFields: fields
+    })
+  }));
+}
+
+async function startedAgentDispatchSelection({ args, workspaceRepos, resolveWorkspaceRepo,
+  jsonContent }) {
+  if (args?.role !== undefined) return { args };
+  const subjectAddress = args?.subject;
+  if (typeof subjectAddress !== "string" || subjectAddress.trim().length === 0) {
+    return { args };
+  }
+  let workspace;
+  try {
+    workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+  } catch {
+
+    return { args };
+  }
+  const subject = await loadDispatchSubject({ dir: workspace.dir, unitAddress: subjectAddress });
+  const derived = deriveAgentDispatchRole(subject, subjectAddress);
+  if (derived.refusal) {
+    return {
+      response: jsonContent(buildBlockedDispatchResult({
+        blockerCode: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
+        reason: "canonical_dispatch_intent_unresolved",
+        detail: { subject: subjectAddress,
+          intended_agent_role: subject?.dispatch_intent?.intended_agent_role ?? null,
+          readiness: derived.refusal },
+        refusal: buildDispatchMechanicalRefusal({
+          code: DISPATCH_BLOCKER_CODES.WORK_RECORD_READINESS_FAILURE,
+          decidingFacts: [
+            { field: "dispatch.canonical_role_derived", value: false },
+            { field: "dispatch.subject", value: subjectAddress }
+          ],
+          observedFacts: {
+            "dispatch.canonical_role_derived": false,
+            "dispatch.subject": subjectAddress
+          },
+
+          noSupportedRoute: true,
+          recovery: NO_SUPPORTED_ROUTE_RECOVERY,
+          route: AGENT_DISPATCH_TOOL_NAME
+        })
+      }))
+    };
+  }
+  return { args: { ...args, role: derived.role } };
+}
 
 export function registerAgentDispatchRoute({
   registerTool,
@@ -59,13 +152,14 @@ export function registerAgentDispatchRoute({
     AGENT_DISPATCH_TOOL_NAME,
     {
       description:
-        "Dispatch a Codex, Claude, or Agy worker, reviewer, or redteam. The normal agent call supplies only `role` and canonical `subject`; reviewer/redteam may add a complete diff_base_sha/reviewed_sha pair to the same request. A commit SHA is a review locator, never the subject. The caller supplies its already-known canonical WK or slice; the server does not infer or search for a WK from a SHA. Reviewer example: {\"role\":\"reviewer\",\"subject\":\"WK-1234#SLICE-005\",\"diff_base_sha\":\"<40-character base commit>\",\"reviewed_sha\":\"<40-character reviewed commit>\"}. The same registered dispatcher performs this read-only review. No external reviewer, shell command, wrapper, alternate transport, terminal candidate, ref creation, attestation append, or provenance repair is required. Launcher-owned configuration selects the app and the role model; typed overrides are never authority. Caller-supplied identity or Node Engine authority fields are rejected, as is caller CCE policy authority. Reviewer/redteam require empty write_scope and return advisory text. Ordinary reviews request no formal attestation; a schema_constrained canonical selected contract derives and publishes one during this result settlement or reports it unavailable. Integration is separate. A missing backend fails closed with backend_unavailable.",
+        "Start a canonical unit, or dispatch a reviewer or redteam by canonical subject. Omit role to start the unit as the agent its dispatch_intent declares; the system resolves the task, scope, acceptance, validation, material and runtime from that unit, so no caller prompt, request, argv or env is accepted. Managed workers require an explicit existing canonical implementation slice, even for a one-slice WK; dispatch never creates or selects one. Reviews use empty write_scope and the same dispatcher; no external reviewer, shell, wrapper or alternate transport. backend_unavailable fails closed. Supply an already-known WK or slice plus diff_base_sha/reviewed_sha for exact review; no WK is inferred from a SHA. Implementation requires complete or opted-out proof posture; CCE policy remains separate. Reviews can precede authoring. Caller identity/policy carriers refuse.",
       inputSchema: {
-        repo: z.string().optional(),
-        app: z.string().optional(),
-        model: z.string().optional(),
-        role: z.enum(AGENT_DISPATCH_ROLE_VALUES),
-        subject: z.string(),
+        ...agentDispatchSelectionShape(z),
+
+        role: z.enum(AGENT_DISPATCH_ROLE_VALUES).optional().describe(
+          "Optional. Omitted, the dispatch target is derived from the canonical unit's " +
+          "dispatch_intent.intended_agent_role."
+        ),
         reviewed_sha: z.string().optional(),
         diff_base_sha: z.string().optional(),
         env: z.record(z.unknown()).optional(),
@@ -74,6 +168,7 @@ export function registerAgentDispatchRoute({
         argv: z.record(z.unknown()).optional(),
         claimed_identity: z.object({ role: z.string().optional() }).optional(),
         ...Object.fromEntries([
+          ...Object.keys(CALLER_REVIEW_AUTHORITY_FIELD_REASONS),
           ...CALLER_NODE_ENGINE_AUTHORITY_FIELDS,
           ...CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
           ...CALLER_CCE_POLICY_AUTHORITY_FIELDS,
@@ -83,6 +178,15 @@ export function registerAgentDispatchRoute({
     },
     async (args) => {
       try {
+        const reviewAuthorityRefusal = refuseCallerReviewAuthority(args, jsonContent);
+        if (reviewAuthorityRefusal !== null) return reviewAuthorityRefusal;
+        const assignmentAuthorityRefusal = refuseCallerAssignmentAuthority(args, jsonContent);
+        if (assignmentAuthorityRefusal !== null) return assignmentAuthorityRefusal;
+        const started = await startedAgentDispatchSelection({
+          args, workspaceRepos, resolveWorkspaceRepo, jsonContent
+        });
+        if (started.response) return started.response;
+        args = started.args;
         const admission = admitAgentDispatchRequest({
           args,
           workspaceRepos,
@@ -180,7 +284,7 @@ export function registerAgentDispatchRoute({
           }));
         }
         return jsonContent(buildBlockedDispatchResult({
-          blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+          blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
           reason: "dispatch_tool_exception",
           detail: buildDispatchToolExceptionDetail(AGENT_DISPATCH_TOOL_NAME, error),
           refusal: routeExceptionRefusal(AGENT_DISPATCH_TOOL_NAME)

@@ -211,12 +211,10 @@ export function registerKindRecordWriteTools({
       .strict();
 
   const DEC_DRAFT_NOTE =
-    "DEC-0152: agents may create and edit only `proposed` decisions. Human-only CLI actions ratify or " +
-    "unratify them; amending an accepted decision refuses.";
+    "DEC-0152: proposed decisions only; accepted decisions refuse edits. Ratification is human-only.";
 
   const IN_DRAFT_NOTE =
-    "Agents may create and edit draft initiatives. Lifecycle and provenance fields remain server-managed; " +
-    "initiatives have no ratification gate.";
+    "Initiatives have no ratification gate; lifecycle/provenance are server-owned.";
 
   registerTool(
     "assign_work_record_to_initiative",
@@ -224,7 +222,7 @@ export function registerKindRecordWriteTools({
 
       writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Assign a record-level WK to an existing initiative. This is the sole canonical assignment authority: it CAS-updates only WK.initiative and never writes the initiative record. Use unit/work_record_id and initiative/initiative_id as equivalent input pairs; conflicting aliases or slice selectors refuse. Repeating the same assignment is a no-op.",
+        "Assign a record-level WK to an initiative using CAS; writes only WK.initiative. Repeats are no-ops. Conflicting aliases and slice selectors refuse.",
       inputSchema: initiativeAssignmentInputSchema()
     },
     async (args) => {
@@ -301,8 +299,7 @@ export function registerKindRecordWriteTools({
 
         writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
         description:
-          `Set one declared body section of ${subjectDescription}. Write-capable; validated persistence honors ` +
-          `optional expected_source_digest, and identity is server-resolved. ${note}`,
+          `Set a section of ${subjectDescription} with optional source CAS. Identity is server-owned. ${note}`,
         inputSchema: sectionInputSchema()
       },
       async (args) => {
@@ -329,8 +326,7 @@ export function registerKindRecordWriteTools({
 
         writeSemantics: MCP_WRITE_SEMANTICS.NONE,
         description:
-          `Amend one controlled scalar of ${subjectDescription}. Write-capable; validated persistence honors optional ` +
-          `expected_source_digest. Server-managed lifecycle/provenance fields refuse; identity is server-resolved. ${note}`,
+          `Amend a scalar of ${subjectDescription} with optional source CAS. Identity/provenance are server-owned. ${note}`,
         inputSchema: scalarInputSchema()
       },
       async (args) => {
@@ -386,8 +382,7 @@ export function registerKindRecordWriteTools({
 
         writeSemantics: MCP_WRITE_SEMANTICS.NONE,
         description:
-          `Create one ${subjectDescription} ${birthState} through the shared allocator. Write-capable; server-resolved ` +
-          `identity and provenance produce canonical JSON and Markdown together. ${note}`,
+          `Allocate ${subjectDescription}, born ${birthState}, seeded to its required fields, and written as canonical \`.json\` with the \`.md\` projection in lockstep. Identity is server-owned. ${note}`,
         inputSchema: createInputSchema()
       },
       async (args) => {
@@ -409,19 +404,4 @@ export function registerKindRecordWriteTools({
         }
       }
     );
-
-  registerCreate(
-    "workspace_decision_create",
-    "decision",
-    "decision (`DEC-*`) record",
-    "in its non-binding `proposed` draft state",
-    DEC_DRAFT_NOTE
-  );
-  registerCreate(
-    "workspace_initiative_create",
-    "initiative",
-    "initiative (`IN-*`) record",
-    "as a draft initiative",
-    IN_DRAFT_NOTE
-  );
 }

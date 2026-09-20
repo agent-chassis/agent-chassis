@@ -1,0 +1,229 @@
+{
+  "schema_version": "wiki-core-controlled-contract-acceptance-coverage.v1",
+  "wk_id": "WK-2462",
+  "selected_unit": null,
+  "source_identity": {
+    "source_kind": "obligation-coverage",
+    "content_digest": "sha256:c3dee99364886f1488074c11bed74075e1f0777cdca381667ba405ccf88881d3"
+  },
+  "source_bindings": {
+    "workRecordLocatorDigest": "sha256:f2966afb78fe2a25f593a7fd47fdf98c102ebbe6fce9583e0dcc4571eb59ef2f",
+    "contractDigest": "sha256:7c11eb0365723dfa765d5830fc48c33483bdcbda040673551a1fb26ad143dc37",
+    "contractNodeDigest": "sha256:35d6802d6f27ea4478cdc726e0fe7a5eac88331d34cdde8b585e26ebbb78d120",
+    "proofPlanDigest": "sha256:fdbb97f5dc32f45c41f9aa1260030c34d1beac81c32e070c79f325aea1250ebb",
+    "selectedPackDigest": "sha256:7974a65c090e7e4c2866fcf16e8ec25c813776a4e5073c547cbcdeaaeb1bb75e",
+    "assessmentDigest": null,
+    "proofAssessmentDigest": null,
+    "profileVersionDigest": "sha256:8d3dcc41c8f20bdd076f69fc33a608194471f12071e3443b1692e2eee68c582c",
+    "selectorArtifactDigest": "sha256:6f95a17b923ae97d57b8c471f459066c3c9ef2797f93ded1b6a81e8adf6fb697",
+    "ownershipDigest": "sha256:619d58ec584ad9ead088abc98efcee951d1e1d74e09f18a7f2ca5bced3ed3e3f",
+    "verificationDigest": "sha256:37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "optionalScopeDigest": null,
+    "sourceDigest": "sha256:c3dee99364886f1488074c11bed74075e1f0777cdca381667ba405ccf88881d3",
+    "sourceKind": "obligation-coverage",
+    "mappingDigest": "sha256:dafdfaf46e3cbdd51db816ece6e88b25b6ff2bd047baecb6b02fb3ec35220501"
+  },
+  "criterion_identities": {
+    "version": "acceptance-coverage-criterion-identity.v1",
+    "identities": [
+      {
+        "position": 0,
+        "text": "The registered route round-trips.",
+        "identity": "derived:0e7c46a7bbb88602e9bb56a9fbae84fc52e700d8ae56d431410034305d079ef5",
+        "source": "derived"
+      }
+    ],
+    "bindings": {
+      "contractDigest": "sha256:7c11eb0365723dfa765d5830fc48c33483bdcbda040673551a1fb26ad143dc37",
+      "proofPlanDigest": "sha256:fdbb97f5dc32f45c41f9aa1260030c34d1beac81c32e070c79f325aea1250ebb",
+      "selectedPackDigest": "sha256:7974a65c090e7e4c2866fcf16e8ec25c813776a4e5073c547cbcdeaaeb1bb75e",
+      "mappingDigest": "sha256:dafdfaf46e3cbdd51db816ece6e88b25b6ff2bd047baecb6b02fb3ec35220501"
+    },
+    "provenance": {
+      "selectedUnitDigest": "sha256:97e03c3f9de01a9c1353cc8ef433ee60d166fba86408a62c24773c631b945d1c"
+    },
+    "digest": "26de4b371cbd1334675c7bda50a1a7e803abb978f5d26a84d4143c16fb199760"
+  },
+  "rows": [
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:9206768f7d1bc326f1fddda8a469598f392fe69562d86252caff61482d2e9b7d",
+      "node_ids": [
+        "claim-wk-2462-requirement-01",
+        "claim-wk-2462-verify-01"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:d16bf53953c02a684e50e5adceb73357b4277efb7d7017e8dd16e9be24e96026",
+      "node_ids": [
+        "claim-wk-2462-requirement-02",
+        "claim-wk-2462-verify-02"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:a54bbe4218fba32921657febce3b9ca8659a3638f25bca59c543b5a1f8efd8ec",
+      "node_ids": [
+        "claim-wk-2462-requirement-03",
+        "claim-wk-2462-verify-03"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:38c3d4b662db71a1d22031a95061f1f6ed1d0e5d29637d8a597079371840786d",
+      "node_ids": [
+        "claim-wk-2462-requirement-04",
+        "claim-wk-2462-verify-04"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:6dfd8b06474808309f985eac0be4bedd5e21b8369ebb81fdabb7a8af2289ffcf",
+      "node_ids": [
+        "claim-wk-2462-requirement-05",
+        "claim-wk-2462-verify-05"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:0dc766c94dcde55e840c29335f1b34f8dabf633209eaf4c425111842e6cdb57c",
+      "node_ids": [
+        "claim-wk-2462-requirement-07",
+        "claim-wk-2462-verify-07"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:c7aa1e23ec318d54c1c02651498291ff9f81ce4080b4fb3744020ab9f42041c4",
+      "node_ids": [
+        "claim-wk-2462-requirement-08",
+        "claim-wk-2462-verify-08"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:753d98c77de4e96ffc1b792e9fef0d431b13d726be61f15cb14b27dae569b70f",
+      "node_ids": [
+        "claim-wk-2462-requirement-09",
+        "claim-wk-2462-verify-09"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:ce1763adc6ffee8112ea3945d0b3a8854474a0043f57cba5afcd1c6cbff879af",
+      "node_ids": [
+        "claim-wk-2462-requirement-06",
+        "claim-wk-2462-verify-06"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:3c8d6c4b5ebfa20fb96def090b891b2ed78fcce99e31b1f08eb378b78a82dd1a",
+      "node_ids": [
+        "claim-wk-2462-requirement-11",
+        "claim-wk-2462-verify-11-non-runtime"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:e2220053d696e5d5e50721c5df3d4ca3cbcd4be8fe930f2c28066534c88e7111",
+      "node_ids": [
+        "claim-wk-2462-requirement-10",
+        "claim-wk-2462-verify-10-non-runtime"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:8f13f95945e92243de5dd75483af6cbb20bd5342834d99b179f44e8d51b21286",
+      "node_ids": [
+        "claim-wk-2462-requirement-12",
+        "claim-wk-2462-verify-12-non-runtime"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,621 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.policy.declared-boundary-record-consistency",
+  "profile_version": "4.0.0",
+  "profile_digest": "b9931249971f3f8e10e69501cf6b89fa6da42d37e1afae9cfde6410d6bfe7388",
+  "description": "For one exact closed declared policy, one exact caller-supplied boundary observation record whose provenance is caller_asserted, and one exact captured subject set, the package-owned transformer measures every subject under the declared closed unit and measurement-class lexicon, derives the complete N-1/N/N+1 census for every nonzero limit and the exact N/N+1 census for a zero maximum, validates every recorded disposition against the complete declared table, and emits complete populations, exact counts, associations, and one canonical report bound to the exact source-set digest.",
+  "parameters": [
+    {
+      "name": "bounded_subject",
+      "purpose": "Declare bounded subject for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "bounded_subject"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/6",
+        "/claim_patterns/7"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "policy_artifact",
+      "purpose": "Declare policy artifact for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_policy_reference",
+      "roles": [
+        "policy_artifact"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/claim_patterns/6",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "subjects_artifact",
+      "purpose": "Declare subjects artifact for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "subjects_artifact"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "conformance_report",
+      "purpose": "Declare conformance report for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "conformance_report"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_occurrence_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/5"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/9"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "limit_population",
+      "purpose": "Declare limit population for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "limit_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "declared_limits",
+      "purpose": "Declare declared limits for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "declared_limits"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "unit_population",
+      "purpose": "Declare unit population for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "unit_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "measurement_units",
+      "purpose": "Declare measurement units for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "measurement_units"
+      ],
+      "refinement_refs": [
+        "/reference_roles/10"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "case_population",
+      "purpose": "Declare case population for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "case_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/11"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "boundary_cases",
+      "purpose": "Declare boundary cases for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "boundary_cases"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "subject_population",
+      "purpose": "Declare subject population for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "subject_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "measured_subjects",
+      "purpose": "Declare measured subjects for proof.policy.declared-boundary-record-consistency. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "measured_subjects"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "bounded_subject",
+      "kind": "semantic_parameter",
+      "parameter": "bounded_subject",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/6",
+        "/claim_patterns/7"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "observation_artifact",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire observation_artifact for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.policy.declared-boundary-record-consistency/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "policy_artifact",
+      "kind": "semantic_parameter",
+      "parameter": "policy_artifact",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/claim_patterns/6",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "subjects_artifact",
+      "kind": "semantic_parameter",
+      "parameter": "subjects_artifact",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "conformance_report",
+      "kind": "semantic_parameter",
+      "parameter": "conformance_report",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_occurrence_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/9"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "mismatch_condition",
+      "kind": "capability_gap",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [],
+      "capability": null,
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Required role mismatch_condition has no rule-linked semantic source.",
+        "source": "profiles/proof.policy.declared-boundary-record-consistency/4.0.0/profile.json#/reference_roles/6",
+        "consequence": "The required type/cardinality survives; no new guarantee or input mapping is invented."
+      }
+    },
+    {
+      "role": "limit_population",
+      "kind": "semantic_parameter",
+      "parameter": "limit_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "declared_limits",
+      "kind": "semantic_parameter",
+      "parameter": "declared_limits",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "unit_population",
+      "kind": "semantic_parameter",
+      "parameter": "unit_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "measurement_units",
+      "kind": "semantic_parameter",
+      "parameter": "measurement_units",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "case_population",
+      "kind": "semantic_parameter",
+      "parameter": "case_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "boundary_cases",
+      "kind": "semantic_parameter",
+      "parameter": "boundary_cases",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "subject_population",
+      "kind": "semantic_parameter",
+      "parameter": "subject_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/5",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "measured_subjects",
+      "kind": "semantic_parameter",
+      "parameter": "measured_subjects",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "declared_limits_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "declared_limits"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "measurement_units_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "measurement_units"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "boundary_cases_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "boundary_cases"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "measured_subjects_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "measured_subjects"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "bounded_subject",
+      "policy_artifact",
+      "subjects_artifact",
+      "conformance_report",
+      "verification",
+      "limit_population",
+      "declared_limits",
+      "unit_population",
+      "measurement_units",
+      "case_population",
+      "boundary_cases",
+      "subject_population",
+      "measured_subjects"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [
+      "observation_artifact"
+    ],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.policy.declared-boundary-record-consistency.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.policy.declared-boundary-record-consistency constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.policy.declared-boundary-record-consistency.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

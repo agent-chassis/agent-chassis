@@ -1,20 +1,15 @@
 
 
 import path from "node:path";
+import { parseRepositoryScopePath } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
+
+import { resolveWritableScopeCoverage } from "./backend-worker-scope-tree.mjs";
 import { isPlainObject } from "./trusted-operation-contracts.mjs";
 
-const WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION = "worktree-identity-binding.v1";
 const WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2 = "worktree-identity-binding.v2";
 const FULL_CHECKOUT_MODE = "full";
 const COMMIT_BINDING_COMMIT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const COMMIT_BINDING_SOURCE_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
-
-const EXACT_SPARSE_SLICE_BINDING_FIELDS = Object.freeze([
-  "schema_version", "launch_ref", "run_id", "retry_id", "unit_address", "initiative",
-  "record_id", "slice_id", "base_ref", "base_sha", "output_branch", "worktree_path",
-  "read_scope", "repo_paths", "write_scope", "write_scope_source", "selected_unit",
-  "source_digest", "source_version", "cone_dirs", "index_sparse"
-]);
 
 const EXACT_FULL_SLICE_BINDING_FIELDS = Object.freeze([
   "schema_version", "launch_ref", "run_id", "retry_id", "unit_address", "initiative",
@@ -26,17 +21,9 @@ function commitPlainObject(value) {
   return isPlainObject(value);
 }
 
-function isNormalizedRepoPathEntry(value) {
-  return typeof value === "string" && value.length > 0 && value === value.trim() &&
-    !path.posix.isAbsolute(value) && !value.startsWith("-") && !value.includes("\\") &&
-    // eslint-disable-next-line no-control-regex
-    !/[\x00-\x1f\x7f]/u.test(value) && path.posix.normalize(value) === value && value !== "." &&
-    value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
-}
-
 function isCanonicalRepoPathArray(value, { nonEmpty = false } = {}) {
   if (!Array.isArray(value) || (nonEmpty && value.length === 0) ||
-      value.some((entry) => !isNormalizedRepoPathEntry(entry))) {
+      value.some((entry) => !parseRepositoryScopePath(entry).ok)) {
     return false;
   }
 
@@ -53,16 +40,10 @@ export function verifyExactSliceCommitBinding({ binding, mainRepo, assignedUnit,
   if (!commitPlainObject(binding)) {
     throw new Error("identity-store commit binding must be an object");
   }
-
-  const mode = binding.schema_version === WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION
-    ? "v1"
-    : binding.schema_version === WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2
-      ? "v2"
-      : null;
-  if (mode === null) {
-    throw new Error("identity-store commit binding schema_version is not a supported worktree identity schema (v1 sparse or v2 full)");
+  if (binding.schema_version !== WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2) {
+    throw new Error("identity-store commit binding schema_version is not the full-checkout worktree identity schema (v2)");
   }
-  const expectedFields = mode === "v1" ? EXACT_SPARSE_SLICE_BINDING_FIELDS : EXACT_FULL_SLICE_BINDING_FIELDS;
+  const expectedFields = EXACT_FULL_SLICE_BINDING_FIELDS;
 
   const missingFields = expectedFields.filter(
     (field) => !Object.prototype.hasOwnProperty.call(binding, field)
@@ -72,7 +53,7 @@ export function verifyExactSliceCommitBinding({ binding, mainRepo, assignedUnit,
   );
   if (missingFields.length > 0 || extraFields.length > 0) {
     throw new Error(
-      `identity-store commit binding is not the exact canonical ${mode === "v1" ? "sparse" : "full"}-slice schema` +
+      "identity-store commit binding is not the exact canonical full-slice schema" +
       (missingFields.length > 0 ? `; missing ${JSON.stringify(missingFields)}` : "") +
       (extraFields.length > 0 ? `; unexpected ${JSON.stringify(extraFields)}` : "")
     );
@@ -135,21 +116,12 @@ export function verifyExactSliceCommitBinding({ binding, mainRepo, assignedUnit,
   if (binding.write_scope_source !== `wiki/work-records/${recordId}.json#${sliceId}`) {
     throw new Error("identity-store commit binding write_scope_source does not match the exact slice");
   }
-
   for (const field of ["read_scope", "repo_paths"]) {
     if (!isCanonicalRepoPathArray(binding[field])) {
       throw new Error(`identity-store commit binding ${field} is not a canonical repository-path array`);
     }
   }
-
-  if (mode === "v1") {
-    if (!isCanonicalRepoPathArray(binding.cone_dirs, { nonEmpty: true })) {
-      throw new Error("identity-store commit binding cone_dirs is not a canonical repository-path array");
-    }
-    if (binding.index_sparse !== false) {
-      throw new Error("identity-store commit binding index_sparse must be false");
-    }
-  } else if (binding.checkout_mode !== FULL_CHECKOUT_MODE) {
+  if (binding.checkout_mode !== FULL_CHECKOUT_MODE) {
     throw new Error("identity-store commit binding checkout_mode must be \"full\" for a v2 full-checkout binding");
   }
   if (typeof binding.source_digest !== "string" || !COMMIT_BINDING_SOURCE_DIGEST_RE.test(binding.source_digest)) {
@@ -225,40 +197,17 @@ export function resolveExpectedEnvelope(binding) {
   return isPlainObject(value) ? value : null;
 }
 
-export function resolveSparseBinding(binding) {
-
-  if (binding.schema_version === WORKTREE_SUBSTRATE_BINDING_SCHEMA_VERSION_V2 ||
-      binding.checkout_mode === FULL_CHECKOUT_MODE) {
-    return null;
-  }
-  const hasSparseAuthority =
-    Object.prototype.hasOwnProperty.call(binding, "cone_dirs") ||
-    Object.prototype.hasOwnProperty.call(binding, "index_sparse");
-  if (!hasSparseAuthority) return null;
-  return Object.freeze({
-    base_sha: binding.base_sha,
-    cone_dirs: binding.cone_dirs,
-    index_sparse: binding.index_sparse
-  });
-}
-
-export function resolveCommitWriteScopeMatcher(deriveWritableMountsFromWriteScope, canonicalRepo, writeScope) {
-  const mounts = deriveWritableMountsFromWriteScope({ workspaceDir: canonicalRepo, writeScope });
-  const repoRoot = path.resolve(canonicalRepo);
-  const files = new Set(
-    mounts.writableFiles.map((file) => path.relative(repoRoot, file).split(path.sep).join("/"))
-  );
-  const roots = mounts.writableRoots.map((root) => path.relative(repoRoot, root).split(path.sep).join("/"));
-  const globRoots = (Array.isArray(writeScope) ? writeScope : [])
-    .filter((entry) => typeof entry === "string" && entry.endsWith("/**"))
-    .map((entry) => entry.slice(0, -3).replace(/\/+$/u, ""))
-    .filter((entry) => entry.length > 0 && !path.isAbsolute(entry) && !entry.split("/").includes(".."));
+export function resolveCommitWriteScopeMatcher(reader, writeScope, exclusions) {
+  const coverage = resolveWritableScopeCoverage(reader, writeScope, { exclusions });
+  const files = new Set(coverage.files);
+  const directories = new Set(coverage.directories);
   return Object.freeze({
     matches(relPath) {
-      if (typeof relPath !== "string" || relPath.length === 0) return false;
-      if (path.isAbsolute(relPath) || relPath.split("/").includes("..")) return false;
-      if (files.has(relPath)) return true;
-      return [...roots, ...globRoots].some((root) => relPath === root || relPath.startsWith(`${root}/`));
+      const parsed = parseRepositoryScopePath(relPath);
+      if (!parsed.ok || parsed.value.directory_hint) return false;
+      const candidate = parsed.value.canonical_path;
+      if (directories.has(candidate) && !files.has(candidate)) return false;
+      return coverage.covers(candidate);
     }
   });
 }

@@ -1,6 +1,8 @@
 
 
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import { createManagedWkAllocationReadiness } from
   "@agent-chassis/wiki-core/src/lib/work-record-dispatch-readiness-shape.mjs";
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
@@ -28,14 +30,17 @@ import {
   assertProvisionedScopeAuthority,
   readCanonicalWorkRecord
 } from "./backend-scope-authority.mjs";
+import { readWorkerScopePathRefusal, WORKER_SCOPE_PATH_REFUSED } from "./backend-worker-scope-authority.mjs";
 import {
   managedRefusal,
   MANAGED_PROVISIONING_UNAVAILABLE,
   MANAGED_LIFECYCLE_REQUIRED,
   resolveProvisioningInitiative,
   resolveExactSliceDependencies,
+  EXACT_SLICE_RESOLUTION_FAILURE_REASONS,
   revalidateLauncherTransitionSettlement,
-  provisioningRefusal
+  provisioningRefusal,
+  serializeManagedBootstrapFailure
 } from "./backend-provisioning-state.mjs";
 import { resolveVerifiedSparseExactUnitBinding } from "./worktree-substrate.mjs";
 import { allocateFullSliceExactUnitWorktree } from "./worktree-substrate-exact-unit.mjs";
@@ -48,6 +53,8 @@ import {
   provisionManagedWkLifecycleAtDispatch
 } from
   "./worktree-provisioning-dispatch-managed.mjs";
+import { preflightManagedControlledAcceptance as runControlledAcceptancePreflight } from
+  "./managed-controlled-acceptance-preflight.mjs";
 import { LAUNCHER_TRANSITION_FAILURES } from "./launcher-transition-plan.mjs";
 import {
   validateCorrectiveIntegrationChain
@@ -56,8 +63,31 @@ import {
   readCanonicalContractGenerationIdentity
 } from "./slice-integration-authorization.mjs";
 
+import {
+  captureWorkerAssignmentMaterial,
+  resolveWorkerMaterialRepository
+} from "./worker-assignment-capture.mjs";
+
 export const CORRECTIVE_REMAINING_SCOPE_TRANSITION_SCHEMA_VERSION =
   "corrective-remaining-scope-transition.v1";
+
+const TRANSITION_FAILURE_BY_EXACT_SLICE_CLASS = Object.freeze({
+  lifecycle: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED,
+  dependency: LAUNCHER_TRANSITION_FAILURES.DEPENDENCY_IDENTITY_UNRESOLVED,
+  publication: LAUNCHER_TRANSITION_FAILURES.PUBLICATION_IDENTITY_UNRESOLVED
+});
+
+export function mapExactSliceResolutionFailure(result) {
+  if (!isPlainObject(result) || result.ok !== false || typeof result.reason !== "string") {
+    throw new TypeError("exact slice dependency refusal is malformed");
+  }
+  const failure = TRANSITION_FAILURE_BY_EXACT_SLICE_CLASS[result.failure_class];
+  const reasons = EXACT_SLICE_RESOLUTION_FAILURE_REASONS[result.failure_class];
+  if (failure === undefined || !reasons?.includes(result.reason)) {
+    throw new TypeError("exact slice dependency refusal has no closed failure_class");
+  }
+  return failure;
+}
 
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const canonical = (value) => JSON.stringify(value);
@@ -280,6 +310,27 @@ function selectionRefusal(selection) {
   return selection;
 }
 
+export function scopeResolutionFailureDetail(error, { role, subject }) {
+  const failure = serializeManagedBootstrapFailure(error);
+  const scopePath = readWorkerScopePathRefusal(error);
+  if (scopePath === null) {
+    return failure.cause.code === WORKER_SCOPE_PATH_REFUSED
+      ? { ...failure, cause: Object.freeze({ ...failure.cause, code: null }) }
+      : failure;
+  }
+  return {
+    ...failure,
+    path: scopePath.path,
+    worker_scope_path: scopePath,
+    recovery: Object.freeze({
+      state: "callable",
+      route: "workspace_agent_dispatch",
+      args: Object.freeze({ role, subject })
+    }),
+    unchanged_retry_recovers: false
+  };
+}
+
 export function createBackendScope(ctx) {
   const {
     worktreeProvisioningConfig,
@@ -318,6 +369,10 @@ export function createBackendScope(ctx) {
       authority_limb: failure.authority_limb,
       next_action: failure.next_action
     }));
+  }
+
+  async function preflightManagedControlledAcceptance({ subject } = {}) {
+    return runControlledAcceptancePreflight({ worktreeProvisioningConfig, subject });
   }
 
   async function bootstrapManagedWkLifecycle({
@@ -511,9 +566,7 @@ export function createBackendScope(ctx) {
         ? await dependencyResolution
         : dependencyResolution;
       if (!dependencies.ok) {
-        const failure = dependencies.reason?.includes("publication_identity")
-          ? LAUNCHER_TRANSITION_FAILURES.PUBLICATION_IDENTITY_UNRESOLVED
-          : LAUNCHER_TRANSITION_FAILURES.DEPENDENCY_IDENTITY_UNRESOLVED;
+        const failure = mapExactSliceResolutionFailure(dependencies);
         return transitionBootstrapRefusal(failure, dependencies);
       }
       assertCompleteManagedProvisioningResult({
@@ -670,9 +723,10 @@ export function createBackendScope(ctx) {
         correctiveRemainingScopeTransition
       });
     } catch (error) {
-      return workerScopeSnapshotRefusal("corrective_scope_preflight_failed", {
-        message: error?.message ?? String(error)
-      });
+      return workerScopeSnapshotRefusal(
+        "corrective_scope_preflight_failed",
+        serializeManagedBootstrapFailure(error)
+      );
     }
     const managedProvisioningTicket = managedWkLifecycleTicket;
     const preparedState = managedWorktreeProvisioningAuthority.resolve({
@@ -721,10 +775,34 @@ export function createBackendScope(ctx) {
           provisioning.slice_id !== authority.selected_unit.slice_id) {
         throw new Error("managed provisioning identity does not match the frozen exact selected unit");
       }
+
+      const assignmentCapture = await captureWorkerAssignmentMaterial({
+        record,
+        selectedUnitContract,
+        repository: resolveWorkerMaterialRepository({
+          managedCanonicalMainRepo: worktreeProvisioningConfig.mainRepo,
+          dispatchWorkspaceBinding: {
+            workspace_alias: input?.workspace_alias ?? null,
+            workspace_dir: input?.workspace_dir ?? null
+          },
+          env: null,
+          canonicalReadRepo: worktreeProvisioningConfig.mainRepo
+        }),
+        dir: worktreeProvisioningConfig.mainRepo
+      });
+      if (!assignmentCapture.ok) {
+
+        return workerScopeSnapshotRefusal(assignmentCapture.diagnostic.code, {
+          message: assignmentCapture.diagnostic.message,
+          path: assignmentCapture.diagnostic.path ?? null,
+          authority_limb: assignmentCapture.diagnostic.authority_limb ?? "mechanical"
+        });
+      }
       const snapshot = Object.freeze({
         authority,
         record,
         selected_unit_contract: selectedUnitContract,
+        assignment_capture: assignmentCapture.capture,
 
         managed_provisioning_ticket: managedProvisioningTicket,
         corrective_integration_chain: correctiveIntegrationChain,
@@ -742,9 +820,10 @@ export function createBackendScope(ctx) {
       registeredWorkerScopeSnapshots.add(snapshot);
       return { ok: true, snapshot };
     } catch (error) {
-      return workerScopeSnapshotRefusal("canonical_scope_resolution_failed", {
-        message: error?.message ?? String(error)
-      });
+      return workerScopeSnapshotRefusal(
+        "canonical_scope_resolution_failed",
+        scopeResolutionFailureDetail(error, { role, subject })
+      );
     }
   }
 
@@ -777,9 +856,10 @@ export function createBackendScope(ctx) {
           );
         }
       } catch (error) {
-        return workerScopeSnapshotRefusal("corrective_scope_transition_invalid", {
-          consumer, message: error?.message ?? String(error)
-        });
+        return workerScopeSnapshotRefusal(
+          "corrective_scope_transition_invalid",
+          { consumer, ...serializeManagedBootstrapFailure(error) }
+        );
       }
     }
     const current = readCanonicalWorkRecord(worktreeProvisioningConfig.mainRepo, expected.selected_unit.address);
@@ -913,6 +993,12 @@ export function createBackendScope(ctx) {
 
   Object.defineProperty(freezeWorkerScopeSnapshot, "bootstrapManagedWkLifecycle", {
     value: bootstrapManagedWkLifecycle,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  Object.defineProperty(freezeWorkerScopeSnapshot, "preflightManagedControlledAcceptance", {
+    value: preflightManagedControlledAcceptance,
     enumerable: false,
     configurable: false,
     writable: false

@@ -1,14 +1,5 @@
 import { evaluateStableProofPackFixtureV1 } from
   "../support/stable-v1-proof-pack-runtime.mjs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import {
-  PinnedCaptureRoot,
-  captureAndEvaluateExactBindingsV1
-} from "../../lib/exact-binding-capture.mjs";
-import { snapshotExactBindingAssessmentRequest } from
-  "../../lib/exact-binding-plain-data.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
   "../support/proof-pack-adequacy-constants.mjs";
 import { canonicalJsonBytes } from
@@ -24,7 +15,7 @@ import { buildLexicographicDocuments } from
 
 const GUARANTEE = "For exact captured input, complete result, ordering policy, and item-key/comparator evidence artifacts, the package-owned deterministic-lexicographic-conformance.v1 transformer validates complete mutually inclusive item populations and exact counts, at least two typed keys with explicit precedence and direction, first-unequal-key ordering, equal-key fallthrough to one stable item-identity tie-breaker, non-equality for every distinguishable pair, the complete captured result, and observed input, declaration, and equivalent-serialization permutation invariance; it emits one exact digest-bound conformance report containing the complete typed fact set and derived declared-item, result-item, and policy-key populations, and the profile retains its own population, count, claim, falsifier, and verifies spine.";
 const PROFILE_DIGEST =
-  "e8236db6201793762140c3999ff605ac52829a36940d5f383d2ec2df9950575e";
+  "310c34d26afb0b6ad757ec7a55dfea1305f3cead32034ecbc51b67ec841af22b";
 const GUARANTEE_DIGEST =
   "93cd1b6fdab1f2173ab1d256c99f7b56f3ddf568dc9554596cee2dabf9e6a62c";
 
@@ -50,7 +41,6 @@ const MUTANT_IDS = Object.freeze([
   "declaration-permutation-sensitivity",
   "direction-reversal",
   "duplicated-result-member",
-  "fabricated-resolver-facts",
   "input-permutation-sensitivity",
   "key-precedence-reversal",
   "key-extractor-ignored",
@@ -61,7 +51,6 @@ const MUTANT_IDS = Object.freeze([
   "premature-tie-breaking",
   "prefix-only-sorting",
   "punctuation-stripping-comparison",
-  "resolver-facts-bound-to-different-artifacts",
   "serialization-permutation-sensitivity",
   "serialization-duplicate-members",
   "substituted-result-member",
@@ -245,8 +234,8 @@ function buildLexicographicProfileFixture({ profile, caseId = "numeric-unicode",
     operands: [ref(roles.input_snapshot[0])]
   });
   const input = {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "pre_dispatch",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...roles[role]]
     })),
@@ -269,106 +258,6 @@ function satisfaction(fixture) {
     profile: fixture.profile,
     evaluation_input: fixture.input
   }).satisfaction;
-}
-
-function fabricatedFactControl(profile, differentArtifacts = false) {
-  const first = buildLexicographicDocuments("numeric-unicode");
-  const second = buildLexicographicDocuments("timestamp-integer");
-  const report = JSON.parse(executeFixture(differentArtifacts ? second : first));
-  if (!differentArtifacts) report.facts[0].fact_key = "fabricated-pass";
-  return exactBoundaryRejectsReport({
-    profile,
-    documents: first,
-    reportBytes: canonicalJsonBytes(report, { file: true })
-  });
-}
-
-const EXACT_DECLARATION = Object.freeze({
-  schema_version: "controlled-contract-exact-binding-declaration.v1",
-  profile_id: "proof.ordering.lexicographic-conformance",
-  profile_version: "2.0.0",
-  profile_digest: PROFILE_DIGEST,
-  requirements: [
-    ["comparator-evidence", [["item_key_evidence", "artifact_subject"]]],
-    ["conformance-report", [
-      ["conformance_report", "artifact_subject"],
-      ["declared_items", "projection_result_population", "declared-items"],
-      ["policy_keys", "projection_result_population", "policy-keys"],
-      ["result_count_signal", "artifact_subject"],
-      ["result_items", "projection_result_population", "result-items"]
-    ]],
-    ["input-snapshot", [["input_snapshot", "artifact_subject"]]],
-    ["ordering-policy", [["ordering_policy", "artifact_subject"]]],
-    ["result-snapshot", [["result_snapshot", "artifact_subject"]]]
-  ].map(([requirementId, coverage]) => ({
-    requirement_id: requirementId,
-    binding_kind: "artifact_bytes",
-    role_coverage: coverage.map(([role, projection, populationId]) => ({
-      role, coverage: "exact", projection,
-      ...(populationId === undefined ? {} : { population_id: populationId })
-    }))
-  })),
-  relations: [{
-    relation_id: "derive-lexicographic-conformance",
-    operator: "deterministic_projection",
-    transformer_id: "deterministic-lexicographic-conformance.v1",
-    source_requirement_ids: [
-      "comparator-evidence", "input-snapshot", "ordering-policy", "result-snapshot"
-    ],
-    result_requirement_id: "conformance-report"
-  }, {
-    relation_id: "independent-exact-sources",
-    operator: "distinct_source_descriptor",
-    requirement_ids: [
-      "comparator-evidence", "input-snapshot", "ordering-policy", "result-snapshot"
-    ]
-  }]
-});
-const EXACT_CONTEXT = Object.freeze({
-  contract_digest: "1".repeat(64),
-  profile_digest: PROFILE_DIGEST,
-  evaluation_input_digest: "2".repeat(64),
-  vocabulary_version: "0.34.0",
-  vocabulary_complete_digest: "3".repeat(64),
-  admission_digest: "4".repeat(64),
-  exact_binding_declaration_digest: "5".repeat(64),
-  exact_binding_certification_digest: "6".repeat(64)
-});
-
-async function exactBoundaryRejectsReport({ profile, documents, reportBytes }) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "cc-lex-adequacy-boundary-"));
-  const fixture = buildLexicographicProfileFixture({ profile });
-  const files = new Map([
-    ["comparator-evidence", documents.sourceBytes[0]],
-    ["input-snapshot", documents.sourceBytes[1]],
-    ["ordering-policy", documents.sourceBytes[2]],
-    ["result-snapshot", documents.sourceBytes[3]],
-    ["conformance-report", reportBytes]
-  ]);
-  await Promise.all([...files].map(([id, bytes]) =>
-    writeFile(path.join(root, `${id}.json`), bytes)));
-  const pinnedRoot = await PinnedCaptureRoot.open(root);
-  try {
-    const result = await captureAndEvaluateExactBindingsV1({
-      request: snapshotExactBindingAssessmentRequest({
-        contractPath: "contract.json",
-        evaluationInputPath: "evaluation.json",
-        profileId: "proof.ordering.lexicographic-conformance",
-        exactBindingSources: Object.fromEntries([...files.keys()].map((id) => [id, {
-          kind: "artifact_file", relative_path: `${id}.json`
-        }]))
-      }),
-      declaration: EXACT_DECLARATION,
-      evaluationInput: fixture.input,
-      context: EXACT_CONTEXT,
-      expectedContext: EXACT_CONTEXT,
-      pinnedRoot
-    });
-    return result.satisfaction !== "satisfied";
-  } finally {
-    await pinnedRoot.close();
-    await rm(root, { recursive: true, force: true });
-  }
 }
 
 function factWeakeningControl(controlId) {
@@ -414,11 +303,7 @@ async function runProofPackAdequacyControls({ profile, profile_digest: profileDi
     profile_satisfaction: satisfaction(buildLexicographicProfileFixture({ profile, caseId }))
   });
   for (const controlId of MUTANT_IDS) {
-    const killed = controlId === "fabricated-resolver-facts"
-      ? await fabricatedFactControl(profile, false)
-      : controlId === "resolver-facts-bound-to-different-artifacts"
-        ? await fabricatedFactControl(profile, true)
-        : executeMutant(controlId).killed;
+    const { killed } = executeMutant(controlId);
     controls.push({
       control_id: controlId,
       category: "mutant",

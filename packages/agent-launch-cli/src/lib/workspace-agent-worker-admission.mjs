@@ -9,6 +9,5 @@ export {
   buildNodeEngineAdmissionRuntimeDiagnostic,
   evaluateWorkerAdmissionDecision,
   evaluateWorkerAdmissionForBackend,
-  resolveRemoteWorkerAdmissionPackResultForUnit,
-  buildCanonicalSummary
+  resolveRemoteWorkerAdmissionPackResultForUnit
 } from "./workspace-agent-worker-admission/runtime.mjs";

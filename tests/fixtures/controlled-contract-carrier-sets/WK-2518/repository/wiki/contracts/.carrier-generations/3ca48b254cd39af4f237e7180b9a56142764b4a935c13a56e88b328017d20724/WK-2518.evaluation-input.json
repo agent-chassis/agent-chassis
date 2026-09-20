@@ -1,0 +1,23 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "evaluation_stage": "pre_dispatch",
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "number_bindings": [],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-3ad65a5181a4a5e1c4e78a655809441290a45320"
+      ],
+      "role": "component"
+    },
+    {
+      "reference_ids": [
+        "ref-fb0e8dcfebac297802f90db0216106ed34a36013"
+      ],
+      "role": "suite"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

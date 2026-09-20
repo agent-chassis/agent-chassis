@@ -3,7 +3,8 @@
   "profile_id": "proof.verification.test-validity",
   "profile_version": "2.0.0",
   "positive_cases": [
-    "complete-witness"
+    "complete-witness",
+    "complete-witness-with-sibling-tests"
   ],
   "single_axis_weakenings": [
     {
@@ -87,24 +88,32 @@
       "expected_code": "test_validity_falsifier_wrong_target"
     },
     {
-      "case_id": "removed-test",
-      "expected_code": "test_validity_declared_test_removed"
+      "case_id": "selected-test-unobserved",
+      "expected_code": "test_validity_selected_test_unobserved"
     },
     {
-      "case_id": "renamed-test",
-      "expected_code": "test_validity_declared_test_removed"
+      "case_id": "selected-test-renamed",
+      "expected_code": "test_validity_selected_test_unobserved"
     },
     {
-      "case_id": "newly-skipped-test",
-      "expected_code": "test_validity_newly_skipped_test"
+      "case_id": "selected-test-skipped",
+      "expected_code": "test_validity_selected_test_skipped"
     },
     {
-      "case_id": "failed-observed-test",
+      "case_id": "selected-test-failed",
       "expected_code": "test_validity_observed_test_failed"
     },
     {
-      "case_id": "undispositioned-coverage",
-      "expected_code": "test_validity_coverage_undispositioned"
+      "case_id": "multiple-declared-tests",
+      "expected_code": "test_validity_declared_selection_invalid"
+    },
+    {
+      "case_id": "duplicate-declared-test",
+      "expected_code": "test_validity_declared_test_duplicate"
+    },
+    {
+      "case_id": "duplicate-observed-test",
+      "expected_code": "test_validity_observed_test_duplicate"
     },
     {
       "case_id": "source-text-inspection",

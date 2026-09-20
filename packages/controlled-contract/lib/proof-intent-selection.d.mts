@@ -7,7 +7,7 @@ export interface ProofIntentDigests {
 }
 
 export interface ProofPackSelectionResult {
-  schema_version: "controlled-contract-proof-pack-selection.v1";
+  schema_version: "controlled-contract-proof-pack-selection.v3";
   requested_intents: string[];
   selected_packs: Array<{
     profile_id: string;
@@ -31,7 +31,7 @@ export type ProofPackSelectionStatus =
   | "compatible_candidates_ready_for_authoring";
 
 export interface ProofPackSelectionResultV2 {
-  schema_version: "controlled-contract-proof-pack-selection.v2";
+  schema_version: "controlled-contract-proof-pack-selection.v4";
   decision: {
     selection_scope: "requested_intents_only";
     selection_status: ProofPackSelectionStatus;
@@ -59,7 +59,7 @@ export interface ProofPackSelectionResultV2 {
 }
 
 export interface ProofPackAuthoringProjection {
-  schema_version: "controlled-contract-proof-pack-authoring.v1";
+  schema_version: "controlled-contract-proof-pack-authoring.v2";
   digest_algorithm: "sha256-canonical-json-v1";
   profile_id: string;
   profile_version: string;

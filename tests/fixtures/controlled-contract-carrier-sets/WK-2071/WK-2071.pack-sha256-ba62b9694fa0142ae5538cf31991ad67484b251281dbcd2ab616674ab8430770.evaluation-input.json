@@ -1,0 +1,136 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "allowed_settlement_states",
+      "reference_ids": [
+        "ref-atomic-allowed-settlement-states"
+      ]
+    },
+    {
+      "role": "compound_operation",
+      "reference_ids": [
+        "ref-carrier-set-persistence"
+      ]
+    },
+    {
+      "role": "constituent_effect_population",
+      "reference_ids": [
+        "ref-atomic-effect-population"
+      ]
+    },
+    {
+      "role": "constituent_effects",
+      "reference_ids": [
+        "ref-carrier-set",
+        "ref-commit-manifest"
+      ]
+    },
+    {
+      "role": "earlier_constituent_effect",
+      "reference_ids": [
+        "ref-carrier-set"
+      ]
+    },
+    {
+      "role": "earlier_effect_observation",
+      "reference_ids": [
+        "ref-atomic-carrier-observation"
+      ]
+    },
+    {
+      "role": "earlier_effect_settled_state",
+      "reference_ids": [
+        "ref-atomic-carrier-settled-state"
+      ]
+    },
+    {
+      "role": "failure_boundary",
+      "reference_ids": [
+        "ref-carrier-write-boundary"
+      ]
+    },
+    {
+      "role": "forbidden_partial_state",
+      "reference_ids": [
+        "ref-partial-carrier-set"
+      ]
+    },
+    {
+      "role": "fully_committed_state",
+      "reference_ids": [
+        "ref-atomic-fully-committed"
+      ]
+    },
+    {
+      "role": "fully_uncommitted_state",
+      "reference_ids": [
+        "ref-no-write-outcome"
+      ]
+    },
+    {
+      "role": "injected_failure",
+      "reference_ids": [
+        "ref-carrier-write-injected-failure"
+      ]
+    },
+    {
+      "role": "later_constituent_effect",
+      "reference_ids": [
+        "ref-commit-manifest"
+      ]
+    },
+    {
+      "role": "later_effect_observation",
+      "reference_ids": [
+        "ref-atomic-manifest-observation"
+      ]
+    },
+    {
+      "role": "later_effect_settled_state",
+      "reference_ids": [
+        "ref-atomic-manifest-settled-state"
+      ]
+    },
+    {
+      "role": "operation_attempt",
+      "reference_ids": [
+        "ref-atomic-operation-attempt"
+      ]
+    },
+    {
+      "role": "partial_commit_condition",
+      "reference_ids": [
+        "ref-atomic-partial-condition"
+      ]
+    },
+    {
+      "role": "settled_result",
+      "reference_ids": [
+        "ref-no-write-outcome"
+      ]
+    },
+    {
+      "role": "settlement_event",
+      "reference_ids": [
+        "ref-carrier-write-settlement"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-wiki-core-tests"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "constituent_effect_count",
+      "value": 2
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

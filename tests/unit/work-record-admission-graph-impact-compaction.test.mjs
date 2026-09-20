@@ -36,6 +36,20 @@ function fullGraphImpact(overrides = {}) {
   return {
     query_kind: "graph_impact_paths",
     source_record_digest: "sha256:source-digest",
+    graph_snapshot: {
+      schema_version: "graph-snapshot.v1",
+      store_incarnation: "store-a",
+      publication_sequence: "9007199254740993",
+      repository_commit: "a".repeat(40),
+      repository_tree: "b".repeat(40),
+      store_schema_version: "sidecar-store.v4",
+      graph_schema_version: "repo-code-graph.v1",
+      generator_identity: `sha256:${"c".repeat(64)}`,
+      base_input_identity: { repository_tree: "b".repeat(40) },
+      base_coverage: { state: "complete" },
+      provider_input_identity: { state: "not_requested" },
+      provider_coverage: { state: "not_requested" }
+    },
     input_paths: ["packages/wiki-core/src/lib/a.mjs", "packages/wiki-core/src/lib/b.mjs"],
     validated_paths: ["packages/wiki-core/src/lib/a.mjs"],
     invalid_paths: ["packages/wiki-core/src/lib/missing.mjs"],
@@ -368,6 +382,10 @@ test("buildCompactInlineGraphEvidenceRef carries readiness signal and binds the 
   assert.equal(ref.sidecar_path, sidecarPath);
   assert.equal(ref.graph_sidecar_digest, sidecarDigest, "whole-file digest recorded for diagnostics");
   assert.equal(ref.graph_entry_digest, entry.graph_entry_digest, "routine binding uses the entry digest");
+  assert.deepEqual(ref.graph_snapshot, entry.graph_snapshot,
+    "the captured publication snapshot survives sidecar and compact projection unchanged");
+  assert.equal(ref.graph_snapshot.publication_sequence, "9007199254740993",
+    "lossless publication sequences are not restamped or number-coerced");
 
   assert.deepEqual(ref.input_paths, entry.input_paths);
   assert.deepEqual(ref.validated_paths, entry.validated_paths);

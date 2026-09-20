@@ -7,6 +7,10 @@ import ASSESSMENT_SCHEMA_V3 from
   "../schema/controlled-contract-assessment.v3.schema.json" with { type: "json" };
 import { compareCodeUnits } from "./equality-normalization-v1.mjs";
 import {
+  adaptRawSchemaDiagnostic,
+  projectBoundedDiagnostics
+} from "./bounded-diagnostic-projection.mjs";
+import {
   StableTestProofContractError,
   resolveStableTestProofProviderBindings,
   validateStableTestProofContract
@@ -57,7 +61,7 @@ function directBindingDiagnostics(binding, index) {
   const required = [
     "test_proof_id", "verification_claim_id", "system_under_test_boundary",
     "observable_result", "candidate_execution_provider", "falsifiers",
-    "traversal_provider", "coverage_disposition", "prohibited_shortcuts"
+    "traversal_provider", "test_selector", "prohibited_shortcuts"
   ];
   for (const field of required) if (!binding || !Object.hasOwn(binding, field)) diagnostics.push(
     fieldDiagnostic("test_proof_required_field_missing", `${root}/${field}`)
@@ -80,8 +84,11 @@ function directBindingDiagnostics(binding, index) {
   if (!binding.observable_result?.observable_id) diagnostics.push(
     fieldDiagnostic("test_proof_observable_invalid", `${root}/observable_result`)
   );
-  if (!binding.coverage_disposition?.baseline_state) diagnostics.push(
-    fieldDiagnostic("test_proof_coverage_disposition_invalid", `${root}/coverage_disposition`)
+  if (typeof binding.test_selector?.name !== "string" ||
+      binding.test_selector.name.length === 0 ||
+      !Number.isSafeInteger(binding.test_selector?.nesting) ||
+      binding.test_selector.nesting < 0) diagnostics.push(
+    fieldDiagnostic("test_proof_test_selector_invalid", `${root}/test_selector`)
   );
   for (const [falsifierIndex, falsifier] of (binding.falsifiers ?? []).entries()) {
     if (!falsifier?.execution_provider) diagnostics.push(fieldDiagnostic(
@@ -108,9 +115,36 @@ function providerDiagnostics(binding, index) {
     return [];
   } catch (error) {
     if (!(error instanceof StableTestProofContractError)) throw error;
-    return error.details.diagnostics.diagnostics.map((item) => ({
+    const source = error.details?.diagnostics;
+    let diagnostics;
+    let field;
+    if (error.code === "stable_test_proof_incomplete") {
+      if (!Array.isArray(source)) throw new TypeError(
+        "complete-binding diagnostics must be an array"
+      );
+      diagnostics = projectBoundedDiagnostics(source.map((item) =>
+        adaptRawSchemaDiagnostic(item, {
+          code: error.code,
+          reasonCode: "stable_test_proof_refused",
+          message: "complete test-proof binding schema validation failed",
+          basePointer: root
+        })
+      )).diagnostics;
+      field = (item) => item.field_pointer;
+    } else {
+      if (!source || typeof source !== "object" || Array.isArray(source) ||
+          !Array.isArray(source.diagnostics)) throw new TypeError(
+        "provider-resolution diagnostics must be a bounded diagnostic envelope"
+      );
+      diagnostics = source.diagnostics;
+      field = (item) => `${root}${
+        (item.field_pointer ?? item.pointer) === "/"
+          ? "" : item.field_pointer ?? item.pointer
+      }`;
+    }
+    return diagnostics.map((item) => ({
       code: `test_proof_${item.code}`,
-      field: `${root}${item.pointer === "/" ? "" : item.pointer}`,
+      field: field(item),
       package_diagnostic: item
     }));
   }
@@ -398,14 +432,17 @@ function bindRuntimeCandidate(binding, evidence, diagnostics, root) {
   if (execution.evidence_artifact_ids.length === 0) diagnostics.push(fieldDiagnostic(
     "test_proof_runtime_receipt_evidence_missing",
     `${root}/execution_result/evidence_artifact_ids`));
-  if (inventory.newly_skipped_test_ids.length > 0) diagnostics.push(fieldDiagnostic(
-    "test_proof_runtime_newly_skipped_population",
-    `${root}/test_inventory/newly_skipped_test_ids`,
-    { actual_identity: inventory.newly_skipped_test_ids }));
-  if (inventory.unexpected_test_ids.length > 0) diagnostics.push(fieldDiagnostic(
-    "test_proof_runtime_unexpected_test_population",
-    `${root}/test_inventory/unexpected_test_ids`,
-    { actual_identity: inventory.unexpected_test_ids }));
+  if (inventory.selected_test_id !== evidence.evidence_identity.test_id) {
+    diagnostics.push(fieldDiagnostic("test_proof_runtime_selected_test_mismatch",
+      `${root}/test_inventory/selected_test_id`,
+      { expected_identity: evidence.evidence_identity.test_id,
+        actual_identity: inventory.selected_test_id }));
+  }
+  if (inventory.skipped_test_ids.includes(evidence.evidence_identity.test_id)) {
+    diagnostics.push(fieldDiagnostic("test_proof_runtime_selected_test_skipped",
+      `${root}/test_inventory/skipped_test_ids`,
+      { actual_identity: evidence.evidence_identity.test_id }));
+  }
   if (!inventory.executed_test_ids.includes(evidence.evidence_identity.test_id)) {
     diagnostics.push(fieldDiagnostic("test_proof_runtime_selected_test_not_executed",
       `${root}/test_inventory/executed_test_ids`,
@@ -419,8 +456,8 @@ function bindRuntimeCandidate(binding, evidence, diagnostics, root) {
   return {
     candidateSuccess: execution.status === "passed" &&
       execution.evidence_artifact_ids.length > 0 &&
-      inventory.newly_skipped_test_ids.length === 0 &&
-      inventory.unexpected_test_ids.length === 0 &&
+      inventory.selected_test_id === evidence.evidence_identity.test_id &&
+      !inventory.skipped_test_ids.includes(evidence.evidence_identity.test_id) &&
       inventory.executed_test_ids.includes(evidence.evidence_identity.test_id),
     discriminationClean: prohibited.length === 0
   };

@@ -1,0 +1,1351 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-wk-2462-criteria-binding",
+      "kind": "provenance",
+      "text": "Requirement identities criterion-01 through criterion-12 bind in order to the canonical acceptance criteria of WK-2462."
+    },
+    {
+      "annotation_id": "ann-wk-2462-non-authority",
+      "kind": "rationale",
+      "text": "The contract and proof results are non-authorizing; implementation, review, integration, closure, and policy authority remain with their existing owners."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-wk-2462-requirement-01",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-01-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-01",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-01-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-01-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-02",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-02-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-02",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-02-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-02-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-03",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-03-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-03",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-03-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-03-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-04",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-04-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-04",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-04-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-04-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-05",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-05-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-05",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-05-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-05-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-06",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-06-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-06",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-06-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-06-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-07",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-07-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-07",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-07-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-07-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-08",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-08-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-08",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-08-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-08-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-09",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-09-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-09",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-09-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-09-satisfied",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-10",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-10-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-11",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-11-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-requirement-12",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-12-satisfied"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-10-non-runtime",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-10-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-10-satisfied",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-11-non-runtime",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-11-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-11-satisfied",
+      "verification_method": "analysis"
+    },
+    {
+      "claim_id": "claim-wk-2462-verify-12-non-runtime",
+      "falsifying_proposition_id": "prop-wk-2462-requirement-12-falsified",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-2462-requirement-12-satisfied",
+      "verification_method": "inspection"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-wk-2462-behavior",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-wk-2462-requirement-01",
+        "claim-wk-2462-requirement-02",
+        "claim-wk-2462-requirement-03",
+        "claim-wk-2462-requirement-04",
+        "claim-wk-2462-requirement-05",
+        "claim-wk-2462-requirement-06",
+        "claim-wk-2462-requirement-07",
+        "claim-wk-2462-requirement-08",
+        "claim-wk-2462-requirement-09",
+        "claim-wk-2462-requirement-10",
+        "claim-wk-2462-requirement-11",
+        "claim-wk-2462-requirement-12"
+      ],
+      "purpose": "acceptance_behavior"
+    },
+    {
+      "collection_id": "set-wk-2462-verification",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-wk-2462-verify-01",
+        "claim-wk-2462-verify-02",
+        "claim-wk-2462-verify-03",
+        "claim-wk-2462-verify-04",
+        "claim-wk-2462-verify-05",
+        "claim-wk-2462-verify-06",
+        "claim-wk-2462-verify-07",
+        "claim-wk-2462-verify-08",
+        "claim-wk-2462-verify-09",
+        "claim-wk-2462-verify-10-non-runtime",
+        "claim-wk-2462-verify-11-non-runtime",
+        "claim-wk-2462-verify-12-non-runtime"
+      ],
+      "purpose": "acceptance_verification"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-01-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-01"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-01-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-01"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-02-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-02"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-02-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-02"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-03-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-03"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-03-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-03"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-04-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-04"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-04-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-04"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-05-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-05"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-05-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-05"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-06-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-06"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-06-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-06"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-07-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-07"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-07-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-07"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-08-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-08"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-08-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-08"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-09-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-09"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-09-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-09"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-10-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-10"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-10-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-10"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-11-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-11"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-11-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-11"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-wk-2462-requirement-12-satisfied",
+      "subject_reference_id": "ref-wk-2462-requirement-12"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2462-delivered-behavior"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-wk-2462-requirement-12-falsified",
+      "subject_reference_id": "ref-wk-2462-requirement-12"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "domain": "controlled-contract-delivered-behavior",
+        "kind": "durable_id",
+        "value": "WK-2462"
+      },
+      "reference_id": "ref-wk-2462-delivered-behavior",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/core/lib/package-docs-carrier.mjs",
+        "repository": "agent-chassis"
+      },
+      "reference_id": "ref-wk-2462-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-01:purpose"
+      },
+      "reference_id": "ref-wk-2462-requirement-01",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-02:supported-population"
+      },
+      "reference_id": "ref-wk-2462-requirement-02",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-03:private-core-owner"
+      },
+      "reference_id": "ref-wk-2462-requirement-03",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-04:executable-handoff"
+      },
+      "reference_id": "ref-wk-2462-requirement-04",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-05:coherent-pre-spawn-check"
+      },
+      "reference_id": "ref-wk-2462-requirement-05",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-06:wk-2139-consumption"
+      },
+      "reference_id": "ref-wk-2462-requirement-06",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-07:managed-experience"
+      },
+      "reference_id": "ref-wk-2462-requirement-07",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-08:failure-ergonomics"
+      },
+      "reference_id": "ref-wk-2462-requirement-08",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-09:compatibility"
+      },
+      "reference_id": "ref-wk-2462-requirement-09",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-10:no-security-posture"
+      },
+      "reference_id": "ref-wk-2462-requirement-10",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-11:ownership"
+      },
+      "reference_id": "ref-wk-2462-requirement-11",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2462.acceptance",
+        "kind": "durable_id",
+        "value": "criterion-12:dry-disposition"
+      },
+      "reference_id": "ref-wk-2462-requirement-12",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2462.launcher-package-docs-composition"
+      },
+      "reference_id": "ref-wk-2462-proof-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2462.focused-and-integration-test-suite"
+      },
+      "reference_id": "ref-wk-2462-test-suite",
+      "type_term": "cc:test"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-wk-2462-verify-01",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-01",
+      "target_claim_id": "claim-wk-2462-requirement-01"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-02",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-02",
+      "target_claim_id": "claim-wk-2462-requirement-02"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-03",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-03",
+      "target_claim_id": "claim-wk-2462-requirement-03"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-04",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-04",
+      "target_claim_id": "claim-wk-2462-requirement-04"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-05",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-05",
+      "target_claim_id": "claim-wk-2462-requirement-05"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-06",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-06",
+      "target_claim_id": "claim-wk-2462-requirement-06"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-07",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-07",
+      "target_claim_id": "claim-wk-2462-requirement-07"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-08",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-08",
+      "target_claim_id": "claim-wk-2462-requirement-08"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-09",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-09",
+      "target_claim_id": "claim-wk-2462-requirement-09"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-10",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-10-non-runtime",
+      "target_claim_id": "claim-wk-2462-requirement-10"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-11",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-11-non-runtime",
+      "target_claim_id": "claim-wk-2462-requirement-11"
+    },
+    {
+      "relation_id": "rel-wk-2462-verify-12",
+      "role": "verifies",
+      "source_claim_id": "claim-wk-2462-verify-12-non-runtime",
+      "target_claim_id": "claim-wk-2462-requirement-12"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-01",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-01",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-01-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-01",
+        "proposition_id": "prop-wk-2462-requirement-01-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-01",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-01",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-01",
+      "test_selector": {
+        "name": "wk 2462 01",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-02",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-02",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-02-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-02",
+        "proposition_id": "prop-wk-2462-requirement-02-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-02",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-02",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-02",
+      "test_selector": {
+        "name": "wk 2462 02",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-03",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-03",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-03-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-03",
+        "proposition_id": "prop-wk-2462-requirement-03-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-03",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-03",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-03",
+      "test_selector": {
+        "name": "wk 2462 03",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-04",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-04",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-04-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-04",
+        "proposition_id": "prop-wk-2462-requirement-04-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-04",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-04",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-04",
+      "test_selector": {
+        "name": "wk 2462 04",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-05",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-05",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-05-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-05",
+        "proposition_id": "prop-wk-2462-requirement-05-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-05",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-05",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-05",
+      "test_selector": {
+        "name": "wk 2462 05",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-06",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-06",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-06-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-06",
+        "proposition_id": "prop-wk-2462-requirement-06-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-06",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-06",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-06",
+      "test_selector": {
+        "name": "wk 2462 06",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-07",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-07",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-07-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-07",
+        "proposition_id": "prop-wk-2462-requirement-07-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-07",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-07",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-07",
+      "test_selector": {
+        "name": "wk 2462 07",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-08",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-08",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-08-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-08",
+        "proposition_id": "prop-wk-2462-requirement-08-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-08",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-08",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-08",
+      "test_selector": {
+        "name": "wk 2462 08",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk-2462-09",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/lib/package-docs-carrier.mjs",
+            "mutation_id": "mutation-wk-2462-09",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk-2462-requirement-09-falsified",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-wk-2462-09",
+        "proposition_id": "prop-wk-2462-requirement-09-satisfied"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk-2462-09",
+        "kind": "module",
+        "runtime_module_path": "packages/core/lib/package-docs-carrier.mjs",
+        "subject_reference_ids": [
+          "ref-wk-2462-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk-2462-09",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk-2462-verify-09",
+      "test_selector": {
+        "name": "wk 2462 09",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

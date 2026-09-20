@@ -892,10 +892,17 @@ function pullRequestObservationRefusal(observation, extra = {}) {
   return refuse(category, { stage: "pull_request", reason: observation.reason, ...extra });
 }
 
+function terminalReviewSelection(materialization) {
+  return materialization === null || materialization === undefined
+    ? Object.freeze({ selected: false, materialization: null })
+    : Object.freeze({ selected: true, materialization });
+}
+
 export async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps = {} }) {
   const runGit = deps.runGit ?? defaultRunGit;
   const binding = candidateState?.binding;
-  const materialization = candidateState?.materialization;
+  const review = terminalReviewSelection(candidateState?.materialization);
+  const materialization = review.materialization;
   try {
     if (binding?.canonical_wk_id !== wk) {
       return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
@@ -904,9 +911,15 @@ export async function publishExactTerminalCandidate({ mainRepo, wk, candidateSta
     }
     let candidateVersionDecision;
     try {
-      assertTerminalCandidateMaterialization(materialization, binding);
+      if (review.selected) {
+        assertTerminalCandidateMaterialization(materialization, binding);
+      }
       await verifyTerminalWkCandidateObjectBinding({ binding, runGit });
-      await verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+      if (review.selected) {
+        await verifyTerminalCandidateCheckout({
+          binding, candidateRoot: materialization.candidate_root, runGit
+        });
+      }
       const observedDecision = await inspectTerminalWkCandidateVersion({ binding, runGit });
       assertTerminalWkCandidateVersionDecision(observedDecision, {
         binding,
@@ -971,7 +984,11 @@ export async function publishExactTerminalCandidate({ mainRepo, wk, candidateSta
     const guard = async () => {
       try {
         await verifyTerminalWkCandidateObjectBinding({ binding, runGit });
-        await verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+        if (review.selected) {
+          await verifyTerminalCandidateCheckout({
+            binding, candidateRoot: materialization.candidate_root, runGit
+          });
+        }
         const observedDecision = await inspectTerminalWkCandidateVersion({ binding, runGit });
         assertTerminalWkCandidateVersionDecision(observedDecision, {
           binding,
@@ -1112,6 +1129,8 @@ export async function publishExactTerminalCandidate({ mainRepo, wk, candidateSta
       terminal_candidate: binding.candidate,
       tree: binding.candidate_tree,
       parent: binding.base,
+
+      terminal_review: review.selected ? "selected" : "not_selected",
       base_branch: landing,
       repository: { host: repository.host, owner: repository.owner, name: repository.name },
       boundary_authorization: boundaryAuthorization,

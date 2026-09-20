@@ -3,6 +3,8 @@
 import { clone, isObject } from "./work-record-dispatch-shared.mjs";
 import { collectValidationHints } from "./work-record-dispatch-validation-hints.mjs";
 import { collectDerivedEvidence } from "./work-record-dispatch-evidence.mjs";
+import { assertControlledAcceptanceStateProjection } from
+  "./work-record-proof-posture.mjs";
 
 export const WORK_RECORD_DISPATCH_SCHEMA_VERSION = "dispatch-readiness.v1";
 
@@ -187,14 +189,31 @@ export function createManagedWkAllocationReadiness({
   monitorHandle
 } = {}) {
   const generation = allocation?.controlled_contract_generation ?? null;
+  const controlledAcceptance = allocation?.controlled_acceptance_state;
   const snapshot = allocation?.wk_snapshot;
   const binding = allocation?.wk_binding;
+  let controlledAcceptanceValid = false;
+  try {
+
+    assertControlledAcceptanceStateProjection(controlledAcceptance,
+      allocation?.record_id, String(subject ?? "").split("#")[1] || null);
+    controlledAcceptanceValid = true;
+  } catch {
+    controlledAcceptanceValid = false;
+  }
   if (allocation?.schema_version !== "managed-wk-lifecycle-allocation.v1" ||
       allocation.complete !== true || !Object.isFrozen(allocation) ||
       allocation.subject !== subject || allocation.run_id !== runId ||
       allocation.launch_ref !== monitorHandle || !Object.isFrozen(binding) ||
       !Object.isFrozen(snapshot) || binding.wk_tip_sha !== snapshot.tip ||
       snapshot.ref !== `refs/heads/${binding.output_branch}` ||
+      !Object.isFrozen(controlledAcceptance) || !controlledAcceptanceValid ||
+      (["absent", "opted_out"].includes(controlledAcceptance.state) &&
+        generation !== null) ||
+      (controlledAcceptance.state === "complete" && generation === null) ||
+      (generation !== null && controlledAcceptance.generation !==
+        (generation.manifest_selection?.find(({ focus }) => focus === null)
+          ?.generation ?? null)) ||
       (generation !== null && (!Object.isFrozen(generation) ||
         generation.schema_version !== "controlled-contract-resolved-generation.v1" ||
         generation.record_id !== allocation.record_id ||
@@ -215,6 +234,13 @@ export function createManagedWkAllocationReadiness({
     retry_id: allocation.retry_id,
     wk_ref: binding.output_branch,
     wk_tip: binding.wk_tip_sha,
+    controlled_acceptance_state: Object.freeze({
+      state: controlledAcceptance.state,
+      generation: controlledAcceptance.generation ?? null,
+      disposition: controlledAcceptance.disposition === null
+        ? null
+        : Object.freeze(structuredClone(controlledAcceptance.disposition))
+    }),
     controlled_contract_generation: generation === null
       ? null
       : Object.freeze({
@@ -354,6 +380,26 @@ export function compactAcceptedEscalation(recordId, sliceId, escalation) {
     accepted_at: escalation.accepted_at,
     expires_at: escalation.expires_at ?? null
   };
+}
+
+export const WORKER_SCOPE_PATH_REFUSED_DECISION_CODE = "worker_scope_path_refused";
+
+export function applyWorkerScopePreflightOverlay(readiness, report) {
+  if (report === null || report === undefined) return readiness;
+  const enriched = { ...readiness, worker_scope_preflight: report };
+  if (report.status !== "refused" || readiness.dispatchable !== true) return enriched;
+  const message = report.refusal?.message;
+  const reason = typeof message === "string" && message.length > 0
+    ? message
+    : "the declared worker scope is refused at the prospective launch base";
+  enriched.structural_readiness ??= {
+    dispatchable: readiness.dispatchable,
+    decision_code: readiness.decision_code
+  };
+  enriched.dispatchable = false;
+  enriched.decision_code = WORKER_SCOPE_PATH_REFUSED_DECISION_CODE;
+  enriched.reasons = [...new Set([reason, ...(Array.isArray(readiness.reasons) ? readiness.reasons : [])])];
+  return enriched;
 }
 
 export function buildTerminalReadiness({

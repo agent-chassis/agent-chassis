@@ -16,7 +16,7 @@ import {
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest,
   projectSliceReviewReceiptContracts
-} from "../../../wiki-core/src/index.mjs";
+} from "../../../wiki-core/src/lib/work-record-schema.mjs";
 import {
   compareTerminalReviewContractBindingIdentity,
   constructTerminalReviewContractBinding,

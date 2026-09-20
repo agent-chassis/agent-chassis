@@ -1,0 +1,478 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "resolved-obligation-coverage.v1.schema.json",
+  "title": "resolved-obligation-coverage.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "wk_id",
+    "obligations",
+    "source_digest",
+    "context_digest",
+    "definition_identities",
+    "selected_unit",
+    "focus"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "resolved-obligation-coverage.v1"
+    },
+    "wk_id": {
+      "$ref": "#/$defs/wk_id"
+    },
+    "focus": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/obligation"
+      },
+      "minItems": 1
+    },
+    "source_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "context_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "selected_unit": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^SLICE-[0-9]{3,}$"
+        }
+      ]
+    },
+    "definition_identities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/exact_pin"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "wk_id": {
+      "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/wk_id"
+    },
+    "sha256": {
+      "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/sha256"
+    },
+    "obligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "obligation_id",
+        "selection",
+        "design_status",
+        "resolved_identity",
+        "selected_proof_assessment",
+        "diagnostics"
+      ],
+      "properties": {
+        "obligation_id": {
+          "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/obligation_id"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "controlled_contract_node_ids": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/id"
+          }
+        },
+        "mechanism": {
+          "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/mechanism"
+        },
+        "selection": {
+          "allOf": [
+            {
+              "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/selection"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "proof_name": {
+                  "type": "string"
+                },
+                "proof_version": {
+                  "type": "string"
+                },
+                "profile_digest": {
+                  "type": "string"
+                },
+                "parameter_contract_digest": {
+                  "type": "string"
+                },
+                "admission_digest": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "gap": {
+          "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/gap"
+        },
+        "design_status": {
+          "enum": [
+            "valid",
+            "invalid"
+          ]
+        },
+        "resolved_identity": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selected_proof_assessment": {
+          "$ref": "#/$defs/selected_proof_assessment"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "path",
+              "reason",
+              "owner",
+              "problem"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "owner": {
+                "type": "string"
+              },
+              "problem": {
+                "type": "object",
+                "required": [
+                  "category",
+                  "severity",
+                  "cause",
+                  "route_assessment"
+                ],
+                "properties": {
+                  "category": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string"
+                  },
+                  "cause": {
+                    "type": "object"
+                  },
+                  "route_assessment": {
+                    "$ref": "#/$defs/diagnostic_route_assessment"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "diagnostic_route_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "effect",
+        "stage",
+        "selected_route",
+        "owner_code",
+        "reason",
+        "unavailable_operation",
+        "responsible_owner",
+        "recovery"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "selected-proof-diagnostic-route-assessment.v1"
+        },
+        "effect": {
+          "enum": [
+            "blocking",
+            "nonblocking",
+            "unresolved"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "authored_inputs",
+            "canonical_sources",
+            "system_capability",
+            "unclassified"
+          ]
+        },
+        "selected_route": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unavailable_operation": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "id", "identity", "state", "description"],
+              "properties": {
+                "kind": { "type": "string", "minLength": 1 },
+                "id": { "type": "string", "minLength": 1 },
+                "identity": { "type": ["string", "null"] },
+                "state": { "type": "string", "minLength": 1 },
+                "description": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        },
+        "responsible_owner": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "recovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "supported_next_call", "operator_action", "explanation"],
+          "properties": {
+            "status": { "enum": ["operator_action", "unavailable", "not_required"] },
+            "supported_next_call": { "type": ["object", "null"] },
+            "operator_action": { "type": ["string", "null"] },
+            "explanation": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "selected_proof_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "definition",
+        "assessment_status",
+        "execution_family",
+        "semantic_inputs",
+        "canonical_inputs",
+        "required_observations",
+        "requirements",
+        "authored_case",
+        "native_test_binding",
+        "declared_test_target",
+        "capability_contract",
+        "unresolved_diagnostic_codes",
+        "stages",
+        "prevents_selected_route",
+        "readiness_status"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "selected-proof-prerequisite-assessment.v1"
+        },
+        "assessment_status": {
+          "enum": [
+            "resolved",
+            "unresolved"
+          ]
+        },
+        "execution_family": {
+          "enum": ["provider_bound_test_validity", "definition_evaluation"]
+        },
+        "definition": {
+          "$ref": "#/$defs/exact_pin"
+        },
+        "semantic_inputs": {
+          "type": "array",
+          "items": {}
+        },
+        "canonical_inputs": {
+          "type": "array",
+          "items": {}
+        },
+        "required_observations": {
+          "type": "array",
+          "items": {}
+        },
+        "requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authored_case", "native_test_binding", "declared_test_target", "test_execution_evidence"],
+          "properties": {
+            "authored_case": { "enum": ["required", "not_applicable"] },
+            "native_test_binding": { "enum": ["required", "not_applicable"] },
+            "declared_test_target": { "enum": ["required", "not_applicable"] },
+            "test_execution_evidence": { "enum": ["required", "not_applicable"] }
+          }
+        },
+        "authored_case": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "case_id"],
+          "properties": {
+            "status": { "enum": ["complete", "missing", "not_applicable"] },
+            "case_id": { "type": ["string", "null"] }
+          }
+        },
+        "native_test_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "binding_count", "verification_id", "test_proof_id", "problem"],
+          "properties": {
+            "status": { "enum": ["complete", "missing", "ambiguous", "invalid", "not_applicable"] },
+            "binding_count": { "type": "integer", "minimum": 0 },
+            "verification_id": { "type": ["string", "null"] },
+            "test_proof_id": { "type": ["string", "null"] },
+            "problem": { "type": ["object", "null"] }
+          }
+        },
+        "declared_test_target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "binding_count", "verification_id"],
+          "properties": {
+            "status": { "enum": ["complete", "missing", "ambiguous", "invalid", "not_applicable"] },
+            "binding_count": { "type": "integer", "minimum": 0 },
+            "verification_id": { "type": ["string", "null"] }
+          }
+        },
+        "capability_contract": {
+          "type": "object",
+          "required": ["construction", "dependencies"],
+          "properties": {
+            "construction": { "type": ["object", "null"] },
+            "dependencies": { "type": "object" }
+          }
+        },
+        "unresolved_diagnostic_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authored_inputs", "canonical_sources", "system_capability", "execution_evidence"],
+          "properties": {
+            "authored_inputs": { "$ref": "#/$defs/authored_stage" },
+            "canonical_sources": { "$ref": "#/$defs/source_stage" },
+            "system_capability": { "$ref": "#/$defs/capability_stage" },
+            "execution_evidence": { "$ref": "#/$defs/execution_stage" }
+          }
+        },
+        "prevents_selected_route": {
+          "type": "boolean"
+        },
+        "readiness_status": {
+          "enum": [
+            "complete",
+            "incomplete"
+          ]
+        }
+      }
+    },
+    "diagnostic_code_sets": {
+      "type": "object",
+      "required": ["status", "diagnostic_codes", "blocking_diagnostic_codes", "nonblocking_diagnostic_codes", "unresolved_diagnostic_codes"],
+      "properties": {
+        "status": { "type": "string" },
+        "diagnostic_codes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "blocking_diagnostic_codes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "nonblocking_diagnostic_codes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "unresolved_diagnostic_codes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "authored_stage": {
+      "allOf": [
+        { "$ref": "#/$defs/diagnostic_code_sets" },
+        { "type": "object", "properties": { "status": { "enum": ["complete", "incomplete"] } } }
+      ]
+    },
+    "source_stage": {
+      "allOf": [
+        { "$ref": "#/$defs/diagnostic_code_sets" },
+        { "type": "object", "properties": { "status": { "enum": ["current", "unresolved"] } } }
+      ]
+    },
+    "capability_stage": {
+      "allOf": [
+        { "$ref": "#/$defs/diagnostic_code_sets" },
+        {
+          "type": "object",
+          "required": ["satisfied_by", "blockers"],
+          "properties": {
+            "status": { "enum": ["available", "unavailable"] },
+            "satisfied_by": { "type": ["string", "null"] },
+            "blockers": { "type": "array", "items": { "$ref": "#/$defs/diagnostic_route_assessment" } }
+          }
+        }
+      ]
+    },
+    "execution_stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "credit_granted", "required_observations"],
+      "properties": {
+        "status": { "const": "not_started" },
+        "credit_granted": { "const": 0 },
+        "required_observations": { "type": "array", "items": {} }
+      }
+    },
+    "exact_pin": {
+      "allOf": [
+        {
+          "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/pin"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "proof_name": {
+              "type": "string"
+            },
+            "proof_version": {
+              "type": "string"
+            },
+            "profile_digest": {
+              "type": "string"
+            },
+            "parameter_contract_digest": {
+              "type": "string"
+            },
+            "admission_digest": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "description": "Derived saved obligation selections with independent design diagnostics. No execution credit or acceptance-criterion provenance is implied."
+}

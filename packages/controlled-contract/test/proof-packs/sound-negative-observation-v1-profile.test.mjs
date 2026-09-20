@@ -2,20 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  projectedEvaluationEnvelopeFor
-} from "../../lib/exact-binding-capture.mjs";
-import {
-  createGraphSelectionTrace,
-  evaluateProjectedEvaluationBinding
-} from "../../lib/projected-evaluation-binding.mjs";
-import {
   buildStableTestProofPopulation,
   evaluateStableProofPackFixtureV1,
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../../lib/stable-v1-migration.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import {
   buildSoundNegativeObservationSources,
   resign
@@ -24,9 +16,6 @@ import {
   buildSoundNegativeObservationEvaluationInput,
   buildSoundNegativeObservationProfile
 } from "./sound-negative-observation-v1-profile.mjs";
-import {
-  createSoundNegativeObservationSubject
-} from "./sound-negative-observation-v1-harness.mjs";
 
 function evaluation(source, {
   mutateContract = (contract) => contract,
@@ -34,10 +23,11 @@ function evaluation(source, {
   profile = buildSoundNegativeObservationProfile()
 } = {}) {
   const sourceContract = JSON.parse(source.projectionBytes.toString("utf8"));
-  const contract = mutateContract(migrateControlledAcceptanceContractV02ToV1({
-    contract: sourceContract,
-    testProofs: buildStableTestProofPopulation(sourceContract)
-  }));
+  const contract = mutateContract({
+    ...sourceContract,
+    test_proof_version: TEST_PROOF_VERSION_V1,
+    test_proofs: buildStableTestProofPopulation(sourceContract)
+  });
   const input = mutateInput(buildSoundNegativeObservationEvaluationInput(contract), contract);
   return evaluateStableProofPackFixtureV1({ profile, contract, evaluation_input: input });
 }
@@ -194,135 +184,5 @@ test("crossed target, source, and position associations are refused", () => {
   }
 });
 
-test("exact capture proves both profile discrimination and projected graph binding", async () => {
-  const subject = await createSoundNegativeObservationSubject({
-    fixtureOptions: { domain: "exact-positive" }
-  });
-  try {
-    const projected = subject.project();
-    assert.equal(subject.exactBindingResult.satisfaction, "satisfied");
-    assert.equal(projected.assessment.profile_discrimination, "proven");
-    assert.equal(projected.assessment.exact_binding, "proven");
-    assert.equal(
-      projected.assessment.verification_scope.projected_evaluation_binding,
-      "bound_to_deterministic_projection"
-    );
-  } finally {
-    await subject.cleanup();
-  }
-});
 
-test("omitting one evaluator association trace record defeats projected binding", async () => {
-  const subject = await createSoundNegativeObservationSubject({
-    fixtureOptions: { domain: "omitted-trace" }
-  });
-  try {
-    const selection = createGraphSelectionTrace();
-    const profileEvaluation = evaluateStableProofPackFixtureV1({
-      profile: subject.profile,
-      contract: subject.contract,
-      evaluation_input: subject.evaluationInput
-    }, { graphSelectionSink: selection.sink });
-    assert.equal(profileEvaluation.satisfaction, "satisfied");
-    const trace = selection.snapshot();
-    const omitted = {
-      trace_version: trace.trace_version,
-      began: trace.began,
-      records: trace.records.filter((record, index) =>
-        record.trace_point !== "for_each_association_binding" || index !==
-          trace.records.findIndex(({ trace_point: point }) =>
-            point === "for_each_association_binding"))
-    };
-    const binding = evaluateProjectedEvaluationBinding({
-      declaredOptIn: subject.declaration.projected_evaluation_binding,
-      envelope: projectedEvaluationEnvelopeFor(subject.exactBindingResult),
-      exactBindingResult: subject.exactBindingResult,
-      expectedContext: subject.context,
-      contract: subject.contract,
-      profile: subject.profile,
-      evaluation: profileEvaluation,
-      trace: omitted
-    });
-    assert.ok(binding.diagnostics.some(({ code }) =>
-      code === "projected_evaluation_trace_incomplete"));
-  } finally {
-    await subject.cleanup();
-  }
-});
 
-test("projection, evaluation, source, declaration, profile, and fabricated-claim splices fail", async () => {
-  const alternate = source({ domain: "splice-alternate" });
-  const baseline = source({ domain: "splice-baseline" });
-  const cases = [
-    {
-      label: "projection-result",
-      options: {
-        source: baseline,
-        projectionBytes: alternate.projectionBytes
-      }
-    },
-    {
-      label: "evaluation-input",
-      options: {
-        source: baseline,
-        mutateEvaluationInput(input) {
-          input.reference_bindings.find(({ role }) => role === "target")
-            .reference_ids = input.reference_bindings.find(
-              ({ role }) => role === "observation_attempt").reference_ids;
-          return input;
-        }
-      }
-    },
-    {
-      label: "capture-source",
-      options: {
-        source: baseline,
-        sourceFiles: {
-          "observation-evidence.json": alternate.evidenceBytes,
-          "observation-capture-proof.json": alternate.captureProofBytes,
-          "observation-projection.json": baseline.projectionBytes
-        }
-      }
-    },
-    {
-      label: "declaration-profile",
-      options: {
-        source: baseline,
-        mutateDeclaration(declaration) {
-          declaration.profile_digest = "0".repeat(64);
-          return declaration;
-        }
-      }
-    },
-    {
-      label: "fabricated-claim",
-      options: {
-        source: baseline,
-        mutateContract(contract) {
-          const claim = contract.claims.find(({ claim_id: id }) => id.endsWith("-nonmatch"));
-          const proposition = contract.propositions.find(
-            ({ proposition_id: id }) => id === claim.proposition_id
-          );
-          claim.claim_id = "claim-fabricated-nonmatch";
-          proposition.proposition_id = "prop-fabricated-nonmatch";
-          claim.proposition_id = proposition.proposition_id;
-          const relation = contract.relations.find(
-            ({ target_claim_id: id }) => id.endsWith("-nonmatch")
-          );
-          relation.target_claim_id = claim.claim_id;
-          return contract;
-        }
-      }
-    }
-  ];
-  for (const { label, options } of cases) {
-    const subject = await createSoundNegativeObservationSubject(options);
-    try {
-      const projected = subject.project();
-      assert.ok(subject.exactBindingResult.satisfaction !== "satisfied" ||
-        projected.assessment.exact_binding !== "proven", label);
-    } finally {
-      await subject.cleanup();
-    }
-  }
-});

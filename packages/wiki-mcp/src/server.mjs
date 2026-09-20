@@ -9,17 +9,12 @@ import {
   LAUNCHER_READINESS_SCHEMA_VERSIONS
 } from "./lib/launcher-readiness-observer.mjs";
 import { z } from "zod";
-import path from "node:path";
 import { writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   readContractFile,
   setWorkRecordStatusByUnit,
   WORK_RECORD_STATUS_VALUES
 } from "../../wiki-core/src/index.mjs";
-import {
-  WORK_RECORD_CONTRACT_LIST_FIELDS
-} from "../../wiki-core/src/lib/work-record-contract-edit.mjs";
 import {
   parseWorkspaceRepos,
   resolveWorkspaceRepo
@@ -41,18 +36,13 @@ import { createRegisterTool } from "./lib/register-tool.mjs";
 import {
   consumeLauncherNoCceAuthorityCapability
 } from "./lib/launcher-no-cce-authority.mjs";
-import {
-  consumeLauncherCommonProofResolverCapability,
-  createLauncherCommonProofResolverFromCapability
-} from "./lib/launcher-common-proof-resolver-capability.mjs";
+
+import { isDirectModuleEntry } from "./lib/direct-entry.mjs";
 
 import {
   augmentWorkspaceToolDiscoveryDescriptor,
-  createProductionToolUsageAuditOrigin,
-  createProductionToolUsageAuditSelectedContext,
   loadMcpToolTierRegistrationPolicy,
-  structuredLog,
-  trimmed
+  structuredLog
 } from "./lib/server-composition-helpers.mjs";
 
 import { registerMcpContentReferenceTools } from "./lib/mcp-content-reference-tools.mjs";
@@ -66,10 +56,8 @@ import {
   createCompactValidateDispatchResponse,
   validateOptionalExpectedSourceDigest,
   runWorkspaceWorkRecordAdmissionRefreshRoute,
-  runWorkspaceWorkRecordCleanupDerivedEvidenceRoute,
   WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME,
-  WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME,
-  WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME
+  WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME
 } from "./lib/work-record-write-route-helpers.mjs";
 
 import {
@@ -85,13 +73,11 @@ import { registerWorkRecordReadTools } from "./lib/work-record-read-tools.mjs";
 import { registerIntegrationStatusTools } from "./lib/integration-status-tools.mjs";
 import { registerIntegrationPromoteCheckTools } from "./lib/integration-promote-check-tools.mjs";
 
-import { registerAgentFaqTools } from "./lib/agent-faq-tools.mjs";
-
 import { registerAuthoringErgonomicsTools } from "./lib/authoring-ergonomics-tools.mjs";
-import {
-  createToolUsageAuditBoundaryRecorder,
-  registerToolUsageAuditTools
-} from "./lib/tool-usage-audit-mcp-tools.mjs";
+
+import { createToolUsageAuditBoundaryRecorder } from "./lib/tool-usage-audit-mcp-tools.mjs";
+import { createMetricsLogWriter } from "./lib/tool-usage-audit/metrics-log-writer.mjs";
+import { resolveMcpMetricsConfig } from "../../agent-launch-cli/src/lib/mcp-metrics-config.mjs";
 
 import { registerToolDiscoveryTools } from "./lib/tool-discovery-tools.mjs";
 
@@ -110,13 +96,12 @@ import {
   bindSpawnedPackageDocsCarrierFromLauncher
 } from "../../agent-launch-cli/src/lib/wiki-mcp-host-server.mjs";
 
-import { registerWikiCoreTools } from "./lib/wiki-core-tools.mjs";
+import { createWorkspaceReadRepoResolver, registerWikiCoreTools } from "./lib/wiki-core-tools.mjs";
 
 import { registerWorkRecordWriteTools } from "./lib/work-record-write-tools.mjs";
+import { registerWorkRecordEntryTools } from "./lib/work-record-entry-tools.mjs";
 import { registerKindRecordWriteTools } from "./lib/kind-record-write-tools.mjs";
 import { registerWorkspaceCommitTool } from "./lib/workspace-commit-tool.mjs";
-
-import { registerWorkerDeclaredTestTool } from "./lib/worker-declared-test-tool.mjs";
 
 import { registerFrozenReviewContractTools } from "./lib/frozen-review-contract-tools.mjs";
 
@@ -128,7 +113,6 @@ import { bootstrapWikiMcpNodeEngineEnv } from "./lib/node-engine-env-bootstrap.m
 
 const SERVER_VERSION = "0.2.0";
 const WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME = "workspace_work_record_set_status";
-const WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME = "workspace_work_record_set_task";
 
 const diagnosticSink = createDiagnosticSink();
 const shutdownController = createStdioShutdownController({
@@ -147,7 +131,8 @@ const extensionNamespacesSchema = z.array(z.string()).optional();
 async function registerTools(server, {
   packageDocsCarrier = null,
   launcherNoCceAuthorityCapability = null,
-  resolveLauncherReceipt = null
+  dispatchRuntimeTestComposition = null,
+  metricsWriter = null
 } = {}) {
   const workspaceRepos = await parseWorkspaceRepos();
   const toolProfile = parseToolProfile();
@@ -161,28 +146,16 @@ async function registerTools(server, {
   const {
     dispatchBackend,
     dispatchSessionIdentity,
-    wkForgeHandoffAdapter,
-    runTerminalCandidateValidationForUnit
+    wkForgeHandoffAdapter
   } =
     buildDispatchRuntime(process.env, {
+      testComposition: dispatchRuntimeTestComposition,
       registeredTier,
       workspaceRepos,
       resolveWorkspaceRepo
     });
-  const toolUsageAuditBoundary = createToolUsageAuditBoundaryRecorder({
-    origin: () => createProductionToolUsageAuditOrigin({ toolProfile, dispatchSessionIdentity }),
-    selected: () => createProductionToolUsageAuditSelectedContext({
-      workspaceRepos,
-      assignedUnit: trimmed(process.env.WIKI_MCP_ASSIGNED_UNIT)
-    }),
-    onRecorderError: (error) => {
-      structuredLog({
-        level: "warning",
-        event: "tool_usage_audit_recorder_error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
+
+  const toolUsageAuditBoundary = createToolUsageAuditBoundaryRecorder({ writer: metricsWriter });
 
   const registerTool = createRegisterTool({
     server,
@@ -226,8 +199,7 @@ async function registerTools(server, {
     errorContent,
     resolveWorkspaceRepo,
     resolveControlledContractGenerationBinding,
-    persistControlledContractGeneration,
-    resolveLauncherReceipt
+    persistControlledContractGeneration
   });
 
   registerDispatchTools({
@@ -269,7 +241,6 @@ async function registerTools(server, {
     errorContent,
     resolveWorkspaceRepo,
     createCompactValidateDispatchResponse,
-    runTerminalCandidateValidationForUnit,
     registeredTier
   });
 
@@ -302,8 +273,6 @@ async function registerTools(server, {
     resolveWorkspaceRepo
   });
 
-  registerAgentFaqTools({ registerTool, z, jsonContent, errorContent, registeredTier });
-
   registerAuthoringErgonomicsTools({
     registerTool,
     z,
@@ -313,14 +282,6 @@ async function registerTools(server, {
     resolveWorkspaceRepo
   });
 
-  registerToolUsageAuditTools({
-    registerTool,
-    z,
-    jsonContent,
-    errorContent,
-    recorder: toolUsageAuditBoundary.recorder
-  });
-
   registerWorkspaceCommitTool({
     registerTool,
     workspaceRepos,
@@ -328,17 +289,7 @@ async function registerTools(server, {
     jsonContent,
     errorContent,
     resolveWorkspaceRepo,
-    createCompactWorkRecordEditResponse,
     setWorkRecordStatusByUnit
-  });
-
-  registerWorkerDeclaredTestTool({
-    registerTool,
-    workspaceRepos,
-    z,
-    jsonContent,
-    errorContent,
-    resolveWorkspaceRepo
   });
 
   registerFrozenReviewContractTools({
@@ -368,17 +319,18 @@ async function registerTools(server, {
     createCompactContractEditResponse,
     validateOptionalExpectedSourceDigest,
     runWorkspaceWorkRecordAdmissionRefreshRoute,
-    runWorkspaceWorkRecordCleanupDerivedEvidenceRoute,
     constants: {
       WORK_RECORD_STATUS_VALUES,
-      WORK_RECORD_CONTRACT_LIST_FIELDS,
       WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME,
-      WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME,
       WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME,
-      WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME,
-      WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME
+      WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME
     }
   });
+  registerWorkRecordEntryTools({ registerTool, workspaceRepos, z, jsonContent, errorContent,
+    resolveWorkspaceRepo,
+    resolveWorkspaceReadRepo: createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }),
+    resolveRetainedFindingsSource: dispatchBackend?.resolveRetainedFindingsSource,
+    dispatchSessionIdentity });
 
   registerKindRecordWriteTools({
     registerTool,
@@ -420,7 +372,7 @@ async function registerTools(server, {
 export async function startWikiMcpServer({
   packageDocsCarrier = null,
   launcherNoCceAuthorityCapability = null,
-  resolveLauncherReceipt = null
+  dispatchRuntimeTestComposition = null
 } = {}) {
 
   const effectivePackageDocsCarrier = bindSpawnedPackageDocsCarrierFromLauncher({
@@ -434,6 +386,22 @@ export async function startWikiMcpServer({
     ...nodeEngineEnvBootstrap
   });
 
+  const metricsConfig = resolveMcpMetricsConfig(process.env);
+  if (metricsConfig.state === "unavailable") {
+    structuredLog({
+      level: "warning",
+      event: "anonymous_mcp_metrics",
+      reason: "invalid_config",
+      config_reason: metricsConfig.reason
+    });
+  }
+  const metricsWriter = metricsConfig.state === "enabled"
+    ? createMetricsLogWriter({
+        root: metricsConfig.root,
+        emitDiagnostic: (entry) => structuredLog({ level: "warning", ...entry })
+      })
+    : null;
+
   const server = new McpServer({
     name: "@agent-chassis/wiki-mcp",
     version: SERVER_VERSION
@@ -442,7 +410,8 @@ export async function startWikiMcpServer({
   const registration = await registerTools(server, {
     packageDocsCarrier: effectivePackageDocsCarrier,
     launcherNoCceAuthorityCapability,
-    resolveLauncherReceipt
+    dispatchRuntimeTestComposition,
+    metricsWriter
   });
   registerStaticResources(server, { readContractFile, jsonContent, errorContent });
 
@@ -486,7 +455,13 @@ export async function startWikiMcpServer({
   await server.connect(transport);
   transport.assertObservationInstalled();
 
-  shutdownController.setServerCloseHook(() => server.close());
+  shutdownController.setServerCloseHook(async () => {
+    try {
+      await server.close();
+    } finally {
+      if (metricsWriter !== null) await metricsWriter.close();
+    }
+  });
 
   writeLauncherEvent({
     schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
@@ -503,18 +478,9 @@ export async function startWikiMcpServer({
   });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isDirectModuleEntry(import.meta.url)) {
   const launcherNoCceAuthorityCapability = consumeLauncherNoCceAuthorityCapability();
-  let resolveLauncherReceipt = null;
-  try {
-    const capability = consumeLauncherCommonProofResolverCapability();
-    resolveLauncherReceipt = capability === null
-      ? null
-      : createLauncherCommonProofResolverFromCapability(capability);
-  } catch (capabilityError) {
-    resolveLauncherReceipt = async () => { throw capabilityError; };
-  }
-  startWikiMcpServer({ launcherNoCceAuthorityCapability, resolveLauncherReceipt }).catch((error) => {
+  startWikiMcpServer({ launcherNoCceAuthorityCapability }).catch((error) => {
     structuredLog({
       level: "error",
       message: error instanceof Error ? error.message : String(error)

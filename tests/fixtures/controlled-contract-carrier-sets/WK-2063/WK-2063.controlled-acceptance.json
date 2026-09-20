@@ -1,0 +1,3085 @@
+{
+  "schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "profile_id": "acceptance-contract.standard.v1",
+  "references": [
+    {
+      "reference_id": "ref-fixed-fork-resolver",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "resolveFixedWkForkCommit"
+      }
+    },
+    {
+      "reference_id": "ref-bounded-region",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "boundedWkLifecycleRegion"
+      }
+    },
+    {
+      "reference_id": "ref-zero-delta-resolver",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "resolveZeroDeltaIntegrationEvidence"
+      }
+    },
+    {
+      "reference_id": "ref-marker-resolver",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "resolveSliceMarkerEvidence"
+      }
+    },
+    {
+      "reference_id": "ref-literal-commit-reader",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "readLiteralCommit"
+      }
+    },
+    {
+      "reference_id": "ref-advance-cas",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "symbol": "advanceSliceRefCas"
+      }
+    },
+    {
+      "reference_id": "ref-record-cas",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "symbol": "driveRecordCasWrite"
+      }
+    },
+    {
+      "reference_id": "ref-zero-delta-recovery",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "symbol": "recoverZeroDeltaIntegratedSlice"
+      }
+    },
+    {
+      "reference_id": "ref-integration-request",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "symbol": "requestCommittedSliceIntegration"
+      }
+    },
+    {
+      "reference_id": "ref-disposition-validation",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "symbol": "normalizeAdvisoryDispositions"
+      }
+    },
+    {
+      "reference_id": "ref-wk-2063",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis.work-record",
+        "value": "WK-2063"
+      }
+    },
+    {
+      "reference_id": "ref-fixed-fork",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "fixed_wk_fork_commit"
+      }
+    },
+    {
+      "reference_id": "ref-wk-tip",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "exact_wk_tip_commit"
+      }
+    },
+    {
+      "reference_id": "ref-postfork-observation",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "fixed-fork-bounded authenticated lifecycle observation"
+      }
+    },
+    {
+      "reference_id": "ref-prefork-commits",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "profile_term",
+        "term": "commits strictly before the fixed WK fork"
+      }
+    },
+    {
+      "reference_id": "ref-postfork-commits",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "profile_term",
+        "term": "commits after the fixed WK fork and at or below the exact WK tip"
+      }
+    },
+    {
+      "reference_id": "ref-marker-candidates",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "profile_term",
+        "term": "same-slice canonical marker candidates in the bounded lifecycle region"
+      }
+    },
+    {
+      "reference_id": "ref-zero-delta-candidates",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "profile_term",
+        "term": "exact zero-delta evidence candidates in the bounded lifecycle region"
+      }
+    },
+    {
+      "reference_id": "ref-current-main",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "current landing branch tip"
+      }
+    },
+    {
+      "reference_id": "ref-merge-base",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "a merge-base selected as lifecycle floor"
+      }
+    },
+    {
+      "reference_id": "ref-caller-floor",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "caller-selected lifecycle floor"
+      }
+    },
+    {
+      "reference_id": "ref-prompt-environment-floor",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "prompt, environment, record prose, or reviewer-selected lifecycle floor"
+      }
+    },
+    {
+      "reference_id": "ref-recovery-observation",
+      "type_term": "cc:evidence_occurrence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "pre-admission recovery history observation"
+      }
+    },
+    {
+      "reference_id": "ref-fresh-observation",
+      "type_term": "cc:evidence_occurrence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "fresh integration attempt history observation"
+      }
+    },
+    {
+      "reference_id": "ref-wk-ref-movement",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "WK ref movement"
+      }
+    },
+    {
+      "reference_id": "ref-fork-movement",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "fixed WK fork movement, deletion, or identity change"
+      }
+    },
+    {
+      "reference_id": "ref-record-cas-retry",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "canonical work-record CAS retry"
+      }
+    },
+    {
+      "reference_id": "ref-wk-cas-retry",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "WK ref CAS retry"
+      }
+    },
+    {
+      "reference_id": "ref-zero-matches",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "zero exact zero-delta matches"
+      }
+    },
+    {
+      "reference_id": "ref-one-match",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "one exact zero-delta match"
+      }
+    },
+    {
+      "reference_id": "ref-multiple-matches",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "multiple exact zero-delta matches"
+      }
+    },
+    {
+      "reference_id": "ref-exact-match",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "one fully bound zero-delta evidence result"
+      }
+    },
+    {
+      "reference_id": "ref-absent-result",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "determinate evidence absence"
+      }
+    },
+    {
+      "reference_id": "ref-ambiguous-refusal",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "typed ambiguous-evidence refusal"
+      }
+    },
+    {
+      "reference_id": "ref-indeterminate-refusal",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "typed indeterminate-evidence refusal"
+      }
+    },
+    {
+      "reference_id": "ref-current-tip-evidence",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "exact evidence at the current WK tip"
+      }
+    },
+    {
+      "reference_id": "ref-historical-evidence",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "exact evidence retained below the current WK tip and above the fixed fork"
+      }
+    },
+    {
+      "reference_id": "ref-singular-marker",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "one canonical same-slice marker"
+      }
+    },
+    {
+      "reference_id": "ref-plural-markers",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "multiple legitimate canonical same-slice markers"
+      }
+    },
+    {
+      "reference_id": "ref-malformed-claim",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "malformed or noncanonical marker claim"
+      }
+    },
+    {
+      "reference_id": "ref-wrong-binding",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wrong delivery, base, WK parent, or subject binding"
+      }
+    },
+    {
+      "reference_id": "ref-merge-path",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "post-fork commit graph containing a merge path that escapes the exact fixed WK fork floor"
+      }
+    },
+    {
+      "reference_id": "ref-cycle",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "cyclic literal parent graph observation"
+      }
+    },
+    {
+      "reference_id": "ref-missing-object",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "missing or unreadable commit object"
+      }
+    },
+    {
+      "reference_id": "ref-bound-exhaustion",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "literal traversal bound exhaustion"
+      }
+    },
+    {
+      "reference_id": "ref-invalid-fork",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "absent, ambiguous, symbolic, non-commit, malformed, moved, or deleted fixed fork"
+      }
+    },
+    {
+      "reference_id": "ref-invalid-disposition",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "structurally invalid or exact-target-unmatched disposition request"
+      }
+    },
+    {
+      "reference_id": "ref-server-review-evidence",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "server-derived retained exact-target review findings"
+      }
+    },
+    {
+      "reference_id": "ref-literal-authentication",
+      "type_term": "cc:process",
+      "identity": {
+        "kind": "profile_term",
+        "term": "literal commit parent, object, and canonical message authentication"
+      }
+    },
+    {
+      "reference_id": "ref-test-real-git-scale",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "profile_term",
+        "term": "real-Git fixed-fork scale regression with 500 pre-fork commits"
+      }
+    },
+    {
+      "reference_id": "ref-test-semantic-mutants",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "profile_term",
+        "term": "semantic mutant suite for history-bound and authority regressions"
+      }
+    },
+    {
+      "reference_id": "ref-test-authorization",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/slice-integration-bounded-history.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-delivery",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/slice-integration-delivery.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-recovery",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/slice-integration-zero-delta-recovery.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-test-committed",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/committed-slice-review-integration.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-bounded-sibling-marker-evidence",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "boundedSiblingMarkerEvidence"
+      }
+    },
+    {
+      "reference_id": "ref-last-incomplete-slice",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "isLastIncompleteImplementationSlice"
+      }
+    },
+    {
+      "reference_id": "ref-delivery-literal-reader",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "symbol": "readLiteralCommitObject"
+      }
+    },
+    {
+      "reference_id": "ref-legacy-full-history-walk",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "symbol": "literalReachable"
+      }
+    },
+    {
+      "reference_id": "ref-bounded-integration-context",
+      "type_term": "cc:scope",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2063.scope",
+        "value": "committed-slice-integration-at-fixed-wk-fork"
+      }
+    },
+    {
+      "reference_id": "ref-forbidden-history-population",
+      "type_term": "cc:population",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2063.population",
+        "value": "root-wide-integration-history-walks"
+      }
+    },
+    {
+      "reference_id": "ref-root-rev-list-history-walk",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "wk-2063.operation",
+        "value": "root-wide-rev-list-zero-delta-recovery"
+      }
+    },
+    {
+      "reference_id": "ref-floor-terminated-bounded-region",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "profile_term",
+        "term": "well-formed post-fork region whose every ancestry path terminates at the exact fixed WK fork"
+      }
+    },
+    {
+      "reference_id": "ref-concurrency-loser-reauthentication",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "symbol": "exactConcurrentZeroDeltaWinner"
+      }
+    },
+    {
+      "reference_id": "ref-record-cas-live-observation",
+      "type_term": "cc:evidence_occurrence",
+      "identity": {
+        "kind": "profile_term",
+        "term": "fresh bounded history observation produced during canonical work-record CAS live re-validation"
+      }
+    },
+    {
+      "reference_id": "ref-structurally-invalid-disposition",
+      "type_term": "cc:conflict",
+      "identity": {
+        "kind": "profile_term",
+        "term": "structurally invalid disposition request detectable before review-evidence context resolution"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-fork-resolver-selects-floor",
+      "subject_reference_id": "ref-fixed-fork-resolver",
+      "operator": "reference:resolves_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fixed-fork"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-fork-is-authority",
+      "subject_reference_id": "ref-fixed-fork",
+      "operator": "boolean:authoritative",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-fork-not-current-main",
+      "subject_reference_id": "ref-fixed-fork",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-current-main"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-fork-not-merge-base",
+      "subject_reference_id": "ref-fixed-fork",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-merge-base"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-fork-not-caller-floor",
+      "subject_reference_id": "ref-fixed-fork",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-caller-floor"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-fork-not-prompt-floor",
+      "subject_reference_id": "ref-fixed-fork",
+      "operator": "reference:not_equals",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-prompt-environment-floor"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-invalid-fork-rejected",
+      "subject_reference_id": "ref-fixed-fork-resolver",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-invalid-fork"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-invalid-fork"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-uses-floor",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fixed-fork"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-uses-tip",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-tip"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-reads-postfork",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:reads",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-postfork-commits"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-omits-prefork",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:omits",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-floor-terminated-bounded-region"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-prefork-commits"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-authenticates-literals",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-literal-authentication"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-zero-delta-uses-observation",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-recovery-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-marker-uses-observation",
+      "subject_reference_id": "ref-marker-resolver",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fresh-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-advance-one-observation",
+      "subject_reference_id": "ref-advance-cas",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-wk-tip",
+          "ref-fixed-fork"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fresh-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-advance-observation-covers-marker",
+      "subject_reference_id": "ref-fresh-observation",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-wk-tip",
+          "ref-fixed-fork"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-marker-candidates"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-advance-observation-covers-zero-delta",
+      "subject_reference_id": "ref-fresh-observation",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-wk-tip",
+          "ref-fixed-fork"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-zero-delta-candidates"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-recovery-calls-floor",
+      "subject_reference_id": "ref-zero-delta-recovery",
+      "operator": "reference:calls",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fixed-fork-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-recovery-uses-own-observation",
+      "subject_reference_id": "ref-zero-delta-recovery",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-recovery-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-recovery-isolated-from-fresh",
+      "subject_reference_id": "ref-recovery-observation",
+      "operator": "reference:isolated_from",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fresh-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk-movement-invalidates-observation",
+      "subject_reference_id": "ref-wk-ref-movement",
+      "operator": "reference:invalidates",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-postfork-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-fork-movement-invalidates-observation",
+      "subject_reference_id": "ref-fork-movement",
+      "operator": "reference:invalidates",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-postfork-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk-cas-retry-invalidates-observation",
+      "subject_reference_id": "ref-wk-cas-retry",
+      "operator": "reference:invalidates",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-postfork-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-record-cas-retry-invalidates-observation",
+      "subject_reference_id": "ref-record-cas-retry",
+      "operator": "reference:invalidates",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-postfork-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-record-cas-reresolves-floor",
+      "subject_reference_id": "ref-record-cas",
+      "operator": "reference:calls",
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-record-cas-retry"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fixed-fork-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-zero-match-absent",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-zero-matches"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-absent-result"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-one-match-exact",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-one-match"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-exact-match"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-multiple-match-ambiguous",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-multiple-matches"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-ambiguous-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-zero-delta-preserves-current-tip",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-current-tip-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-zero-delta-preserves-historical",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-historical-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-marker-preserves-singular",
+      "subject_reference_id": "ref-marker-resolver",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-singular-marker"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-marker-preserves-plural",
+      "subject_reference_id": "ref-marker-resolver",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-plural-markers"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-malformed-fails-closed",
+      "subject_reference_id": "ref-marker-resolver",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-malformed-claim"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-indeterminate-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wrong-binding-fails-closed",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-wrong-binding"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-indeterminate-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-merge-path-fails-closed",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-merge-path"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-indeterminate-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-cycle-fails-closed",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-cycle"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-indeterminate-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-missing-object-fails-closed",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-missing-object"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-indeterminate-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bound-exhaustion-fails-closed",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:returns",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-bound-exhaustion"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-indeterminate-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-disposition-validation-uses-server-evidence",
+      "subject_reference_id": "ref-disposition-validation",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-server-review-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-disposition-validation-precedes-recovery",
+      "subject_reference_id": "ref-disposition-validation",
+      "operator": "reference:precedes",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-structurally-invalid-disposition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-zero-delta-recovery"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-integration-rejects-invalid-disposition",
+      "subject_reference_id": "ref-integration-request",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-invalid-disposition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-invalid-disposition"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-integration-preserves-cas",
+      "subject_reference_id": "ref-integration-request",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-advance-cas"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-record-cas"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-integration-preserves-exact-evidence",
+      "subject_reference_id": "ref-integration-request",
+      "operator": "reference:preserves",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-exact-match"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-singular-marker"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-plural-markers"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-scale-test",
+      "subject_reference_id": "ref-test-real-git-scale",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-bounded-region"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-scale-test-falsifier",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-authorization-test",
+      "subject_reference_id": "ref-test-authorization",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-zero-delta-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-authorization-test-falsifier",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-delivery-test",
+      "subject_reference_id": "ref-test-delivery",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-advance-cas"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-delivery-test-falsifier",
+      "subject_reference_id": "ref-advance-cas",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-recovery-test",
+      "subject_reference_id": "ref-test-recovery",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-zero-delta-recovery"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-recovery-test-falsifier",
+      "subject_reference_id": "ref-zero-delta-recovery",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-committed-test",
+      "subject_reference_id": "ref-test-committed",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-request"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-committed-test-falsifier",
+      "subject_reference_id": "ref-integration-request",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-mutant-test",
+      "subject_reference_id": "ref-test-semantic-mutants",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk-2063"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-mutant-test-falsifier",
+      "subject_reference_id": "ref-wk-2063",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-emits-recovery-observation",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:emits",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-recovery-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-region-emits-fresh-observation",
+      "subject_reference_id": "ref-bounded-region",
+      "operator": "reference:emits",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fresh-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-zero-delta-uses-fresh-observation",
+      "subject_reference_id": "ref-zero-delta-resolver",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fresh-observation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-marker-resolver-replaces-bounded-copy",
+      "subject_reference_id": "ref-marker-resolver",
+      "operator": "reference:replaces",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-bounded-sibling-marker-evidence"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-last-incomplete-uses-marker-resolver",
+      "subject_reference_id": "ref-last-incomplete-slice",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-marker-resolver"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-literal-reader-replaces-delivery-copy",
+      "subject_reference_id": "ref-literal-commit-reader",
+      "operator": "reference:replaces",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-delivery-literal-reader"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-advance-excludes-legacy-full-history-walk",
+      "subject_reference_id": "ref-advance-cas",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-legacy-full-history-walk"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-integration-request-uses-forbidden-history",
+      "subject_reference_id": "ref-integration-request",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-bounded-integration-context"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-legacy-full-history-walk"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-root-rev-list-history-walk"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-history-verification-reads",
+      "subject_reference_id": "ref-test-authorization",
+      "operator": "reference:reads",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-request"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-bounded-integration-context"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-forbidden-history-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-legacy-full-history-walk"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-root-rev-list-history-walk"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-bounded-history-verification-covers",
+      "subject_reference_id": "ref-test-authorization",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-integration-request"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-bounded-integration-context"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-forbidden-history-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-forbidden-history-population-cardinality",
+      "subject_reference_id": "ref-forbidden-history-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-bounded-integration-context"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-forbidden-history-population-members",
+      "subject_reference_id": "ref-forbidden-history-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-bounded-integration-context"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-legacy-full-history-walk"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-root-rev-list-history-walk"
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-fork-resolver-selects-floor",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-resolver-selects-floor"
+    },
+    {
+      "claim_id": "claim-fork-is-authority",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-is-authority"
+    },
+    {
+      "claim_id": "claim-fork-not-current-main",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-not-current-main"
+    },
+    {
+      "claim_id": "claim-fork-not-merge-base",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-not-merge-base"
+    },
+    {
+      "claim_id": "claim-fork-not-caller-floor",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-not-caller-floor"
+    },
+    {
+      "claim_id": "claim-fork-not-prompt-floor",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-not-prompt-floor"
+    },
+    {
+      "claim_id": "claim-invalid-fork-rejected",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-invalid-fork-rejected"
+    },
+    {
+      "claim_id": "claim-bounded-region-uses-floor",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-uses-floor"
+    },
+    {
+      "claim_id": "claim-bounded-region-uses-tip",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-uses-tip"
+    },
+    {
+      "claim_id": "claim-bounded-region-reads-postfork",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-reads-postfork"
+    },
+    {
+      "claim_id": "claim-bounded-region-omits-prefork",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-omits-prefork"
+    },
+    {
+      "claim_id": "claim-bounded-region-authenticates-literals",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-authenticates-literals"
+    },
+    {
+      "claim_id": "claim-zero-delta-uses-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-zero-delta-uses-observation"
+    },
+    {
+      "claim_id": "claim-marker-uses-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-marker-uses-observation"
+    },
+    {
+      "claim_id": "claim-advance-one-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-advance-one-observation"
+    },
+    {
+      "claim_id": "claim-advance-observation-covers-marker",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-advance-observation-covers-marker"
+    },
+    {
+      "claim_id": "claim-advance-observation-covers-zero-delta",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-advance-observation-covers-zero-delta"
+    },
+    {
+      "claim_id": "claim-recovery-calls-floor",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-recovery-calls-floor"
+    },
+    {
+      "claim_id": "claim-recovery-uses-own-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-recovery-uses-own-observation"
+    },
+    {
+      "claim_id": "claim-recovery-isolated-from-fresh",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-recovery-isolated-from-fresh"
+    },
+    {
+      "claim_id": "claim-wk-movement-invalidates-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-movement-invalidates-observation"
+    },
+    {
+      "claim_id": "claim-fork-movement-invalidates-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fork-movement-invalidates-observation"
+    },
+    {
+      "claim_id": "claim-wk-cas-retry-invalidates-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk-cas-retry-invalidates-observation"
+    },
+    {
+      "claim_id": "claim-record-cas-retry-invalidates-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-record-cas-retry-invalidates-observation"
+    },
+    {
+      "claim_id": "claim-record-cas-reresolves-floor",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-record-cas-reresolves-floor"
+    },
+    {
+      "claim_id": "claim-zero-match-absent",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-zero-match-absent"
+    },
+    {
+      "claim_id": "claim-one-match-exact",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-one-match-exact"
+    },
+    {
+      "claim_id": "claim-multiple-match-ambiguous",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-multiple-match-ambiguous"
+    },
+    {
+      "claim_id": "claim-zero-delta-preserves-current-tip",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-zero-delta-preserves-current-tip"
+    },
+    {
+      "claim_id": "claim-zero-delta-preserves-historical",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-zero-delta-preserves-historical"
+    },
+    {
+      "claim_id": "claim-marker-preserves-singular",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-marker-preserves-singular"
+    },
+    {
+      "claim_id": "claim-marker-preserves-plural",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-marker-preserves-plural"
+    },
+    {
+      "claim_id": "claim-malformed-fails-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-malformed-fails-closed"
+    },
+    {
+      "claim_id": "claim-wrong-binding-fails-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wrong-binding-fails-closed"
+    },
+    {
+      "claim_id": "claim-merge-path-fails-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-merge-path-fails-closed"
+    },
+    {
+      "claim_id": "claim-cycle-fails-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-cycle-fails-closed"
+    },
+    {
+      "claim_id": "claim-missing-object-fails-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-missing-object-fails-closed"
+    },
+    {
+      "claim_id": "claim-bound-exhaustion-fails-closed",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bound-exhaustion-fails-closed"
+    },
+    {
+      "claim_id": "claim-disposition-validation-uses-server-evidence",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-disposition-validation-uses-server-evidence"
+    },
+    {
+      "claim_id": "claim-disposition-validation-precedes-recovery",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-disposition-validation-precedes-recovery"
+    },
+    {
+      "claim_id": "claim-integration-rejects-invalid-disposition",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-integration-rejects-invalid-disposition"
+    },
+    {
+      "claim_id": "claim-integration-preserves-cas",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-integration-preserves-cas"
+    },
+    {
+      "claim_id": "claim-integration-preserves-exact-evidence",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-integration-preserves-exact-evidence"
+    },
+    {
+      "claim_id": "claim-scale-test",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-scale-test",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-scale-test-falsifier"
+    },
+    {
+      "claim_id": "claim-authorization-test",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-authorization-test",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-authorization-test-falsifier"
+    },
+    {
+      "claim_id": "claim-delivery-test",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-delivery-test",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-delivery-test-falsifier"
+    },
+    {
+      "claim_id": "claim-recovery-test",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-recovery-test",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-recovery-test-falsifier"
+    },
+    {
+      "claim_id": "claim-committed-test",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-committed-test",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-committed-test-falsifier"
+    },
+    {
+      "claim_id": "claim-mutant-test",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-mutant-test",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-mutant-test-falsifier"
+    },
+    {
+      "claim_id": "claim-bounded-region-emits-recovery-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-emits-recovery-observation"
+    },
+    {
+      "claim_id": "claim-bounded-region-emits-fresh-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-region-emits-fresh-observation"
+    },
+    {
+      "claim_id": "claim-zero-delta-uses-fresh-observation",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-zero-delta-uses-fresh-observation"
+    },
+    {
+      "claim_id": "claim-marker-resolver-replaces-bounded-copy",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-marker-resolver-replaces-bounded-copy"
+    },
+    {
+      "claim_id": "claim-last-incomplete-uses-marker-resolver",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-last-incomplete-uses-marker-resolver"
+    },
+    {
+      "claim_id": "claim-literal-reader-replaces-delivery-copy",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-literal-reader-replaces-delivery-copy"
+    },
+    {
+      "claim_id": "claim-advance-excludes-legacy-full-history-walk",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-advance-excludes-legacy-full-history-walk"
+    },
+    {
+      "claim_id": "claim-integration-request-excludes-forbidden-history",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-integration-request-uses-forbidden-history"
+    },
+    {
+      "claim_id": "claim-bounded-history-verification-reads",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-history-verification-reads"
+    },
+    {
+      "claim_id": "claim-bounded-history-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-bounded-history-verification-covers",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-integration-request-uses-forbidden-history"
+    },
+    {
+      "claim_id": "claim-forbidden-history-population-cardinality",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-forbidden-history-population-cardinality"
+    },
+    {
+      "claim_id": "claim-forbidden-history-population-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-forbidden-history-population-members"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-scale-test-bounded-region-reads-postfork",
+      "role": "verifies",
+      "source_claim_id": "claim-scale-test",
+      "target_claim_id": "claim-bounded-region-reads-postfork"
+    },
+    {
+      "relation_id": "rel-scale-test-bounded-region-omits-prefork",
+      "role": "verifies",
+      "source_claim_id": "claim-scale-test",
+      "target_claim_id": "claim-bounded-region-omits-prefork"
+    },
+    {
+      "relation_id": "rel-scale-test-zero-delta-uses-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-scale-test",
+      "target_claim_id": "claim-zero-delta-uses-observation"
+    },
+    {
+      "relation_id": "rel-scale-test-marker-uses-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-scale-test",
+      "target_claim_id": "claim-marker-uses-observation"
+    },
+    {
+      "relation_id": "rel-scale-test-advance-one-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-scale-test",
+      "target_claim_id": "claim-advance-one-observation"
+    },
+    {
+      "relation_id": "rel-authorization-test-zero-match-absent",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-zero-match-absent"
+    },
+    {
+      "relation_id": "rel-authorization-test-one-match-exact",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-one-match-exact"
+    },
+    {
+      "relation_id": "rel-authorization-test-multiple-match-ambiguous",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-multiple-match-ambiguous"
+    },
+    {
+      "relation_id": "rel-authorization-test-zero-delta-preserves-current-tip",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-zero-delta-preserves-current-tip"
+    },
+    {
+      "relation_id": "rel-authorization-test-zero-delta-preserves-historical",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-zero-delta-preserves-historical"
+    },
+    {
+      "relation_id": "rel-authorization-test-malformed-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-malformed-fails-closed"
+    },
+    {
+      "relation_id": "rel-authorization-test-wrong-binding-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-wrong-binding-fails-closed"
+    },
+    {
+      "relation_id": "rel-authorization-test-merge-path-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-merge-path-fails-closed"
+    },
+    {
+      "relation_id": "rel-authorization-test-cycle-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-cycle-fails-closed"
+    },
+    {
+      "relation_id": "rel-authorization-test-missing-object-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-missing-object-fails-closed"
+    },
+    {
+      "relation_id": "rel-authorization-test-bound-exhaustion-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-authorization-test",
+      "target_claim_id": "claim-bound-exhaustion-fails-closed"
+    },
+    {
+      "relation_id": "rel-delivery-test-advance-one-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-advance-one-observation"
+    },
+    {
+      "relation_id": "rel-delivery-test-advance-observation-covers-marker",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-advance-observation-covers-marker"
+    },
+    {
+      "relation_id": "rel-delivery-test-advance-observation-covers-zero-delta",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-advance-observation-covers-zero-delta"
+    },
+    {
+      "relation_id": "rel-delivery-test-marker-preserves-singular",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-marker-preserves-singular"
+    },
+    {
+      "relation_id": "rel-delivery-test-marker-preserves-plural",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-marker-preserves-plural"
+    },
+    {
+      "relation_id": "rel-delivery-test-wk-movement-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-wk-movement-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-delivery-test-fork-movement-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-fork-movement-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-delivery-test-wk-cas-retry-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-delivery-test",
+      "target_claim_id": "claim-wk-cas-retry-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-recovery-test-recovery-calls-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-recovery-test",
+      "target_claim_id": "claim-recovery-calls-floor"
+    },
+    {
+      "relation_id": "rel-recovery-test-recovery-uses-own-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-recovery-test",
+      "target_claim_id": "claim-recovery-uses-own-observation"
+    },
+    {
+      "relation_id": "rel-recovery-test-recovery-isolated-from-fresh",
+      "role": "verifies",
+      "source_claim_id": "claim-recovery-test",
+      "target_claim_id": "claim-recovery-isolated-from-fresh"
+    },
+    {
+      "relation_id": "rel-recovery-test-record-cas-retry-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-recovery-test",
+      "target_claim_id": "claim-record-cas-retry-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-recovery-test-record-cas-reresolves-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-recovery-test",
+      "target_claim_id": "claim-record-cas-reresolves-floor"
+    },
+    {
+      "relation_id": "rel-committed-test-disposition-validation-uses-server-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-committed-test",
+      "target_claim_id": "claim-disposition-validation-uses-server-evidence"
+    },
+    {
+      "relation_id": "rel-committed-test-disposition-validation-precedes-recovery",
+      "role": "verifies",
+      "source_claim_id": "claim-committed-test",
+      "target_claim_id": "claim-disposition-validation-precedes-recovery"
+    },
+    {
+      "relation_id": "rel-committed-test-integration-rejects-invalid-disposition",
+      "role": "verifies",
+      "source_claim_id": "claim-committed-test",
+      "target_claim_id": "claim-integration-rejects-invalid-disposition"
+    },
+    {
+      "relation_id": "rel-committed-test-integration-preserves-cas",
+      "role": "verifies",
+      "source_claim_id": "claim-committed-test",
+      "target_claim_id": "claim-integration-preserves-cas"
+    },
+    {
+      "relation_id": "rel-committed-test-integration-preserves-exact-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-committed-test",
+      "target_claim_id": "claim-integration-preserves-exact-evidence"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-resolver-selects-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-resolver-selects-floor"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-is-authority",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-is-authority"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-not-current-main",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-not-current-main"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-not-merge-base",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-not-merge-base"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-not-caller-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-not-caller-floor"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-not-prompt-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-not-prompt-floor"
+    },
+    {
+      "relation_id": "rel-mutant-test-invalid-fork-rejected",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-invalid-fork-rejected"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-uses-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-uses-floor"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-uses-tip",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-uses-tip"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-reads-postfork",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-reads-postfork"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-omits-prefork",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-omits-prefork"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-authenticates-literals",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-authenticates-literals"
+    },
+    {
+      "relation_id": "rel-mutant-test-zero-delta-uses-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-zero-delta-uses-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-marker-uses-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-marker-uses-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-advance-one-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-advance-one-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-advance-observation-covers-marker",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-advance-observation-covers-marker"
+    },
+    {
+      "relation_id": "rel-mutant-test-advance-observation-covers-zero-delta",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-advance-observation-covers-zero-delta"
+    },
+    {
+      "relation_id": "rel-mutant-test-recovery-calls-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-recovery-calls-floor"
+    },
+    {
+      "relation_id": "rel-mutant-test-recovery-uses-own-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-recovery-uses-own-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-recovery-isolated-from-fresh",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-recovery-isolated-from-fresh"
+    },
+    {
+      "relation_id": "rel-mutant-test-wk-movement-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-wk-movement-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-fork-movement-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-fork-movement-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-wk-cas-retry-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-wk-cas-retry-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-record-cas-retry-invalidates-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-record-cas-retry-invalidates-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-record-cas-reresolves-floor",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-record-cas-reresolves-floor"
+    },
+    {
+      "relation_id": "rel-mutant-test-zero-match-absent",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-zero-match-absent"
+    },
+    {
+      "relation_id": "rel-mutant-test-one-match-exact",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-one-match-exact"
+    },
+    {
+      "relation_id": "rel-mutant-test-multiple-match-ambiguous",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-multiple-match-ambiguous"
+    },
+    {
+      "relation_id": "rel-mutant-test-zero-delta-preserves-current-tip",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-zero-delta-preserves-current-tip"
+    },
+    {
+      "relation_id": "rel-mutant-test-zero-delta-preserves-historical",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-zero-delta-preserves-historical"
+    },
+    {
+      "relation_id": "rel-mutant-test-marker-preserves-singular",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-marker-preserves-singular"
+    },
+    {
+      "relation_id": "rel-mutant-test-marker-preserves-plural",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-marker-preserves-plural"
+    },
+    {
+      "relation_id": "rel-mutant-test-malformed-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-malformed-fails-closed"
+    },
+    {
+      "relation_id": "rel-mutant-test-wrong-binding-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-wrong-binding-fails-closed"
+    },
+    {
+      "relation_id": "rel-mutant-test-merge-path-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-merge-path-fails-closed"
+    },
+    {
+      "relation_id": "rel-mutant-test-cycle-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-cycle-fails-closed"
+    },
+    {
+      "relation_id": "rel-mutant-test-missing-object-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-missing-object-fails-closed"
+    },
+    {
+      "relation_id": "rel-mutant-test-bound-exhaustion-fails-closed",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bound-exhaustion-fails-closed"
+    },
+    {
+      "relation_id": "rel-mutant-test-disposition-validation-uses-server-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-disposition-validation-uses-server-evidence"
+    },
+    {
+      "relation_id": "rel-mutant-test-disposition-validation-precedes-recovery",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-disposition-validation-precedes-recovery"
+    },
+    {
+      "relation_id": "rel-mutant-test-integration-rejects-invalid-disposition",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-integration-rejects-invalid-disposition"
+    },
+    {
+      "relation_id": "rel-mutant-test-integration-preserves-cas",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-integration-preserves-cas"
+    },
+    {
+      "relation_id": "rel-mutant-test-integration-preserves-exact-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-integration-preserves-exact-evidence"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-emits-recovery-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-emits-recovery-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-bounded-region-emits-fresh-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-bounded-region-emits-fresh-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-zero-delta-uses-fresh-observation",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-zero-delta-uses-fresh-observation"
+    },
+    {
+      "relation_id": "rel-mutant-test-marker-resolver-replaces-bounded-copy",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-marker-resolver-replaces-bounded-copy"
+    },
+    {
+      "relation_id": "rel-mutant-test-last-incomplete-uses-marker-resolver",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-last-incomplete-uses-marker-resolver"
+    },
+    {
+      "relation_id": "rel-mutant-test-literal-reader-replaces-delivery-copy",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-literal-reader-replaces-delivery-copy"
+    },
+    {
+      "relation_id": "rel-mutant-test-advance-excludes-legacy-full-history-walk",
+      "role": "verifies",
+      "source_claim_id": "claim-mutant-test",
+      "target_claim_id": "claim-advance-excludes-legacy-full-history-walk"
+    },
+    {
+      "relation_id": "rel-bounded-history-verification",
+      "role": "verifies",
+      "source_claim_id": "claim-bounded-history-verification",
+      "target_claim_id": "claim-integration-request-excludes-forbidden-history"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-operative-obligations",
+      "collection_kind": "closed_set",
+      "purpose": "operative_obligations",
+      "member_claim_ids": [
+        "claim-fork-resolver-selects-floor",
+        "claim-fork-is-authority",
+        "claim-fork-not-current-main",
+        "claim-fork-not-merge-base",
+        "claim-fork-not-caller-floor",
+        "claim-fork-not-prompt-floor",
+        "claim-invalid-fork-rejected",
+        "claim-bounded-region-uses-floor",
+        "claim-bounded-region-uses-tip",
+        "claim-bounded-region-reads-postfork",
+        "claim-bounded-region-omits-prefork",
+        "claim-bounded-region-authenticates-literals",
+        "claim-zero-delta-uses-observation",
+        "claim-marker-uses-observation",
+        "claim-advance-one-observation",
+        "claim-advance-observation-covers-marker",
+        "claim-advance-observation-covers-zero-delta",
+        "claim-recovery-calls-floor",
+        "claim-recovery-uses-own-observation",
+        "claim-recovery-isolated-from-fresh",
+        "claim-wk-movement-invalidates-observation",
+        "claim-fork-movement-invalidates-observation",
+        "claim-wk-cas-retry-invalidates-observation",
+        "claim-record-cas-retry-invalidates-observation",
+        "claim-record-cas-reresolves-floor",
+        "claim-zero-match-absent",
+        "claim-one-match-exact",
+        "claim-multiple-match-ambiguous",
+        "claim-zero-delta-preserves-current-tip",
+        "claim-zero-delta-preserves-historical",
+        "claim-marker-preserves-singular",
+        "claim-marker-preserves-plural",
+        "claim-malformed-fails-closed",
+        "claim-wrong-binding-fails-closed",
+        "claim-merge-path-fails-closed",
+        "claim-cycle-fails-closed",
+        "claim-missing-object-fails-closed",
+        "claim-bound-exhaustion-fails-closed",
+        "claim-disposition-validation-uses-server-evidence",
+        "claim-disposition-validation-precedes-recovery",
+        "claim-integration-rejects-invalid-disposition",
+        "claim-integration-preserves-cas",
+        "claim-integration-preserves-exact-evidence",
+        "claim-bounded-region-emits-recovery-observation",
+        "claim-bounded-region-emits-fresh-observation",
+        "claim-zero-delta-uses-fresh-observation",
+        "claim-marker-resolver-replaces-bounded-copy",
+        "claim-last-incomplete-uses-marker-resolver",
+        "claim-literal-reader-replaces-delivery-copy",
+        "claim-advance-excludes-legacy-full-history-walk"
+      ]
+    },
+    {
+      "collection_id": "set-validation-scenarios",
+      "collection_kind": "closed_set",
+      "purpose": "validation_scenarios",
+      "member_claim_ids": [
+        "claim-scale-test",
+        "claim-authorization-test",
+        "claim-delivery-test",
+        "claim-recovery-test",
+        "claim-committed-test",
+        "claim-mutant-test"
+      ]
+    }
+  ],
+  "residue": [],
+  "annotations": [
+    {
+      "annotation_id": "ann-provenance",
+      "kind": "provenance",
+      "text": "Authored from WK-2063 and related WK-1713, WK-1795, and WK-1824. Existing boundedWkLifecycleRegion and resolveFixedWkForkCommit are the single mechanism family to generalize."
+    },
+    {
+      "annotation_id": "ann-observation-boundary",
+      "kind": "rationale",
+      "text": "boundedWkLifecycleRegion is the single producer of authenticated fixed-fork observations. A pre-admission recovery invocation emits its own recovery occurrence and it must not be reused by a later fresh integration attempt. Each advanceSliceRefCas attempt emits one fresh occurrence that serves both marker and zero-delta candidate classification for that exact WK tip and fixed fork. The concurrency-loser reauthentication in exactConcurrentZeroDeltaWinner emits a fresh bounded occurrence before reclassification. Each canonical work-record CAS live re-validation emits ref-record-cas-live-observation after re-resolving the floor. No occurrence crosses WK-ref movement, fork movement, record-CAS retry, or a fresh integration boundary."
+    },
+    {
+      "annotation_id": "ann-cost-invariant",
+      "kind": "rationale",
+      "text": "For a well-formed post-fork region whose every ancestry path terminates at the exact fixed WK fork, traversal and literal object-read cost is O(post-fork commits plus relevant marker or evidence candidates) and reads no commit strictly before the fork. A malformed or escaping ancestry path remains fail-closed and may read the escaping parent chain only as needed to establish that it does not terminate at the authenticated fork; this refusal path does not weaken the fixed fork as the authority floor for successful evidence."
+    },
+    {
+      "annotation_id": "ann-failure-matrix",
+      "kind": "note",
+      "text": "Named fail-closed scenarios include malformed claims, wrong delivery, base, WK-parent or subject, merge paths escaping the fixed floor, cycles, missing objects, traversal-bound exhaustion, fork absence, movement or deletion, and WK-ref or record-CAS races."
+    },
+    {
+      "annotation_id": "ann-dry-review-disposition",
+      "kind": "rationale",
+      "text": "DRY review wkdb_a2435c38f8a9ce20: accepted DRY-001 by naming boundedWkLifecycleRegion as the single observation producer; accepted DRY-002 by making resolveSliceMarkerEvidence the sole bounded marker classifier and retiring boundedSiblingMarkerEvidence; accepted DRY-004 by reusing the authorization literal commit parser/reader and retiring the delivery copy. Rejected DRY-003 as overbroad: literalReachable remains only for compatibility callers outside WK-2063, while advanceSliceRefCas is forbidden from using it."
+    },
+    {
+      "annotation_id": "ann-proof-intent-selection",
+      "kind": "rationale",
+      "text": "WK-2063 now has five ordered independently integrable implementation slices after mandatory atomicity decomposition. controlled-proof-intent.integration-prefix-safety is therefore applicable to every non-empty integrated prefix crossed with the named paths and branches, in addition to controlled-proof-intent.forbidden-operation-noninvocation for the complete public request boundary. The forbidden-operation pack remains applicable but is no longer sufficient by itself. The focused Real-Git verification remains responsible for the positive fixed-fork bound and preserved behavior scenarios. No implementation dispatch is authorized until the integration-prefix intent is selected, exactly bound, and assessed or an unresolved package/tooling gap is explicitly dispositioned by the operator."
+    },
+    {
+      "annotation_id": "ann-design-redteam-disposition",
+      "kind": "note",
+      "text": "Design redteam run wkdb_d4479ffaf12a6d2b reported RT-001 through RT-008. Its single blueteam challenge, run wkdb_730fc892edee7d05, retained RT-001, RT-004 and RT-008; narrowed RT-002, RT-003, RT-005 and RT-006; and rejected RT-007. Coordinator disposition accepts the surviving bounded corrections only: one required-test write-scope addition, well-formed-region qualification, escaping-merge qualification, explicit concurrency-loser and record-CAS observation occurrences, structural-only pre-recovery disposition validation, and refreshed admission evidence. No new lifecycle, generic history refactor, proof intent, dependency, framework, policy, or implementation surface is authorized."
+    },
+    {
+      "annotation_id": "ann-split-implementation-ownership",
+      "kind": "note",
+      "text": "61/61 operative claims are mapped to the ordered implementation graph. WK-2063#SLICE-002 owns claim-mutant-test and only the pre-change mutant-anchor preparation. WK-2063#SLICE-005 owns claim-authorization-test, claim-bound-exhaustion-fails-closed, claim-bounded-history-verification, claim-bounded-history-verification-reads, claim-bounded-region-authenticates-literals, claim-bounded-region-emits-fresh-observation, claim-bounded-region-emits-recovery-observation, claim-bounded-region-omits-prefork, claim-bounded-region-reads-postfork, claim-bounded-region-uses-floor, claim-bounded-region-uses-tip, claim-cycle-fails-closed, claim-forbidden-history-population-cardinality, claim-forbidden-history-population-members, claim-fork-is-authority, claim-fork-not-caller-floor, claim-fork-not-current-main, claim-fork-not-merge-base, claim-fork-not-prompt-floor, claim-fork-resolver-selects-floor, claim-invalid-fork-rejected, claim-malformed-fails-closed, claim-marker-preserves-plural, claim-marker-preserves-singular, claim-marker-resolver-replaces-bounded-copy, claim-merge-path-fails-closed, claim-missing-object-fails-closed, claim-multiple-match-ambiguous, claim-one-match-exact, claim-scale-test, claim-wrong-binding-fails-closed, claim-zero-delta-preserves-current-tip, claim-zero-delta-preserves-historical, and claim-zero-match-absent. WK-2063#SLICE-006 owns claim-advance-excludes-legacy-full-history-walk, claim-advance-observation-covers-marker, claim-advance-observation-covers-zero-delta, claim-advance-one-observation, claim-delivery-test, claim-fork-movement-invalidates-observation, claim-integration-preserves-cas, claim-integration-preserves-exact-evidence, claim-last-incomplete-uses-marker-resolver, claim-literal-reader-replaces-delivery-copy, claim-marker-uses-observation, claim-wk-cas-retry-invalidates-observation, claim-wk-movement-invalidates-observation, claim-zero-delta-uses-fresh-observation, and claim-zero-delta-uses-observation. WK-2063#SLICE-007 owns claim-record-cas-reresolves-floor, claim-record-cas-retry-invalidates-observation, claim-recovery-calls-floor, claim-recovery-isolated-from-fresh, claim-recovery-test, and claim-recovery-uses-own-observation. WK-2063#SLICE-008 owns claim-committed-test, claim-disposition-validation-precedes-recovery, claim-disposition-validation-uses-server-evidence, claim-integration-rejects-invalid-disposition, and claim-integration-request-excludes-forbidden-history. Each later slice depends on the preceding implementation slice, so every prefix is explicit and no worker relies on hidden conversation context."
+    }
+  ],
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "test_proof_id": "test-proof-authorization-test",
+      "verification_claim_id": "claim-authorization-test",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-authorization-test",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-authorization-test",
+        "kind": "return_value",
+        "proposition_id": "prop-authorization-test"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-authorization-test",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-authorization-test-falsifier",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-authorization-test",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "authorization test",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-bounded-history-verification",
+      "verification_claim_id": "claim-bounded-history-verification",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-bounded-history-verification",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-bounded-history-verification",
+        "kind": "return_value",
+        "proposition_id": "prop-bounded-history-verification-covers"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-bounded-history-verification",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-integration-request-uses-forbidden-history",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-bounded-history-verification",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "bounded history verification",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-committed-test",
+      "verification_claim_id": "claim-committed-test",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-committed-test",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-committed-test",
+        "kind": "return_value",
+        "proposition_id": "prop-committed-test"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-committed-test",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-committed-test-falsifier",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-committed-test",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "committed test",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-delivery-test",
+      "verification_claim_id": "claim-delivery-test",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-delivery-test",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-delivery-test",
+        "kind": "return_value",
+        "proposition_id": "prop-delivery-test"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-delivery-test",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-delivery-test-falsifier",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-delivery-test",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "delivery test",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-mutant-test",
+      "verification_claim_id": "claim-mutant-test",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-mutant-test",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-mutant-test",
+        "kind": "return_value",
+        "proposition_id": "prop-mutant-test"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-mutant-test",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-mutant-test-falsifier",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-mutant-test",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "mutant test",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-recovery-test",
+      "verification_claim_id": "claim-recovery-test",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-recovery-test",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-recovery-test",
+        "kind": "return_value",
+        "proposition_id": "prop-recovery-test"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-recovery-test",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-recovery-test-falsifier",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-recovery-test",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "recovery test",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-scale-test",
+      "verification_claim_id": "claim-scale-test",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-scale-test",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-fixed-fork-resolver"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-scale-test",
+        "kind": "return_value",
+        "proposition_id": "prop-scale-test"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-scale-test",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-scale-test-falsifier",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-scale-test",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "scale test",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    }
+  ]
+}

@@ -4,7 +4,6 @@ import {
   CARRIER_TARGETS,
   CONTROLLED_CONTRACT_PATCH_LIMITS,
   ControlledContractToolError,
-  applyControlledContractCarrierPatch,
   assertControlledContractAuthorableCarrierKind,
   assertControlledContractCarrierExpectedDigest,
   assertControlledContractOperationInput,
@@ -20,24 +19,14 @@ import {
   resolveCanonicalControlledContractCarrierSet,
   writeControlledContractCarrierFile
 } from "../../lib/controlled-contract-tools.mjs";
+import { applyControlledContractCarrierPatch } from
+  "@agent-chassis/controlled-contract";
 import { assertCanonicalCarrierSetIsNotFencedLegacy } from
   "../../lib/controlled-contract-carrier-set-tools.mjs";
 import { addressedEvaluationInputPack, loadControlledContractPackage } from
   "./package-runtime.mjs";
 import { validateAuthorableCarrier } from "./authorable-carrier-validation.mjs";
 import { controlledContractOperation } from "./refusal.mjs";
-
-function proofPlanBuildNextCall(input, expectedContentDigest) {
-  return Object.freeze({
-    tool: "workspace_controlled_proof_plan_build",
-    arguments: Object.freeze({
-      wk_id: input.wkId,
-      ...(input.focus === undefined || input.focus === null ? {} : { focus: input.focus }),
-      expected_content_digest: expectedContentDigest
-    }),
-    recommended: true
-  });
-}
 
 function absentProofPlanMetadata(input) {
   return Object.freeze({
@@ -47,7 +36,7 @@ function absentProofPlanMetadata(input) {
     content_digest: null,
     rebuild_expected_content_digest: null,
     source_binding_status: "absent",
-    next_calls: Object.freeze([proofPlanBuildNextCall(input, null)])
+    next_calls: Object.freeze([])
   });
 }
 
@@ -187,11 +176,7 @@ export async function queryControlledContractCarrierOperation(input) {
         rebuild_expected_content_digest: plan?.content_digest ?? null,
         source_binding_status: "incomplete",
         missing_input_count: missing.length,
-        next_calls: Object.freeze([{
-          tool: "workspace_controlled_contract_authoring_describe",
-          arguments: Object.freeze({ carrier_kind: "evaluation_input" }),
-          recommended: true
-        }])
+        next_calls: Object.freeze([])
       });
       const pkg = await loadControlledContractPackage();
       const current = await pkg.buildProofPlan({ contract: loaded.contract.content,
@@ -210,9 +195,7 @@ export async function queryControlledContractCarrierOperation(input) {
           current_source_digests: current.digests ?? null
         }),
         ...(sourceBindingStatus === "current" ? {} : {
-          next_calls: Object.freeze([
-            proofPlanBuildNextCall(input, plan?.content_digest ?? null)
-          ])
+          next_calls: Object.freeze([])
         })
       });
     }
@@ -233,6 +216,9 @@ export async function queryControlledContractCarrierOperation(input) {
     const canonicalSet = await resolveFencedPublicCarrierSet(input);
     const carrier = await readControlledContractCarrierFile({ ...input, pack, canonicalSet });
     return queryControlledContractCarrierContent({ carrier, selectors: input.selectors,
+      sourceIdentity: { content_digest: carrier.content_digest,
+        manifest_digest: canonicalSet.manifest_digest, generation: canonicalSet.generation,
+        selection_digest: input.selectors === undefined ? null : controlledContractContentDigest(input.selectors) },
       target: input.target ?? null, filter: input.filter ?? null, cursor: input.cursor ?? null });
   });
 }
@@ -267,9 +253,17 @@ export async function patchControlledContractCarrierOperation(input) {
       { expected_content_digest: input.expectedContentDigest,
         actual_content_digest: carrier.content_digest }
     );
-    const patched = applyControlledContractCarrierPatch({
-      content: carrier.content, carrierKind: input.carrierKind, operations
-    });
+    let patched;
+    try {
+      patched = applyControlledContractCarrierPatch({
+        content: carrier.content, carrierKind: input.carrierKind, operations
+      });
+    } catch (error) {
+      if (error?.code !== "controlled_contract_patch_request_too_large") throw error;
+
+      throw new ControlledContractToolError(error.code, error.message,
+        { ...error.details, changed: false });
+    }
     const nextDigest = controlledContractContentDigest(patched.content);
     await validateAuthorableCarrier(input, patched.content, canonicalSet);
     const noOp = nextDigest === carrier.content_digest;

@@ -72,7 +72,6 @@ export {
   createToolDiscoveryFreshness,
   createToolDiscoveryEnvelope,
   loadToolDiscoveryEnvelope,
-  queryToolDiscoveryDescriptor,
 
   TOOL_DOC_DOCUMENTATION_STATE_REASONS,
   TOOL_DOC_PACKAGE_READ_TOOL,

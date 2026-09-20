@@ -1,0 +1,79 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "case_count",
+      "value": 5
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-integration-dag"
+      ],
+      "role": "integration_dag"
+    },
+    {
+      "reference_ids": [
+        "ref-integration-units"
+      ],
+      "role": "integration_units"
+    },
+    {
+      "reference_ids": [
+        "ref-execution-paths"
+      ],
+      "role": "execution_paths"
+    },
+    {
+      "reference_ids": [
+        "ref-prefix-census"
+      ],
+      "role": "prefix_census"
+    },
+    {
+      "reference_ids": [
+        "ref-prefix-case-population"
+      ],
+      "role": "prefix_case_population"
+    },
+    {
+      "reference_ids": [
+        "ref-prefix-recovery",
+        "ref-prefix-fresh",
+        "ref-prefix-invalid-disposition",
+        "ref-prefix-wk-cas",
+        "ref-prefix-record-cas"
+      ],
+      "role": "prefix_cases"
+    },
+    {
+      "reference_ids": [
+        "ref-prefix-preservation-result"
+      ],
+      "role": "preservation_result"
+    },
+    {
+      "reference_ids": [
+        "ref-preserved-state"
+      ],
+      "role": "preserved_state"
+    },
+    {
+      "reference_ids": [
+        "ref-test-authorization"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-case-failure-condition"
+      ],
+      "role": "case_failure_condition"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

@@ -170,7 +170,7 @@
         "packages/wiki-cli/src/commands/work-records.mjs",
         "packages/wiki-core/src/operations/work-records.mjs"
       ],
-      "notes": "Operator-shell fallback only. This command is not agent dispatch authority; agents should use workspace_work_record_set_task when the MCP surface is available."
+      "notes": "Operator-shell fallback only. This command is not agent dispatch authority; agents should use workspace_work_record_edit with kind task, field sections.tasks, and action mark_done when the MCP surface is available."
     },
     {
       "tool_name": "wiki-work-records-set-closure",

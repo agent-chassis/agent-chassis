@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import { TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST } from
-  "../lib/test-proof-contract.mjs";
+import { TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST, TEST_PROOF_PROVIDER_CATALOG } from
+  "../lib/test-proof-provider-registry.mjs";
 import {
   TestProofEvidenceSemanticKernelError,
   evaluateTestProofEvidenceSemantics
@@ -12,8 +12,12 @@ import {
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const selectedTestId = `test-${"1".repeat(64)}`;
 
+const canonicalValue = (value) => Array.isArray(value) ? value.map(canonicalValue)
+  : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort()
+    .map((key) => [key, canonicalValue(value[key])])) : value;
+
 function artifact(kind, value) {
-  const payload = { fixture: value };
+  const payload = canonicalValue(value);
   const content = `sha256:${createHash("sha256").update(
     `${JSON.stringify(payload)}\n`, "utf8"
   ).digest("hex")}`;
@@ -29,7 +33,8 @@ function artifact(kind, value) {
 function provider(providerId, capability, mechanism, artifactTypes) {
   return {
     provider_id: providerId,
-    provider_version: "1.0.0",
+    provider_version: TEST_PROOF_PROVIDER_CATALOG.providers.find(
+      ({ provider_id: id }) => id === providerId).provider_version,
     capability,
     capability_snapshot_digest: TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
     observation_mechanism: mechanism,
@@ -38,9 +43,41 @@ function provider(providerId, capability, mechanism, artifactTypes) {
 }
 
 function receipt() {
-  const candidate = artifact("structured_test_result", "candidate");
-  const boundary = artifact("boundary_trace", "boundary");
-  const falsifier = artifact("falsifier_result", "falsifier");
+
+  const structuredResult = {
+    mechanism: "node_test_structured_events",
+    exit_code: 0,
+    summary: {
+      passed: 1,
+      failed: 0,
+      skipped: 0,
+      cancelled: 0,
+      todo: 0,
+      tests: 1
+    },
+    pass_events: [{
+      type: "test:pass",
+      test_id: selectedTestId,
+      name: "example",
+      file: "test/example.test.mjs",
+      nesting: 0,
+      status: "passed"
+    }],
+    fail_events: []
+  };
+  const candidate = artifact("structured_test_result", structuredResult);
+
+  const boundary = artifact("boundary_trace", { mechanism: "node_test_v8_coverage",
+    boundary_kind: "module", module_path: "packages/example.mjs",
+    observable_seam: "node_test_structured_assertion", target_test_id: selectedTestId,
+    target_pass_observed: true, observed: true, covered_module_paths: ["packages/example.mjs"],
+    structured_event_digest: candidate.digest });
+  const falsifier = artifact("falsifier_result", { mechanism: "module_substitution",
+    strategy: "dependency_failure", mutation_id: "mutation-component",
+    target_module_path: "packages/example.mjs", target_test_id: selectedTestId,
+    witness_identity: "f".repeat(64), structured_event_digest: candidate.digest,
+    observation: { dependency_invocation_count: 1, reached_assertion: true,
+      selected_test_only: true, observed: true } });
   return {
     schema_version: "controlled-contract-test-proof-runtime-evidence.v2",
     test_proof_version: "controlled-contract-test-proof.v1",
@@ -68,42 +105,17 @@ function receipt() {
       status: "passed",
       exit_code: 0,
       attempt_id: `attempt-${"a".repeat(64)}`,
-      structured_result: {
-        mechanism: "node_test_structured_events",
-        exit_code: 0,
-        summary: {
-          passed: 1,
-          failed: 0,
-          skipped: 0,
-          cancelled: 0,
-          todo: 0,
-          tests: 1
-        },
-        pass_events: [{
-          type: "test:pass",
-          test_id: selectedTestId,
-          name: "example",
-          file: "test/example.test.mjs",
-          nesting: 0,
-          status: "passed"
-        }],
-        fail_events: []
-      },
+      structured_result: structuredClone(structuredResult),
       evidence_artifact_ids: [candidate.artifact_id],
       provider: provider("launcher.node-test", "candidate_execution",
         "node_test_structured_events", ["structured_test_result"])
     },
     test_inventory: {
-      baseline_id: "coverage-baseline-component",
+      selected_test_id: selectedTestId,
       declared_test_ids: [selectedTestId],
       discovered_test_ids: [selectedTestId],
       executed_test_ids: [selectedTestId],
-      skipped_test_ids: [],
-      removed_baseline_test_ids: [],
-      renamed_baseline_tests: [],
-      unexpected_test_ids: [],
-      newly_skipped_test_ids: [],
-      undispositioned_coverage_test_ids: []
+      skipped_test_ids: []
     },
     boundary_traversals: [{
       boundary_id: "sut-boundary-component",
@@ -116,6 +128,7 @@ function receipt() {
       observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion",
       status: "proven",
+      limitation: null,
       evidence_artifact_ids: [boundary.artifact_id]
     }],
     falsifier_executions: [{
@@ -124,6 +137,7 @@ function receipt() {
       target_verification_id: "claim-suite-covers-component",
       provider: provider("launcher.node-test-module-fault", "falsifier_execution",
         "node_test_structured_events", ["falsifier_result", "structured_test_result"]),
+      provider_support: "supported",
       isolated: true,
       candidate_status: "passed",
       falsified_status: "failed",
@@ -137,8 +151,10 @@ function receipt() {
         observed: true
       },
       status: "detected",
+      limitation: null,
       evidence_artifact_ids: [falsifier.artifact_id]
     }],
+    capability_limitations: [],
     observed_shortcuts: [],
     artifacts: [candidate, boundary, falsifier].sort((left, right) =>
       left.artifact_id.localeCompare(right.artifact_id))
@@ -183,11 +199,42 @@ test("normalizes complete authenticated positive facts without deciding satisfac
   const result = evaluate([receipt()]);
   assert.equal(result.status, "facts");
   assert.equal(result.facts.candidate.passed, true);
-  assert.deepEqual(result.facts.inventory.declared_test_ids, [selectedTestId]);
+  assert.deepEqual(result.facts.inventory, {
+    declared_test_ids: [selectedTestId],
+    discovered_test_ids: [selectedTestId],
+    executed_test_ids: [selectedTestId],
+    skipped_test_ids: [],
+    observed_test_count: 1
+  });
   assert.equal(result.facts.falsifiers.all_detected, true);
   assert.equal(result.facts.traversal.all_proven, true);
   assert.equal(result.receipt_population.count, 1);
   assert.equal(Object.hasOwn(result, "satisfaction"), false);
+});
+
+test("sibling tests in the same run neither substitute for nor count against the selection", () => {
+  const withSiblings = receipt();
+  withSiblings.test_inventory.discovered_test_ids =
+    [selectedTestId, "test-sibling", "test-sibling-skipped"];
+  withSiblings.test_inventory.executed_test_ids = [selectedTestId, "test-sibling"];
+  withSiblings.test_inventory.skipped_test_ids = ["test-sibling-skipped"];
+  const result = evaluate([withSiblings]);
+  assert.equal(result.status, "facts");
+  assert.deepEqual(result.facts.inventory, {
+    declared_test_ids: [selectedTestId],
+    discovered_test_ids: [selectedTestId],
+    executed_test_ids: [selectedTestId],
+    skipped_test_ids: [],
+    observed_test_count: 3
+  });
+
+  const skipped = receipt();
+  skipped.test_inventory.skipped_test_ids = [selectedTestId];
+  assert.deepEqual(evaluate([skipped]).facts.inventory.skipped_test_ids, [selectedTestId]);
+  const notExecuted = receipt();
+  notExecuted.test_inventory.discovered_test_ids = [selectedTestId, "test-sibling"];
+  notExecuted.test_inventory.executed_test_ids = ["test-sibling"];
+  assert.deepEqual(evaluate([notExecuted]).facts.inventory.executed_test_ids, []);
 });
 
 test("preserves complete valid negative facts for the exact evaluator", () => {
@@ -210,7 +257,7 @@ test("distinguishes unavailable evidence from corrupt or cross-bound evidence", 
       error.code === "verify_proof.evidence_cross_bound.v1");
 
   const corrupt = receipt();
-  corrupt.artifacts[0].payload.fixture = "corrupt";
+  corrupt.artifacts.find(({ kind }) => kind === "falsifier_result").payload.fixture = "corrupt";
   assert.throws(() => evaluate([corrupt]),
     (error) => error.code === "verify_proof.evidence_invalid.v1");
 });

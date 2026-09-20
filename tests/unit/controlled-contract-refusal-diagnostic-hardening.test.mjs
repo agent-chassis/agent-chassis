@@ -83,6 +83,29 @@ test("throwing getters and hostile proxies cannot escape the refusal boundary", 
     "controlled_contract_operation_failed");
 });
 
+test("a preserved hostile cause is held by identity and never read or projected", () => {
+  let traps = 0;
+  const hostile = new Proxy(new Error("proxied"), {
+    get(target, key) {
+      traps += 1;
+      if (key === "constructor") return target.constructor;
+      throw new Error(`trap on ${String(key)}`);
+    }
+  });
+  const refusal = createControlledContractRefusal(hostile);
+  const trapsDuringRefusal = traps;
+  assert.equal(refusal.cause, hostile);
+  assert.equal(traps, trapsDuringRefusal, "reaching the preserved cause invokes no accessor");
+  assert.equal(refusal.envelope.warning.payload.reason_code, "controlled_contract_operation_failed");
+
+  const secretive = Object.assign(new Error("boom"), { serverConfig: { token: "sk-secret" } });
+  const preserved = createControlledContractRefusal(secretive);
+  assert.equal(preserved.cause, secretive);
+  assert.equal(JSON.stringify(errorContent(preserved)).includes("sk-secret"), false);
+  assert.equal(JSON.stringify(preserved).includes("sk-secret"), false,
+    "the non-enumerable cause does not serialize with the refusal");
+});
+
 test("caller-controlled object stringification is never invoked", () => {
   const smuggler = {
     toString: () => "AWS_SECRET_ACCESS_KEY=hunter2 /home/user/.aws/credentials"

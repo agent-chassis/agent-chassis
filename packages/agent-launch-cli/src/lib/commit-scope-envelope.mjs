@@ -1,7 +1,9 @@
 
 
 import { spawnSync } from "node:child_process";
-import { getForbiddenSidecarPathMatch } from "@agent-chassis/wiki-core";
+import {
+  getForbiddenSidecarPathMatch
+} from "@agent-chassis/wiki-core/src/lib/sidecar-paths.mjs";
 
 export const COMMIT_SCOPE_ENVELOPE_SCHEMA_VERSION = "commit-scope-envelope.v1";
 

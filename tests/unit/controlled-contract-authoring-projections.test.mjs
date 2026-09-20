@@ -1,33 +1,71 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  applyControlledContractCarrierPatch as packageCarrierPatch
-} from "../../packages/controlled-contract/current.mjs";
+  applyControlledContractCarrierPatch
+} from "@agent-chassis/controlled-contract";
 
 import {
   AUTHORING_LIMITS,
-  applyControlledContractCarrierPatch as wikiCoreCarrierPatch,
   getControlledContractProjectionSpills,
   measureControlledContractAuthoringValue,
   projectControlledContractAuthoringState,
   projectControlledContractCarrierQuery
 } from "../../packages/wiki-core/src/lib/controlled-contract-authoring-projections.mjs";
 
-test("wiki-core re-exports the exact package-owned carrier patch primitive", () => {
-  assert.equal(wikiCoreCarrierPatch, packageCarrierPatch);
-  const content = { requested_intents: ["intent-a"], selected_packs: [] };
-  const request = {
-    content,
-    carrierKind: "proof_plan_request",
-    operations: [{
-      op: "upsert", target: "requested_intents", id: "intent-b", value: "intent-b"
-    }]
-  };
-  assert.deepEqual(wikiCoreCarrierPatch(request), packageCarrierPatch(request));
-  assert.throws(() => wikiCoreCarrierPatch({
-    content, carrierKind: "proof_plan_request", operations: []
-  }), (error) => error.code === "controlled_contract_patch_request_too_large");
+test("the carrier patch primitive is owned only by its package", async () => {
+
+  const projections = await import(
+    "../../packages/wiki-core/src/lib/controlled-contract-authoring-projections.mjs");
+  const tools = await import(
+    "../../packages/wiki-core/src/lib/controlled-contract-tools.mjs");
+  for (const [name, namespace] of [["authoring projections", projections],
+    ["the tools barrel", tools]]) {
+    assert.equal(namespace.applyControlledContractCarrierPatch, undefined,
+      `${name} must not re-export the package-owned carrier patch primitive`);
+  }
+
+  assert.equal(typeof projections.projectControlledContractCarrierQuery, "function");
+  assert.equal(typeof tools.diffControlledContractCarrierContent, "function");
+  assert.equal(tools.CARRIER_TARGETS, projections.CARRIER_TARGETS);
+});
+
+test("the carrier patch its one consumer reaches still patches and still refuses", async () => {
+
+  const consumer = await readFile(new URL(
+    "../../packages/wiki-core/src/operations/controlled-contract/carrier-operations.mjs",
+    import.meta.url), "utf8");
+  assert.match(consumer,
+    /import \{ applyControlledContractCarrierPatch \} from\s*\n?\s*"@agent-chassis\/controlled-contract";/u,
+    "carrier-operations must reach the primitive through the package that owns it");
+
+  const obligation = { obligation_id: "OBL-PATCH-ROUNDTRIP", statement: "current" };
+  const patched = applyControlledContractCarrierPatch({
+    content: { obligations: [obligation] },
+    carrierKind: "obligation_coverage",
+    operations: [{ op: "upsert", target: "obligations", id: obligation.obligation_id,
+      value: { ...obligation, statement: "updated" } }]
+  });
+  assert.deepEqual(patched.content.obligations, [{ ...obligation, statement: "updated" }]);
+  assert.deepEqual({ changed: patched.changed, operation_count: patched.operation_count,
+    upsert_count: patched.upsert_count, remove_count: patched.remove_count },
+  { changed: true, operation_count: 1, upsert_count: 1, remove_count: 0 });
+  assert.deepEqual(obligation, { obligation_id: "OBL-PATCH-ROUNDTRIP", statement: "current" },
+    "the pure primitive must not mutate the caller's content");
+
+  let refusal = null;
+  try {
+    applyControlledContractCarrierPatch({
+      content: { obligations: [] }, carrierKind: "obligation_coverage",
+      operations: Array.from({ length: 4096 }, (value, index) => ({
+        op: "upsert", target: "obligations", id: `OBL-${index}`,
+        value: { obligation_id: `OBL-${index}`, statement: "x".repeat(64) }
+      }))
+    });
+  } catch (error) { refusal = error; }
+  assert.equal(refusal?.code, "controlled_contract_patch_request_too_large");
+  assert.equal(typeof refusal.details.byte_length, "number");
 });
 
 test("default authoring projection is compact, decision-only, and measured", () => {

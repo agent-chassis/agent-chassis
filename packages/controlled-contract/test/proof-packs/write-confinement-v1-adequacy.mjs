@@ -13,7 +13,7 @@ import {
 } from "./write-confinement-v1-harness.mjs";
 
 const WRITE_CONFINEMENT_V1_PROFILE_DIGEST =
-  "08d1458f24afc9b2d66fb8d69ad6e2a9b6d5a89011835e295a0ddec90a7ae813";
+  "5eaea9dd397823f7cf906060d658f3ce858fde930c98e730d448c8a8e6f3cd92";
 const WRITE_CONFINEMENT_V1_GUARANTEE_DIGEST =
   "d9c43a7ea270def76b5255705d0dbf7285b0a93343fdfa5e80c8cb0ebfb07134";
 

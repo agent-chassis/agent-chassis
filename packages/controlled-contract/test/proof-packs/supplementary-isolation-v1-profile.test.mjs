@@ -7,8 +7,7 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../../lib/stable-v1-migration.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import { buildSupplementaryIsolationSources } from "./supplementary-isolation-v1-fixture.mjs";
 import {
   buildSupplementaryIsolationEvaluationInput,
@@ -22,10 +21,11 @@ function evaluation(options = {}, mutate = ({ contract, evaluation_input, profil
   const sourceContract = JSON.parse(
     buildSupplementaryIsolationSources(options).projectionBytes
   );
-  const contract = migrateControlledAcceptanceContractV02ToV1({
-    contract: sourceContract,
-    testProofs: buildStableTestProofPopulation(sourceContract)
-  });
+  const contract = {
+    ...sourceContract,
+    test_proof_version: TEST_PROOF_VERSION_V1,
+    test_proofs: buildStableTestProofPopulation(sourceContract)
+  };
   const profile = buildSupplementaryIsolationProfile();
   const evaluation_input = buildSupplementaryIsolationEvaluationInput(contract);
   return evaluateStableProofPackFixtureV1(mutate({ contract, evaluation_input, profile }));

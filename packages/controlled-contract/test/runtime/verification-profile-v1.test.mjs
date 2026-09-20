@@ -7,7 +7,7 @@ import { buildIdempotencyV2Fixture } from
 import { VOCABULARY_DIGESTS } from
   "../../vocabulary/controlled-contract-vocabulary.v1.mjs";
 import { TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST } from
-  "../../lib/test-proof-contract.mjs";
+  "../../lib/test-proof-provider-registry.mjs";
 import {
   PROFILE_ID_V1,
   SCHEMA_VERSION_V1,
@@ -25,10 +25,6 @@ import {
   evaluateVerificationProfileV1,
   validateProfileSemanticsV1
 } from "../../lib/verification-profile-v1.mjs";
-import {
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
 
 const profileCatalog = JSON.parse(await readFile(new URL(
   "../../profiles/catalog.json",
@@ -84,7 +80,7 @@ function proofForClaim(contract, claim) {
         target_kind: "module",
         module_path: "packages/controlled-contract/lib/verification-profile-v1.mjs" },
       execution_provider: { provider_id: "launcher.node-test-module-fault",
-        provider_version: "1.0.0", capability: "falsifier_execution" }
+        provider_version: "2.0.0", capability: "falsifier_execution" }
     }],
     traversal_provider: { mode: "provider",
       provider_id: "launcher.node-test-v8-coverage", provider_version: "1.0.0",
@@ -92,9 +88,7 @@ function proofForClaim(contract, claim) {
       observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace" },
-    coverage_disposition: { baseline_id: `coverage-baseline-${suffix}`,
-      baseline_state: "complete_executed_inventory",
-      items: [{ test_id: `test-${suffix}`, disposition: "preserved" }] },
+    test_selector: { name: `${suffix} assertion`, nesting: 0 },
     prohibited_shortcuts: ["coverage_percentage_only", "source_text_inspection"]
   };
 }
@@ -125,7 +119,7 @@ function stableFixture() {
 }
 
 const certificationCorpus = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.verification.test-validity/1.0.0/corpus.json",
+  "../certification/profiles/proof.verification.test-validity/5.0.0/corpus.json",
   import.meta.url
 )));
 const evidenceArtifact = (character) => ({
@@ -147,7 +141,8 @@ function enableStableEvaluation(fixture) {
 
 function nativeTestValidityWitness(binding, artifactOffset = 0) {
   const artifactCharacters = artifactOffset === 0 ? ["a", "b", "c"] : ["d", "e", "f"];
-  const testId = binding.coverage_disposition.items[0].test_id;
+
+  const testId = `test-${binding.test_proof_id.slice("test-proof-".length)}`;
   return {
     verification_id: binding.verification_claim_id,
     test_proof_id: binding.test_proof_id,
@@ -162,7 +157,7 @@ function nativeTestValidityWitness(binding, artifactOffset = 0) {
         ...evidenceArtifact(artifactCharacters[0]) }
     },
     test_inventory: {
-      declared_test_ids: [testId], baseline_executed_test_ids: [testId],
+      declared_test_ids: [testId],
       observed_tests: [{ test_id: testId, status: "passed" }]
     },
     falsifier_executions: binding.falsifiers.map((falsifier, index) => ({
@@ -216,8 +211,8 @@ test("stable evaluator composes the stable carrier, profile, population, and res
   assert.equal(typeof result.input_valid, "boolean");
 });
 
-test("all 38 admitted profiles retain their applicable stable semantic validity", async () => {
-  assert.equal(profileCatalog.packs.length, 38);
+test("all 37 admitted profiles retain their applicable stable semantic validity", async () => {
+  assert.equal(profileCatalog.packs.length, 37);
   let expandedProfileCount = 0;
   let nativeTestValidityCount = 0;
   for (const pack of profileCatalog.packs) {
@@ -233,23 +228,9 @@ test("all 38 admitted profiles retain their applicable stable semantic validity"
       }
       continue;
     }
-    if (source.schema_version !==
-        "controlled-contract-verification-profile.experimental.v0.2") {
-      assert.equal(pack.profile_id, "proof.verification.test-validity");
-      nativeTestValidityCount += 1;
-      continue;
-    }
-    assert.equal(validateProfileSchemaV034(source), true, pack.profile_id);
-    const sourceDiagnostics = validateProfileSemanticsV034(source);
-    assert.deepEqual(sourceDiagnostics, [], pack.profile_id);
-    const migrated = stableProfileIdentity(source);
-    assert.equal(validateProfileSchemaV1(migrated), true,
-      `${pack.profile_id}: ${JSON.stringify(validateProfileSchemaV1.errors)}`);
-    assert.deepEqual(validateProfileSemanticsV1(migrated), sourceDiagnostics,
-      pack.profile_id);
-    expandedProfileCount += 1;
+    assert.fail(`${pack.profile_id}: every admitted profile is stable-v1 (${source.schema_version})`);
   }
-  assert.equal(expandedProfileCount, 37);
+  assert.equal(expandedProfileCount, 36);
   assert.equal(nativeTestValidityCount, 1);
 });
 
@@ -419,27 +400,25 @@ test("native stable test validity accepts the complete provider-bound witness", 
   assert.equal(result.stable_evaluation.satisfaction, "satisfied");
 });
 
-test("native stable test validity retains the complete multi-test population", () => {
+test("native stable test validity requires exactly the one declared selected test", () => {
   const fixture = nativeTestValidityFixture();
   const binding = fixture.contract.test_proofs[0];
   const witness = fixture.evaluation_input.stable_evaluation.test_validity.find(
     ({ verification_id: verificationId }) =>
       verificationId === binding.verification_claim_id
   );
-  const first = binding.coverage_disposition.items[0].test_id;
-  const nested = "test-nested-selected";
-  binding.coverage_disposition.items.push({ test_id: nested, disposition: "preserved" });
-  binding.runtime_test_identity = { test_id: nested };
-  witness.test_inventory = {
-    declared_test_ids: [first, nested],
-    baseline_executed_test_ids: [first, nested],
-    observed_tests: [
-      { test_id: first, status: "passed" },
-      { test_id: nested, status: "passed" }
-    ]
-  };
+  const [first] = witness.test_inventory.declared_test_ids;
+
+  witness.test_inventory.observed_tests.push({ test_id: "test-sibling", status: "passed" },
+    { test_id: "test-sibling-skipped", status: "skipped" });
+  assert.equal(evaluateVerificationProfileV1(fixture).stable_evaluation.satisfaction,
+    "satisfied");
+
+  witness.test_inventory.declared_test_ids = [first, "test-sibling"];
   const result = evaluateVerificationProfileV1(fixture);
-  assert.equal(result.stable_evaluation.satisfaction, "satisfied");
+  assert.equal(result.stable_evaluation.satisfaction, "unsatisfied");
+  assert.ok(result.diagnostics.some(
+    ({ code }) => code === "test_validity_declared_selection_invalid"));
 });
 
 test("stable applicability requires complete evidence from profile and carrier authority", () => {
@@ -462,17 +441,13 @@ test("stable applicability requires complete evidence from profile and carrier a
   assert.ok(noInventoryResult.diagnostics.some(
     ({ code }) => code === "test_validity_inventory_missing"));
 
-  for (const field of [
-    "declared_test_ids", "baseline_executed_test_ids", "observed_tests"
-  ]) {
+  for (const field of ["declared_test_ids", "observed_tests"]) {
     const subject = nativeTestValidityFixture();
     delete subject.evaluation_input.stable_evaluation.test_validity[0].test_inventory[field];
     assert.throws(() => evaluateVerificationProfileV1(subject),
       (error) => error.code === "stable_family_refused", field);
   }
-  for (const field of [
-    "declared_test_ids", "baseline_executed_test_ids", "observed_tests"
-  ]) {
+  for (const field of ["declared_test_ids", "observed_tests"]) {
     const subject = nativeTestValidityFixture();
     subject.evaluation_input.stable_evaluation.test_validity[0].test_inventory[field] = [];
     const result = evaluateVerificationProfileV1(subject);
@@ -600,12 +575,18 @@ function weakenTestValidity(subject, caseId) {
     case "skipped-falsifier": falsifier.skipped = true; break;
     case "wrong-target-falsifier":
       falsifier.failure_proposition_id = binding.verification_claim_id; break;
-    case "removed-test": input.test_inventory.observed_tests = []; break;
-    case "renamed-test": observed[0].test_id = "test-renamed"; break;
-    case "newly-skipped-test": observed[0].status = "skipped"; break;
-    case "failed-observed-test": observed[0].status = "failed"; break;
-    case "undispositioned-coverage":
-      input.test_inventory.baseline_executed_test_ids.push("test-legacy"); break;
+    case "selected-test-unobserved": input.test_inventory.observed_tests = []; break;
+    case "selected-test-renamed": observed[0].test_id = "test-renamed"; break;
+    case "selected-test-skipped": observed[0].status = "skipped"; break;
+    case "selected-test-failed": observed[0].status = "failed"; break;
+    case "multiple-declared-tests":
+      input.test_inventory.declared_test_ids.push("test-second");
+      observed.push({ test_id: "test-second", status: "passed" });
+      break;
+    case "duplicate-declared-test":
+      input.test_inventory.declared_test_ids.push(input.test_inventory.declared_test_ids[0]);
+      break;
+    case "duplicate-observed-test": observed.push({ ...observed[0] }); break;
     case "source-text-inspection":
       input.candidate_execution.source_text_inspection_used = true; break;
     case "supported-traversal-missing": delete input.boundary_traversal; break;
@@ -626,7 +607,7 @@ function weakenTestValidity(subject, caseId) {
       break;
     case "falsely-supported-traversal":
       binding.traversal_provider = { mode: "registry_unsupported",
-        registry_id: "launcher.test-proof-provider-registry", registry_version: "1.0.0" };
+        registry_id: "launcher.test-proof-provider-registry", registry_version: "1.3.0" };
       break;
     case "caller-injected-executor": input.candidate_execution.provider.path = "/tmp/run"; break;
     case "wrong-provider-snapshot-digest":
@@ -637,7 +618,7 @@ function weakenTestValidity(subject, caseId) {
   }
 }
 
-test("native stable evaluator rejects all 37 isolated test-validity weakenings", () => {
+test("native stable evaluator rejects all 39 isolated test-validity weakenings", () => {
   const stableProviderCodes = new Map([
     ["provider-strategy-mismatch", "stable_test_proof_provider_strategy_mismatch"],
     ["provider-boundary-mismatch", "stable_test_proof_provider_boundary_mismatch"],
@@ -663,5 +644,42 @@ test("native stable evaluator rejects all 37 isolated test-validity weakenings",
       `${control.case_id}:${JSON.stringify(result.diagnostics)}`);
     passed.push(control.case_id);
   }
-  assert.equal(passed.length, 37);
+  assert.equal(passed.length, 39);
+});
+
+test("the current definition and input reject removed proof classifications", () => {
+  for (const stage of ["pre_dispatch", "post_delivery"]) {
+    for (const member of ["evaluation_stages", "required_by_stage"]) {
+      const fixture = stableFixture();
+      if (member === "evaluation_stages") fixture.profile[member] = [stage];
+      else fixture.profile.claim_patterns[0][member] = stage;
+      assert.equal(validateProfileSchemaV1(fixture.profile), false);
+    }
+    const fixture = stableFixture();
+    fixture.evaluation_input.evaluation_stage = stage;
+    assert.throws(() => evaluateVerificationProfileV1({ contract: fixture.contract,
+      profile: fixture.profile, evaluation_input: fixture.evaluation_input }), StableVerificationError);
+  }
+});
+
+test("every satisfaction leaf remains required without a classification", () => {
+  const fixture = nativeTestValidityFixture();
+  const evaluate = (value) => evaluateVerificationProfileV1({ contract: value.contract,
+    profile: value.profile, evaluation_input: value.evaluation_input });
+  const positive = evaluate(fixture);
+  assert.equal(positive.satisfaction, "satisfied");
+  assert.equal(Object.hasOwn(positive, "evaluation_stage"), false);
+  assert.equal(positive.pattern_results.some(({ status }) => status === "inactive"), false);
+
+  for (const pattern of fixture.profile.claim_patterns) {
+    const subject = structuredClone(fixture);
+    const result = positive.pattern_results.find(({ pattern_id }) =>
+      pattern_id === pattern.pattern_id);
+    assert.ok(result, pattern.pattern_id);
+    subject.contract.claims = subject.contract.claims.filter((claim) =>
+      !result.matched_ids.includes(claim.claim_id));
+    assert.ok(subject.contract.claims.length < fixture.contract.claims.length, pattern.pattern_id);
+    try { assert.notEqual(evaluate(subject).satisfaction, "satisfied", pattern.pattern_id); }
+    catch (error) { if (!(error instanceof StableVerificationError)) throw error; }
+  }
 });

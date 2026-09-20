@@ -15,6 +15,7 @@ import { chooseDecisionCode } from "./work-record-dispatch-decision.mjs";
 import {
   collectGraphImpactSubjectPaths,
   graphImpactMatchesSubject,
+  graphSnapshotsMatch,
   graphStateHasUnavailableSubjectPath,
   isCanonicalGraphImpactRef,
   isDirtyOverlayCompatibleGraphState,
@@ -128,7 +129,6 @@ export function buildReadinessFromRecord({
   directImportAdjacency = null,
   graphBearingWriteScope = [],
   graphBearingImplementationWriteScope = [],
-  graphImpactUnbuildable = false,
   graphImpactFailure = null,
   liveGraphState = null,
   admissionRecovery = null
@@ -202,8 +202,14 @@ export function buildReadinessFromRecord({
   }
 
   const requiresGraphImpact = Boolean(subject?.dispatch_intent?.requires_graph_impact);
+
+  const currentGraphSnapshot = isObject(graphState?.graph_snapshot)
+    ? graphState.graph_snapshot
+    : null;
   const structuredGraphImpactMatches = graphImpact
-    ? graphImpactMatchesSubject(graphImpact, subject, unit)
+    ? graphImpactMatchesSubject(graphImpact, subject, unit) &&
+      (currentGraphSnapshot === null ||
+        graphSnapshotsMatch(graphImpact.graph_snapshot, currentGraphSnapshot))
     : false;
 
   const effectiveGraphState = normalizeDispatchGraphState(
@@ -255,54 +261,15 @@ export function buildReadinessFromRecord({
     effectiveGraphState.graph_available === true &&
     !graphImpactOperatorBlocked &&
     !effectiveGraphStateHasUnavailableSubjectPaths;
-  const graphRecovery = !requiresGraphImpact
+
+  const graphDependent = requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2;
+  const graphRecovery = !graphDependent
     ? "not_required"
     : storedEvidenceFresh || effectiveStateFresh
       ? "fresh"
       : graphBearingSubjectPaths.length === 0 || effectiveGraphStateHasUnavailableSubjectPaths
         ? "nonrecoverable_missing_paths"
         : "recoverable_stale";
-  if (
-    requiresGraphImpact &&
-    graphImpactSubjectPaths.length === 0
-  ) {
-
-    blockers.push({
-      code: "missing_graph_impact",
-      reason:
-        "graph impact is required but no implementation or test subject paths are declared in write_scope or repo_paths"
-    });
-  } else if (
-    requiresGraphImpact &&
-    graphBearingSubjectPaths.length > 0 &&
-    effectiveGraphStateHasUnavailableSubjectPaths
-  ) {
-    blockers.push({
-      code: "missing_graph_impact",
-      reason: "graph impact is required but selected subject paths are unavailable"
-    });
-  } else if (
-    !readOnly &&
-    requiresGraphImpact &&
-    graphBearingSubjectPaths.length > 0 &&
-    (graphImpactOperatorBlocked ||
-      ((!structuredGraphImpactMatches || !dirtyOverlayDegradedGraphImpact) &&
-        (effectiveGraphState.staleness === "stale" ||
-          effectiveGraphState.staleness === "rebuild_required" ||
-          effectiveGraphState.staleness === "missing")))
-  ) {
-    const unavailableOrErrored =
-      effectiveGraphState.graph_available !== true ||
-      effectiveGraphState.graph_state === "unavailable" ||
-      effectiveGraphState.graph_state === "error" ||
-      effectiveGraphState.graph_state === "query_error";
-    blockers.push({
-      code: unavailableOrErrored ? "missing_graph_impact" : "stale_write_scope",
-      reason: unavailableOrErrored
-        ? `graph impact is ${effectiveGraphState.graph_state ?? "unavailable"}`
-        : `write-scope evidence is ${effectiveGraphState.staleness}`
-    });
-  }
 
   if (!readOnly) {
     const acceptanceCriteria = Array.isArray(subject?.acceptance?.criteria)
@@ -364,28 +331,6 @@ export function buildReadinessFromRecord({
     blockers.push({
       code: "migration_review_required",
       reason: "migrated work records require a trusted review acknowledgement before dispatch"
-    });
-  }
-
-  if (
-    subject?.dispatch_intent?.requires_graph_impact &&
-    graphBearingSubjectPaths.length > 0 &&
-    !effectiveGraphState.graph_available
-  ) {
-    blockers.push({
-      code: "missing_graph_impact",
-      reason: "graph impact is required but unavailable"
-    });
-  }
-
-  if (
-    (graphImpactUnbuildable || graphImpactFailure) &&
-    (requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2)
-  ) {
-    blockers.push({
-      code: "missing_graph_impact",
-      reason:
-        "code graph could not be produced for write-scope clustering; build or fix the repo code index"
     });
   }
 
@@ -455,11 +400,9 @@ export function buildReadinessFromRecord({
   const validationHints = collectValidationHints({
     policy: effectivePolicy,
     parserDiagnostics,
-    subject,
     unit,
     selectedUnit,
-    reportOnly,
-    decisionCode
+    reportOnly
   });
   const derivedEvidence = collectDerivedEvidence({
     graphState: effectiveGraphState,

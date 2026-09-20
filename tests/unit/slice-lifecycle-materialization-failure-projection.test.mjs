@@ -1,15 +1,10 @@
 
 
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import os from "node:os";
-import path from "node:path";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { inspect } from "node:util";
-
-import { z } from "zod";
 
 import {
   HISTORICAL_DELIVERY_INDEX_RECOVERY,
@@ -24,20 +19,22 @@ import {
   SLICE_REVIEW_MATERIALIZATION_PUBLIC_DETAIL_KEYS,
   SLICE_REVIEW_MATERIALIZATION_PUBLIC_MESSAGE,
   SLICE_REVIEW_MATERIALIZATION_PUBLIC_PREDICATES,
-  SLICE_REVIEW_POSTCHECK_STATE_BUDGET,
   SliceReviewMaterializationError
 } from "../../packages/agent-launch-cli/src/lib/slice-review-materialization.mjs";
+import {
+  CommittedSliceReviewAdmissionError,
+  COMMITTED_SLICE_REVIEW_ADMISSION_CODES
+} from "../../packages/agent-launch-cli/src/lib/committed-slice-review-admission.mjs";
 import {
   LIFECYCLE_FAILURE_HISTORY_LIMIT,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
   POST_WORKER_LIFECYCLE_PHASES
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
-import { registerRunMonitorRoutes } from
-  "../../packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs";
 import {
-  createDispatchToolRegistry, parseStructuredTextResponse
+  createDispatchToolRegistry,
+  createResumableLifecycleHarness,
+  parseStructuredTextResponse
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
-import { jsonContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import {
   compareOidVocabulary, mintedRefusalLiterals, OID_SUFFIX, oidFamily
 } from "../slice-review-materialization-source-witness.mjs";
@@ -107,27 +104,26 @@ const expectedProjection = (code, reason, detail = {}) => ({
   detail: { ...EMPTY_DETAIL, predicate: reason, ...detail }
 });
 
-function monitorRoutes(makeValue, resolved = false) {
+function monitorRoutes(makeValue, { child = TERMINAL_CHILD, lifecycle = null } = {}) {
   const counters = { lifecycle: 0, launched: 0 };
   const tools = createDispatchToolRegistry({
     backend: {
       startLaunch: async () => { counters.launched += 1; return { accepted: false }; },
-      getRunStatus: async () => TERMINAL_CHILD, waitForRunStatus: async () => TERMINAL_CHILD,
-      runPostWorkerSliceLifecycle: async () => {
+      getRunStatus: async () => child, waitForRunStatus: async () => child,
+      runPostWorkerSliceLifecycle: async (args) => {
         counters.lifecycle += 1;
-        const value = makeValue();
-        if (resolved) return value;
-        throw value;
+        if (typeof lifecycle === "function") return await lifecycle(args);
+        throw makeValue();
       }
     }
   });
-  const call = async (tool, extra) => parseStructuredTextResponse(
-    await tools.get(tool).handler({ monitor_handle: MONITOR_HANDLE, subject: SUBJECT, ...extra }));
+  const call = async (_tool, extra) => parseStructuredTextResponse(
+    await tools.get("workspace_agent_run_status").handler({ subject: child.subject, ...extra }));
   return {
     counters,
     status: () => call("workspace_agent_run_status", {}),
 
-    wait: () => call("workspace_agent_run_wait", { timeout_ms: 1, poll_interval_ms: 500 })
+    wait: () => call("workspace_agent_run_status", { timeout_ms: 1 })
   };
 }
 const bothRoutes = async (r) => [["status", await r.status()], ["wait", await r.wait()]];
@@ -137,34 +133,119 @@ const LATEST_GENERIC_FAILURE = Object.freeze({
   error_message: GENERIC_LIFECYCLE_FAILURE.error_message, error_message_truncated: false
 });
 
-function assertOuterContractUnchanged(label, response) {
-  const { materialization_failure: _p, postcheck_mismatch_field: _f, ...core } =
-    response.slice_lifecycle;
-  assert.deepEqual(core, { ...GENERIC_LIFECYCLE_FAILURE }, label);
+const RETIRED_FAILURE_KEYS = Object.freeze([
+  "materialization_failure", "postcheck_mismatch_field", "source_refusal"
+]);
+
+function withoutEvidence(response) {
+  const copy = JSON.parse(JSON.stringify(response));
+  const strip = (entry) => {
+    if (entry && typeof entry === "object") {
+      delete entry.evidence;
+      delete entry.evidence_summary;
+    }
+  };
+  strip(copy.slice_lifecycle);
+  strip(copy.lifecycle_resolution?.latest_failure);
+  for (const entry of copy.lifecycle_resolution?.retained_failures ?? []) strip(entry);
+  return copy;
+}
+const classificationJson = (response) => JSON.stringify(withoutEvidence(response).slice_lifecycle);
+
+function assertGenericLifecycleFailure(label, response) {
+  const classified = withoutEvidence(response);
+  assert.deepEqual(classified.slice_lifecycle, { ...GENERIC_LIFECYCLE_FAILURE }, label);
+  assert.equal(response.slice_lifecycle.evidence.operation,
+    "post_worker_slice_lifecycle_invocation", label);
+  assert.ok(Array.isArray(response.slice_lifecycle.evidence.thrown.capture_failures), label);
+  assert.deepEqual(response.lifecycle_resolution.latest_failure.evidence_summary,
+    response.slice_lifecycle.evidence_summary, label);
+  for (const key of RETIRED_FAILURE_KEYS) {
+    assert.equal(Object.hasOwn(response.slice_lifecycle, key), false, `${label}: ${key}`);
+  }
   assert.equal(response.terminal, false, label);
   assert.equal(response.child_terminal, true, label);
   assert.equal(response.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY, label);
-  assert.deepEqual(response.lifecycle_resolution.latest_failure, { ...LATEST_GENERIC_FAILURE }, label);
+  assert.deepEqual(classified.lifecycle_resolution.latest_failure, { ...LATEST_GENERIC_FAILURE }, label);
 }
 
-for (const [code, reason] of Object.entries(REASON)) {
-  test(`WK-1793 registered run_status/run_wait project the authenticated refusal ${code}`, async () => {
+function productionLifecycleRoutes(makeThrow) {
+  const harness = createResumableLifecycleHarness();
+  const adapterCalls = [];
+  harness.deps.hostSliceIntegrationAdapter = async (request) => {
+    adapterCalls.push(request);
+    throw makeThrow();
+  };
+  const routes = monitorRoutes(() => null, { child: harness.status, lifecycle: harness.invoke });
+  return { harness, routes, adapterCalls };
+}
+
+function productionAssertions(label, response) {
+  const {
+    phase, integrated, error_code: code, error_message: message, failure_cause: cause
+  } = response.slice_lifecycle;
+  assert.deepEqual({ phase, integrated, code, message, cause }, {
+    phase: GENERIC_LIFECYCLE_FAILURE.phase,
+    integrated: false,
+    code: "agent_launch.slice_lifecycle.committed_slice_integration_failed.v1",
+    message: "post-worker committed slice integration failed",
+    cause: {
+      kind: "unexpected_exception", reason: null,
+      diagnostic_code: null, diagnostic_kind: null, public_blocker_code: null
+    }
+  }, label);
+  for (const key of RETIRED_FAILURE_KEYS) {
+    assert.equal(Object.hasOwn(response.slice_lifecycle, key), false, `${label}: ${key}`);
+  }
+  assert.equal(response.terminal, false, label);
+  assert.equal(response.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY, label);
+}
+
+test("WK-2510 production lifecycle refusals publish no review-derived diagnostic", async () => {
+  const refusals = [
+    ["materialization refusal", () => authentic(CODES.INDEX_STATE_REFUSED,
+      REASON[CODES.INDEX_STATE_REFUSED], {
+        bound: HISTORICAL_DELIVERY_INDEX_RECOVERY.max_suffix_commits,
+        path: SECRETS[0],
+        authority_limb: "exact_returned_policy"
+      })],
+    ["postcheck refusal", () => authentic(CODES.POSTCHECK_FAILED,
+      REASON[CODES.POSTCHECK_FAILED], { field: "objectAlternates" })],
+    ["committed admission refusal", () => new CommittedSliceReviewAdmissionError(
+      "exact_slice_worktree_not_frozen", {
+        code: COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED,
+        detail: { reason: "exact_slice_worktree_not_frozen", path: SECRETS[0], stderr: SECRETS[2] }
+      })]
+  ];
+  for (const [label, makeThrow] of refusals) {
+    const { harness, routes, adapterCalls } = productionLifecycleRoutes(makeThrow);
+    const responses = await Promise.all([routes.status(), routes.wait()]);
+    for (const [route, response] of [["status", responses[0]], ["wait", responses[1]]]) {
+      productionAssertions(`${label}/${route}`, response);
+      const classified = withoutEvidence(response);
+      assertNoSecrets(`${label}/${route}`, JSON.stringify(classified), inspect(classified, { depth: null }));
+    }
+    assert.equal(routes.counters.lifecycle, 1, `${label}: concurrent observers share one attempt`);
+
+    assert.deepEqual(adapterCalls.map((request) => request.assigned_unit),
+      [harness.status.subject], label);
+    assert.equal(harness.counts().reviewSeamCalls, 0, label);
+  }
+});
+
+test("WK-2510 every authenticated materialization refusal publishes only the generic envelope", async () => {
+  for (const [code, reason] of Object.entries(REASON)) {
     const routes = monitorRoutes(() => authentic(code, reason));
     const published = (await bothRoutes(routes)).map(([route, response]) => {
       const at = `${code}/${route}`;
-      assertOuterContractUnchanged(at, response);
-      const projection = response.slice_lifecycle.materialization_failure;
-      assert.deepEqual(projection, expectedProjection(code, reason), at);
-      assert.deepEqual(Object.keys(projection), [...SLICE_REVIEW_MATERIALIZATION_PROJECTION_KEYS], at);
-      assert.deepEqual(Object.keys(projection.detail),
-        [...SLICE_REVIEW_MATERIALIZATION_PUBLIC_DETAIL_KEYS], at);
-      assertNoSecrets(at, JSON.stringify(response));
-      return JSON.stringify(projection);
+      assertGenericLifecycleFailure(at, response);
+      assertNoSecrets(at, JSON.stringify(withoutEvidence(response)));
+      return classificationJson(response);
     });
-    assert.equal(published[0], published[1], "both routes publish the identical projection");
-    assert.equal(routes.counters.launched, 0, "a diagnostic must never launch a run");
-  });
-}
+    assert.equal(published[0], published[1], "both routes publish the identical envelope");
+    assert.equal(routes.counters.launched, 0, "a failure must never launch a run");
+  }
+});
 
 test("WK-1793 every diagnostic code is covered and every reason is a closed predicate", () => {
   assert.deepEqual(Object.keys(REASON).sort(), Object.values(CODES).sort());
@@ -201,81 +282,19 @@ const BOUNDED_DETAIL_CASES = Object.freeze([
 ].filter(([, code]) => Object.values(CODES).includes(code)));
 
 for (const [label, code, reason, detail, expected] of BOUNDED_DETAIL_CASES) {
-  test(`WK-1793 bounded detail: ${label}`, async () => {
-    const routes = monitorRoutes(() => authentic(code, reason, detail));
+  test(`WK-1793 bounded primitive detail: ${label}`, async () => {
     const predicate = SLICE_REVIEW_MATERIALIZATION_PUBLIC_PREDICATES.includes(reason) ? reason : null;
-    for (const [route, response] of await bothRoutes(routes)) {
-      const at = `${label}/${route}`;
-      assertOuterContractUnchanged(at, response);
-      assert.deepEqual(response.slice_lifecycle.materialization_failure,
-        expectedProjection(code, predicate, expected), at);
-      assertNoSecrets(at, JSON.stringify(response));
-    }
-  });
-}
+    const projected = projectAuthenticatedSliceReviewMaterializationFailure(
+      authentic(code, reason, detail));
+    assert.deepEqual(projected, expectedProjection(code, predicate, expected), label);
+    assert.deepEqual(Object.keys(projected), [...SLICE_REVIEW_MATERIALIZATION_PROJECTION_KEYS], label);
+    assert.deepEqual(Object.keys(projected.detail),
+      [...SLICE_REVIEW_MATERIALIZATION_PUBLIC_DETAIL_KEYS], label);
+    assertNoSecrets(label, JSON.stringify(projected), inspect(projected, { depth: null }));
 
-test("WK-1793 the existing postcheck discriminator and the new projection coexist", async () => {
-  const routes = monitorRoutes(() =>
-    authentic(CODES.POSTCHECK_FAILED, REASON[CODES.POSTCHECK_FAILED], { field: "objectAlternates" }));
-  const { slice_lifecycle: lifecycle } = await routes.status();
-
-  assert.equal(lifecycle.postcheck_mismatch_field, "objectAlternates");
-  assert.equal(lifecycle.materialization_failure.detail.field, "objectAlternates");
-  assert.equal(lifecycle.materialization_failure.detail.predicate, REASON[CODES.POSTCHECK_FAILED]);
-  assert.equal(SLICE_REVIEW_POSTCHECK_STATE_BUDGET.bound_fields.includes("objectAlternates"), true);
-});
-
-const REGATE = expectedProjection(CODES.POSTCHECK_FAILED, REASON[CODES.POSTCHECK_FAILED],
-  { field: "baseTree", git_exit_status: 128 });
-const resolvedLifecycle = (projection) => Object.freeze({
-  ...GENERIC_LIFECYCLE_FAILURE,
-  ...(projection === null ? {} : { materialization_failure: projection })
-});
-const REGATE_CASES = Object.freeze([
-
-  ["widened", { ...REGATE, stack: SECRETS[4], cause_message: SECRETS[3],
-    detail: { ...REGATE.detail, leaked_path: SECRETS[0], stderr: SECRETS[2] } }, REGATE],
-  ["narrow", REGATE, REGATE],
-
-  ["malformed kind", { ...REGATE, kind: SECRETS[3] }, null],
-  ["malformed code", { ...REGATE, code: SECRETS[3] }, null],
-  ["malformed schema_version", { ...REGATE, schema_version: SECRETS[3] }, null],
-  ["malformed detail", { ...REGATE, detail: SECRETS[0] }, null]
-]);
-
-for (const [label, injected, expected] of REGATE_CASES) {
-  test(`WK-1793 publication re-gate reconstructs: ${label}`, async () => {
-    const observed = await bothRoutes(monitorRoutes(() => resolvedLifecycle(injected), true));
-
-    const baseline = await bothRoutes(monitorRoutes(() => resolvedLifecycle(null), true));
-    for (const [index, [route, response]] of observed.entries()) {
-      const at = `${label}/${route}`;
-      const base = baseline[index][1];
-      const { materialization_failure: published, ...core } = response.slice_lifecycle;
-      const { materialization_failure: _absent, ...baseCore } = base.slice_lifecycle;
-
-      assert.deepEqual(core, baseCore, at);
-      assert.equal(core.error_code, GENERIC_LIFECYCLE_FAILURE.error_code, at);
-      assert.equal(core.error_message, GENERIC_LIFECYCLE_FAILURE.error_message, at);
-      assert.equal(core.error_message_truncated, false, at);
-      assert.equal(response.terminal, base.terminal, at);
-      assert.equal(response.child_terminal, base.child_terminal, at);
-      assert.deepEqual(response.next_action ?? null, base.next_action ?? null, at);
-      assert.deepEqual(response.lifecycle_resolution ?? null, base.lifecycle_resolution ?? null, at);
-      if (expected === null) {
-        assert.equal(Object.hasOwn(response.slice_lifecycle, "materialization_failure"), false,
-          `${at}: a malformed projection was published`);
-      } else {
-        assert.deepEqual(published, expected, at);
-        assert.deepEqual(Object.keys(published), [...SLICE_REVIEW_MATERIALIZATION_PROJECTION_KEYS], at);
-        assert.deepEqual(Object.keys(published.detail),
-          [...SLICE_REVIEW_MATERIALIZATION_PUBLIC_DETAIL_KEYS], at);
-
-        assert.equal(published.detail.field, "baseTree", at);
-        assert.equal(published.detail.git_exit_status, 128, at);
-        assert.equal(published.detail.predicate, REASON[CODES.POSTCHECK_FAILED], at);
-      }
-      assertNoSecrets(at, JSON.stringify(response), inspect(response, { depth: null }));
+    for (const [route, response] of await bothRoutes(monitorRoutes(() => authentic(code, reason, detail)))) {
+      assertGenericLifecycleFailure(`${label}/${route}`, response);
+      assertNoSecrets(`${label}/${route}`, JSON.stringify(withoutEvidence(response)));
     }
   });
 }
@@ -350,14 +369,12 @@ for (const [label, makeThrow] of GENERIC_THROWS) {
     const wait = await routes.wait();
     for (const [route, response] of [["status", first], ["replay", replay], ["wait", wait]]) {
       const at = `${label}/${route}`;
-      assertOuterContractUnchanged(at, response);
-      assert.equal(Object.hasOwn(response.slice_lifecycle, "materialization_failure"), false,
-        `${at}: an unauthenticated failure gained a projection`);
-      assertNoSecrets(at, JSON.stringify(response));
+      assertGenericLifecycleFailure(at, response);
+      assertNoSecrets(at, JSON.stringify(withoutEvidence(response)));
     }
 
-    assert.equal(JSON.stringify(first.slice_lifecycle), JSON.stringify(replay.slice_lifecycle), label);
-    assert.equal(JSON.stringify(first.slice_lifecycle), JSON.stringify(wait.slice_lifecycle), label);
+    assert.equal(classificationJson(first), classificationJson(replay), label);
+    assert.equal(classificationJson(first), classificationJson(wait), label);
     assert.equal(routes.counters.launched, 0, label);
   });
 }
@@ -399,121 +416,48 @@ test("WK-1793 a real prepareSliceReviewSurface refusal authenticates and drops i
     inspect(projected, { depth: null }));
 
   const response = await monitorRoutes(() => bindingFailure).status();
-  assertOuterContractUnchanged("real binding refusal/status", response);
-  assert.deepEqual(response.slice_lifecycle.materialization_failure, projected);
-  assertNoSecrets("real binding refusal/status", JSON.stringify(response));
+  assertGenericLifecycleFailure("real binding refusal/status", response);
+  assertNoSecrets("real binding refusal/status", JSON.stringify(withoutEvidence(response)));
+
+  const thrown = response.slice_lifecycle.evidence.thrown.value;
+  assert.equal(thrown.name, "SliceReviewMaterializationError");
+  assert.equal(thrown.cause.message, SECRETS[0]);
 });
 
-test("WK-1793 concurrent observers share one attempt and one retained projection", async () => {
+test("WK-1793 concurrent observers share one attempt and one retained generic failure", async () => {
   const reason = REASON[CODES.INDEX_STATE_REFUSED];
   const routes = monitorRoutes(() => authentic(CODES.INDEX_STATE_REFUSED, reason, { bound: MAX_DEPTH }));
   const observers = await Promise.all([routes.status(), routes.status(), routes.status()]);
   assert.equal(routes.counters.lifecycle, 1, "concurrent observers drove one attempt");
-  const expected = expectedProjection(CODES.INDEX_STATE_REFUSED, reason, { traversal_bound: MAX_DEPTH });
   for (const [index, response] of observers.entries()) {
-    assertOuterContractUnchanged(`observer ${index}`, response);
-    assert.deepEqual(response.slice_lifecycle.materialization_failure, expected);
+    assertGenericLifecycleFailure(`observer ${index}`, response);
     assert.equal(response.lifecycle_resolution.failure_attempts, 1);
     assert.equal(response.lifecycle_resolution.retained_failures.length, 1);
   }
 
-  assert.equal(new Set(observers.map((r) =>
-    JSON.stringify(r.slice_lifecycle.materialization_failure))).size, 1);
+  assert.equal(new Set(observers.map((r) => JSON.stringify(r.slice_lifecycle))).size, 1);
 });
 
 test("WK-1793 repeated polling stays nonterminal and keeps the retry action", async () => {
   const routes = monitorRoutes(() =>
     authentic(CODES.PREPARE_FAILED, REASON[CODES.PREPARE_FAILED], { status: 1 }));
-  const expected = expectedProjection(CODES.PREPARE_FAILED, REASON[CODES.PREPARE_FAILED],
-    { git_exit_status: 1 });
   for (let poll = 1; poll <= 5; poll += 1) {
     const response = await routes.status();
-    assertOuterContractUnchanged(`poll ${poll}`, response);
-    assert.deepEqual(response.slice_lifecycle.materialization_failure, expected);
+    assertGenericLifecycleFailure(`poll ${poll}`, response);
     assert.equal(response.lifecycle_resolution.failure_attempts, poll);
     assert.equal(response.lifecycle_resolution.retained_failures.length,
       Math.min(poll, LIFECYCLE_FAILURE_HISTORY_LIMIT));
 
     for (const entry of response.lifecycle_resolution.retained_failures) {
       assert.deepEqual(Object.keys(entry).sort(),
-        ["error_code", "error_message", "error_message_truncated", "phase"]);
+        ["error_code", "error_message", "error_message_truncated", "evidence_summary", "phase"]);
     }
   }
   assert.equal(routes.counters.lifecycle, 5, "one attempt per poll, unchanged");
   assert.equal(routes.counters.launched, 0);
 });
-
-const ROUTES_PATH = fileURLToPath(new URL(
-  "../../packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs", import.meta.url));
-
-const DISCLOSURE_PATH = fileURLToPath(new URL(
-  "../../packages/wiki-mcp/src/lib/dispatch-lifecycle-failure-disclosure.mjs", import.meta.url));
 const MATERIALIZATION_PATH = fileURLToPath(new URL(
   "../../packages/agent-launch-cli/src/lib/slice-review-materialization.mjs", import.meta.url));
-
-function rewriteSpecifiers(source, basePath) {
-  const require = createRequire(basePath);
-  return source.replace(/(\bfrom\s*)"([^"]+)"/gu, (match, prefix, specifier) =>
-    (specifier.startsWith("node:") || specifier.startsWith("file:") ? match
-      : `${prefix}"${pathToFileURL(require.resolve(specifier)).href}"`));
-}
-
-function loadMutatedRoutes(mutate) {
-  const { source, applied } = mutate(readFileSync(DISCLOSURE_PATH, "utf8"));
-  assert.equal(applied, 1, "the mutation must apply exactly once");
-  const dir = mkdtempSync(path.join(os.tmpdir(), "wk1793-mutant-"));
-  const disclosureFile = path.join(dir, "dispatch-lifecycle-failure-disclosure.mutant.mjs");
-  writeFileSync(disclosureFile, rewriteSpecifiers(source, DISCLOSURE_PATH));
-  const routesSource = readFileSync(ROUTES_PATH, "utf8")
-    .replace("./dispatch-lifecycle-failure-disclosure.mjs", pathToFileURL(disclosureFile).href);
-  const file = path.join(dir, "dispatch-run-monitor-routes.mutant.mjs");
-  writeFileSync(file, rewriteSpecifiers(routesSource, ROUTES_PATH));
-  return { url: pathToFileURL(file).href, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
-}
-
-const GENERIC_ONLY_CATCH = (source) => {
-  const target = "const materializationFailure = publishableMaterializationFailure(error);";
-  return {
-    source: source.replace(target, "const materializationFailure = null;"),
-    applied: source.split(target).length - 1
-  };
-};
-const WORKSPACE = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
-
-async function driveRegisteredRoutes(registerRoutes, makeThrow) {
-  const tools = new Map();
-  registerRoutes({
-    registerTool: (name, config, handler) => tools.set(name, { config, handler }),
-    workspaceRepos: [WORKSPACE], z, jsonContent, resolveWorkspaceRepo: () => WORKSPACE,
-    dispatchBackend: {
-      getRunStatus: async () => TERMINAL_CHILD, waitForRunStatus: async () => TERMINAL_CHILD,
-      runPostWorkerSliceLifecycle: async () => { throw makeThrow(); }
-    }, dispatchSessionIdentity: "session-wk1793"
-  });
-  return parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: MONITOR_HANDLE, subject: SUBJECT
-  }));
-}
-
-test("WK-1793 a mutant restoring the generic-only catch is killed by the missing projection", async (t) => {
-  const mutant = loadMutatedRoutes(GENERIC_ONLY_CATCH);
-  t.after(mutant.cleanup);
-  const { registerRunMonitorRoutes: registerMutatedRoutes } = await import(mutant.url);
-  const makeThrow = () => authentic(CODES.INDEX_STATE_REFUSED, REASON[CODES.INDEX_STATE_REFUSED]);
-  const live = await driveRegisteredRoutes(registerRunMonitorRoutes, makeThrow);
-  const mutated = await driveRegisteredRoutes(registerMutatedRoutes, makeThrow);
-
-  assert.equal(typeof registerMutatedRoutes, "function");
-  assertOuterContractUnchanged("mutant", mutated);
-  assert.deepEqual({ ...mutated.slice_lifecycle }, { ...GENERIC_LIFECYCLE_FAILURE },
-    "the mutant must still publish the well-formed generic envelope");
-
-  assert.equal(Object.hasOwn(mutated.slice_lifecycle, "materialization_failure"), false,
-    "the mutant kept the generic-only catch");
-  assert.deepEqual(live.slice_lifecycle.materialization_failure,
-    expectedProjection(CODES.INDEX_STATE_REFUSED, REASON[CODES.INDEX_STATE_REFUSED]),
-    "the live seam publishes the authenticated projection the mutant drops");
-});
 
 test("WK-1793 the predicate allowlist matches the module's own refusal literals", () => {
   const source = readFileSync(MATERIALIZATION_PATH, "utf8");

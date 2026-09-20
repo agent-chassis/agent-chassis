@@ -67,7 +67,7 @@
         "certification",
         "guarantee",
         "evaluation_stage",
-        "exact_capture",
+        "planning_pack",
         "behavior_claim_ids",
         "verification_id",
         "relation_ids",
@@ -88,19 +88,20 @@
         "certification": { "$ref": "#/$defs/identity" },
         "guarantee": { "$ref": "#/$defs/identity" },
         "evaluation_stage": { "const": "post_delivery" },
-        "exact_capture": {
-          "oneOf": [
-            { "type": "null" },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["capture_root_digest", "sources_digest"],
-              "properties": {
-                "capture_root_digest": { "$ref": "#/$defs/digest" },
-                "sources_digest": { "$ref": "#/$defs/digest" }
-              }
-            }
-          ]
+        "planning_pack": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "profile_id", "profile_version", "evaluation_stage", "profile_digest",
+            "admission_digest"
+          ],
+          "properties": {
+            "profile_id": { "type": "string", "minLength": 1 },
+            "profile_version": { "type": "string", "minLength": 1 },
+            "evaluation_stage": { "enum": ["pre_dispatch", "post_delivery"] },
+            "profile_digest": { "$ref": "#/$defs/digest" },
+            "admission_digest": { "$ref": "#/$defs/digest" }
+          }
         },
         "behavior_claim_ids": { "$ref": "#/$defs/string_set" },
         "verification_id": { "type": "string", "minLength": 1 },

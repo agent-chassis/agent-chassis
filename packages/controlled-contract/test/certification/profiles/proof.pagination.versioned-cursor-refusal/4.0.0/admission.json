@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "98259723fc017d6e4b76e4c2e62c396f86553565fa104543e8062013616af6a3",
+  "profile_id": "proof.pagination.versioned-cursor-refusal",
+  "profile_version": "4.0.0",
+  "profile_digest": "9462a2b95ee74a76aaf0b0a28e72fe226bb63a2367c19e265b5c18847e18d3c1",
+  "guarantee": "Every cursor and successful returned page in the complete declared traversal populations resolves to its traversal source version; after a relevant mutation the current version differs in identity and captured content from the selected stale cursor version, the exact next-page attempt using that cursor is refused, and before refusal and throughout that stale-attempt scope no page artifact or page-return event is returned, no cursor-advance event is emitted, and no complete declared protected effect is written or mutated; a non-stale control proves an unrelated-source mutation does not cause refusal.",
+  "guarantee_digest": "54fb6ac12173078ba025706e0c3a6d2626ee32d98c6e072256fbd0244af52081",
+  "explicit_exclusions": [
+    "capture-provenance",
+    "cross-pack-shared-role-identity",
+    "cursor-retention-or-isolation",
+    "evidence-authority-or-cce-consequence",
+    "runtime-truth",
+    "standalone-traversal-completeness",
+    "undeclared-mutation"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "c989f712d836c9ecb4df4403f8c1c40a92d1322482bbde1ef8c5ea163e2f151a",
+    "adequacy_result_digest": "fe05f3bc81c0c449d33602065a1498c803b1e7088d24a9581196f0981e04a9c7",
+    "executable_control_count": 33,
+    "negative_fixture_count": 232,
+    "coverage_witness_count": 232
+  }
+}

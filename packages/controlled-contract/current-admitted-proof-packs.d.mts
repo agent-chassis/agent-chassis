@@ -1,5 +1,3 @@
-import type { IntegrationPrefixCatalog } from "./current-integration-prefix.mjs";
-
 export class AdmittedProofPackError extends Error {
   code: string;
   details: Record<string, unknown>;
@@ -16,12 +14,11 @@ export interface ComponentExclusionApplicabilityComponent {
     kind: ComponentExclusionApplicabilitySelectorKind;
     component_id: string;
   };
-  evaluation_stage: string;
   exclusion_ids: string[];
   applicable_exclusion_ids: string[];
 }
 export interface ComponentExclusionApplicability {
-  schema_version: "controlled-contract-component-exclusion-applicability.v1";
+  schema_version: "controlled-contract-component-exclusion-applicability.v2";
   profile_id: string;
   profile_version: string;
   profile_digest: string;
@@ -50,7 +47,9 @@ export interface AdmittedProofPackSnapshot {
   readonly profile_digest: string;
   readonly admission_digest: string;
   readonly catalog_entry: Readonly<Record<string, unknown>>;
-  readonly admission_version: 1 | 2;
+  readonly admission_version: 3;
+  readonly parameter_contract: import("./lib/pack-parameter-contract.d.mts").PackParameterContract;
+  readonly parameter_contract_digest: string;
   readonly component_exclusion_applicability:
     Readonly<ComponentExclusionApplicability> | null;
   readonly component_exclusion_applicability_digest: string | null;
@@ -58,8 +57,17 @@ export interface AdmittedProofPackSnapshot {
 export function loadAdmittedProofPack(
   profileId: string
 ): Promise<AdmittedProofPackSnapshot>;
+export interface AdmittedProofPackCatalogEntry {
+  readonly profile_id: string;
+  readonly profile_version: string;
+  readonly path: string;
+}
+export interface AdmittedProofPackCatalog {
+  readonly schema_version: "controlled-contract-proof-pack-catalog.v1";
+  readonly packs: readonly AdmittedProofPackCatalogEntry[];
+}
 export function readProofPackCatalog():
-  Promise<IntegrationPrefixCatalog>;
+  Promise<AdmittedProofPackCatalog>;
 
 /**
  * The exact deeply frozen object returned by `evaluateVerificationProfileV1`.
@@ -68,37 +76,17 @@ export function readProofPackCatalog():
  * Copies, spreads, and caller-built values matching this interface are refused.
  */
 export interface PackageMintedVerificationProfileV1Result {
-  readonly result_version: "controlled-contract-verification-profile-result.v1";
+  readonly result_version: "controlled-contract-verification-profile-result.v2";
   readonly profile: Readonly<{
     profile_id: string | null;
     profile_version: string | null;
   }>;
-  readonly evaluation_stage: string | null;
   readonly admission: Readonly<{ profile_digest: string }>;
   readonly pattern_results: readonly Readonly<Record<string, unknown>>[];
 }
-/**
- * The exact result object minted by the package's deterministic capture owner.
- * Runtime acceptance is package registry identity; copies and caller-built
- * values matching this interface are refused.
- */
-export interface PackageMintedExactBindingResult {
-  readonly schema_version: "controlled-contract-exact-binding-result.v1";
-  readonly provenance: Readonly<{
-    capture_verified: boolean;
-  }>;
-  readonly context: Readonly<{
-    profile_digest: string;
-    admission_digest: string;
-    exact_binding_declaration_digest: string;
-    exact_binding_certification_digest: string;
-  }>;
-  readonly satisfaction: "satisfied" | "unsatisfied" | "indeterminate" | "invalid";
-}
-
 export interface AssessmentComponentExclusionApplicability {
   readonly projection_version:
-    "controlled-contract-assessment-component-exclusion-applicability.v1";
+    "controlled-contract-assessment-component-exclusion-applicability.v2";
   readonly assessment_cycle_digest: string;
   readonly profile_id: string;
   readonly profile_version: string;

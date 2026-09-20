@@ -22,12 +22,17 @@ import {
   validateSuppliedProofPackBindings
 } from "./proof-pack-binding-assistance.mjs";
 import { buildProofPlan } from "./proof-plan-compiler.mjs";
+import {
+  AUTHORED_EXECUTION_OBSERVATION_POINTER,
+  AUTHORED_EXECUTION_OBSERVATION_REFUSAL_CODE,
+  validateAuthoredEvaluationInput
+} from "./authored-evaluation-input.mjs";
 import { executeUncappedIntegrationPrefixProjection } from "./deterministic-projection.mjs";
 
 const INTEGRATION_INTENT = "controlled-proof-intent.integration-prefix-safety";
 const INTEGRATION_PROFILE = Object.freeze({
   profile_id: "proof.integration.prefix-safety",
-  profile_version: "2.0.0"
+  profile_version: "4.0.0"
 });
 const INTEGRATION_ARTIFACT_SUFFIXES = Object.freeze({
   "dag-source": "integration-prefix-dag.json",
@@ -276,17 +281,10 @@ function buildIntegrationPrefixSourceMap(input, ...unexpectedArguments) {
 
 const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 const PACKAGE_VERSION = packageJson.version;
-const INPUT_VERSION = "controlled-contract-verification-profile-input.v1";
+const INPUT_VERSION = "controlled-contract-verification-profile-input.v2";
 const REQUEST_VERSION = "controlled-contract-proof-plan-request.v1";
 const CONTINUATION_SCHEMA_VERSION =
   "controlled-contract-proof-authoring-continuation.v1";
-
-const STAGE_ROUTE = Symbol("proof-authoring-stage-route");
-const STAGE_SUPPLIED = Symbol("proof-authoring-stage-supplied");
-
-const EVALUATION_STAGE_ALIASES = Object.freeze([
-  "evaluation_stage", "evaluationStage"
-]);
 
 class ProofAuthoringSkeletonError extends Error {
   constructor(code, message, details = {}) {
@@ -300,6 +298,21 @@ class ProofAuthoringSkeletonError extends Error {
 function plain(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value) &&
     [Object.prototype, null].includes(Object.getPrototypeOf(value));
+}
+
+function refuseAuthoredExecutionObservations(semanticInput, pointerPrefix) {
+  const validation = validateAuthoredEvaluationInput(semanticInput, { pointerPrefix });
+  if (validation.valid) return;
+  const primaryDiagnostic = validation.diagnostics.diagnostics?.[0];
+  throw new ProofAuthoringSkeletonError(
+    AUTHORED_EXECUTION_OBSERVATION_REFUSAL_CODE,
+    "skeleton authoring refuses test-validity execution observations; workspace_verify_proof produces them",
+    { pointer: typeof primaryDiagnostic?.pointer === "string"
+      ? primaryDiagnostic.pointer
+      : `${pointerPrefix}${AUTHORED_EXECUTION_OBSERVATION_POINTER}`,
+      execution_owner: validation.execution_owner,
+      diagnostics: validation.diagnostics }
+  );
 }
 
 function strings(value, field, { required = false } = {}) {
@@ -348,23 +361,6 @@ function selectedPack(input) {
   return result;
 }
 
-function assertOneSuppliedEvaluationStage(bindings) {
-  const supplied = EVALUATION_STAGE_ALIASES.filter((alias) =>
-    bindings[alias] !== undefined);
-  if (supplied.length < 2) return;
-  throw new ProofAuthoringSkeletonError(
-    "proof_authoring_evaluation_stage_conflict",
-    "the evaluation stage was supplied twice; provide evaluation_stage or evaluationStage, not both",
-    {
-
-      evaluation_stage: bindings.evaluation_stage,
-      evaluationStage: bindings.evaluationStage,
-      canonical_field: EVALUATION_STAGE_ALIASES[0],
-      supplied_aliases: [...EVALUATION_STAGE_ALIASES]
-    }
-  );
-}
-
 function bindingInput(input) {
   if (input.evaluationInput !== undefined && input.evaluation_input !== undefined) {
     throw new ProofAuthoringSkeletonError(
@@ -384,23 +380,29 @@ function bindingInput(input) {
   if (supplied !== null) {
     if (!plain(supplied)) throw new ProofAuthoringSkeletonError(
       "proof_authoring_bindings_invalid", "evaluationInput must be a plain object");
+    refuseAuthoredExecutionObservations(supplied, "/evaluation_input");
     return {
       ...structuredClone(supplied),
-      [STAGE_ROUTE]: "evaluation_input",
-      [STAGE_SUPPLIED]: supplied.evaluation_stage !== undefined
     };
   }
   if (bindings !== null && !plain(bindings)) throw new ProofAuthoringSkeletonError(
     "proof_authoring_bindings_invalid", "bindings must be a plain object");
   const value = bindings ?? {};
-  assertOneSuppliedEvaluationStage(value);
+  const allowed = new Set(["reference_bindings", "referenceBindings", "number_bindings",
+    "numberBindings", "claim_pattern_bindings", "claimPatternBindings", "resolver_facts",
+    "resolverFacts", "delivered_evidence", "deliveredEvidence", "stable_evaluation",
+    "stableEvaluation"]);
+  const unknown = Object.keys(value).filter((key) => !allowed.has(key));
+  if (unknown.length) throw new ProofAuthoringSkeletonError(
+    "proof_authoring_bindings_invalid", "typed bindings contain unsupported fields",
+    { fields: unknown });
+  refuseAuthoredExecutionObservations(value, "/bindings");
   const references = value.reference_bindings ?? value.referenceBindings ?? [];
   const numbers = value.number_bindings ?? value.numberBindings ?? [];
   if (!Array.isArray(references) || !Array.isArray(numbers)) throw new ProofAuthoringSkeletonError(
     "proof_authoring_bindings_invalid", "typed bindings must be arrays");
   return {
     input_version: INPUT_VERSION,
-    evaluation_stage: value.evaluation_stage ?? value.evaluationStage ?? "pre_dispatch",
     reference_bindings: structuredClone(references),
     number_bindings: structuredClone(numbers),
     claim_pattern_bindings: structuredClone(
@@ -411,9 +413,6 @@ function bindingInput(input) {
       value.delivered_evidence ?? value.deliveredEvidence ?? []
     ),
     stable_evaluation: structuredClone(value.stable_evaluation ?? value.stableEvaluation ?? {}),
-    [STAGE_ROUTE]: "typed",
-    [STAGE_SUPPLIED]: value.evaluation_stage !== undefined ||
-      value.evaluationStage !== undefined
   };
 }
 
@@ -782,7 +781,6 @@ function canonicalEvaluationFilename(wkId, focus) {
 function integrationEvaluationInput(sourceMap) {
   return {
     input_version: INPUT_VERSION,
-    evaluation_stage: "pre_dispatch",
     reference_bindings: [
       ["integration_dag", ["ref-integration-dag"]],
       ["integration_units", ["ref-integration-units"]],
@@ -823,21 +821,6 @@ function integrationArtifactMembers({ record, focus, authored }) {
       };
     }
   );
-}
-
-function integrationCapture({ record, focus, evaluationFilename, artifactMembers }) {
-  const stem = focus === null ? record.id : `${record.id}-${focus}`;
-  const byRole = new Map(artifactMembers.map((member) => [member.artifact_role, member]));
-  return {
-    capture_root: ".",
-    contract_path: `${stem}.controlled-acceptance.json`,
-    evaluation_input_path: evaluationFilename,
-    sources: Object.fromEntries([...byRole].sort(([left], [right]) =>
-      compareCodeUnits(left, right)).map(([artifactRole, member]) => [
-      artifactRole,
-      { kind: "artifact_file", relative_path: member.filename }
-    ]))
-  };
 }
 
 async function buildIntegrationPrefixAuthoring(input) {
@@ -928,13 +911,9 @@ async function buildIntegrationPrefixAuthoring(input) {
       "the canonical root or focus evaluation input is already bound to another pack");
   }
   const artifactMembers = integrationArtifactMembers({ record, focus, authored });
-  const exactCapture = integrationCapture({
-    record, focus, evaluationFilename, artifactMembers
-  });
   const integrationPack = {
     ...INTEGRATION_PROFILE,
-    evaluation_input_path: evaluationFilename,
-    exact_capture: exactCapture
+    evaluation_input_path: evaluationFilename
   };
   let updatedRequest;
   try {
@@ -991,7 +970,6 @@ async function buildIntegrationPrefixAuthoring(input) {
     execution_paths: authored.execution_paths,
     branches,
     source_map: authored.source_map,
-    capture_roots: { integration_prefix: exactCapture },
     artifact_members: artifactMembers,
     contract: updatedContract,
     proof_plan_request: updatedRequest,
@@ -1039,31 +1017,6 @@ async function buildProofAuthoringSkeleton(input, ...unexpectedArguments) {
     throw new ProofAuthoringSkeletonError(error.code ?? "proof_authoring_pack_invalid",
       error.message, error.details);
   }
-
-  const allowedStages = authoring.evaluation_input_skeleton.allowed_evaluation_stages;
-  const stageRoute = value.evaluationInput[STAGE_ROUTE];
-  const stageSupplied = value.evaluationInput[STAGE_SUPPLIED];
-  delete value.evaluationInput[STAGE_ROUTE];
-  delete value.evaluationInput[STAGE_SUPPLIED];
-  if (stageSupplied) {
-    const stage = value.evaluationInput.evaluation_stage;
-    if (!allowedStages.includes(stage)) throw new ProofAuthoringSkeletonError(
-      "proof_authoring_evaluation_stage_invalid",
-      "the supplied bindings specify an evaluation stage unsupported by the selected pack",
-      { evaluation_stage: stage, allowed_evaluation_stages: allowedStages }
-    );
-  } else if (stageRoute === "typed") {
-    if (allowedStages.length !== 1) throw new ProofAuthoringSkeletonError(
-      "proof_authoring_evaluation_stage_unresolved",
-      "typed bindings require a caller evaluation stage when the selected pack permits multiple stages",
-      { allowed_evaluation_stages: allowedStages }
-    );
-    value.evaluationInput.evaluation_stage = allowedStages[0];
-  } else throw new ProofAuthoringSkeletonError(
-    "proof_authoring_evaluation_stage_unresolved",
-    "a supplied evaluation input must state its own evaluation stage",
-    { allowed_evaluation_stages: allowedStages }
-  );
   let validation;
   try {
     validation = await validateSuppliedProofPackBindings({

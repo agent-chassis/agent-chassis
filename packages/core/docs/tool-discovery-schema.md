@@ -139,6 +139,53 @@ reported as `debt_added` and fails lint and registration. Applicability
 exceptions remain an empty, mechanically checked array until an adopted owner
 defines an authority-bearing exception protocol.
 
+### Discovery Prose Boundary
+
+This section is the single authoring boundary for discovery prose: descriptor
+`summary` and `notes`, every `tier_text` override, the descriptive routing
+fields (`use_when`, `do_not_use_when`, `requires_prior_state`, and
+`recommended_first_call.operation` labels), and registered live MCP tool
+descriptions. Other discovery pages link here instead of restating it.
+
+Prose keeps what a caller needs to select and call a tool and to interpret its
+result:
+
+- purpose, meaningful inputs, bounds, and decoding requirements of public fields;
+- side effects, authority limits, and role or tier restrictions;
+- the refusal codes, result fields, and supported next calls needed to recover.
+
+A prerequisite or refusal statement says which kind of fact it is. A mechanical
+prerequisite is enforced by the operation itself; a policy outcome is what CCE
+actually returned; an advisory practice is guidance the operation does not
+enforce. Prose must not present advisory practice as a mechanical prerequisite
+or apply one role's prerequisite to another role.
+
+Prose omits transport, process, and security-boundary architecture;
+implementation and storage mechanics; rollout history and work-record or
+decision provenance; copied owner specifications; and repeated boilerplate.
+Durable detail belongs in the owning documentation, reached through `docs_refs`.
+Technical terms that name public inputs or outputs remain appropriate; the
+boundary is not a word list. Text about compatibility or recovery output reports
+what the operation actually returns and does not claim that behavior is an
+authorized or supported contract.
+
+Caller guidance that a budgeted surface omits stays reachable in every role and
+tier that can see the tool, through verbose or selected
+`workspace_tools_describe` output or a `docs_refs` entry that session can read.
+Size limits are met by editing source text, never by truncating it during
+projection.
+
+Existing owners enforce the boundary.
+`tests/unit/tool-discovery-notes-budget.test.mjs` applies the per-note ceiling
+and the provenance, module-path, schema-inventory, and duplicate-sentence checks
+to base notes and, separately, to each `tier_text` override.
+`tests/integration/wiki-mcp-tool-discovery-description-budget.test.mjs` applies
+the live ceiling and the same checks to every registered description in each
+supported role and tier.
+`tests/integration/workspace-agent-dispatch-registration-description-caveats.test.mjs`
+owns the dispatch-specific caveats. Aggregate and per-tool debt accounting is
+described under [Authority And Trust](#authority-and-trust).
+
 ### Documentation Reference Scope
 
 A checked-in descriptor records what a tool is documented BY. A running session
@@ -240,6 +287,28 @@ required state; it must not dispatch, mutate, validate readiness, run lint, or
 read full records by itself. If the required state is absent, the router should
 return `ambiguous` or `unknown` according to `tool-routing-intents.v1` rather
 than guessing a broad fallback.
+
+An intent may also declare `ambiguity_when_state_present`: a request property
+whose presence keeps the intent's own match from answering with a call. The
+router then returns `ambiguous` with that intent's reason, its operation as an
+unflagged executable alternative, and no recommendation. `write_request`,
+`explained_write_request`, and `broad_read_request` are the derived request
+properties the router computes from the task text for these declarations;
+`broad_read_request` marks a request for an unbounded read, which receives
+bounded clarification rather than an inferred bulk retrieval.
+
+An operation route in `tool-routing-intents.v1` normally renders the selected
+descriptor's `recommended_first_call.arguments`, and its `operation` must equal
+that descriptor's `recommended_first_call.operation`. When one registry-driven
+facade owns several operations, a route may instead carry its own nonempty
+`arguments` template; for example, `operation: "task"` names
+`workspace_work_record_edit` with `kind: "task"`, `field: "sections.tasks"`, and
+`action: "mark_done"`. The router renders that template in place of the
+descriptor template, using the same known-state substitution and canonical
+next-call validation, and the descriptor operation check does not apply to that
+route. Routes without `arguments` keep the descriptor template and the operation
+check. A route template never supplies caller-authored values such as a task
+selector.
 
 `replacement_for_misuse` bridges two owned vocabularies without duplicating
 either one inline. work record owns the misuse-code vocabulary in

@@ -49,7 +49,8 @@ test("the extracted integration route is separate, closed-input, and CCE-owned",
   assert.match(admission, /export const CALLER_CCE_POLICY_AUTHORITY_FIELDS/u);
   assert.match(route, /caller_supplied_integration_authority/u);
   assert.match(route, /disposition: z\.enum\(\["accept", "reject", "defer"\]\)/u);
-  assert.match(route, /CCE alone owns any configured organization-policy decision/u);
+
+  assert.match(route, /Only configured CCE policy gates admission/u);
 });
 
 test("the boundary primitive consumes policy authorization, never review evidence", () => {

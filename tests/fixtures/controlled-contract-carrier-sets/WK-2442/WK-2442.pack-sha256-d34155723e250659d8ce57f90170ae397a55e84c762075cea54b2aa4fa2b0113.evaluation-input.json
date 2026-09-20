@@ -1,0 +1,230 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "projection-accounting-verification",
+      "claim_id": "claim-volume-is-diagnostic"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "mode_count",
+      "value": 2
+    },
+    {
+      "role": "omission_count",
+      "value": 1
+    },
+    {
+      "role": "source_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-population"
+      ],
+      "role": "accounted_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-compact-mode"
+      ],
+      "role": "compact_mode"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-compact-population"
+      ],
+      "role": "compact_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-compact-result"
+      ],
+      "role": "compact_result"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-complete-mode"
+      ],
+      "role": "complete_mode"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-complete-result"
+      ],
+      "role": "complete_result"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-complete-result-population"
+      ],
+      "role": "complete_result_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-disclosed-population"
+      ],
+      "role": "disclosed_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-disclosure-signal"
+      ],
+      "role": "disclosure_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-heavy-member-class"
+      ],
+      "role": "heavy_member_class"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-incomplete-omission-count-condition"
+      ],
+      "role": "incomplete_omission_count_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-incomplete-total-condition"
+      ],
+      "role": "incomplete_total_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-mode-population"
+      ],
+      "role": "mode_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-no-compact-omission-condition"
+      ],
+      "role": "no_compact_omission_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-omission-count-signal"
+      ],
+      "role": "omission_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-omission-population"
+      ],
+      "role": "omission_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-omission-reason"
+      ],
+      "role": "omission_reason"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-reason-catalog"
+      ],
+      "role": "reason_catalog"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-silent-omission-condition"
+      ],
+      "role": "silent_omission_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-source-population"
+      ],
+      "role": "source_population"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-tool"
+      ],
+      "role": "tool"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-total-count-signal"
+      ],
+      "role": "total_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-unaccounted-source-condition"
+      ],
+      "role": "unaccounted_source_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-unrecoverable-loss-condition"
+      ],
+      "role": "unrecoverable_loss_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-members-1",
+        "ref-completeness-lossless-projection-accounted-members-2"
+      ],
+      "role": "accounted_members"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-omission-reason"
+      ],
+      "role": "allowed_reasons"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-members-1"
+      ],
+      "role": "compact_members"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-members-1",
+        "ref-completeness-lossless-projection-accounted-members-2"
+      ],
+      "role": "complete_result_members"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-members-2"
+      ],
+      "role": "disclosed_members"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-members-2"
+      ],
+      "role": "omitted_members"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-accounted-members-1",
+        "ref-completeness-lossless-projection-accounted-members-2"
+      ],
+      "role": "source_members"
+    },
+    {
+      "reference_ids": [
+        "ref-completeness-lossless-projection-compact-mode",
+        "ref-completeness-lossless-projection-complete-mode"
+      ],
+      "role": "tool_modes"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

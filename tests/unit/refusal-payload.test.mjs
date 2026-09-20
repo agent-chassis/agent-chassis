@@ -9,15 +9,11 @@ import {
   defineRefusalCode,
   forwardRefusal,
   isPublicRedactionReason,
-  projectLauncherRedactionReason,
   PUBLIC_REDACTION_REASONS,
   PUBLIC_REDACTION_REASON_VALUES,
   PUBLIC_REFUSAL_SCHEMA_VERSION,
   validatePublicMechanicalRefusal
 } from "../../packages/wiki-core/src/lib/refusal-payload.mjs";
-import {
-  LAUNCHER_TRANSITION_REDACTION_REASONS
-} from "../../packages/agent-launch-core/src/lib/launcher-transition-plan.mjs";
 import {
   WorktreeReaperError
 } from "../../packages/agent-launch-cli/src/lib/worktree-reaper-diagnostics.mjs";
@@ -193,22 +189,6 @@ test("the public redaction vocabulary is closed", () => {
   for (const reason of ["truncated", "too_large", "internal", "", null, undefined, 7]) {
     assert.equal(isPublicRedactionReason(reason), false);
   }
-});
-
-test("WK-2352 private redaction reasons project exactly once into the public vocabulary", () => {
-
-  for (const privateReason of Object.values(LAUNCHER_TRANSITION_REDACTION_REASONS)) {
-    const projected = projectLauncherRedactionReason(privateReason);
-    assert.equal(isPublicRedactionReason(projected), true);
-  }
-});
-
-test("an unknown launcher-private redaction reason is refused, not published verbatim", () => {
-  assert.throws(
-    () => projectLauncherRedactionReason("some_future_private_reason"),
-    /public redaction vocabulary is closed/
-  );
-  assert.throws(() => projectLauncherRedactionReason(null), /closed/);
 });
 
 const BACKEND_REGISTERED = Object.freeze({

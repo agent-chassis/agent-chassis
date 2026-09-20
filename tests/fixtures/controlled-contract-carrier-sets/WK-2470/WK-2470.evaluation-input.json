@@ -1,0 +1,136 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "constituent_effect_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-compound-operation"
+      ],
+      "role": "compound_operation"
+    },
+    {
+      "reference_ids": [
+        "ref-operation-attempt"
+      ],
+      "role": "operation_attempt"
+    },
+    {
+      "reference_ids": [
+        "ref-constituent-effect-population"
+      ],
+      "role": "constituent_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-earlier-constituent-effect",
+        "ref-later-constituent-effect"
+      ],
+      "role": "constituent_effects"
+    },
+    {
+      "reference_ids": [
+        "ref-earlier-constituent-effect"
+      ],
+      "role": "earlier_constituent_effect"
+    },
+    {
+      "reference_ids": [
+        "ref-later-constituent-effect"
+      ],
+      "role": "later_constituent_effect"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-boundary"
+      ],
+      "role": "failure_boundary"
+    },
+    {
+      "reference_ids": [
+        "ref-injected-failure"
+      ],
+      "role": "injected_failure"
+    },
+    {
+      "reference_ids": [
+        "ref-settlement-event"
+      ],
+      "role": "settlement_event"
+    },
+    {
+      "reference_ids": [
+        "ref-earlier-effect-settled-state"
+      ],
+      "role": "earlier_effect_settled_state"
+    },
+    {
+      "reference_ids": [
+        "ref-later-effect-settled-state"
+      ],
+      "role": "later_effect_settled_state"
+    },
+    {
+      "reference_ids": [
+        "ref-fully-uncommitted-state"
+      ],
+      "role": "settled_result"
+    },
+    {
+      "reference_ids": [
+        "ref-earlier-effect-observation"
+      ],
+      "role": "earlier_effect_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-later-effect-observation"
+      ],
+      "role": "later_effect_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-allowed-settlement-states"
+      ],
+      "role": "allowed_settlement_states"
+    },
+    {
+      "reference_ids": [
+        "ref-fully-committed-state"
+      ],
+      "role": "fully_committed_state"
+    },
+    {
+      "reference_ids": [
+        "ref-fully-uncommitted-state"
+      ],
+      "role": "fully_uncommitted_state"
+    },
+    {
+      "reference_ids": [
+        "ref-forbidden-partial-state"
+      ],
+      "role": "forbidden_partial_state"
+    },
+    {
+      "reference_ids": [
+        "ref-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-partial-commit-condition"
+      ],
+      "role": "partial_commit_condition"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

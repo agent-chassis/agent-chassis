@@ -29,7 +29,7 @@ const FRAGMENT_EXPECTATIONS = {
     'read_page',
     'search_repo',
     'sync_contract',
-    'workspace_agent_faq',
+
     'workspace_authoring_ergonomics_report',
     'workspace_authoring_ergonomics_report_query',
     'workspace_autofix_docs_backlinks',
@@ -45,30 +45,23 @@ const FRAGMENT_EXPECTATIONS = {
     'workspace_submit_for_review',
     'workspace_tools_describe',
     'workspace_tools_list',
-    'workspace_tools_query',
     'workspace_tool_router_recommend',
   ],
   'mcp-work-record-tools.json': [
     'assign_work_record_to_initiative',
     'workspace_decision_amend_scalar',
     'workspace_decision_amend_section',
-    'workspace_decision_create',
 
     'workspace_decision_reject',
     'workspace_initiative_amend_scalar',
     'workspace_initiative_amend_section',
-    'workspace_initiative_create',
     'workspace_record_graph_impact_evidence',
   ],
   'mcp-launcher-tools.json': [
     'workspace_agent_dispatch_identity_contract',
-    'workspace_agent_runs_list',
     'workspace_node_engine_admission_runtime_diagnostic',
     'workspace_preflight_dispatch',
-    'workspace_run_validation',
     'workspace_validate_dispatch',
-
-    'workspace_worker_run_declared_test',
   ],
   'mcp-coordination-tools.json': [
     'workspace_initiative_status',
@@ -219,28 +212,24 @@ test('MCP split fragment entries carry full rich descriptor metadata', async () 
   }
 });
 
-test('WK-2426 controlled-contract rows preserve the registered semantic route inventory', async () => {
+test('controlled-contract rows preserve the registered semantic route inventory', async () => {
   const fragment = await readJson(new URL('./controlled-contract-tools.json', import.meta.url));
-  assert.equal(fragment.tool_count, 44);
-  assert.equal(fragment.tools.length, 44);
+  assert.equal(fragment.tool_count, 6);
+  assert.equal(fragment.tools.length, 6);
+  assert.equal(fragment.tools.some(({ tool_name: name }) =>
+    name === 'workspace_controlled_contract_private_scope_census'), false);
 
   for (const taskId of WK_2437_CONTROLLED_TASK_IDS) {
     assert.ok(TOOL_DISCOVERY_CONTROLLED_TASK_IDS.includes(taskId), `${taskId} must be controlled`);
   }
 
-  const acceptance = findTool(fragment, 'workspace_controlled_contract_acceptance_coverage_describe');
-  const obligation = findTool(fragment, 'workspace_controlled_contract_obligation_coverage_describe');
-  assert.deepEqual(acceptance.task_ids, [
-    'controlled-contract-authoring',
-    'acceptance-gap-review',
-    'mapping-repair',
-  ]);
+  const obligation = findTool(fragment, 'workspace_controlled_contract_obligation_coverage_query');
   assert.deepEqual(obligation.task_ids, [
     'controlled-contract-authoring',
     'obligation-inventory',
     'proof-obligation-map-inspection',
   ]);
-  for (const row of [acceptance, obligation]) {
+  for (const row of [obligation]) {
     for (const taskId of row.task_ids) {
       assert.ok(TOOL_DISCOVERY_CONTROLLED_TASK_IDS.includes(taskId), `${row.tool_name}:${taskId}`);
     }
@@ -248,10 +237,17 @@ test('WK-2426 controlled-contract rows preserve the registered semantic route in
 
   const verifyProof = findTool(fragment, 'workspace_verify_proof');
   assert.deepEqual(verifyProof.recommended_first_call.arguments, {
-    subject: '$canonical_WK_slice_test_proof_or_obligation_id',
+    subject: '$proof_subject_if_known',
+    source: '$source_choice_from_a_select_source_refusal_if_needed',
     repo: '$configured_workspace_alias_if_needed',
     git_sha: '$optional_exact_full_commit_for_orchestrator',
   });
+  assert.match(verifyProof.use_when[1], /additional falsification evidence for the same proof/);
+  assert.match(verifyProof.use_when[1], /unavailable mutation leaves the observed test result visible/);
+  assert.match(verifyProof.use_when[2], /retry one listed choice, which adds source \{unit, focus\?\}/);
+  assert.ok(verifyProof.source_files.includes(
+    'packages/wiki-core/src/operations/controlled-contract/verify-proof-source-binding.mjs',
+  ));
   assert.deepEqual(verifyProof.side_effects, ['process_spawn', 'workspace_write']);
   assert.match(verifyProof.use_when[0], /shared authenticated private detached materialization/);
   assert.ok(verifyProof.source_files.includes(
@@ -290,7 +286,7 @@ test('WK-2426 controlled-contract rows preserve the registered semantic route in
   const row = manifest.fragments.find((entry) =>
     entry.file === 'controlled-contract-tools.json');
   assert.equal(row.tool_count, fragment.tool_count);
-  assert.match(row.summary, /authenticated orchestrator/);
+  assert.match(row.summary, /Six semantic proof operations/);
 });
 
 test('MCP split source_files anchor on the manifest and owning fragments', async () => {
@@ -319,18 +315,12 @@ test('workspace_validate_dispatch advertises only bounded ignored graph-cache wr
   const fragment = await readFragment('mcp-launcher-tools.json');
   const tool = findTool(fragment, 'workspace_validate_dispatch');
   assert.deepEqual(tool.side_effects, ['workspace_write']);
-  assert.match(tool.notes, /structural runnability floor/);
-  assert.match(tool.notes, /never mutates canonical work records/);
-  assert.match(tool.notes, /never launches an agent/);
+  assert.match(tool.notes, /Structural dispatch readiness/);
+  assert.match(tool.notes, /never launches an agent, mutates canonical records/);
+
   const paidNotes = tool.tier_text.paid_cce.notes;
-  assert.match(paidNotes, /ignored code-index graph artifacts/);
-  assert.match(paidNotes, /sibling atomic temporary files/);
-  assert.match(paidNotes, /advisory build-lock file/);
-  assert.match(paidNotes, /eight exclusively claimed candidate slots/);
-  assert.match(paidNotes, /\.index\.json\.build-lock\.json\.slot-00\.candidate/);
-  assert.match(paidNotes, /\.index\.json\.build-lock\.json\.slot-07\.candidate/);
-  assert.match(paidNotes, /initial absent-lock race/);
-  assert.match(paidNotes, /exhaustion falls back to an independent atomic build/);
+  assert.match(paidNotes, /may write only ignored code-index cache, lock, temporary and candidate artifacts/);
+  assert.match(paidNotes, /candidates are never reused or authoritative/);
   assert.match(paidNotes, /never mutates canonical WK\/evidence/);
   assert.match(paidNotes, /never launches an agent/);
 });
@@ -393,9 +383,13 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
       ],
     },
     workspace_read_page: {
+
       use_when: [
         'docs_lookup with known repo path',
-        'selected_slice_detail with selected_slice:<slice-id>',
+        'canonical record read by durable id or unit without reconstructing a storage path',
+        'canonical initiative or decision read with exact registered JSON path',
+        'selected_slice_detail with selected_slice:<slice-id> or unit:<WK>#<slice>',
+        'one exact entry of a unit, or one retained content reference',
       ],
       do_not_use_when: [
         'initiative_status',
@@ -433,14 +427,16 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
     },
     workspace_get_record: {
       use_when: [
-        'selected_work_record_context after compact summary needs canonical payload',
-        'selected_slice_detail after compact summary needs raw/debug payload',
+        'selected canonical initiative or decision member is needed by durable id',
+        'selected_work_record_context after compact summary needs one canonical member',
+        'selected_slice_detail after compact summary needs the bounded slice projection',
       ],
       do_not_use_when: [
         'initiative_status',
         'initiative_next_action',
         'dispatch_readiness',
         'dispatch_role_call',
+        'docs_lookup without known durable id',
         'selected_work_record_context first call',
         'selected_slice_detail first call',
       ],
@@ -469,7 +465,7 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
       ],
     },
     workspace_validate_dispatch: {
-      use_when: ['dispatch_readiness', 'dispatch_role_call'],
+      use_when: ['dispatch_readiness', 'dispatch_role_call for a worker, before launch'],
       do_not_use_when: [
         'initiative_status',
         'initiative_next_action before a unit is selected',
@@ -478,12 +474,12 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
       authoritative_for: ['dispatch_readiness', 'dispatch_role_call:readiness_gate'],
       routing_intents: ['dispatch_readiness', 'dispatch_role_call'],
       recommended_arguments: {
+
         unit: '$unit_if_known',
-        dispatch_role: '$role_if_known',
       },
       requires_prior_state: [
         'known WK-* or WK-*#SLICE-*',
-        'role when validating a role-specific dispatch',
+        'dispatch_role implementation for worker readiness or read_only for read-only readiness; omitted when role-agnostic',
       ],
       replacement_for_misuse: [
         {
@@ -537,6 +533,10 @@ test('WK-1438 hot MCP tools carry compact routing guidance metadata', async () =
     const tool = toolsByName.get(toolName);
     assert.ok(tool, `${toolName} must be present`);
 
+    if (toolName === 'workspace_read_page') {
+      assert.deepEqual(tool.use_when, expectation.use_when);
+      assert.deepEqual(tool.replacement_for_misuse, expectation.replacement_for_misuse);
+    }
     for (const field of ['use_when', 'do_not_use_when', 'authoritative_for', 'requires_prior_state']) {
       assert.ok(Array.isArray(tool[field]), `${toolName}.${field} must be an array`);
       assert.equal(tool[field].length > 0, true, `${toolName}.${field} must not be empty`);
@@ -584,7 +584,21 @@ test('ready-slice descriptor is installed supported free-local and role policy i
   const fragment = await readFragment('work-record-edit-mcp-tools.json');
   const tool = findTool(fragment, 'workspace_work_record_ready_slice');
   assert.equal(fragment.tool_count, fragment.tools.length);
-  assert.equal(fragment.tool_count, 10);
+
+  assert.deepEqual(fragment.tools.map(({ tool_name: name }) => name), [
+    'workspace_work_record_refresh_admission_metrics',
+    'workspace_work_record_ready_slice',
+    'workspace_work_record_edit',
+    'workspace_work_record_upsert_slice',
+    'workspace_work_record_delete_slice',
+    'workspace_work_record_shape_review_unit',
+  ]);
+  for (const retired of ['workspace_work_record_cleanup_derived_evidence',
+    'workspace_work_record_set_acceptance',
+    'workspace_work_record_refresh_target_resolution_evidence']) {
+    assert.equal(fragment.tools.some(({ tool_name: name }) => name === retired), false, retired);
+  }
+  assert.equal(fragment.tool_count, 6);
   assertRichToolEntry(tool);
   assert.equal(tool.install_state, 'installed');
   assert.equal(tool.runtime_posture, 'supported');
@@ -611,18 +625,19 @@ test('ready-slice descriptor is installed supported free-local and role policy i
   const workRecordRow = manifest.fragments.find(
     (entry) => entry.file === 'work-record-edit-mcp-tools.json',
   );
-  assert.equal(workRecordRow.tool_count, 10);
+  assert.equal(workRecordRow.tool_count, 6);
 
-  assert.equal(
+  assert.deepEqual(
     manifest.fragments
       .filter((entry) => entry.file.startsWith('work-record-'))
-      .reduce((total, entry) => total + entry.tool_count, 0),
-    31,
+      .map((entry) => [entry.file, entry.tool_count]),
+    [['work-record-core-mcp-tools.json', 8], ['work-record-core-cli-tools.json', 7],
+      ['work-record-edit-mcp-tools.json', 6], ['work-record-edit-cli-tools.json', 6]],
   );
   assert.equal(
     manifest.expected_tool_count,
     manifest.fragments.reduce((total, entry) => total + entry.tool_count, 0),
   );
 
-  assert.equal(manifest.expected_tool_count, 174);
+  assert.equal(manifest.expected_tool_count, 111);
 });

@@ -10,8 +10,7 @@ import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import {
   failNoDeliveryEvidence,
   MANAGED_NO_DELIVERY_EVIDENCE_DIAGNOSTIC_CODES,
-  NO_DELIVERY_COMMIT_ID_RE,
-  NO_DELIVERY_DIAGNOSTIC_VALUE_MAX
+  NO_DELIVERY_COMMIT_ID_RE
 } from "./workspace-agent-dispatch-backend-managed-identity-diagnostics.mjs";
 
 export function createIndependentImplementationAttemptGate(ctx, seam) {
@@ -21,6 +20,58 @@ export function createIndependentImplementationAttemptGate(ctx, seam) {
     managedRunIdentityRoot,
     managedRunIdentityDeps
   } = ctx;
+
+  function resolveCommittedDeliveryIntegrationEvidence({ subject, tuple, pair, sliceRef, baseSha, tip }) {
+    const wkBranch = pair.wk_binding?.output_branch;
+    if (typeof wkBranch !== "string" || wkBranch.length === 0) {
+      failNoDeliveryEvidence(
+        MANAGED_NO_DELIVERY_EVIDENCE_DIAGNOSTIC_CODES.BINDING_UNRESOLVED,
+        "the reconstructed launcher binding pair carries no usable accumulated WK ref",
+        { detail: { subject, launch_ref: tuple.launch_ref } }
+      );
+    }
+    const wkRef = wkBranch.startsWith("refs/heads/") ? wkBranch : `refs/heads/${wkBranch}`;
+    let result;
+    try {
+      result = reviewContextRunGit({
+        repo: worktreeProvisioningConfig.mainRepo,
+        args: ["merge-base", "--is-ancestor", tip, `${wkRef}^{commit}`]
+      });
+    } catch (error) {
+      failNoDeliveryEvidence(
+        MANAGED_NO_DELIVERY_EVIDENCE_DIAGNOSTIC_CODES.GIT_UNRESOLVED,
+        "trusted Git containment of the committed slice delivery in the accumulated WK ref threw",
+        { detail: { subject, launch_ref: tuple.launch_ref, slice_ref: sliceRef, wk_ref: wkRef }, cause: error }
+      );
+    }
+    const notContained = result?.ok !== true && result?.status === 1 &&
+      (result.error ?? null) === null && (result.signal ?? null) === null;
+    if (result?.ok !== true && !notContained) {
+      failNoDeliveryEvidence(
+        MANAGED_NO_DELIVERY_EVIDENCE_DIAGNOSTIC_CODES.GIT_UNRESOLVED,
+        "trusted Git containment of the committed slice delivery in the accumulated WK ref failed",
+        {
+          detail: {
+            subject,
+            launch_ref: tuple.launch_ref,
+            slice_ref: sliceRef,
+            wk_ref: wkRef,
+            status: result?.status ?? null,
+            signal: result?.signal ?? null,
+            git_error: result?.error ?? null,
+            stderr: result?.stderr ?? null
+          }
+        }
+      );
+    }
+    return Object.freeze({
+      slice_ref: sliceRef,
+      base_sha: baseSha,
+      slice_tip_sha: tip,
+      wk_ref: wkRef,
+      integrated: result?.ok === true
+    });
+  }
 
   function resolveNoDeliveryRetirementEvidence(subject, tuple) {
     if (worktreeProvisioningConfig === null || managedRunIdentityRoot === null ||
@@ -96,7 +147,7 @@ export function createIndependentImplementationAttemptGate(ctx, seam) {
             subject,
             launch_ref: tuple.launch_ref,
             slice_ref: sliceRef,
-            resolved_output: tip.slice(0, NO_DELIVERY_DIAGNOSTIC_VALUE_MAX),
+            resolved_output: tip,
             resolved_output_length: tip.length,
             status: result.status ?? null,
             stderr: result.stderr ?? null
@@ -104,7 +155,14 @@ export function createIndependentImplementationAttemptGate(ctx, seam) {
         }
       );
     }
-    if (tip !== sliceBinding.base_sha) return { committed: true };
+    if (tip !== sliceBinding.base_sha) {
+      return {
+        committed: true,
+        evidence: resolveCommittedDeliveryIntegrationEvidence({
+          subject, tuple, pair, sliceRef, baseSha: sliceBinding.base_sha, tip
+        })
+      };
+    }
     return {
       committed: false,
       evidence: { slice_ref: sliceRef, base_sha: sliceBinding.base_sha, slice_tip_sha: tip }

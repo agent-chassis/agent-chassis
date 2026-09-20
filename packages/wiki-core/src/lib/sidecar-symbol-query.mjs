@@ -1,20 +1,23 @@
 import path from "node:path";
 
 import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
+import { assembleCallNavigationResult } from "./sidecar-call-query.mjs";
 import {
-  discoverSidecarGitState,
-  getSidecarIndexStatus,
-  resolveSidecarArtifactPath
-} from "./sidecar-status.mjs";
-import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
+  resolveCommittedSidecarSnapshot,
+  sameGraphSnapshot,
+  unavailableCommittedSnapshot
+} from "./sidecar-committed-preparation.mjs";
+import { readSidecarSymbolSelection } from "./sidecar-store.mjs";
+import { normalizeSidecarNavigationInput } from "./sidecar-navigation-input.mjs";
+import { projectNativeNavigation } from "./sidecar-navigation-projection.mjs";
+import { resolveNativeNavigation } from "./sidecar-navigation-resolution.mjs";
+import { assembleNativeNavigationResult } from "./sidecar-navigation-source-query.mjs";
 
 const SCIP_STATUS_NOT_CONFIGURED = "scip_not_configured";
 const SCIP_CALL_GRAPH_UNAVAILABLE = "scip_call_graph_unavailable";
-const SYMBOL_QUERY_POSITION_UNRESOLVED = "symbol_not_resolved_at_position";
-const SYMBOL_QUERY_POSITION_AMBIGUOUS = "ambiguous_symbol_at_position";
 const SYMBOL_QUERY_EXPLICIT_UNRESOLVED = "symbol_not_resolved";
 export const MCP_SYMBOL_QUERY_RESULT_LIMIT = 20;
-const POSITION_INDEX_EDGE_KINDS = new Set(["defines_symbol", "references_symbol"]);
+const CALL_QUERY_KINDS = new Set(["symbol_callers", "symbol_callees"]);
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -40,22 +43,6 @@ function symbolResultField(queryKind) {
   return null;
 }
 
-function compactSymbolResult(queryKind, entry) {
-  if (queryKind === "find_references" || queryKind === "definition") {
-    return {
-      symbol: entry?.symbol ?? null,
-      path: entry?.path ?? null,
-      line: entry?.line ?? null
-    };
-  }
-  return {
-    caller_symbol: entry?.caller_symbol ?? null,
-    callee_symbol: entry?.callee_symbol ?? null,
-    occurrence_count: entry?.occurrence_count ?? null,
-    lines: Array.isArray(entry?.lines) ? [...entry.lines] : []
-  };
-}
-
 function compactSymbolStatusReason(result, resolutionState) {
   const resolutionReason = result?.symbol_resolution?.status_reason;
   if (typeof resolutionReason === "string" && resolutionReason.length > 0) {
@@ -70,22 +57,23 @@ function compactSymbolStatusReason(result, resolutionState) {
     : result?.status_reason ?? "unknown";
 }
 
-function compactSymbolNextAction(result, queryKind, resolutionState, truncated) {
-  const callGraphQuery = queryKind === "symbol_callers" || queryKind === "symbol_callees";
+function compactSymbolNextAction(result, queryKind, resolutionState) {
+  const callGraphQuery = CALL_QUERY_KINDS.has(queryKind);
   if (
     result?.scip_state?.scip_available !== true ||
     result?.scip_state?.graph_available !== true ||
     (callGraphQuery && result?.scip_state?.call_graph_available === false)
   ) {
-    return "Build or rebuild the workspace code index with SCIP enabled, then retry this query.";
+    return "Automatic committed-HEAD preparation runs every required SCIP provider before it " +
+      "publishes, so an unavailable provider fails preparation instead of publishing incomplete " +
+      "coverage; provision the provider and retry. When no SCIP provider applies to the committed " +
+      "sources, symbol results stay unavailable. Status is read-only. Unsupported call " +
+      "attribution is not repaired by provisioning; use definition or reference results.";
   }
   if (resolutionState === "unresolved") {
     return "Retry with an exact SCIP symbol or a repo-relative path, 1-based line, and optional character.";
   }
-  if (truncated) {
-    return "Re-call with verbose:true to retrieve the full uncapped result envelope.";
-  }
-  return "Re-call with verbose:true for provider, coverage, canonical-ref, and derived-evidence detail.";
+  return null;
 }
 
 export function projectSidecarSymbolQueryForMcp(result, { verbose = false } = {}) {
@@ -96,12 +84,9 @@ export function projectSidecarSymbolQueryForMcp(result, { verbose = false } = {}
   const queryKind = result?.query_kind ?? null;
   const resultField = symbolResultField(queryKind);
   const allResults = resultField && Array.isArray(result?.[resultField]) ? result[resultField] : [];
-  const boundedResults = allResults
-    .slice(0, MCP_SYMBOL_QUERY_RESULT_LIMIT)
-    .map((entry) => compactSymbolResult(queryKind, entry));
-  const truncated = allResults.length > boundedResults.length;
+  const returned = Math.min(allResults.length, MCP_SYMBOL_QUERY_RESULT_LIMIT);
   const resolutionState = result?.symbol_resolution?.state ?? "unresolved";
-  const projection = {
+  return projectNativeNavigation(result, {
     query_kind: queryKind,
     verbose: false,
     symbol: result?.symbol ?? null,
@@ -114,76 +99,25 @@ export function projectSidecarSymbolQueryForMcp(result, { verbose = false } = {}
     },
     result_count: {
       total: allResults.length,
-      returned: boundedResults.length,
-      truncated
+      returned,
+      truncated: allResults.length > returned
     },
-    next_action: compactSymbolNextAction(result, queryKind, resolutionState, truncated)
-  };
-  if (resultField) {
-    projection[resultField] = boundedResults;
-  }
-  return projection;
-}
-
-function normalizeLine(value) {
-  if (value == null || value === "") {
-    return null;
-  }
-  const numeric = Number(value);
-  if (!Number.isInteger(numeric) || numeric < 1) {
-    throw new Error("symbol query line must be a positive 1-based integer");
-  }
-  return numeric;
-}
-
-function normalizeCharacter(value) {
-  if (value == null || value === "") {
-    return null;
-  }
-  const numeric = Number(value);
-  if (!Number.isInteger(numeric) || numeric < 0) {
-    throw new Error("symbol query character must be a non-negative integer");
-  }
-  return numeric;
-}
-
-function normalizePath(value) {
-  if (typeof value !== "string" || value.length === 0) {
-    return null;
-  }
-  return value.split(path.sep).join("/");
-}
-
-function normalizeSymbolQueryInput({ symbol = null, path: inputPath = null, line = null, character = null } = {}) {
-  const normalizedSymbol = typeof symbol === "string" && symbol.length > 0 ? symbol : null;
-  const normalizedPath = normalizePath(inputPath);
-  const normalizedLine = normalizeLine(line);
-  const normalizedCharacter = normalizeCharacter(character);
-  if (!normalizedSymbol && (!normalizedPath || normalizedLine == null)) {
-    throw new Error("symbol query requires either --symbol <symbol> or --path <path> --line <line>");
-  }
-  return {
-    symbol: normalizedSymbol,
-    path: normalizedPath,
-    line: normalizedLine,
-    character: normalizedCharacter
-  };
-}
-
-async function readArtifactFromStatus({ repoRoot, status, cacheDir }) {
-  if (!status.artifact_exists || status.staleness === "missing") {
-    return null;
-  }
-  const artifactPaths = resolveSidecarArtifactPath({
-    repoRoot,
-    cacheDir: cacheDir || status.cache_path,
-    artifactFile: path.posix.basename(status.artifact_path || "index.json")
+    next_action: compactSymbolNextAction(result, queryKind, resolutionState)
   });
-  try {
-    return (await readSidecarArtifactBytes(artifactPaths.artifactPath)).artifact;
-  } catch {
-    return null;
-  }
+}
+
+function layerFromStore(selection) {
+  const coverage = selection.publication.provider_coverage ?? {};
+  return {
+    scip_available: coverage.scip_available === true,
+    graph_available: coverage.graph_available === true,
+    call_graph_available: coverage.call_graph_available === true,
+    status_reason: coverage.status_reason ?? SCIP_STATUS_NOT_CONFIGURED,
+    ...(coverage.error_reason ? { error_reason: coverage.error_reason } : {}),
+    coverage: cloneJson(coverage),
+    provider_descriptors: selection.providers.map(({ descriptor }) => cloneJson(descriptor)),
+    graph_edges: selection.symbol_edges.map(({ payload }) => cloneJson(payload))
+  };
 }
 
 function providerDescriptorsForLayer(layer) {
@@ -238,258 +172,6 @@ function createCallGraphUnavailableState(layer, statusReason = SCIP_CALL_GRAPH_U
   };
 }
 
-function callsSymbolTarget(edge) {
-  return typeof edge?.to_node_id === "string" && edge.to_node_id.startsWith("symbol:")
-    ? edge.to_node_id.slice("symbol:".length)
-    : null;
-}
-
-function callsSymbolSource(edge) {
-  return typeof edge?.from_node_id === "string" && edge.from_node_id.startsWith("symbol:")
-    ? edge.from_node_id.slice("symbol:".length)
-    : null;
-}
-
-function pushMapArray(map, key, value) {
-  if (!map.has(key)) {
-    map.set(key, []);
-  }
-  map.get(key).push(value);
-}
-
-function buildSymbolIndexes(layer) {
-  const nodesById = new Map();
-  for (const node of Array.isArray(layer?.graph_nodes) ? layer.graph_nodes : []) {
-    if (typeof node?.id === "string") {
-      nodesById.set(node.id, node);
-    }
-  }
-
-  const definesBySymbol = new Map();
-  const referencesBySymbol = new Map();
-  const callsByCalleeSymbol = new Map();
-  const callsByCallerSymbol = new Map();
-  const edgesByPosition = [];
-  for (const edge of Array.isArray(layer?.graph_edges) ? layer.graph_edges : []) {
-    if (!isPlainObject(edge)) {
-      continue;
-    }
-
-    if (edge.kind === "calls_symbol") {
-      const callerSymbol = callsSymbolSource(edge);
-      const calleeSymbol = callsSymbolTarget(edge);
-      if (callerSymbol && calleeSymbol) {
-        pushMapArray(callsByCallerSymbol, callerSymbol, edge);
-        pushMapArray(callsByCalleeSymbol, calleeSymbol, edge);
-      }
-      continue;
-    }
-
-    if (!POSITION_INDEX_EDGE_KINDS.has(edge.kind)) {
-      continue;
-    }
-
-    const symbol = callsSymbolTarget(edge);
-    if (!symbol) {
-      continue;
-    }
-
-    if (edge.kind === "defines_symbol") {
-      pushMapArray(definesBySymbol, symbol, edge);
-    }
-    if (edge.kind === "references_symbol") {
-      pushMapArray(referencesBySymbol, symbol, edge);
-    }
-    if (typeof edge.path === "string" && typeof edge.line === "number") {
-      edgesByPosition.push({ symbol, edge });
-    }
-  }
-
-  return {
-    nodesById,
-    definesBySymbol,
-    referencesBySymbol,
-    callsByCalleeSymbol,
-    callsByCallerSymbol,
-    edgesByPosition
-  };
-}
-
-function numberValue(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function edgeStartCharacter(edge) {
-  return numberValue(edge.character) ?? numberValue(edge.start_character) ?? numberValue(edge.startCharacter);
-}
-
-function edgeEndCharacter(edge) {
-  return numberValue(edge.end_character) ?? numberValue(edge.endCharacter);
-}
-
-function edgeMatchesCharacter(edge, character) {
-  const start = edgeStartCharacter(edge);
-  if (start == null) {
-    return false;
-  }
-  const end = edgeEndCharacter(edge);
-  if (end == null || end < start) {
-    return start === character;
-  }
-  return start <= character && character < end;
-}
-
-function positionCandidate(entry) {
-  const start = edgeStartCharacter(entry.edge);
-  const end = edgeEndCharacter(entry.edge);
-  return {
-    symbol: entry.symbol,
-    edge_id: entry.edge.id ?? null,
-    path: entry.edge.path,
-    line: entry.edge.line,
-    ...(start != null ? { character: start } : {}),
-    ...(end != null ? { end_character: end } : {})
-  };
-}
-
-function uniqueCandidatesBySymbol(candidates) {
-  const bySymbol = new Map();
-  for (const candidate of candidates) {
-    if (!bySymbol.has(candidate.symbol)) {
-      bySymbol.set(candidate.symbol, candidate);
-    }
-  }
-  return [...bySymbol.values()];
-}
-
-function unresolvedPositionResolution(input, statusReason, candidates = []) {
-  return {
-    symbol: null,
-    resolution: {
-      kind: "path_position",
-      state: "unresolved",
-      status_reason: statusReason,
-      path: input.path,
-      line: input.line,
-      character: input.character,
-      ...(candidates.length > 0 ? { candidates } : {})
-    }
-  };
-}
-
-function resolvedPosition(candidate, input, positionGranularity) {
-  return {
-    symbol: candidate.symbol,
-    resolution: {
-      kind: "path_position",
-      state: "resolved",
-      path: input.path,
-      line: input.line,
-      character: input.character,
-      edge_id: candidate.edge.id,
-      position_granularity: positionGranularity
-    }
-  };
-}
-
-function resolveSymbolFromInput(input, indexes) {
-  if (input.symbol) {
-    const node = indexes.nodesById.get(`symbol:${input.symbol}`) || null;
-    return {
-      symbol: input.symbol,
-      resolution: {
-        kind: "explicit_symbol",
-        state: node?.resolution?.state || "unresolved"
-      }
-    };
-  }
-
-  const lineCandidates = indexes.edgesByPosition.filter(
-    (entry) => entry.edge.path === input.path && entry.edge.line === input.line
-  );
-  if (lineCandidates.length === 0) {
-    return unresolvedPositionResolution(input, SYMBOL_QUERY_POSITION_UNRESOLVED);
-  }
-
-  if (input.character != null) {
-    const characterMatches = lineCandidates.filter((entry) =>
-      edgeMatchesCharacter(entry.edge, input.character)
-    );
-    const uniqueCharacterMatches = uniqueCandidatesBySymbol(characterMatches);
-    if (uniqueCharacterMatches.length === 1) {
-      return resolvedPosition(characterMatches[0], input, "character");
-    }
-    if (uniqueCharacterMatches.length > 1) {
-      return unresolvedPositionResolution(
-        input,
-        SYMBOL_QUERY_POSITION_AMBIGUOUS,
-        uniqueCharacterMatches.map(positionCandidate)
-      );
-    }
-  }
-
-  const uniqueLineCandidates = uniqueCandidatesBySymbol(lineCandidates);
-  if (uniqueLineCandidates.length === 1) {
-    return resolvedPosition(lineCandidates[0], input, "line");
-  }
-
-  return unresolvedPositionResolution(
-    input,
-    SYMBOL_QUERY_POSITION_AMBIGUOUS,
-    uniqueLineCandidates.map(positionCandidate)
-  );
-}
-
-function resultEntryForEdge(edge, { symbol, node, layer }) {
-  const providerDescriptor =
-    edge.provider_descriptor || node?.provider_descriptor || providerDescriptorsForLayer(layer)[0] || null;
-  const resolution = edge.resolution || node?.resolution || { state: "unresolved" };
-  const coverage = edge.coverage || node?.coverage || layer.coverage || null;
-  return {
-    symbol,
-    edge_id: edge.id ?? null,
-    path: edge.path ?? null,
-    line: typeof edge.line === "number" ? edge.line : null,
-    resolution: cloneJson(resolution),
-    provider_descriptor: providerDescriptor ? cloneJson(providerDescriptor) : null,
-    coverage: coverage ? cloneJson(coverage) : null,
-    provenance: edge.provenance ? cloneJson(edge.provenance) : provenance()
-  };
-}
-
-function resultEntryForCallEdge(edge, { layer }) {
-  const callerSymbol = callsSymbolSource(edge);
-  const calleeSymbol = callsSymbolTarget(edge);
-  const graphNodes = Array.isArray(layer?.graph_nodes) ? layer.graph_nodes : [];
-  const callerNode = callerSymbol
-    ? graphNodes.find((node) => node?.id === `symbol:${callerSymbol}`)
-    : null;
-  const calleeNode = calleeSymbol
-    ? graphNodes.find((node) => node?.id === `symbol:${calleeSymbol}`)
-    : null;
-  const providerDescriptor =
-    edge.provider_descriptor ||
-    callerNode?.provider_descriptor ||
-    calleeNode?.provider_descriptor ||
-    providerDescriptorsForLayer(layer)[0] ||
-    null;
-  const resolution = edge.resolution || calleeNode?.resolution || callerNode?.resolution || { state: "unresolved" };
-  const coverage = edge.coverage || calleeNode?.coverage || callerNode?.coverage || layer?.coverage || null;
-  return {
-    edge_id: edge.id ?? null,
-    caller_symbol: callerSymbol,
-    callee_symbol: calleeSymbol,
-    from_node_id: edge.from_node_id ?? null,
-    to_node_id: edge.to_node_id ?? null,
-    occurrence_count: typeof edge.occurrence_count === "number" ? edge.occurrence_count : null,
-    lines: Array.isArray(edge.lines) ? [...edge.lines] : [],
-    resolution: cloneJson(resolution),
-    provider_descriptor: providerDescriptor ? cloneJson(providerDescriptor) : null,
-    coverage: coverage ? cloneJson(coverage) : null,
-    provenance: edge.provenance ? cloneJson(edge.provenance) : provenance()
-  };
-}
-
 function createSymbolQueryEnvelope({
   status,
   layer,
@@ -500,7 +182,8 @@ function createSymbolQueryEnvelope({
   definitions = [],
   callers = [],
   callees = [],
-  scipStateOverride = null
+  scipStateOverride = null,
+  navigation
 }) {
   const scipState = scipStateOverride || createScipUnavailableState(layer);
   return createSidecarResultEnvelope({
@@ -529,6 +212,7 @@ function createSymbolQueryEnvelope({
     artifact_exists: status.artifact_exists,
     artifact_schema_version: status.artifact_schema_version,
     expected_artifact_schema_version: status.expected_artifact_schema_version,
+    graph_snapshot: cloneJson(status.graph_snapshot),
     status_reason: status.status_reason,
     query_kind: queryKind,
     input,
@@ -541,6 +225,11 @@ function createSymbolQueryEnvelope({
     definitions,
     callers,
     callees,
+    ...(navigation.call_attribution ? { call_attribution: navigation.call_attribution } : {}),
+    symbol_facts: navigation.symbol_facts,
+    source_hits: navigation.source_hits,
+    context_regions: navigation.context_regions,
+    complete_files: navigation.complete_files,
     summary: {
       kind: "sidecar_symbol_query_summary",
       query_kind: queryKind,
@@ -550,7 +239,11 @@ function createSymbolQueryEnvelope({
         references: references.length,
         definitions: definitions.length,
         callers: callers.length,
-        callees: callees.length
+        callees: callees.length,
+        candidates: symbolResolution.resolution.candidates.length,
+        source_hits: navigation.source_hits.length,
+        context_regions: navigation.context_regions.length,
+        complete_files: navigation.complete_files.length
       },
       state: {
         dirty_state: status.dirty_state,
@@ -562,15 +255,6 @@ function createSymbolQueryEnvelope({
 }
 
 function callGraphAvailability(layer) {
-  if (!layer) {
-    return { available: false, statusReason: SCIP_STATUS_NOT_CONFIGURED };
-  }
-  if (layer.scip_available !== true || layer.graph_available === false) {
-    return {
-      available: false,
-      statusReason: layer.status_reason || "scip_indexer_unavailable"
-    };
-  }
   const explicitAvailable = layer.call_graph_available ?? layer.coverage?.call_graph_available;
   if (explicitAvailable === true) {
     return { available: true, statusReason: layer.status_reason || "scip_extracted" };
@@ -584,223 +268,80 @@ function callGraphAvailability(layer) {
         SCIP_CALL_GRAPH_UNAVAILABLE
     };
   }
-  const hasCallsSymbolEdges = (Array.isArray(layer.graph_edges) ? layer.graph_edges : []).some(
-    (edge) => edge?.kind === "calls_symbol"
-  );
-  if (hasCallsSymbolEdges) {
-    return { available: true, statusReason: layer.status_reason || "scip_extracted" };
-  }
-  return { available: false, statusReason: SCIP_CALL_GRAPH_UNAVAILABLE };
+  const hasCallsSymbolEdges = layer.graph_edges.some((edge) => edge?.kind === "calls_symbol");
+  return hasCallsSymbolEdges
+    ? { available: true, statusReason: layer.status_reason || "scip_extracted" }
+    : { available: false, statusReason: SCIP_CALL_GRAPH_UNAVAILABLE };
 }
 
-function unavailableEnvelope({ status, layer = null, queryKind, input, statusReason }) {
-  return createSymbolQueryEnvelope({
-    status,
-    layer: layer || {
-      scip_available: false,
-      graph_available: false,
-      status_reason: statusReason,
-      graph_nodes: [],
-      graph_edges: [],
-      coverage: null
-    },
-    queryKind,
-    input,
-    symbolResolution: {
-      symbol: input.symbol,
-      resolution: {
-        kind: input.symbol ? "explicit_symbol" : "path_position",
-        state: "unresolved",
-        status_reason: statusReason
-      }
-    }
+async function selectCommittedSymbols({ dir, cacheDir, input }) {
+  const prepared = await resolveCommittedSidecarSnapshot({
+    dir: path.resolve(String(dir || ".")),
+    cacheDir,
+    dirtyState: true
   });
+  if (!prepared.available) throw unavailableCommittedSnapshot(prepared.outcome, prepared.status);
+  const selection = readSidecarSymbolSelection({ repoRoot: prepared.repoRoot, cacheDir,
+    symbol: input.symbol, documentPath: input.path });
+  if (!sameGraphSnapshot(selection.publication, prepared.graph_snapshot)) {
+    throw unavailableCommittedSnapshot("repository_snapshot_changed", prepared.status);
+  }
+  return { status: prepared.status, selection, repoRoot: prepared.repoRoot };
 }
 
-async function buildSymbolQuery({
-  dir = ".",
-  cacheDir = undefined,
-  queryKind,
-  symbol = null,
-  path: inputPath = null,
-  line = null,
-  character = null
-} = {}) {
-  const input = normalizeSymbolQueryInput({ symbol, path: inputPath, line, character });
-  const targetDir = path.resolve(String(dir || "."));
-  const status = await getSidecarIndexStatus({ dir: targetDir, cacheDir });
-  const gitState = await discoverSidecarGitState(targetDir);
-  const artifact = await readArtifactFromStatus({ repoRoot: gitState.repoRoot, status, cacheDir });
-  const layer = artifact?.scip_overlay ?? null;
-
-  if (!layer) {
-    return unavailableEnvelope({
-      status,
-      queryKind,
-      input,
-      statusReason: SCIP_STATUS_NOT_CONFIGURED
-    });
-  }
+async function buildNavigationQuery(options, queryKind) {
+  const input = normalizeSidecarNavigationInput(options);
+  const publicInput = { symbol: input.symbol ?? null, path: input.path ?? null,
+    line: input.line ?? null, character: input.character ?? null };
+  const { status, selection, repoRoot } = await selectCommittedSymbols({ dir: input.dir,
+    cacheDir: input.cacheDir, input: publicInput });
+  const layer = layerFromStore(selection);
+  const callQuery = CALL_QUERY_KINDS.has(queryKind);
   if (layer.scip_available !== true || layer.graph_available === false) {
-    return unavailableEnvelope({
-      status,
-      layer,
-      queryKind,
-      input,
-      statusReason: layer.status_reason || "scip_indexer_unavailable"
-    });
+    const statusReason = layer.status_reason || "scip_indexer_unavailable";
+    return createSymbolQueryEnvelope({ status, layer, queryKind, input: publicInput,
+      symbolResolution: { symbol: publicInput.symbol, resolution: {
+        kind: publicInput.symbol ? "explicit_symbol" : "path_position", state: "unresolved",
+        status_reason: statusReason, candidates: [] } },
+      navigation: { symbol_facts: [], source_hits: [], context_regions: [], complete_files: [] },
+      scipStateOverride: callQuery ? createCallGraphUnavailableState(layer, statusReason) : null });
   }
-
-  const indexes = buildSymbolIndexes(layer);
-  const symbolResolution = resolveSymbolFromInput(input, indexes);
-  if (!symbolResolution.symbol) {
-    return createSymbolQueryEnvelope({
-      status,
-      layer,
-      queryKind,
-      input,
-      symbolResolution
-    });
+  const navigation = resolveNativeNavigation({ input, selection });
+  if (callQuery) {
+    const availability = callGraphAvailability(layer);
+    const answer = await assembleCallNavigationResult({ repoRoot, selection, navigation, queryKind,
+      callGraphAvailable: availability.available });
+    return createSymbolQueryEnvelope({ status, layer, queryKind, input: publicInput,
+      symbolResolution: { symbol: answer.symbol, resolution: answer.symbol_resolution },
+      callers: answer.callers, callees: answer.callees, navigation: answer,
+      scipStateOverride: availability.available ? null
+        : createCallGraphUnavailableState(layer, availability.statusReason) });
   }
-
-  const node = indexes.nodesById.get(`symbol:${symbolResolution.symbol}`) || null;
-  const definitions = (indexes.definesBySymbol.get(symbolResolution.symbol) || [])
-    .map((edge) => resultEntryForEdge(edge, { symbol: symbolResolution.symbol, node, layer }))
-    .sort((left, right) => `${left.path}:${left.line}`.localeCompare(`${right.path}:${right.line}`));
-  const references = (indexes.referencesBySymbol.get(symbolResolution.symbol) || [])
-    .map((edge) => resultEntryForEdge(edge, { symbol: symbolResolution.symbol, node, layer }))
-    .sort((left, right) => `${left.path}:${left.line}`.localeCompare(`${right.path}:${right.line}`));
-
+  const answer = await assembleNativeNavigationResult({ repoRoot, selection, queryKind, navigation });
   return createSymbolQueryEnvelope({
     status,
     layer,
     queryKind,
-    input,
-    symbolResolution,
-    references: queryKind === "find_references" ? references : [],
-    definitions
+    input: publicInput,
+    symbolResolution: { symbol: answer.symbol, resolution: answer.symbol_resolution },
+    references: answer.references,
+    definitions: answer.definitions,
+    navigation: answer
   });
-}
-
-async function buildSymbolCallQuery({
-  dir = ".",
-  cacheDir = undefined,
-  queryKind,
-  symbol = null,
-  path: inputPath = null,
-  line = null,
-  character = null
-} = {}) {
-  const input = normalizeSymbolQueryInput({ symbol, path: inputPath, line, character });
-  const targetDir = path.resolve(String(dir || "."));
-  const status = await getSidecarIndexStatus({ dir: targetDir, cacheDir });
-  const gitState = await discoverSidecarGitState(targetDir);
-  const artifact = await readArtifactFromStatus({ repoRoot: gitState.repoRoot, status, cacheDir });
-  const layer = artifact?.scip_overlay ?? null;
-
-  if (!layer) {
-    return createSymbolQueryEnvelope({
-      status,
-      layer: {
-        scip_available: false,
-        graph_available: false,
-        status_reason: SCIP_STATUS_NOT_CONFIGURED,
-        graph_nodes: [],
-        graph_edges: [],
-        coverage: null
-      },
-      queryKind,
-      input,
-      symbolResolution: {
-        symbol: input.symbol,
-        resolution: {
-          kind: input.symbol ? "explicit_symbol" : "path_position",
-          state: "unresolved",
-          status_reason: SCIP_STATUS_NOT_CONFIGURED
-        }
-      },
-      scipStateOverride: createCallGraphUnavailableState(null, SCIP_STATUS_NOT_CONFIGURED)
-    });
-  }
-
-  const indexes = buildSymbolIndexes(layer);
-  const symbolResolution =
-    layer.scip_available === true && layer.graph_available !== false
-      ? resolveSymbolFromInput(input, indexes)
-      : {
-          symbol: input.symbol,
-          resolution: {
-            kind: input.symbol ? "explicit_symbol" : "path_position",
-            state: "unresolved",
-            status_reason: layer.status_reason || "scip_indexer_unavailable"
-          }
-        };
-  const availability = callGraphAvailability(layer);
-  if (!availability.available) {
-    return createSymbolQueryEnvelope({
-      status,
-      layer,
-      queryKind,
-      input,
-      symbolResolution: {
-        ...symbolResolution,
-        resolution: {
-          ...symbolResolution.resolution,
-          status_reason: availability.statusReason
-        }
-      },
-      scipStateOverride: createCallGraphUnavailableState(layer, availability.statusReason)
-    });
-  }
-  if (!symbolResolution.symbol) {
-    return createSymbolQueryEnvelope({
-      status,
-      layer,
-      queryKind,
-      input,
-      symbolResolution
-    });
-  }
-
-  const edges =
-    queryKind === "symbol_callers"
-      ? indexes.callsByCalleeSymbol.get(symbolResolution.symbol) || []
-      : indexes.callsByCallerSymbol.get(symbolResolution.symbol) || [];
-  const results = edges
-    .map((edge) => resultEntryForCallEdge(edge, { layer }))
-    .sort((left, right) =>
-      `${left.caller_symbol}->${left.callee_symbol}:${left.edge_id}`.localeCompare(
-        `${right.caller_symbol}->${right.callee_symbol}:${right.edge_id}`
-      )
-    );
-
-  return createSymbolQueryEnvelope({
-    status,
-    layer,
-    queryKind,
-    input,
-    symbolResolution,
-    callers: queryKind === "symbol_callers" ? results : [],
-    callees: queryKind === "symbol_callees" ? results : []
-  });
-}
-
-function normalizeOptions(options) {
-  return typeof options === "string" ? { symbol: options } : options;
 }
 
 export async function getSidecarSymbolReferences(options = {}) {
-  return buildSymbolQuery({ ...options, queryKind: "find_references" });
+  return buildNavigationQuery(options, "find_references");
 }
 
 export async function getSidecarSymbolDefinition(options = {}) {
-  return buildSymbolQuery({ ...options, queryKind: "definition" });
+  return buildNavigationQuery(options, "definition");
 }
 
 export async function getSidecarSymbolCallers(options = {}) {
-  return buildSymbolCallQuery({ ...normalizeOptions(options), queryKind: "symbol_callers" });
+  return buildNavigationQuery(options, "symbol_callers");
 }
 
 export async function getSidecarSymbolCallees(options = {}) {
-  return buildSymbolCallQuery({ ...normalizeOptions(options), queryKind: "symbol_callees" });
+  return buildNavigationQuery(options, "symbol_callees");
 }

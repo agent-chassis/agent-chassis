@@ -1,0 +1,1531 @@
+{
+  "tool_version": "controlled-contract-proof-pack-adequacy-check.experimental.v0.2",
+  "authority": {
+    "kind": "experimental_local",
+    "authoritative": false
+  },
+  "pack": {
+    "profile_id": "proof.authentication.direct-source-provenance",
+    "profile_version": "3.0.0",
+    "profile_digest": "adffdeaf325200028dac059d7f6aba82f50a7e40f1e6d73cc9dfa3fb0fcbe841",
+    "guarantee_digest": "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81",
+    "adequacy_digest": "daa85571bc53ad4130e036b3405389fa730f3776e1e15bf714ce4a8ad36f580f"
+  },
+  "passed": true,
+  "control_count": 75,
+  "negative_fixture_count": 1,
+  "coverage_witness_count": 74,
+  "diagnostics": [],
+  "observations": {
+    "schema_version": "controlled-contract-proof-pack-adequacy-run.experimental.v0.1",
+    "profile_id": "proof.authentication.direct-source-provenance",
+    "profile_version": "3.0.0",
+    "profile_digest": "adffdeaf325200028dac059d7f6aba82f50a7e40f1e6d73cc9dfa3fb0fcbe841",
+    "guarantee_digest": "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81",
+    "controls": [
+      {
+        "control_id": "state-resource-event",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "artifact-actor-process",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "unicode-grounded-identities",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "alternative-verification-method",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "declaration-order-variant",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "harmless-unrelated-evidence",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "canonical-record-state",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "authenticated-response",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "signed-artifact-manifest",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "persisted-record",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "delegated-issuer-provenance-root-stable",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "multiple-independent-authenticators",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "one-source-many-target-occurrences",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "source-migration-distinct-attempts",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "reusable-artifact-substituted-for-occurrence",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "caller-invented-occurrence-identity",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "identical-bytes-replayed-under-another-attempt",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "correct-bytes-wrong-target",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "correct-target-wrong-source",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "source-capture-substitution",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "stale-digest-attack",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "derived-evidence-as-direct",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "self-authored-unrelated-source-key",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "fabricated-target-resolution-proof",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "fabricated-source-authentication-proof",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "fabricated-source-of-record-proof",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "fabricated-attempt-binding-proof",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "fabricated-aggregate-authentication-proof",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-authenticates-relation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-originates-from-relation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-source-of-record-relation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-observed-in-relation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-verifies-edge",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "retargeted-verifies-edge",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "unrelated-falsifier",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "wrong-scope-falsifier",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "wrong-observation-attempt",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "source-differs-from-source-of-record",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "incomplete-target-population",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "incomplete-source-population",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "fabricated-resolver-fact",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-missing-authenticates-relation",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-missing-originates-from-relation",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-missing-source-of-record-relation",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-missing-observed-in-relation",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-missing-verifies-edge",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-retargeted-verifies-edge",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reject-unrelated-falsifier",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "reject-wrong-scope-falsifier",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "reject-wrong-observation-attempt",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "reject-source-differs-from-source-of-record",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "reject-incomplete-target-population",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "reject-incomplete-source-population",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "reject-fabricated-resolver-fact",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "redigested-delete-evidence-authenticates-target-bundle",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-delete-evidence-originates-from-source-bundle",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-delete-target-has-source-of-record-bundle",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-delete-evidence-observed-in-attempt-bundle",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-delete-target-population-closure",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-delete-source-population-closure",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-delete-scoped-distinctness",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-weaken-capture-cardinality",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-weaken-authentication-modality",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-broaden-satisfaction-expression",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-split-shared-source-role",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-split-shared-attempt-role",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "redigested-target-falsifier-applicability-split-refused",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "authorship-issuance-or-authorization",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "ownership-containment-or-decision-authority",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "generic-integrity-or-runtime-truth",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "caller-honesty-or-source-discovery-completeness",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "freshness-beyond-the-bound-observation-attempt",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "derived-copied-or-transformed-evidence",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "provenance-outside-the-complete-selected-source-population",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "runtime-evidence-cce-or-publication-authority",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      }
+    ]
+  },
+  "negative_fixture_results": [
+    {
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "outcome": "rejected",
+      "variation_assessment": {
+        "index_version": "controlled-contract-proof-pack-variation-index.experimental.v0.2",
+        "mode": "full_census",
+        "total_expanded_variants": 74,
+        "structurally_discharged_count": 0,
+        "evaluated_count": 74
+      },
+      "variant_results": [
+        {
+          "variant_id": "reject-claim-evidence-authenticates-target-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "44da0b7f194dcd1ba064d3a1cba2b4a76a22417bb1a86e7df4cf3814799afe91"
+        },
+        {
+          "variant_id": "reject-claim-evidence-observed-in-attempt-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "a035176bedc0fc3fb1170f1e971cfa0a16f4e26e45e6a8a51871a4fbf6f2691f"
+        },
+        {
+          "variant_id": "reject-claim-evidence-originates-from-source-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "9d4c8492f4d5566575363804cd03d1aa368919646e697a10ef6b591cfc67e4d6"
+        },
+        {
+          "variant_id": "reject-claim-patterns",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4b9936151d2e6200f10792cab7e3f9bb29592af7192808445ed3d0d496af3bce"
+        },
+        {
+          "variant_id": "reject-claim-target-has-source-of-record-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "ff7154a7e5323c7608e2662d9bf90181cbc308c3ccc1aca71ef211feda7bbcd1"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "d842392d7bb0a1759661755bc0a0894d3e71d54541bff02c8d0ec2658c820052"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "346d9e41bb61279a04d76ef4f86cd33b34e88adf6e88951ec156b0472e8cc699"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-1-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "ab07f47ac07bea3dd231babf81ae8ea46267c4079e8c9cd0724dfdb87db8a95d"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-2-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "d5c845d3f4a49d591026b748dba96011e4bf657bdf0863da1150288e6278826a"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-3-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "5fdddeee01641d27b8b631015a08f65690d9116224f7b8db2d9305876d7e27e6"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-4-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "cc96222d9549a577d7f67d263bcc03e72e584362f24e235ede9ea711819f7f85"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-5-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "dba9a6773ce13f1ab66b7fd7a5235b7884b8f216d29cb61f4716ebb7044827f7"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-6-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "ed3d9a9b62489571e9caaaebf549bb47ac148fed9e186bac4c47fefbc6561717"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "826cf8caf0d07f66a8ba598d6302f1619a2e6f621699a65b7b045cfd5709d86d"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "2e34f624b9825b102d7023573c3249f9f7eed6e9b5778ea08683431aabde6086"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-authenticates-target-verification-methods",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "09200cbbe22d55d280cf460f2d7dbbfaaf341a03dba0c0869c45522475d6cec5"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "754e83c72b40c8f5aa24b052893c348db0c6d559bb3902ace4c20bd66aafa433"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "76a7dce860917a4b46417d3b70afb778f15eea4f005a02a446b0b0e2cad3112a"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-1-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "bf27c67021a8b15e8073cbc9692965fffcb65e3f9f96c19427f568bb9d993719"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-2-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "598bb8945ce3fd03b55b3495e100fd2659c8a8f03674d3f1aa4628dadf812105"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-3-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "da34e7d34991c187554a9b0d96ef56195d1cc9aac0df6f75fb3eca93936db1de"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-4-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "01a72295178e431ab63a1e470a0098add6df5a88617a8a6787c69c3764909552"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-5-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "0a86e475b5129443a6e01022e2326b3c36e52c80a81143035eec4d1cfa67c502"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-6-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "23c052ab9915e8945184b8106bac0fccf9110dde1c405ccf4fc0af40209f1cbb"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "a93a2b0d2e6cd2f861530203468653dfaba9df767c5d486e51de8ca5713501ec"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4f71c20187347eacfaf5d325ae86fa94b7ca059ad4f923eb89e5e1e3f84108f2"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-observed-in-attempt-verification-methods",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "40d59cb41989de2ae642cc40fc2abacb67ac80bb2c31b4352d1da0bb11530050"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "125e0030aa1efc887c9e6636dd602d1428089efb501fb6fc81036b785d218fd8"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "ccf97603c93ed802169ccf30d7ae8cee742becd838b00badbe06e75f1946b90f"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-1-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "b0bda74bd5cbe021fe80eb886217af226a1e9018f71caa40ca8b9fde38f2d327"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-2-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "1188299cebbea85af194fff7521fea91f2fc54c193f25689434c5cd2a16b01a5"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-3-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "113f49504cac0d9ed7b1f5949ff95def6f0066ac86dd480b6541ec0156d5b4e7"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-4-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "fa1f615cc702d887669561a6c1d5a025045b0ffa4efbbd1ff76ede0f6c004d80"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-5-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "01e7823c06789cede6ec129beb7e821822164eaf9f89a646261e341a368152b6"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-6-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "da68dcc4d0643ee868be7a0ac2a91760cedbd7346f062cf6efa5b44326d63986"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "5f644b4bf48a19d4c7fd8ef4cba90c5097649e995a22015ba21888ff089847d8"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "8d06b703753ef3808f0a083c5b52423691bdb571c03f7849911dd24d9ee2a1e6"
+        },
+        {
+          "variant_id": "reject-claim-verify-evidence-originates-from-source-verification-methods",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "98a5b9e514179b06bb4e35d9bb5b02fd611a777ae99f1e2c7310d2aead91cb6a"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "ba9741c8776fe0e5b1614dc58181f9212bb5d836eb5093133e213e8d59439236"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "a68e3c036e2d551da59f806fa00d59ece8c7254274d253ebb7156502200e1470"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-1-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "c9a7ac4c9580dbd3824e93a0eeec9b2ebea04ca68dbf2cfa74b52437a9a60064"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-2-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "5a36889ba4fe058ea097b35f9035c097735137371c0af9e8022c21bd35a63cd7"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-3-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "290d88a38d45448617a29d9c514a081666c6f82c7ba8fec87f996d5f55e6fd0e"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-4-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "2597e2b290693c28fb1a7ecd5a4a2a6688807c94b6e7c333202f7d39f6e74e8d"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-5-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "137e26798d687659b547736124300bb7fc16ee8a80c7c791bc0eecaf6fe16054"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-6-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "f6dfa4d78db331f6db5b77aa8007f1cbf710d113576b01e80eb0cc8d44760796"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "89be9dafb2479c606ecdbcb8d1feef53b8ca4ff50824c2bb6b7a0e558af55115"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "7ae91fe365a3530d8b8eac05a07f2d756dbea82f8e7bb117b71f860f90de1a2d"
+        },
+        {
+          "variant_id": "reject-claim-verify-target-has-source-of-record-verification-methods",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "c5f7e16b42f44442009206efcb226627b3bcfa31f0f5dd1ad51f707b57821bf9"
+        },
+        {
+          "variant_id": "reject-distinct-reference-role-sets",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "db89f72063f44f5e6c2f845c02d132ddea19b59187b93ac2bfa5370e5397d00b"
+        },
+        {
+          "variant_id": "reject-falsifier-condition-bindings",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4b9936151d2e6200f10792cab7e3f9bb29592af7192808445ed3d0d496af3bce"
+        },
+        {
+          "variant_id": "reject-reference-binding-patterns",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "e0d035dea817a71505edd4c00502841f9b330099b6de28abb1620fa89ead7c0c"
+        },
+        {
+          "variant_id": "reject-relation-patterns",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4b9936151d2e6200f10792cab7e3f9bb29592af7192808445ed3d0d496af3bce"
+        },
+        {
+          "variant_id": "reject-role-attempt-binding-witness-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "78e667ac6e7f24f4d71051138166af3f2904d35f6ee6ee336bc6c9e3be6fdee4"
+        },
+        {
+          "variant_id": "reject-role-attempt-binding-witness-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "907539419de1057d160d10655c35fa1ec6ab6d2919e06b2f2eb335a541ff5944"
+        },
+        {
+          "variant_id": "reject-role-authentication-verification-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "c2dbb0f763b42403c7a671b7145e83092e8ee0bc1b1f0472ab97f3506407e54d"
+        },
+        {
+          "variant_id": "reject-role-authentication-witness-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "4fe263bfb6902eddd85501f81cb3683e34837b52127dc71ae57e78508ab362c9"
+        },
+        {
+          "variant_id": "reject-role-authentication-witness-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "3bc07f8218f65a66c6837c541dc71169230322fbfd0b63f6712f8851e9b85c61"
+        },
+        {
+          "variant_id": "reject-role-evidence-content-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "7f0a28633802c170e8b098b14748a200c5c02a253c097781cb51abe17d3d749b"
+        },
+        {
+          "variant_id": "reject-role-evidence-content-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "fa9f7a7e8c5eeadb02004abcee9077d8a1b944732cc1795c06eb1c753137540f"
+        },
+        {
+          "variant_id": "reject-role-observation-verification-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "3ba1955719facd839ffe41fb3c161443e1c5a93564ce9747c0e4c85e94eb10f8"
+        },
+        {
+          "variant_id": "reject-role-occurrence-capture-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "2dfb56785d6218e27f876fb5a27ddbf7e958e54dd49c66299aa5688bb35a589c"
+        },
+        {
+          "variant_id": "reject-role-occurrence-capture-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "f44c1b488fad2a6a0eb54126d3e787c80853e3ec1872fead7d525e912d06ece2"
+        },
+        {
+          "variant_id": "reject-role-provenance-verification-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "8b8fed04584b26e4ced0f0dc6aace37f82efdddc8f73d3183bd1b18f3d686bd4"
+        },
+        {
+          "variant_id": "reject-role-source-authentication-witness-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "865155c6039ae8fccb2d86558fe008db4888279b01cf48147b75fc4d9583eaeb"
+        },
+        {
+          "variant_id": "reject-role-source-authentication-witness-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "ade39ff2173a6c02bd127514478ee712061256f4db84155fb07908375d1c5cb4"
+        },
+        {
+          "variant_id": "reject-role-source-of-record-witness-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "ce0e3f815a54e9d90b3518f8bd296d08b092d2b96660b79d8c2a5a47e0b4f6b7"
+        },
+        {
+          "variant_id": "reject-role-source-of-record-witness-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "288454ce58bbc85c4dec432b66475b980eed20dea3487a21166bbe6d3bf69ced"
+        },
+        {
+          "variant_id": "reject-role-source-population-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "7d7a8168a1a5be997551ca84336331fe9b2b87c72200c9d4838363986597a0a4"
+        },
+        {
+          "variant_id": "reject-role-source-record-verification-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "29a052b5af40b59b464c794faab3e6fe3087fa2c877e8061b791549836c22db3"
+        },
+        {
+          "variant_id": "reject-role-target-population-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "d60bc8b690d4ec60c5447e2fb521c1a5e5487e00ffb8c689fc213c335e2f0b26"
+        },
+        {
+          "variant_id": "reject-role-target-resolution-witness-cardinality",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "6049b8e83737d6595e08af6ba409dfb795c9fd0faf6734eb0e27ef6d308da51e"
+        },
+        {
+          "variant_id": "reject-role-target-resolution-witness-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "79e392ed0e8ffd08a36dfc57882f0e39c28bfabca3cd70e38a06fbf17de35966"
+        },
+        {
+          "variant_id": "reject-satisfaction-expression",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4b9936151d2e6200f10792cab7e3f9bb29592af7192808445ed3d0d496af3bce"
+        }
+      ]
+    }
+  ],
+  "coverage_witness_results": [
+    {
+      "surface_id": "role-target-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-target-population-types",
+      "weakened_profile_digest": "f2abd80331f14f50a10ed430ee027e48efe8b1eb7a22c09ab182051a6fb8024e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-source-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-population-types",
+      "weakened_profile_digest": "9d06104c99bf1e7aae17d91cea7a8aa8fd616657f4a608926bf7d6eac67c00cd",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-evidence-content-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-evidence-content-types",
+      "weakened_profile_digest": "71ff18820054581e8a9d8463a4d4f4cd27fa352914b4493ec56b4e1e18c70ad3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-evidence-content-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-evidence-content-cardinality",
+      "weakened_profile_digest": "5c2e42f115eb653563647cd0fcb52d47739acf78ddfee427554357283343e535",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-target-resolution-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-target-resolution-witness-types",
+      "weakened_profile_digest": "ddf4731d7dde7506d0bc9f0fa479edfcfb77014c9f2ec576e03bc6af0ca8ad6a",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-target-resolution-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-target-resolution-witness-cardinality",
+      "weakened_profile_digest": "8371c2957ff0d8dc0096d217df2d1629e0bdf3e8a6ded64a6431fda916f77a1c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-source-authentication-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-authentication-witness-types",
+      "weakened_profile_digest": "5da29542e73d14fa462324eaacc98976c7230e6b5b656fd54474da68261df7a7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-source-authentication-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-authentication-witness-cardinality",
+      "weakened_profile_digest": "661436dec4483dfe52f46e7ea4a732e9eac8e01e7935ec8aa9614119c2337378",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-source-of-record-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-of-record-witness-types",
+      "weakened_profile_digest": "24f6dc90ab62f1b0db069adf6322db476c350c141f5f7b61550afbbef8cb747a",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-source-of-record-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-of-record-witness-cardinality",
+      "weakened_profile_digest": "6e66272c34f55b9ed269e30befa6c923c36cb2015a5e4409f25433e7ea8d393e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-attempt-binding-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-attempt-binding-witness-types",
+      "weakened_profile_digest": "e509425382771f71baf17f127754d3914066caeb38dc55613a247ee291feb041",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-attempt-binding-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-attempt-binding-witness-cardinality",
+      "weakened_profile_digest": "d0d4f2359077b962677dc959f6549df5f1ce22a1e993eb4fa3ec2806e4c1aa58",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-authentication-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-authentication-witness-types",
+      "weakened_profile_digest": "761b294eca3bccdea7f49703c569aa80d41e123b53ca10981d122c3ee1f4ad75",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-authentication-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-authentication-witness-cardinality",
+      "weakened_profile_digest": "736c22585f8f3672cacb9cb1d721dbbd5320d2083782d801844bcb0326a3891f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-occurrence-capture-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-occurrence-capture-types",
+      "weakened_profile_digest": "c0ece4deefeced1254789f082e7c0872d712f68b8fe34efcbfc82c4d827f0644",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-occurrence-capture-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-occurrence-capture-cardinality",
+      "weakened_profile_digest": "33e56a7e39650751a584850fbc3ea212faf79f5e19b30d5e5e78b5ef7bed0e09",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-authentication-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-authentication-verification-types",
+      "weakened_profile_digest": "8f29dc7c180b078cd33725ca50b43df4416f8e8143ca0a22c061291bd2c827df",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-provenance-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-provenance-verification-types",
+      "weakened_profile_digest": "1f4ae64f19a0eada349f5739bd26e06a66cdeab59f1404657508f091263f3256",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-source-record-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-record-verification-types",
+      "weakened_profile_digest": "38f6bedd396fa2b88f9813ccef467f44c4281fbccc743f2d9c8c6f84bc5cbb2e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-observation-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-observation-verification-types",
+      "weakened_profile_digest": "5055809f6e6f75b5043206c4a5396620020f8379c7f28db496367d727aff2fa5",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-evidence-authenticates-target-modalities",
+      "weakened_profile_digest": "a6fea26732090b49ae4ee5a02ef61679e2f1e4f2f8fbf9cc9c7edd0f6e5647d6",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-modalities",
+      "weakened_profile_digest": "67e68fb7b69bfdc9d75839e3e91de34f1d64f7aa71cd04d714917bddd23fd975",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-subject",
+      "weakened_profile_digest": "38d443752b7fecd5f47ad041c7f31212446412f6a5e205c0ec40d1aa6a1851bf",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operator",
+      "weakened_profile_digest": "889f1b113fff4ff7ddf58e4f8bdecdc4b821dd1d3f3fc09cb89d3f7a394372e3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-0-role",
+      "weakened_profile_digest": "02ab48a5731b2481deec64c75ec50ac90dc8845c3674a1900738db666572413c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-1-role",
+      "weakened_profile_digest": "3d2532bdb5e4d200e6298f59a3973376d16e0facf83761e7fd6675e31cca11a6",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-2-role",
+      "weakened_profile_digest": "f3040d394563dd7e269f1c6c5dc8c7405e68690d002b43ffbf78c4e66373114d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-3-role",
+      "weakened_profile_digest": "7c53c921370afbdac044490450b0df44e5c895079d9ac16bee18c447bd687bce",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-4-role",
+      "weakened_profile_digest": "1a4ae84edb194130fa1e1f77ffaa93472d5e76406b36a61bb697de4a69d75992",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-5-role",
+      "weakened_profile_digest": "0c3175759dbf63e4db3c86e740c2fe4e9a885a2e73b06353e5dcb3280c7fc08f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-6-role",
+      "weakened_profile_digest": "ef20ff83f4200ed68c823011e1ecc4f60f19fe2edd3a0839a4f678a4ecf8afdd",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-verification-methods",
+      "weakened_profile_digest": "926e0d7f86e79579d8f8b648faec075800acb41296c82cae6f6193ff35a284a0",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-evidence-originates-from-source-modalities",
+      "weakened_profile_digest": "861f1dd7393c4db0301d32c313f614e2dd5b3993302c774af8daf65e97f1c155",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-modalities",
+      "weakened_profile_digest": "336f01a6615b7f116cd6ae2b1b31bd697cfc02c3a94bcd5fba902a0c65b37d01",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-subject",
+      "weakened_profile_digest": "0927ab886afc3cff2ddac7401107833abe6788ccc09600769161e8fdabf399ca",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operator",
+      "weakened_profile_digest": "836919777a9b164b637f53d6ef549eccf45d669155f58155831eaf5e63635a1a",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-0-role",
+      "weakened_profile_digest": "28c771cee3331d49031903574f31301428f2f295eacdb3fa3fce14cc6e364291",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-1-role",
+      "weakened_profile_digest": "ca4bf4598b346cb9aab9c3a88f15b6f1b2367773d830903d482d52fb3512a135",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-2-role",
+      "weakened_profile_digest": "5f89580486aa63134f0c8b6c677c9cb9c04270bc058a30bf48212f23006691df",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-3-role",
+      "weakened_profile_digest": "a02016ab1c537d0660dcc3b6ef913aeb59a4301e3ff8b0837b52f8b84990f412",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-4-role",
+      "weakened_profile_digest": "6aa2fd15ff49d4396f1f459ca7ac5ecc410d16cc9f1ccdcb46a5203b935ea0b6",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-5-role",
+      "weakened_profile_digest": "dc99a6187153b9b96e957d15ead43e56241859c7072f5baf633a77c22a4c980d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-6-role",
+      "weakened_profile_digest": "5f3d3b76b125b0ebf59f1f70444e2e9ea05687c3d3f2a76e87698e635f801b29",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-verification-methods",
+      "weakened_profile_digest": "edbb72d26eecf4871179928cb5be65e3b079a5b51098c0828376b54a45414491",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-target-has-source-of-record-modalities",
+      "weakened_profile_digest": "e71ab49dee752e816a4d4a60d95be07b221aca4a00220f71436d131bbec572d8",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-modalities",
+      "weakened_profile_digest": "937281deee31730ee6114a5b8ebb7fb781e9ec92d199381d5f11d31d54a1a888",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-subject",
+      "weakened_profile_digest": "ac74d7658a015c23dde1535a052f68648a2e2d695f6d8558c3a86e325010d09f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operator",
+      "weakened_profile_digest": "c5df38860bd8d04c900b98125044c82e5ac4fff15d360e9203e13576165b01f4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-0-role",
+      "weakened_profile_digest": "0213b4ae376d833fdac68c1770415dd26b87c418d2218ebc0008b33c33d68ea0",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-1-role",
+      "weakened_profile_digest": "8219e818ce69fd00481fd56b0152a6ee9f2eecff7ec54aa4654573dd273ae5ff",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-2-role",
+      "weakened_profile_digest": "37e10f82cca1772e173ba3c508944dda206490c0acd995dfe13a3f15d7ec5f5d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-3-role",
+      "weakened_profile_digest": "5caccfb67f19f12b56acf7bd91bc792c12126a212c759932675796e47ca808fa",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-4-role",
+      "weakened_profile_digest": "f7dd838fe8b9210c16bc918a48dc9a74e681799f4ba153b01ce5914b157214f7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-5-role",
+      "weakened_profile_digest": "774dd998071c0143c04cae6f6ec8df924e9dbacc42d77a0a2beef8b22dbbc32c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-6-role",
+      "weakened_profile_digest": "85d2d7adf67b9de1461ba4adae4d1afbc64562d098673217e9799030880efbb0",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-verification-methods",
+      "weakened_profile_digest": "236f6d8175f6cf37cb197f5971cf00e35971bc12bc16de6f355ecbf5ac3f4acb",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-evidence-observed-in-attempt-modalities",
+      "weakened_profile_digest": "c36e57cbf91b94819c42c77f831da0826b80ef26c9b13632913a22be687af59e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-modalities",
+      "weakened_profile_digest": "0601e1b410e565279085049a35a632a4eda7998ca8d071b1a8f6efde1ecf73e2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-subject",
+      "weakened_profile_digest": "ef16161a6d93e0aad914c11c34d538a852fa3bb1465e3d220fd226e77ae4f77e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operator",
+      "weakened_profile_digest": "497d46573c7ab2ab469468b630ae022434ec2bcc1724c2deaa15ac9c19b3bf60",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-0-role",
+      "weakened_profile_digest": "1889c34032647e7c49786f5641f8079af6d984bd9649a46da820897c6ddf27a4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-1-role",
+      "weakened_profile_digest": "1154ddc2fa4ea7e2daa68aa688aaefd8ed742197462985027f3eee8054b5b459",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-2-role",
+      "weakened_profile_digest": "ecddbdeb0152917f60acfa0eb7628395cb50aa0123fa75901f924aa16a6debc3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-3-role",
+      "weakened_profile_digest": "87fa2d978b610ac67230e2d71d8d960f0594fe3fc498a486e0367826c7052ac2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-4-role",
+      "weakened_profile_digest": "ca4475ea6a7ca5d1f893adeb35ceba516dcfec4e5e876f708f95f58ac462c135",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-5-role",
+      "weakened_profile_digest": "e08287e5e8c182b3823b3a0538922d6933a4201d7fa10a57cbef04d7e04afb3a",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-6-role",
+      "weakened_profile_digest": "bad07e43ad0c955ff7ca3353585a958a206d200c2f46235bcd8b87d2e2f9a8a4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-verification-methods",
+      "weakened_profile_digest": "1286e1954a8e13a9344298c46f94e96b8bc89fb948bd7c1ceb67fa623b20d7ef",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "35b1cfa64003d1b89e3160f6ebbeb89514395cbddf9904104d87cac7dee0f54f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-relation-patterns",
+      "weakened_profile_digest": "35b1cfa64003d1b89e3160f6ebbeb89514395cbddf9904104d87cac7dee0f54f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-reference-binding-patterns",
+      "weakened_profile_digest": "c9c2bb359e192cd6fc2acd63e928ca81c445472601dbf8bcd92db8b3c37906df",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "8f8b8f7b8a970609d4836bcd0a39153189504a519577067b920fd7a48c7baf0d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "35b1cfa64003d1b89e3160f6ebbeb89514395cbddf9904104d87cac7dee0f54f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "eb8f7c122792463be372f6538eab2809575de4bd55e335d38bb39ee757512f76",
+      "outcome": "survived"
+    }
+  ]
+}

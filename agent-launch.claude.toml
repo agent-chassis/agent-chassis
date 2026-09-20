@@ -1,6 +1,6 @@
 # Reasonable defaults for the Claude family. Copy to agent-launch.toml to activate.
 [roles.worker]
-model = "opus"
+model = "sonnet"
 effort = "medium"
 
 [roles.reviewer]

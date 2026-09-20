@@ -2,6 +2,10 @@ import {
   createTaskResultSnapshotRegistry
 } from "@agent-chassis/controlled-contract";
 import {
+  assertControlledContractSemanticProjectionBound,
+  controlledContractPrettyJsonBytes
+} from "@agent-chassis/wiki-core";
+import {
   AUTHORING_ERGONOMICS_ERRORS_LOG_RELATIVE_PATH,
   AUTHORING_ERGONOMICS_REPORT_AUTHORITY,
   AUTHORING_ERGONOMICS_REPORT_QUERY_COLLECTIONS,
@@ -65,19 +69,13 @@ export const AUTHORING_ERGONOMICS_REPORT_FIRST_CALL_EXAMPLES = Object.freeze({
 });
 
 const REPORT_DESCRIPTION = [
-  "Read-only compact authoring-ergonomics summary over one bounded evidence source; advisory evidence only.",
-  `source_kind:\"workspace_errors_log\" reads only ${AUTHORING_ERGONOMICS_ERRORS_LOG_RELATIVE_PATH}; source_kind:\"retained_smoke_evidence\" requires the bounded envelope.`,
+  `Read-only advisory ergonomics from ${AUTHORING_ERGONOMICS_ERRORS_LOG_RELATIVE_PATH} or retained evidence.`,
   `First calls: ${JSON.stringify(AUTHORING_ERGONOMICS_REPORT_FIRST_CALL_EXAMPLES.workspace_errors_log)} or ${JSON.stringify(AUTHORING_ERGONOMICS_REPORT_FIRST_CALL_EXAMPLES.retained_smoke_evidence)}.`,
-  "Owner routing is summarized as owner_resolved, owner_unresolved, or lookup_degraded.",
-  `The response stores one immutable authenticated snapshot and recommends ${AUTHORING_ERGONOMICS_REPORT_QUERY_TOOL_NAME}; it never returns the old full report or a report-local spill.`
+  `Routing: owner_resolved, owner_unresolved, lookup_degraded. Follow ${AUTHORING_ERGONOMICS_REPORT_QUERY_TOOL_NAME} for complete immutable-snapshot detail.`
 ].join(" ");
 
-const QUERY_DESCRIPTION = [
-  "Read-only typed inspection of one immutable authoring-ergonomics snapshot; advisory evidence only.",
-  `Collections: ${AUTHORING_ERGONOMICS_REPORT_QUERY_COLLECTIONS.map(({ collection }) => collection).join(", ")}.`,
-  `Required prior state is a snapshot created by ${AUTHORING_ERGONOMICS_REPORT_TOOL_NAME}; invoke this query only with that report's executable continuation.`,
-  "Use selector for a stable row, cursor for the next page, and field_path plus offset/length only for a selected scalar. Expired or unknown identity or cursor refuses loudly. Journal recovery returns the report rerun route; retained-evidence recovery is callable only while the original bounded envelope remains available, otherwise the refusal identifies that caller-supplied prerequisite and emits no unusable call. No live reread or whole-response fallback exists."
-].join(" ");
+const QUERY_DESCRIPTION =
+  "Required prior state: the report's executable continuation. Inspect its immutable snapshot with complete row/field/range retrieval. Read-only advisory evidence; expired identities refuse. Retained-evidence recovery needs the original envelope.";
 
 const REPORT_REQUEST_SCHEMA = Object.freeze({
   type: "object",
@@ -92,17 +90,6 @@ const REPORT_REQUEST_SCHEMA = Object.freeze({
   required: Object.freeze(["source_kind"]),
   additionalProperties: false
 });
-
-function measureAuthoringProjectionBytes(value) {
-  return Buffer.byteLength(JSON.stringify(value, null, 2), "utf8");
-}
-
-function assertAuthoringProjectionBound(value, maximumBytes) {
-  if (measureAuthoringProjectionBytes(value) > maximumBytes) {
-    throw new RangeError("authoring-ergonomics query projection exceeds its byte bound");
-  }
-  return value;
-}
 
 function authoringSnapshotUnavailable(reason, recovery, details = {}) {
   const error = new Error("authoring-ergonomics snapshot is unavailable");
@@ -137,8 +124,8 @@ export function createAuthoringErgonomicsSnapshotRegistry(options = {}) {
     }),
     projectPageContext: ({ result, collection }) =>
       projectAuthoringErgonomicsReportPageContext({ report: result, collection }),
-    measureProjectionBytes: measureAuthoringProjectionBytes,
-    assertProjectionBound: assertAuthoringProjectionBound,
+    measureProjectionBytes: controlledContractPrettyJsonBytes,
+    assertProjectionBound: assertControlledContractSemanticProjectionBound,
     queryOperationForDomain: () => AUTHORING_ERGONOMICS_REPORT_QUERY_TOOL_NAME,
     unavailableError: authoringSnapshotUnavailable,
     invalidError: authoringQueryInvalid,

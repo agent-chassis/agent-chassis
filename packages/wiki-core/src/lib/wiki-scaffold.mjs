@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 import { readFile, realpath, writeFile } from "node:fs/promises";
 import { getTemplateDir, loadManifest } from "./contract.mjs";
 import {
+  getKindRecordPath,
+  loadKindRecordById,
+  writeValidatedKindRecord
+} from "./kind-record-store.mjs";
+import {
   DEFAULT_PROFILE,
   ensureDirectory,
   normalizeExtensionNamespaces,
@@ -233,60 +238,98 @@ export async function ensureWikiMcpDeclaration(targetDir, { repo } = {}) {
   };
 }
 
-function renderAdoptionInitiativePage({ seed, body, date }) {
-  const frontMatterLines = [
-    "---",
-    `id: ${seed.record_id}`,
-    `title: ${seed.title}`,
-    "status: in_progress",
-    "priority: medium",
-    "owner: unassigned",
-    `created: ${date}`,
-    `updated: ${date}`,
-    "area: work",
-    "docs: []",
-    "depends_on: []",
-    "blocks: []",
-    "related: []",
-    "write_scope: []",
-    "---",
-    ""
-  ];
-  const renderedBody = String(body || "").trimStart();
-  return `${frontMatterLines.join("\n")}\n${renderedBody}`;
+function buildAdoptionInitiativeRecord(seed, date) {
+  return {
+    id: seed.record_id,
+    record_kind: "initiative",
+    title: seed.title,
+    status: "in_progress",
+    priority: "medium",
+    owner: "unassigned",
+    created: date,
+    updated: date,
+    area: "work",
+    docs: [],
+    depends_on: [],
+    blocks: [],
+    related: [],
+    write_scope: [],
+    sections: {
+      summary: seed.summary,
+      goals: "",
+      milestones: ""
+    }
+  };
+}
+
+function kindRecordFailureMessage(result) {
+  return (result?.diagnostics ?? [])
+    .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+    .join("; ");
 }
 
 export async function ensureAdoptionInitiative(
   targetDir,
-  { seed, body, date = today() } = {}
+  { seed, date = today() } = {}
 ) {
   if (!seed || !seed.record_id) {
     throw new Error("ensureAdoptionInitiative requires a seed with record_id");
   }
 
-  const relativePath = path.join("wiki", "initiatives", `${seed.record_id}.md`);
+  const relativePath = await getKindRecordPath("initiative", seed.record_id);
+  if (!relativePath) {
+    throw new Error(`Cannot resolve canonical initiative path for ${seed.record_id}`);
+  }
+  const projectionPath = relativePath.replace(/\.json$/, ".md");
   const absolutePath = path.join(targetDir, relativePath);
-  const normalizedRelative = relativePath.replaceAll(path.sep, "/");
-  await ensureDirectory(path.dirname(absolutePath));
+  const absoluteProjectionPath = path.join(targetDir, projectionPath);
+  const loaded = await loadKindRecordById({ repoRoot: targetDir, id: seed.record_id });
 
-  if (await pathExists(absolutePath)) {
-    return {
-      recordId: seed.record_id,
-      relativePath: normalizedRelative,
-      absolutePath,
-      created: false,
-      kept: true
-    };
+  if (loaded.classification === "missing" && await pathExists(absoluteProjectionPath)) {
+    throw new Error(
+      `Cannot bootstrap ${seed.record_id}: ${projectionPath} is a generated projection, ` +
+        `but canonical ${relativePath} is missing. Migrate the Markdown initiative through ` +
+        `the current structured kind-record migration before rerunning bootstrap; Markdown ` +
+        `is not accepted as canonical initiative authority.`
+    );
   }
 
-  const content = renderAdoptionInitiativePage({ seed, body, date });
-  await writeFile(absolutePath, content, "utf8");
+  let record;
+  let expectedSourceDigest = null;
+  let created = false;
+  if (loaded.classification === "loaded") {
+    record = loaded.record;
+    expectedSourceDigest = loaded.source_digest;
+  } else if (loaded.classification === "missing") {
+    record = buildAdoptionInitiativeRecord(seed, date);
+    created = true;
+  } else {
+    throw new Error(
+      `Cannot bootstrap ${seed.record_id}: canonical initiative is invalid. ` +
+        kindRecordFailureMessage(loaded)
+    );
+  }
+
+  const persisted = await writeValidatedKindRecord({
+    repoRoot: targetDir,
+    record,
+    expectedSourceDigest
+  });
+  if (!persisted.ok || !persisted.written) {
+    throw new Error(
+      `Cannot bootstrap ${seed.record_id} through the kind-record store: ` +
+        kindRecordFailureMessage(persisted)
+    );
+  }
+
   return {
     recordId: seed.record_id,
-    relativePath: normalizedRelative,
+    relativePath,
     absolutePath,
-    created: true,
-    kept: false
+    projectionPath,
+    absoluteProjectionPath,
+    created,
+    kept: !created
   };
 }
 

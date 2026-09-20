@@ -1,0 +1,199 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "code-index-query-tools.json",
+  "summary": "Committed file-context and consolidated impact queries across MCP and CLI.",
+  "tool_count": 4,
+  "tools": [
+    {
+      "tool_name": "workspace_code_index_impact",
+      "display_name": "Workspace code index question",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_impact",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 106,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery-tiers.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-query-tools.json",
+        "packages/wiki-core/src/lib/sidecar-query-input.mjs",
+        "packages/wiki-core/src/lib/sidecar-query-impact.mjs",
+        "packages/wiki-mcp/src/lib/code-index-query-tools.mjs",
+        "packages/wiki-mcp/src/lib/code-index-query-response.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "One committed code question whose documented selectors choose the answer. A change subject (exactly one of paths, patchText, diffRecords or liveGit:true) asks impact: affected files with graph, inferred, canonical and suggested bases, a truthful impact_state with denominators, and diff diagnostics; a compatible path or symbol narrows that subject to what it names. symbol, or path with line and optional character, asks the definition, references, callers and callees owners, and relationship narrows that to one of definition, references, callers or callees. path alone asks that file's committed context. An empty subject is no-change; conflicting, empty or undeclared selectors return the reachable alternatives rather than a guess. Impact is bounded compact and detail reads the retained answer; file-context and symbol answers keep their complete original at full_result. verbose:true re-evaluates. CLI fallback: `npm run wiki -- code-index impact --json --paths <path>`.",
+      "use_when": [
+        "Find affected files, relationships, tests and canonical records for known paths or a diff.",
+        "Read one file's committed context, or one symbol's definition and use/call relationships, without choosing which underlying query runs."
+      ],
+      "do_not_use_when": [
+        "You want exactly one already-known navigation relationship and prefer its dedicated route, or you need the operator-only CLI fallback."
+      ],
+      "authoritative_for": [
+        "ordinary committed code questions and their documented selector precedence"
+      ],
+      "recommended_first_call": {
+        "operation": "query impact for known repo-relative paths",
+        "arguments": {
+          "paths": [
+            "$repo_relative_path"
+          ]
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_code_index_context_for_path",
+      "display_name": "Workspace code index context for path",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_code_index_context_for_path",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 104,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "runtime_env",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-surfaces.md",
+        "docs/tool-discovery-tiers.md",
+        "docs/tool-discovery.md",
+        "docs/mcp-integration.md",
+        "packages/wiki-core/templates/AGENTS.md.boilerplate.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/code-index-query-tools.json",
+        "packages/wiki-core/src/lib/sidecar-query-context.mjs",
+        "packages/wiki-mcp/src/lib/code-index-query-tools.mjs",
+        "docs/mcp-integration.md"
+      ],
+      "notes": "Committed context for one repo-relative path. Default returns code-graph paths with exact path and relationship totals; source, related code, tests and canonical records are in full_result; verbose:true re-evaluates. Out-of-corpus paths report indexed_corpus_excluded. CLI fallback: `npm run wiki -- code-index context-for-path --json --path <path>`.",
+      "use_when": [
+        "List code-graph paths for one repo-relative file, then read its source, tests and canonical records from full_result."
+      ],
+      "do_not_use_when": [
+        "The task covers a diff or a symbol, or you want one question to select the right query; use workspace_code_index_impact."
+      ],
+      "authoritative_for": [
+        "derived single-path code-index context"
+      ],
+      "recommended_first_call": {
+        "operation": "query one repo-relative path",
+        "arguments": {
+          "path": "$repo_relative_path"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "wiki-code-index-impact",
+      "display_name": "Code index impact",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index impact --json --paths <path>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 100,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-tiers.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-query-impact.mjs"
+      ],
+      "notes": "Consolidated impact CLI for exactly one of paths, --patch, --patch-file, --diff-records-json, or --live-git. It auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; agents should prefer workspace_code_index_impact."
+    },
+    {
+      "tool_name": "wiki-code-index-context-for-path",
+      "display_name": "Code index context for path",
+      "kind": "cli_command",
+      "entrypoint": "npm run wiki -- code-index context-for-path --json --path <path>",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "priority": 90,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "workspace_repo",
+        "runtime_env"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/tool-discovery-tiers.md",
+        "docs/tool-discovery.md",
+        "docs/operating-model.md"
+      ],
+      "source_files": [
+        "packages/wiki-cli/src/commands/sidecar.mjs",
+        "packages/wiki-core/src/lib/sidecar-query-context.mjs"
+      ],
+      "notes": "Committed file-context CLI that auto-ensures the committed-HEAD index and may write its ignored derived cache. --json prints the complete answer; plain output lists every population. Agents should prefer workspace_code_index_context_for_path."
+    }
+  ]
+}

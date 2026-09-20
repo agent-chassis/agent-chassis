@@ -1,7 +1,13 @@
 
 
-import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
+import {
+  SLICE_ID_PATTERN,
+  WORK_RECORD_AGENT_NOTES_MAX_UTF8_BYTES
+} from "./work-record-schema-constants.mjs";
 import { analyzeWorkRecordFindingsUnit } from "./work-record-findings-semantics.mjs";
+import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs";
+import { planAcceptanceNarrativeValidation } from "./work-record-contract-edit-acceptance.mjs";
+import { normalizeAcceptanceCriteria } from "./work-record-ready-slice-contract.mjs";
 import {
   INITIATIVE_ID_PATTERN,
   cloneJson,
@@ -22,12 +28,30 @@ import {
   selectScopedTarget
 } from "./work-record-contract-edit-shared.mjs";
 
-export const WORK_RECORD_ACCEPTANCE_CRITERIA_LIST_FIELD = "acceptance.criteria";
-
 const STRING_SCHEMA = Object.freeze({ type: "string" });
+const CONTENT_STRING_SCHEMA = Object.freeze({ type: "string", entry_content: true });
 const NONEMPTY_STRING_SCHEMA = Object.freeze({ type: "string", trim: true, min_length: 1 });
-const BOUNDED_NOTES_SCHEMA = Object.freeze({ type: "string", max_utf8_bytes: 8192 });
+const CONTENT_NONEMPTY_STRING_SCHEMA = Object.freeze({
+  type: "string", trim: true, min_length: 1, entry_content: true
+});
+const CONTENT_BOUNDED_NOTES_SCHEMA = Object.freeze({
+  type: "string", max_utf8_bytes: WORK_RECORD_AGENT_NOTES_MAX_UTF8_BYTES,
+  entry_content: true
+});
 const STRING_LIST_SCHEMA = Object.freeze({ type: "array", items: STRING_SCHEMA });
+const MATERIAL_REF_LIST_SCHEMA = Object.freeze({
+  type: "array",
+  max_items: 16,
+  items: Object.freeze({ type: "object", required: Object.freeze(["ref"]),
+    additional_properties: false, properties: Object.freeze({ ref: STRING_SCHEMA }) })
+});
+
+const ACCEPTANCE_CRITERIA_LIST_SCHEMA = Object.freeze({
+  type: "array", items: Object.freeze({ shape: "acceptance_criterion" })
+});
+const ACCEPTANCE_NOTE_LIST_SCHEMA = Object.freeze({
+  type: "array", items: Object.freeze({ shape: "acceptance_note" })
+});
 const REPLACE = Object.freeze(["replace"]);
 const REPLACE_APPEND = Object.freeze(["replace", "append"]);
 
@@ -48,20 +72,20 @@ export const WORK_RECORD_EDIT_FIELD_REGISTRY = Object.freeze([
   fieldEntry({ id: "title.record", field: "title", kind: "scalar", canonical_address: ["title"], applicability: ["record"], value_schema: NONEMPTY_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "priority.record", field: "priority", kind: "scalar", canonical_address: ["priority"], applicability: ["record"], value_schema: { type: "string", enum: Object.freeze(["critical", "high", "medium", "low"]) }, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "owner.record", field: "owner", kind: "scalar", canonical_address: ["owner"], applicability: ["record"], value_schema: NONEMPTY_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
-  fieldEntry({ id: "summary.record", field: "sections.summary", kind: "scalar", canonical_address: ["sections", "summary"], applicability: ["record"], value_schema: STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
-  fieldEntry({ id: "why_it_matters.record", field: "sections.why_it_matters", kind: "scalar", canonical_address: ["sections", "why_it_matters"], applicability: ["record"], value_schema: STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
-  fieldEntry({ id: "agent_notes.record", field: "sections.agent_notes", kind: "scalar", canonical_address: ["sections", "agent_notes"], applicability: ["record"], value_schema: BOUNDED_NOTES_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
-  fieldEntry({ id: "agent_notes.slice", field: "sections.agent_notes", kind: "scalar", canonical_address: ["sections", "agent_notes"], applicability: ["slice"], value_schema: BOUNDED_NOTES_SCHEMA, actions: REPLACE, owner: "upsertSlice", facade: true }),
+  fieldEntry({ id: "summary.record_slice", field: "sections.summary", kind: "scalar", canonical_address: ["sections", "summary"], applicability: ["record", "slice"], value_schema: CONTENT_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
+  fieldEntry({ id: "why_it_matters.record_slice", field: "sections.why_it_matters", kind: "scalar", canonical_address: ["sections", "why_it_matters"], applicability: ["record", "slice"], value_schema: CONTENT_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
+  fieldEntry({ id: "agent_notes.record_slice", field: "sections.agent_notes", kind: "scalar", canonical_address: ["sections", "agent_notes"], applicability: ["record", "slice"], value_schema: CONTENT_BOUNDED_NOTES_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "tags.record", field: "tags", kind: "list", canonical_address: ["tags"], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "scope_items.record", field: "sections.scope.items", kind: "list", canonical_address: ["sections", "scope", "items"], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "scope_out_of_scope.record", field: "sections.scope.out_of_scope", kind: "list", canonical_address: ["sections", "scope", "out_of_scope"], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "references.record", field: "sections.references", kind: "list", canonical_address: ["sections", "references"], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
+  fieldEntry({ id: "material_refs.record_slice", field: "sections.material_refs", kind: "list", canonical_address: ["sections", "material_refs"], applicability: ["record", "slice"], value_schema: MATERIAL_REF_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "setListField", facade: true }),
   fieldEntry({ id: "read_scope.record_slice", field: "read_scope", kind: "list", canonical_address: ["read_scope"], applicability: ["record", "slice"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "setListField", facade: true }),
-  fieldEntry({ id: "docs.record_slice", field: "docs", kind: "list", canonical_address: ["read_scope"], applicability: ["record", "slice"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "setListField", facade: true, alias_for: "read_scope" }),
   ...["repo_paths", "write_scope", "depends_on"].map((field) => fieldEntry({ id: `${field}.record_slice`, field, kind: "list", canonical_address: [field], applicability: ["record", "slice"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "setListField", facade: true })),
   ...["related", "blocks"].map((field) => fieldEntry({ id: `${field}.record`, field, kind: "list", canonical_address: [field], applicability: ["record"], value_schema: STRING_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "setListField", facade: true })),
-  fieldEntry({ id: "tasks.record_slice", field: "sections.tasks", kind: "task", canonical_address: ["sections", "tasks"], applicability: ["record", "slice"], value_schema: { mark_done: null, replace_text: NONEMPTY_STRING_SCHEMA, append_todo: NONEMPTY_STRING_SCHEMA }, actions: ["mark_done", "replace_text", "append_todo"], owner: "setWorkRecordTaskByUnit", facade: true }),
-  fieldEntry({ id: "acceptance_criteria.compatibility", field: WORK_RECORD_ACCEPTANCE_CRITERIA_LIST_FIELD, kind: "list", canonical_address: ["acceptance", "criteria"], applicability: ["record", "slice"], value_schema: { type: "acceptance_criterion_array" }, actions: REPLACE_APPEND, owner: "setListField", general_refusal_owner: "workspace_work_record_set_acceptance", facade: false })
+  fieldEntry({ id: "acceptance_criteria.record_slice", field: "acceptance.criteria", kind: "list", canonical_address: ["acceptance", "criteria"], applicability: ["record", "slice"], value_schema: ACCEPTANCE_CRITERIA_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "editWorkRecordByUnit", facade: true }),
+  fieldEntry({ id: "acceptance_validation.record_slice", field: "acceptance.validation", kind: "list", canonical_address: ["acceptance", "validation"], applicability: ["record", "slice"], value_schema: ACCEPTANCE_NOTE_LIST_SCHEMA, actions: REPLACE_APPEND, owner: "planAcceptanceNarrativeValidation", facade: true }),
+  fieldEntry({ id: "tasks.record_slice", field: "sections.tasks", kind: "task", canonical_address: ["sections", "tasks"], applicability: ["record", "slice"], value_schema: { mark_done: null, replace_text: CONTENT_NONEMPTY_STRING_SCHEMA, append_todo: CONTENT_NONEMPTY_STRING_SCHEMA }, actions: ["mark_done", "replace_text", "append_todo"], owner: "setWorkRecordTaskByUnit", facade: true })
 ]);
 
 export const WORK_RECORD_CONTRACT_LIST_FIELDS = Object.freeze(WORK_RECORD_EDIT_FIELD_REGISTRY
@@ -78,12 +102,12 @@ export const WORK_RECORD_LIST_FIELD_WRITE_MODES = Object.freeze([...new Set(
 export const WORK_RECORD_TASK_EDIT_ACTIONS = WORK_RECORD_EDIT_FIELD_REGISTRY
   .find((entry) => entry.kind === "task").actions;
 
-const ACCEPTANCE_CRITERION_KEYS = Object.freeze([
-  "text",
-  "verification_method",
-  "evidence_target",
-  "facet_provenance"
-]);
+export function workRecordProseRegistryEntries(scope) {
+  return WORK_RECORD_EDIT_FIELD_REGISTRY.filter((entry) =>
+    entry.kind === "scalar" && entry.value_schema?.entry_content === true &&
+    entry.applicability.includes(scope)
+  );
+}
 
 function resolveListFieldAddress(field) {
   const entry = WORK_RECORD_EDIT_FIELD_REGISTRY.find(
@@ -94,10 +118,7 @@ function resolveListFieldAddress(field) {
   return {
     container: address.slice(0, -1),
     key: address.at(-1),
-    canonicalField: entry.canonical_address.join("."),
-    entryKind: field === WORK_RECORD_ACCEPTANCE_CRITERIA_LIST_FIELD
-      ? "acceptance_criterion"
-      : "reference"
+    canonicalField: entry.canonical_address.join(".")
   };
 }
 
@@ -112,28 +133,12 @@ function resolveListFieldContainer(target, address) {
   return container;
 }
 
-function normalizeListFieldEntry(entryKind, entry) {
-  if (entryKind === "acceptance_criterion") {
-    if (isString(entry)) {
-      const text = entry.trim();
-      return text
-        ? { ok: true, value: text }
-        : { ok: false, message: "must not be blank" };
-    }
-    if (!isObject(entry)) {
-      return { ok: false, message: "must be a string or an acceptance-criterion object" };
-    }
-    const unknownKey = Object.keys(entry).find((key) => !ACCEPTANCE_CRITERION_KEYS.includes(key));
-    if (unknownKey) {
-      return {
-        ok: false,
-        message: `carries unknown property '${unknownKey}'; accepted properties are: ${ACCEPTANCE_CRITERION_KEYS.join(", ")}`
-      };
-    }
-    if (!isString(entry.text) || !entry.text.trim()) {
-      return { ok: false, message: "must carry a non-empty text property" };
-    }
-    return { ok: true, value: cloneJson({ ...entry, text: entry.text.trim() }) };
+function normalizeListFieldEntry(entry, field, repository) {
+  if (field === "sections.material_refs") {
+    const diagnostics = validateWorkRecordMaterialRefs([entry], { path: field, repository });
+    return diagnostics.length === 0
+      ? { ok: true, value: cloneJson(entry) }
+      : { ok: false, message: diagnostics[0].message };
   }
   return isString(entry)
     ? { ok: true, value: entry }
@@ -174,7 +179,6 @@ export const WORK_RECORD_CONTRACT_EDIT_OPERATIONS = Object.freeze([
   "upsert_slice",
   "delete_slice",
   "set_list_field",
-  "set_acceptance",
   "shape_review_unit"
 ]);
 
@@ -193,6 +197,19 @@ export function upsertSlice(record, { slice } = {}) {
         path: "slice.id"
       })
     );
+  }
+  if (isObject(slice.sections)) {
+    for (const entry of workRecordProseRegistryEntries("slice")) {
+      const key = entry.canonical_address.at(-1);
+      if (!hasOwn(slice.sections, key)) continue;
+      const destination = validateWorkRecordProseDestination({
+        field: entry.field,
+        scope: "slice",
+        value: slice.sections[key],
+        path: `slice.sections.${key}`
+      });
+      if (!destination.ok) return refusal(destination.diagnostic);
+    }
   }
 
   const clone = cloneJson(record);
@@ -214,6 +231,21 @@ export function upsertSlice(record, { slice } = {}) {
   }
 
   const index = findSliceIndex(clone, sliceId);
+
+  if (isObject(incoming.acceptance) && hasOwn(incoming.acceptance, "validation")) {
+    const stored = index === -1 ? undefined : clone.slices[index].acceptance;
+    const composed = planAcceptanceNarrativeValidation({
+      current: isObject(stored) && hasOwn(stored, "validation") ? stored.validation : [],
+      requested: incoming.acceptance.validation,
+      action: "replace",
+      path: "slice.acceptance.validation",
+      storedPath: `slices[${sliceId}].acceptance.validation`
+    });
+    if (!composed.ok) {
+      return refusal(composed.diagnostic);
+    }
+    incoming.acceptance = { ...incoming.acceptance, validation: composed.validation };
+  }
 
   if (index === -1) {
     if (!isOrdinalSliceId(sliceId)) {
@@ -243,7 +275,7 @@ export function upsertSlice(record, { slice } = {}) {
     return refusal(
       createDiagnostic(
         "field_owner_mismatch",
-        "slice.sections.tasks is owned by setWorkRecordTaskByUnit after slice creation; use workspace_work_record_edit with a task action or workspace_work_record_set_task",
+        "slice.sections.tasks is owned by setWorkRecordTaskByUnit after slice creation; use workspace_work_record_edit with a task action",
         { path: `slice.${delegatedField}` }
       )
     );
@@ -303,7 +335,7 @@ export function deleteSlice(record, { sliceId } = {}) {
   return finalizeEdit(clone, [`slices[${sliceId}]`]);
 }
 
-export function setListField(record, { sliceId = null, field, values, mode = "replace" } = {}) {
+export function setListField(record, { sliceId = null, field, values, mode = "replace", repository = null } = {}) {
   if (!WORK_RECORD_CONTRACT_LIST_FIELDS.includes(field)) {
     return refusal(
       createDiagnostic(
@@ -359,7 +391,7 @@ export function setListField(record, { sliceId = null, field, values, mode = "re
   }
   const nextValues = [];
   for (const [index, entry] of values.entries()) {
-    const normalized = normalizeListFieldEntry(address.entryKind, entry);
+    const normalized = normalizeListFieldEntry(entry, field, repository);
     if (!normalized.ok) {
       return refusal(
         createDiagnostic(
@@ -419,11 +451,12 @@ const GENERAL_EDIT_KEYS = Object.freeze(["kind", "field", "action", "value", "te
 
 export const WORK_RECORD_EDIT_SPECIALIZED_FIELD_OWNERS = Object.freeze([
   { prefixes: ["status"], owner: "workspace_work_record_set_status" },
-  { prefixes: ["acceptance"], owner: "workspace_work_record_set_acceptance" },
+  { prefixes: ["acceptance"], owner: "the acceptance.criteria or acceptance.validation list field; executable validation bindings belong to controlled-contract semantic operations" },
   { prefixes: ["sections.closure", "closure"], owner: "workspace_work_record_set_closure" },
   { prefixes: ["initiative"], owner: "assign_work_record_to_initiative" },
   { prefixes: ["dispatch_intent"], owner: "workspace_work_record_ready_slice or workspace_work_record_upsert_slice" },
   { prefixes: ["controlled_contract", "proof", "proof_posture"], owner: "controlled-contract semantic operations" },
+  { prefixes: ["controlled_acceptance_state"], owner: "no writer; derived from canonical proof_posture and current controlled-contract state" },
   { prefixes: ["evidence", "derived_evidence", "review_provenance"], owner: "the evidence-producing semantic operation" },
   { prefixes: ["projections"], owner: "structured wiki generation" },
   { prefixes: ["migration"], owner: "workspace work-record migration" },
@@ -474,6 +507,40 @@ function normalizeScalarValue(entry, value) {
   return { ok: true, value: normalized };
 }
 
+export function validateWorkRecordProseDestination({
+  field,
+  scope,
+  value,
+  path = field
+}) {
+  const entry = WORK_RECORD_EDIT_FIELD_REGISTRY.find((candidate) =>
+    candidate.kind === "scalar" && candidate.field === field &&
+    candidate.applicability.includes(scope) && candidate.value_schema?.entry_content === true
+  );
+  if (!entry) {
+    return {
+      ok: false,
+      diagnostic: createDiagnostic(
+        "unsupported_prose_destination",
+        `${field} is not a registry-owned prose destination for ${scope}`,
+        { path }
+      )
+    };
+  }
+  const normalized = normalizeScalarValue(entry, value);
+  if (!normalized.ok) {
+    return {
+      ok: false,
+      diagnostic: createDiagnostic(
+        "invalid_prose_destination",
+        normalized.message,
+        { path }
+      )
+    };
+  }
+  return { ok: true, value: normalized.value, entry };
+}
+
 function resolveAddressContainer(target, address) {
   let container = target;
   for (const step of address.slice(0, -1)) {
@@ -483,7 +550,69 @@ function resolveAddressContainer(target, address) {
   return { container, key: address.at(-1) };
 }
 
-export function editWorkRecordByUnit(record, { sliceId = null, edit } = {}) {
+function selectAcceptanceTarget(record, sliceId) {
+  const clone = cloneJson(record);
+  const selected = selectScopedTarget(clone, sliceId);
+  if (!selected.ok) return selected;
+  const field = prefixSliceField(sliceId, "acceptance");
+  if (!isObject(selected.target.acceptance)) {
+    return {
+      ok: false,
+      refusal: editRefusal("edit_field_container_missing", `${field} is missing or is not an object`, field)
+    };
+  }
+  return { ok: true, clone, acceptance: selected.target.acceptance };
+}
+
+function planAcceptanceCriteriaEdit(record, { sliceId, action, value }) {
+  if (action === "replace" ? !Array.isArray(value) : Array.isArray(value)) {
+    return editRefusal(
+      "invalid_edit_value",
+      action === "replace"
+        ? "acceptance.criteria replace requires an array of criteria"
+        : "acceptance.criteria append requires exactly one criterion",
+      "edit.value"
+    );
+  }
+  const normalized = normalizeAcceptanceCriteria(value, { path: "edit.value", append: action === "append" });
+  if (!normalized.ok) {
+    return editRefusal("invalid_edit_value", normalized.diagnostic.message, normalized.diagnostic.path);
+  }
+  const selected = selectAcceptanceTarget(record, sliceId);
+  if (!selected.ok) return selected.refusal;
+  const field = prefixSliceField(sliceId, "acceptance.criteria");
+  const current = selected.acceptance.criteria;
+  if (action === "append") {
+    if (!Array.isArray(current)) {
+      return editRefusal("invalid_list_field_state", `${field} is not an array`, field);
+    }
+    if (current.some((entry) => jsonEqual(entry, normalized.value))) return finalizeEdit(selected.clone, []);
+    selected.acceptance.criteria = [...current, normalized.value];
+  } else {
+    if (jsonEqual(current, normalized.value)) return finalizeEdit(selected.clone, []);
+    selected.acceptance.criteria = normalized.value;
+  }
+  return finalizeEdit(selected.clone, [field]);
+}
+
+function planAcceptanceValidationEdit(record, { sliceId, action, value }) {
+  const selected = selectAcceptanceTarget(record, sliceId);
+  if (!selected.ok) return selected.refusal;
+  const field = prefixSliceField(sliceId, "acceptance.validation");
+  const planned = planAcceptanceNarrativeValidation({
+    current: selected.acceptance.validation,
+    requested: value,
+    action,
+    path: "edit.value",
+    storedPath: field
+  });
+  if (!planned.ok) return refusal(planned.diagnostic);
+  if (!planned.changed) return finalizeEdit(selected.clone, []);
+  selected.acceptance.validation = planned.validation;
+  return finalizeEdit(selected.clone, [field]);
+}
+
+export function editWorkRecordByUnit(record, { sliceId = null, edit, repository = null } = {}) {
   if (!isObject(edit)) return editRefusal("invalid_edit_request", "edit must be one scalar, list, or task request");
   const unknownKey = Object.keys(edit).find((key) => !GENERAL_EDIT_KEYS.includes(key));
   if (unknownKey) {
@@ -518,7 +647,7 @@ export function editWorkRecordByUnit(record, { sliceId = null, edit } = {}) {
     if (resolution.code === "field_owner_mismatch") {
       return editRefusal(
         resolution.code,
-        `${edit.field} is not generally editable; use ${resolution.entry.general_refusal_owner || resolution.entry.owner}`,
+        `${edit.field} is not generally editable; use ${resolution.entry.owner}`,
         "edit.field"
       );
     }
@@ -547,26 +676,32 @@ export function editWorkRecordByUnit(record, { sliceId = null, edit } = {}) {
     return editRefusal("ambiguous_edit_request", "text and index selectors are valid only for task edits");
   }
 
+  if (entry.id === "acceptance_criteria.record_slice") {
+    return planAcceptanceCriteriaEdit(record, { sliceId, action: edit.action, value: edit.value });
+  }
+  if (entry.owner === "planAcceptanceNarrativeValidation") {
+    return planAcceptanceValidationEdit(record, { sliceId, action: edit.action, value: edit.value });
+  }
+
   if (entry.kind === "list" && entry.owner === "setListField") {
     const values = edit.action === "append" ? [edit.value] : edit.value;
-    return setListField(record, { sliceId, field: entry.field, values, mode: edit.action });
+    return setListField(record, { sliceId, field: entry.field, values, mode: edit.action, repository });
   }
 
   if (entry.kind === "scalar") {
     const normalized = normalizeScalarValue(entry, edit.value);
     if (!normalized.ok) return editRefusal("invalid_edit_value", normalized.message, "edit.value");
-    if (entry.owner === "upsertSlice") {
-      const planned = upsertSlice(record, {
-        slice: { id: sliceId, sections: { agent_notes: normalized.value } }
-      });
-      if (planned.ok && planned.changedFields.length) {
-        planned.changedFields = [prefixSliceField(sliceId, entry.field)];
-      }
-      return planned;
-    }
     const clone = cloneJson(record);
     const selected = selectScopedTarget(clone, sliceId);
     if (!selected.ok) return selected.refusal;
+    if (
+      sliceId !== null &&
+      entry.value_schema?.entry_content === true &&
+      entry.canonical_address[0] === "sections" &&
+      selected.target.sections === undefined
+    ) {
+      selected.target.sections = {};
+    }
     const address = resolveAddressContainer(selected.target, entry.canonical_address);
     if (!address) return editRefusal("edit_field_container_missing", `${entry.field} container is missing`, entry.field);
     if (jsonEqual(address.container[address.key], normalized.value)) return finalizeEdit(clone, []);
@@ -598,79 +733,6 @@ export function editWorkRecordByUnit(record, { sliceId = null, edit } = {}) {
     address.container[address.key] = cloneJson(values);
   }
   return finalizeEdit(clone, [entry.canonical_address.join(".")]);
-}
-
-export function setAcceptance(record, { sliceId = null, criteria, validation } = {}) {
-  const hasCriteria = criteria !== undefined;
-  const hasValidation = validation !== undefined;
-  if (!hasCriteria && !hasValidation) {
-    return refusal(
-      createDiagnostic(
-        "missing_acceptance_payload",
-        "set_acceptance requires criteria and/or validation",
-        { path: "acceptance" }
-      )
-    );
-  }
-  if (hasCriteria && !Array.isArray(criteria)) {
-    return refusal(
-      createDiagnostic("invalid_acceptance_payload", "acceptance.criteria must be an array", {
-        path: "acceptance.criteria"
-      })
-    );
-  }
-  if (hasValidation && !Array.isArray(validation)) {
-    return refusal(
-      createDiagnostic(
-        "invalid_acceptance_payload",
-        "acceptance.validation must be an array",
-        { path: "acceptance.validation" }
-      )
-    );
-  }
-
-  const clone = cloneJson(record);
-  const selected = selectScopedTarget(clone, sliceId ?? null);
-  if (!selected.ok) {
-    return selected.refusal;
-  }
-  const target = selected.target;
-  if (!isObject(target.acceptance)) {
-    if (!hasCriteria || !hasValidation) {
-      return refusal(
-        createDiagnostic(
-          "acceptance_repair_requires_whole_replacement",
-          "a missing or non-object acceptance value requires both criteria and validation arrays",
-          { path: prefixSliceField(sliceId ?? null, "acceptance") }
-        )
-      );
-    }
-    target.acceptance = {
-      criteria: cloneJson(criteria),
-      validation: cloneJson(validation)
-    };
-    return finalizeEdit(clone, [
-      prefixSliceField(sliceId ?? null, "acceptance.criteria"),
-      prefixSliceField(sliceId ?? null, "acceptance.validation")
-    ]);
-  }
-
-  const changedFields = [];
-  if (hasCriteria) {
-    const nextCriteria = cloneJson(criteria);
-    if (!jsonEqual(target.acceptance.criteria, nextCriteria)) {
-      target.acceptance.criteria = nextCriteria;
-      changedFields.push(prefixSliceField(sliceId ?? null, "acceptance.criteria"));
-    }
-  }
-  if (hasValidation) {
-    const nextValidation = cloneJson(validation);
-    if (!jsonEqual(target.acceptance.validation, nextValidation)) {
-      target.acceptance.validation = nextValidation;
-      changedFields.push(prefixSliceField(sliceId ?? null, "acceptance.validation"));
-    }
-  }
-  return finalizeEdit(clone, changedFields);
 }
 
 export function assignWorkRecordToInitiative(record, { initiative } = {}) {
@@ -749,7 +811,6 @@ const PLANNER_BY_OPERATION = Object.freeze({
   delete_slice: (record, params) => deleteSlice(record, params),
   edit_work_record: (record, params) => editWorkRecordByUnit(record, params),
   set_list_field: (record, params) => setListField(record, params),
-  set_acceptance: (record, params) => setAcceptance(record, params),
   shape_review_unit: (record, params) => shapeReviewUnit(record, params)
 });
 

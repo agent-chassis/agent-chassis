@@ -4,7 +4,6 @@
   "closed": true,
   "supported_categories": [
     "asynchronous_failure",
-    "common_proof_receipt",
     "common_proof_resolver",
     "coordination_preflight",
     "durability_liveness",
@@ -19,21 +18,21 @@
       "reference_id": "ref-launcher-ownership-witness",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-family-adapter-boundary.test.mjs",
-      "content_digest": "sha256:bcf3f7ea008f73db9da69c674d59bd96763130757d4b75cb276e5efa9ad09c58",
+      "content_digest": "sha256:4651a8acf165cdc286715dc90025ddaac4e1e9c8fc0cffe2b45d9b4df14716bd",
       "selector": "node --test tests/integration/workspace-agent-family-adapter-boundary.test.mjs"
     },
     {
       "reference_id": "ref-launcher-neutrality-witness",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-family-adapter-boundary.test.mjs",
-      "content_digest": "sha256:bcf3f7ea008f73db9da69c674d59bd96763130757d4b75cb276e5efa9ad09c58",
+      "content_digest": "sha256:4651a8acf165cdc286715dc90025ddaac4e1e9c8fc0cffe2b45d9b4df14716bd",
       "selector": "node --test tests/integration/workspace-agent-family-adapter-boundary.test.mjs"
     },
     {
       "reference_id": "ref-wk2357-crash-durable-witness",
       "reference_kind": "owner_proof",
       "path": "tests/unit/crash-durable-state-publication.test.mjs",
-      "content_digest": "sha256:f909428564e6664e9559431a00911600271c0aee04b5052d8a4b310c335aee17",
+      "content_digest": "sha256:aa9052ebcf2ce9ff184733715c01d7e240b0d7624d0e145118bc8d8f6778f9f8",
       "selector": "node --test tests/unit/crash-durable-state-publication.test.mjs"
     },
     {
@@ -47,28 +46,28 @@
       "reference_id": "ref-wk2359-witness-backend-routing",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-advisory-review-production-composition.test.mjs",
-      "content_digest": "sha256:6a343b1e74ec44666739103b91d2a5ad6e7d65ef785c52ffaa5457e759b1cfdf",
+      "content_digest": "sha256:4615c03ddc3bf3a7c368f28ec972fa6cbe5960fe9182370a5e63f9387f9d77b6",
       "selector": "node --test tests/integration/workspace-agent-advisory-review-production-composition.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-internal-exception",
       "reference_kind": "owner_proof",
       "path": "tests/unit/controlled-contract-refusal-internal-exception.test.mjs",
-      "content_digest": "sha256:9c5b4101c10724df7120a90f40a2b0d3df5042e5a14b2b1f6a8f4c266269c7b5",
+      "content_digest": "sha256:2ebc1f662e3bfe66e31e49f859cdba18ae57c3d2eb40579c8d1404483e0f1225",
       "selector": "node --test tests/unit/controlled-contract-refusal-internal-exception.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-response-dedup",
       "reference_kind": "owner_proof",
       "path": "tests/unit/mcp-response-content-deduplication.test.mjs",
-      "content_digest": "sha256:82f9bf04184ec11c447c5ff7322d2df816d949c366a4edbe40decccd44299d46",
+      "content_digest": "sha256:c6ee844b97a6a670fba260d951a377fdf664bcf5c86203fb99ad8769607bb8c6",
       "selector": "node --test tests/unit/mcp-response-content-deduplication.test.mjs"
     },
     {
       "reference_id": "ref-wk2359-witness-compact-read",
       "reference_kind": "owner_proof",
       "path": "tests/unit/work-record-compact-read-gate.test.mjs",
-      "content_digest": "sha256:5ec29372284478ae3bbe2e3af6853a3ec3b69ef2dadd0e0f03611aab133b99ce",
+      "content_digest": "sha256:6bbe8bf1ddd8ea5e2532896d73aad2d658ae93b472d1c1c5520571b1013e2c5b",
       "selector": "node --test tests/unit/work-record-compact-read-gate.test.mjs"
     },
     {
@@ -96,7 +95,7 @@
       "reference_id": "ref-wk2405-findings-witness",
       "reference_kind": "owner_proof",
       "path": "tests/integration/workspace-agent-advisory-material.test.mjs",
-      "content_digest": "sha256:fc682cf7c49422f229e89ea8e1ee8ca7472306247e2328a92e9a9a0db17f8e74",
+      "content_digest": "sha256:46da61e94a8214d3efda7024b90c2d1c244ea17ff606d28df8eb8788442f8955",
       "selector": "node --test tests/integration/workspace-agent-advisory-material.test.mjs"
     },
     {
@@ -107,17 +106,10 @@
       "selector": "node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
     },
     {
-      "reference_id": "ref-wk2258-receipt-witness",
-      "reference_kind": "owner_proof",
-      "path": "tests/unit/common-proof-receipt-store.test.mjs",
-      "content_digest": "sha256:5ceae60d255d8e05db5023e2a45b1955cd6f35863efef91e853d961353a8d7ba",
-      "selector": "node --test tests/unit/common-proof-receipt-store.test.mjs"
-    },
-    {
       "reference_id": "ref-wk2257-preservation-witness",
       "reference_kind": "owner_proof",
       "path": "tests/unit/workspace-agent-behavioral-preservation-evidence.test.mjs",
-      "content_digest": "sha256:48b34c2d4803cf286f814184444ac5812e6eca740c5459a01901df7f9c9cad48",
+      "content_digest": "sha256:073ab586293f4e541d10655568d049bb32165d91487f6e1d2a3a7994fd6ef3b1",
       "selector": "node --test tests/unit/workspace-agent-behavioral-preservation-evidence.test.mjs"
     }
   ],
@@ -130,12 +122,20 @@
       "semantic_owner": "decision:family_adapter_boundary",
       "code_or_translation_owner": null,
       "diagnostic_id": "guarded_owner_launcher_ownership",
-      "owner_reference_ids": ["ref-launcher-ownership-witness"],
+      "owner_reference_ids": [
+        "ref-launcher-ownership-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "launcher_ownership",
-        "roots": ["packages/agent-launch-cli/src", "packages/agent-launch-core/src", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/agent-launch-cli/src",
+          "packages/agent-launch-core/src",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -146,12 +146,20 @@
       "semantic_owner": "decision:launcher_neutrality",
       "code_or_translation_owner": null,
       "diagnostic_id": "guarded_owner_launcher_neutrality",
-      "owner_reference_ids": ["ref-launcher-neutrality-witness"],
+      "owner_reference_ids": [
+        "ref-launcher-neutrality-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "launcher_neutrality",
-        "roots": ["packages/agent-launch-cli/src", "packages/agent-launch-core/src", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/agent-launch-cli/src",
+          "packages/agent-launch-core/src",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -162,12 +170,18 @@
       "semantic_owner": "WK-2357",
       "code_or_translation_owner": "WK-2357",
       "diagnostic_id": "guarded_owner_durability_liveness",
-      "owner_reference_ids": ["ref-wk2357-crash-durable-witness"],
+      "owner_reference_ids": [
+        "ref-wk2357-crash-durable-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "durability_liveness",
-        "roots": ["packages/wiki-core/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/wiki-core/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -189,8 +203,13 @@
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "public_refusal",
-        "roots": ["packages/wiki-core/src/lib", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/wiki-core/src/lib",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -208,8 +227,13 @@
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "asynchronous_failure",
-        "roots": ["packages/agent-launch-cli/src", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/agent-launch-cli/src",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -220,12 +244,19 @@
       "semantic_owner": "WK-2391",
       "code_or_translation_owner": "WK-2391",
       "diagnostic_id": "guarded_owner_coordination_preflight",
-      "owner_reference_ids": ["ref-wk2391-preflight-witness"],
+      "owner_reference_ids": [
+        "ref-wk2391-preflight-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "coordination_preflight",
-        "roots": ["packages/wiki-core/src/lib", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/wiki-core/src/lib",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -236,12 +267,18 @@
       "semantic_owner": "WK-2405",
       "code_or_translation_owner": "WK-2405",
       "diagnostic_id": "guarded_owner_findings_target",
-      "owner_reference_ids": ["ref-wk2405-findings-witness"],
+      "owner_reference_ids": [
+        "ref-wk2405-findings-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "findings_target",
-        "roots": ["packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -252,28 +289,19 @@
       "semantic_owner": "WK-2428",
       "code_or_translation_owner": "WK-2428",
       "diagnostic_id": "guarded_owner_same_call_recovery",
-      "owner_reference_ids": ["ref-wk2428-recovery-witness"],
+      "owner_reference_ids": [
+        "ref-wk2428-recovery-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "same_call_recovery",
-        "roots": ["packages/wiki-core/src/lib", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
-      }
-    },
-    {
-      "binding_id": "common_proof_receipt_binding",
-      "category_id": "common_proof_receipt",
-      "guarded_class_id": "common_proof_receipt_publication_and_selection",
-      "posture_or_boundary_id": "common_proof_receipt_store_boundary",
-      "semantic_owner": "WK-2258",
-      "code_or_translation_owner": "WK-2258",
-      "diagnostic_id": "guarded_owner_common_proof_receipt",
-      "owner_reference_ids": ["ref-wk2258-receipt-witness"],
-      "discovery_rule": {
-        "kind": "git_tracked_category_adapter",
-        "adapter_id": "common_proof_receipt",
-        "roots": ["packages/agent-launch-cli/src"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/wiki-core/src/lib",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     },
     {
@@ -284,12 +312,19 @@
       "semantic_owner": "WK-2257",
       "code_or_translation_owner": "WK-2257",
       "diagnostic_id": "guarded_owner_common_proof_resolver",
-      "owner_reference_ids": ["ref-wk2257-preservation-witness"],
+      "owner_reference_ids": [
+        "ref-wk2257-preservation-witness"
+      ],
       "discovery_rule": {
         "kind": "git_tracked_category_adapter",
         "adapter_id": "common_proof_resolver",
-        "roots": ["packages/agent-launch-cli/src", "packages/wiki-mcp/src/lib"],
-        "extensions": [".mjs"]
+        "roots": [
+          "packages/agent-launch-cli/src",
+          "packages/wiki-mcp/src/lib"
+        ],
+        "extensions": [
+          ".mjs"
+        ]
       }
     }
   ],

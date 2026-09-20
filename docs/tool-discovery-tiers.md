@@ -13,8 +13,7 @@ with tier exposure.
 
 Tool discovery is a **tier projection**, not a single global corpus shown to
 every registration. The checked-in descriptor corpus may carry full metadata and
-per-tier prose, but `workspace_tools_list` / `workspace_tools_describe` /
-`workspace_tools_query`, the agent FAQ, live MCP tool descriptions, and
+per-tier prose, but `workspace_tools_list` / `workspace_tools_describe`, the agent FAQ, live MCP tool descriptions, and
 mixed-route default responses render only the tool information relevant to the
 **resolved registered tier**.
 
@@ -74,6 +73,11 @@ an optional `tier_text.paid_cce` override. Projection strips the internal
 an unknown/absent tier or a missing override — degrades to the free/local base
 rather than falling through to higher-tier text.
 
+An override replaces the base text for its tier, so it is complete on its own and
+follows the [Discovery Prose Boundary](tool-discovery-schema.md#discovery-prose-boundary).
+The per-note ceiling and prose checks apply to each override separately from the
+base notes and the historical raw-notes aggregate.
+
 ### `agent-safe` / `agent-authoritative` are not tier labels
 
 `agent-safe` and `agent-authoritative` are compatibility labels for
@@ -126,7 +130,7 @@ a "three response-shape mode" contract with `free_local` / `paid_cce` /
 
 ### Free-tier structured role results under decision
 
-In the free/local tier, `workspace_agent_run_wait` and `workspace_agent_run_status`
+In the free/local tier, `workspace_agent_run_status`
 can report terminal success while `structured_role_result.valid:false`, because
 `decision` free-tier reviewer/redteam/worker output is prose-only and non-attesting.
 That value is expected, non-attesting state — not a failed child run, a failed

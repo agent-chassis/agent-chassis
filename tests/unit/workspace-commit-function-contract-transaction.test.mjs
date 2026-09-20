@@ -317,8 +317,10 @@ test("WK-1699 an equivalent replay converges and accepts an already-review canon
   assert.equal(payload.submitted_for_review, true);
   assert.equal(payload.idempotent, true);
   assert.equal(payload.ref_advanced, false);
-  assert.equal(payload.transition.result.no_op, true);
-  assert.equal(payload.transition.result.status, "review");
+
+  assert.equal(payload.transition.no_op, true);
+  assert.equal(payload.transition.written, false);
+  assert.equal(payload.transition.status, "review");
   assert.deepEqual(state.calls.map((call) => call.op), [
     "resolve_binding", "materialize", "verify_measure", "commit_slice_ref", "transition"
   ]);

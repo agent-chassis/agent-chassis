@@ -22,56 +22,5 @@
     "executable_control_count": 75,
     "negative_fixture_count": 1,
     "coverage_witness_count": 74
-  },
-  "exact_binding": {
-    "declaration_digest": "fda608c337f286269524dcd117e963a6eb6d6a6c0235eb59af9df9ce7664f823",
-    "certification_result_digest": "b316d99e1c773abf493fb12ff81be1ed9907ba3c408275a670d693da3637b8fe",
-    "executable_control_count": 35,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection"
-    ],
-    "corpus_id": "proof-authentication-direct-source-provenance-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "06d768427df3085ed4b9c9f0fd9bc887f25b0b9fe84b7cf6a614a72c2e52d29f",
-    "passed_control_ids": [
-      "context-admission-digest-mismatch",
-      "context-contract-digest-mismatch",
-      "context-evaluation-input-digest-mismatch",
-      "context-exact-binding-certification-digest-mismatch",
-      "context-exact-binding-declaration-digest-mismatch",
-      "context-profile-digest-mismatch",
-      "context-vocabulary-complete-digest-mismatch",
-      "context-vocabulary-version-mismatch",
-      "coordinated-recomputed-source-set",
-      "equality-evidence-occurrence-alias-does-not-bind",
-      "equality-observation-attempt-alias-does-not-bind",
-      "equality-source-alias-does-not-bind",
-      "equality-target-alias-does-not-bind",
-      "missing-attempt-binding-witness",
-      "missing-authentication-witness",
-      "missing-evidence-content",
-      "missing-occurrence-capture",
-      "missing-source-authentication-witness",
-      "missing-source-of-record-witness",
-      "missing-target-resolution-witness",
-      "occurrence-result-splice",
-      "positive-direct-source-occurrence",
-      "raw-evidence-occurrence-substitution",
-      "raw-observation-attempt-substitution",
-      "raw-source-substitution",
-      "raw-target-substitution",
-      "source-path-reuse",
-      "source-set-extra",
-      "substituted-attempt-binding-witness",
-      "substituted-authentication-witness",
-      "substituted-evidence-content",
-      "substituted-occurrence-capture",
-      "substituted-source-authentication-witness",
-      "substituted-source-of-record-witness",
-      "substituted-target-resolution-witness"
-    ]
   }
 }

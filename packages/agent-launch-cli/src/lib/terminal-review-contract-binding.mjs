@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 
-import { canonicalizeWorkRecordJson } from "@agent-chassis/wiki-core";
+import {
+  canonicalizeWorkRecordJson
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 
 export const TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION =
   "agent_launch.terminal_review_contract_binding.v1";

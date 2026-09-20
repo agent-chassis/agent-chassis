@@ -1,0 +1,128 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "selected-canonical-values-equal",
+      "claim_id": "claim-paths-equivalent"
+    },
+    {
+      "pattern_id": "canonical-value-verification",
+      "claim_id": "claim-verify-equivalence"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "member_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-canonical-value-mismatch-condition"
+      ],
+      "role": "canonical_value_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-left-count-mismatch-condition"
+      ],
+      "role": "left_count_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-left-count-signal"
+      ],
+      "role": "left_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-left-population"
+      ],
+      "role": "left_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-left-population-not-subset-condition"
+      ],
+      "role": "left_population_not_subset_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-left-result"
+      ],
+      "role": "left_result"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-logical-source"
+      ],
+      "role": "logical_source"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-right-count-mismatch-condition"
+      ],
+      "role": "right_count_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-right-count-signal"
+      ],
+      "role": "right_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-right-population"
+      ],
+      "role": "right_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-right-population-not-subset-condition"
+      ],
+      "role": "right_population_not_subset_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-right-result"
+      ],
+      "role": "right_result"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-members-1",
+        "ref-result-shape-cross-representation-parity-members-2"
+      ],
+      "role": "left_members"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-members-1",
+        "ref-result-shape-cross-representation-parity-members-2"
+      ],
+      "role": "right_members"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-members-1"
+      ],
+      "role": "left_selected_canonical_value"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-cross-representation-parity-members-1"
+      ],
+      "role": "right_selected_canonical_value"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

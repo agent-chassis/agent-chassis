@@ -5,7 +5,7 @@ import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 
 import RESULT_SCHEMA from
-  "../schema/controlled-contract-proof-verification-result.v1.schema.json" with { type: "json" };
+  "../schema/controlled-contract-proof-verification-result.v3.schema.json" with { type: "json" };
 import { loadExactAdmittedProofPack } from "../lib/admitted-proof-packs.mjs";
 import { profileDigest } from "../lib/profile-digest.mjs";
 import {
@@ -14,103 +14,28 @@ import {
 } from "../lib/proof-obligation-runtime-resolver.mjs";
 
 const DIGEST = (character) => `sha256:${character.repeat(64)}`;
-const postDeliveryPack = await loadExactAdmittedProofPack({
+const executionPack = await loadExactAdmittedProofPack({
   profileId: "proof.verification.test-validity",
-  profileVersion: "3.0.0",
-  evaluationStage: "post_delivery"
+  profileVersion: "10.0.0",
+
 });
-const correctedPostDeliveryPack = await loadExactAdmittedProofPack({
-  profileId: "proof.verification.test-validity",
-  profileVersion: "4.0.0",
-  evaluationStage: "post_delivery"
-});
+const SELECTED_TEST_ID = "test-component";
 const validateResult = new Ajv2020({ strict: true, allErrors: true })
   .compile(RESULT_SCHEMA);
 
-function canonicalValue(value) {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (value !== null && typeof value === "object") return Object.fromEntries(
-    Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])])
-  );
-  return value;
-}
+import { canonicalDigest } from "./support/proof-pack-adequacy.mjs";
 
-function canonicalDigest(value) {
-  return createHash("sha256").update(
-    `${JSON.stringify(canonicalValue(value), null, 2)}\n`
-  ).digest("hex");
-}
+import { facts, mutate } from "./support/test-validity-execution-controls.mjs";
 
-function facts(overrides = {}) {
-  const value = {
-    candidate: { status: "passed", passed: true },
-    inventory: {
-      declared_test_ids: ["test-component"],
-      discovered_test_ids: ["test-component"],
-      executed_test_ids: ["test-component"],
-      skipped_test_ids: [],
-      newly_skipped_test_ids: [],
-      unexpected_test_ids: []
-    },
-    falsifiers: {
-      expected_ids: ["falsifier-component"],
-      observations: [{
-        falsifier_id: "falsifier-component",
-        status: "detected",
-        detected: true
-      }],
-      complete: true,
-      all_detected: true
-    },
-    traversal: {
-      observations: [{
-        boundary_id: "sut-boundary-component",
-        observable_id: "observable-component",
-        provider_support: "supported",
-        status: "proven",
-        proven: true
-      }],
-      complete: true,
-      all_proven: true
-    },
-    prohibited_shortcuts: { observed: [], violated: [] },
-    ...overrides
-  };
-  return {
-    schema_version: "controlled-contract-test-proof-semantic-facts.v1",
-    status: "facts",
-    authority: "non_authoritative",
-    obligation_id: "AC-001",
-    execution_identity: {
-      run_id: "run-reviewer-independent",
-      attempt: 1,
-      candidate: {
-        kind: "reviewer_frozen_candidate",
-        commit: "d".repeat(40),
-        source_snapshot_digest: DIGEST("6")
-      },
-      source_snapshot_digest: DIGEST("6")
-    },
-    receipt_population: {
-      count: 1,
-      receipt_digests: [DIGEST("7")],
-      digest: DIGEST("8")
-    },
-    facts: value,
-    facts_digest: DIGEST("9")
-  };
-}
-
-function resolution(pack = postDeliveryPack) {
+function resolution(pack = executionPack) {
   return {
     status: "executable",
     obligation_id: "AC-001",
     contract_generation: DIGEST("1"),
     contract_digest: DIGEST("2"),
     obligation_coverage_digest: DIGEST("3"),
-    proof_plan_digest: DIGEST("4"),
-    proof_plan_entry_digest: DIGEST("5"),
-    proof_plan_entry: { exact_binding: null },
+    execution_source_binding: { schema_version: "verify-proof-execution-source-binding.v1", binding_digest: DIGEST("4") },
+    resolved_node_identity: "5".repeat(64),
     behavior_claim_ids: ["claim-component-exists"],
     verification_id: "claim-suite-covers-component",
     relation_ids: ["rel-suite-verifies-component"],
@@ -123,13 +48,29 @@ function resolution(pack = postDeliveryPack) {
       source_snapshot_digest: DIGEST("6")
     },
     test_proof: { test_proof_id: "test-proof-component" },
-    post_delivery_pack: pack
+    selected_definition: {
+      proof_name: pack.profile.profile_id, proof_version: pack.profile.profile_version,
+      profile_digest: pack.profile_digest, admission_digest: pack.admission_digest,
+      parameter_contract_digest: pack.parameter_contract_digest
+    },
+    execution_pack: pack
   };
 }
 
 test("the exact evaluator alone distinguishes satisfied from valid-negative unsatisfied", () => {
+  assert.deepEqual({
+    profile_id: executionPack.profile.profile_id,
+    profile_version: executionPack.profile.profile_version,
+    implementation_id: executionPack.test_validity_evaluator.implementation_id,
+    implementation_version: executionPack.test_validity_evaluator.implementation_version
+  }, {
+    profile_id: "proof.verification.test-validity",
+    profile_version: "10.0.0",
+    implementation_id: "proof.verification.test-validity.execution-evaluator",
+    implementation_version: "8.0.0"
+  });
   const positiveFacts = facts();
-  const satisfied = postDeliveryPack.test_validity_evaluator.evaluate({
+  const satisfied = executionPack.test_validity_evaluator.evaluate({
     semantic_facts: positiveFacts
   });
   assert.equal(satisfied.satisfaction, "satisfied");
@@ -140,36 +81,40 @@ test("the exact evaluator alone distinguishes satisfied from valid-negative unsa
       violated: ["source_text_inspection"]
     }
   });
-  const unsatisfied = postDeliveryPack.test_validity_evaluator.evaluate({
+  const unsatisfied = executionPack.test_validity_evaluator.evaluate({
     semantic_facts: negativeFacts
   });
   assert.equal(unsatisfied.satisfaction, "unsatisfied");
   assert.equal(unsatisfied.diagnostics[0].code,
-    "test_validity_post_delivery_prohibited_shortcut");
+    "test_validity_execution_prohibited_shortcut");
 });
 
-test("4.0.0 requires exact declared, discovered, and executed inventories", () => {
-  assert.equal(correctedPostDeliveryPack.test_validity_evaluator.evaluate({
-    semantic_facts: facts()
-  }).satisfaction, "satisfied");
-  for (const [field, code] of [
-    ["declared_test_ids", "test_validity_post_delivery_declared_discovered_inventory_mismatch"],
-    ["discovered_test_ids", "test_validity_post_delivery_declared_discovered_inventory_mismatch"],
-    ["executed_test_ids", "test_validity_post_delivery_declared_executed_inventory_mismatch"]
+test("10.0.0 profile judges only the one declaratively selected test", () => {
+  const evaluate = (inventory) => executionPack.test_validity_evaluator.evaluate({
+    semantic_facts: facts({ inventory: { ...facts().facts.inventory, ...inventory } })
+  });
+  assert.equal(evaluate({}).satisfaction, "satisfied");
+  for (const [label, inventory, code] of [
+    ["not discovered", { discovered_test_ids: [] },
+      "test_validity_execution_selected_test_not_discovered"],
+    ["not executed", { executed_test_ids: [] },
+      "test_validity_execution_selected_test_not_executed"],
+    ["skipped", { skipped_test_ids: [SELECTED_TEST_ID] },
+      "test_validity_execution_selected_test_skipped"]
   ]) {
-    const inventory = structuredClone(facts().facts.inventory);
-    inventory[field] = [];
-    const evaluation = correctedPostDeliveryPack.test_validity_evaluator.evaluate({
-      semantic_facts: facts({ inventory })
-    });
-    assert.equal(evaluation.satisfaction, "unsatisfied", field);
-    assert.equal(evaluation.diagnostics.some((entry) => entry.code === code), true, field);
+    const evaluation = evaluate(inventory);
+    assert.equal(evaluation.satisfaction, "unsatisfied", label);
+    assert.equal(evaluation.diagnostics.some((entry) => entry.code === code), true, label);
   }
+
+  const siblings = evaluate({ observed_test_count: 7 });
+  assert.equal(siblings.satisfaction, "satisfied");
+  assert.deepEqual(siblings.diagnostics, []);
 });
 
-test("4.0.0 certification authenticates and executes its complete negative corpus", async () => {
+test("10.0.0 certification authenticates and executes its complete negative corpus", async () => {
   const root = new URL(
-    "./certification/profiles/proof.verification.test-validity/4.0.0/",
+    "./certification/profiles/proof.verification.test-validity/10.0.0/",
     import.meta.url
   );
   const readJson = async (name) => JSON.parse(await readFile(new URL(name, root), "utf8"));
@@ -180,33 +125,29 @@ test("4.0.0 certification authenticates and executes its complete negative corpu
   assert.equal(profileDigest(profile), admission.profile_digest);
   assert.equal(createHash("sha256").update(admission.guarantee).digest("hex"),
     admission.guarantee_digest);
-  assert.equal(canonicalDigest(corpus), adequacy.corpus_digest);
-  assert.equal(canonicalDigest(result), adequacy.result_digest);
+  assert.equal(canonicalDigest(corpus), result.corpus_digest);
+  assert.equal(canonicalDigest(result), admission.certification.adequacy_result_digest);
   assert.equal(canonicalDigest(adequacy),
     admission.certification.adequacy_declaration_digest);
-  assert.equal(corpus.single_axis_weakenings.length, 7);
-  assert.equal(admission.certification.executable_control_count, 8);
+  assert.equal(corpus.single_axis_weakenings.length, 9);
+  assert.equal(admission.certification.executable_control_count, 10);
+  assert.equal(admission.certification.negative_fixture_count, 9);
+  assert.equal(admission.certification.coverage_witness_count, 9);
+  assert.deepEqual(adequacy.certification_population,
+    { positive_case_count: 1, single_axis_weakening_count: 9 });
 
-  const mutate = {
-    "failed-candidate": (value) => {
-      value.candidate = { status: "failed", passed: false };
-    },
-    "missing-declared-test": (value) => { value.inventory.declared_test_ids = []; },
-    "missing-discovered-test": (value) => { value.inventory.discovered_test_ids = []; },
-    "missing-executed-test": (value) => { value.inventory.executed_test_ids = []; },
-    "inert-falsifier": (value) => { value.falsifiers.all_detected = false; },
-    "unproven-traversal": (value) => { value.traversal.all_proven = false; },
-    "prohibited-shortcut": (value) => {
-      value.prohibited_shortcuts = {
-        observed: ["source_text_inspection"], violated: ["source_text_inspection"]
-      };
-    }
-  };
+  assert.deepEqual(Object.keys(mutate).sort(),
+    corpus.single_axis_weakenings.map(({ case_id: id }) => id).sort());
+  for (const caseId of corpus.positive_cases) {
+    assert.equal(executionPack.test_validity_evaluator.evaluate({
+      semantic_facts: facts()
+    }).satisfaction, "satisfied", caseId);
+  }
   const passed = [];
   for (const control of corpus.single_axis_weakenings) {
     const semanticFacts = facts();
     mutate[control.case_id](semanticFacts.facts);
-    const evaluation = correctedPostDeliveryPack.test_validity_evaluator.evaluate({
+    const evaluation = executionPack.test_validity_evaluator.evaluate({
       semantic_facts: semanticFacts
     });
     assert.equal(evaluation.satisfaction, "unsatisfied", control.case_id);
@@ -219,18 +160,27 @@ test("4.0.0 certification authenticates and executes its complete negative corpu
 
 test("complete deterministic results bind every proof-instance identity", () => {
   const semanticFacts = facts();
-  const evaluation = postDeliveryPack.test_validity_evaluator.evaluate({
+  const evaluation = executionPack.test_validity_evaluator.evaluate({
     semantic_facts: semanticFacts
   });
   const result = buildProofVerificationResult({
     resolution: resolution(), semanticFacts, evaluation
   });
   assert.equal(result.status, "satisfied");
-  assert.equal(result.proof_instance.profile.profile_version, "3.0.0");
+  assert.equal(result.proof_instance.profile.profile_version, "10.0.0");
+  assert.equal(result.proof_instance.evaluator.implementation_id,
+    "proof.verification.test-validity.execution-evaluator");
+  assert.equal(result.proof_instance.evaluator.implementation_version, "8.0.0");
   assert.equal(result.proof_instance.evaluator.implementation_digest,
-    "sha256:c7920b44a165d830e8853c3e37be7a4ad7d76db64102d1e431e51c630403d606");
-  assert.equal(result.proof_instance.evaluation_stage, "post_delivery");
+    "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f");
+
+  assert.deepEqual(result.proof_instance.selected_definition, resolution().selected_definition);
   assert.equal(validateResult(result), true, JSON.stringify(validateResult.errors));
+  const unbound = resolution();
+  delete unbound.selected_definition;
+  assert.throws(() => buildProofVerificationResult({
+    resolution: unbound, semanticFacts, evaluation
+  }), (error) => error.code === "verify_proof.result_input_invalid.v1");
   assert.deepEqual(buildProofVerificationResult({
     resolution: resolution(), semanticFacts, evaluation
   }), result);
@@ -254,26 +204,14 @@ test("caller-copied or mutated pack identities cannot produce a result", () => {
     ["profile digest", (pack) => { pack.profile_digest = "0".repeat(64); }]
   ];
   const semanticFacts = facts();
-  const evaluation = postDeliveryPack.test_validity_evaluator.evaluate({
+  const evaluation = executionPack.test_validity_evaluator.evaluate({
     semantic_facts: semanticFacts
   });
   for (const [label, mutate] of mutations) {
-    const pack = JSON.parse(JSON.stringify(postDeliveryPack));
+    const pack = JSON.parse(JSON.stringify(executionPack));
     mutate(pack);
     assert.throws(() => buildProofVerificationResult({
       resolution: resolution(pack), semanticFacts, evaluation
     }), (error) => error.code === "proof_pack_snapshot_unrecognized", label);
   }
-});
-
-test("conditional exact-capture identities fail closed when incomplete", () => {
-  const value = resolution();
-  value.proof_plan_entry.exact_binding = { capture_root_digest: DIGEST("a") };
-  const semanticFacts = facts();
-  const evaluation = postDeliveryPack.test_validity_evaluator.evaluate({
-    semantic_facts: semanticFacts
-  });
-  assert.throws(() => buildProofVerificationResult({
-    resolution: value, semanticFacts, evaluation
-  }), (error) => error.code === "verify_proof.exact_capture_binding_incomplete.v1");
 });

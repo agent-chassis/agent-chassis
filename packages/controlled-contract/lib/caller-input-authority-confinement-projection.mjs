@@ -13,13 +13,18 @@ import {
 } from "./sound-negative-observation-projection.mjs";
 import { validateProjectedContractWithStableCore } from
   "./projected-contract-validation.mjs";
+import {
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "./native-contract-carrier-v1.mjs";
 import { GRAPH_VERSION } from "./projected-contract-graph.mjs";
 
 const TRANSFORMER_ID = "caller-input-surface-capture.v1";
 const POLICY_VERSION = "controlled-contract.caller-input-policy.v1";
 const TRACE_VERSION = "controlled-contract.caller-boundary-trace.v1";
 const RESULT_VERSION = "controlled-contract.caller-input-authority-confinement.v1";
-const CONTRACT_VERSION = "controlled-acceptance-contract.experimental.v0.2";
+const CONTRACT_VERSION = SCHEMA_VERSION_V1;
 const SOUND_NEGATIVE_EVIDENCE_VERSION =
   "controlled-contract.sound-negative-observation-evidence.v1";
 const SOUND_NEGATIVE_PROOF_VERSION =
@@ -1170,8 +1175,8 @@ function deriveResult(sourceValues, sourceDigests) {
 
   const contract = {
     schema_version: CONTRACT_VERSION,
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1,
     references: [...state.references.values()].sort((left, right) =>
       compareCodeUnits(left.reference_id, right.reference_id)),
     propositions: state.propositions.sort((left, right) =>

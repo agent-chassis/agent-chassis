@@ -19,7 +19,6 @@ import {
   strictAdmissionComponentIssue
 } from "./agent-dispatch-refusal-projection.mjs";
 import {
-  graphBlockerCodeForReadiness,
   graphDerivationRequiredForDispatch,
   RECOVERABLE_DISPATCH_STATES
 } from "./dispatch-admission-policy.mjs";
@@ -87,27 +86,10 @@ export async function orchestrateWorkerReadiness({
     readinessDispatchRole,
     graphDerivationRequiredForDispatch,
     generateGraphImpactEvidence,
-    validateDispatch,
-    boundedRecoveryDetail
+    validateDispatch
   });
   readiness = prepared.readiness;
-  if (prepared.refusal) {
-    if (typeof prepared.refusal.blocker?.code !== "string") {
-      throw new Error("graph admission refusal is missing its classified blocker code");
-    }
-    return {
-      response: refuse({
-        failure: readinessFailure(readiness),
-        blockerCode: prepared.refusal.blocker.code,
-        reason: prepared.refusal.blocker?.reason ?? "work_record_not_dispatchable",
-        detail: prepared.refusal.blocker?.detail ?? null,
-        nextAction: prepared.refusal.next_action ?? null,
-        refusal: prepared.refusal.refusal ?? null
-      }),
-      readiness
-    };
-  }
-  const recoveredGraphImpact = prepared.recoveredGraphImpact;
+  const graphPreparation = prepared.graphPreparation;
 
   if (Object.values(readiness.recovery ?? {}).includes("nonrecoverable_integrity_failure")) {
     return {
@@ -123,13 +105,12 @@ export async function orchestrateWorkerReadiness({
     };
   }
   if (!readiness.dispatchable) {
-    const graphCode = graphBlockerCodeForReadiness(readiness);
-    const classification = graphCode ? null : namedAuthoredReadinessClassification(readiness);
+    const classification = namedAuthoredReadinessClassification(readiness);
     return {
       response: refuse({
         failure: readinessFailure(readiness),
-        blockerCode: graphCode ?? classification.code,
-        reason: graphCode ?? "work_record_not_dispatchable",
+        blockerCode: classification.code,
+        reason: "work_record_not_dispatchable",
         detail: boundedRecoveryDetail(readiness, { readiness_reasons: readiness.reasons ?? [] })
       }),
       readiness
@@ -221,7 +202,7 @@ export async function orchestrateWorkerReadiness({
     unitAddress: args.subject,
     dispatch_role: readinessDispatchRole,
     mode: "strict",
-    graph_impact: recoveredGraphImpact
+    ...graphPreparation
   });
   readiness = launchIntent.readiness;
   let privateHandoff = launchIntent.private_handoff;
@@ -239,13 +220,12 @@ export async function orchestrateWorkerReadiness({
     };
   }
   if (!readiness.dispatchable) {
-    const graphCode = graphBlockerCodeForReadiness(readiness);
-    const classification = graphCode ? null : namedAuthoredReadinessClassification(readiness);
+    const classification = namedAuthoredReadinessClassification(readiness);
     return {
       response: refuse({
         failure: readinessFailure(readiness),
-        blockerCode: graphCode ?? classification.code,
-        reason: graphCode ?? "work_record_not_dispatchable",
+        blockerCode: classification.code,
+        reason: "work_record_not_dispatchable",
         detail: boundedRecoveryDetail(readiness)
       }),
       readiness
@@ -289,7 +269,7 @@ export async function orchestrateWorkerReadiness({
     dispatch_role: readinessDispatchRole,
     mode: "strict",
     node_engine_admissibility: launcherConfirmedNoCceAuthority ? false : true,
-    graph_impact: recoveredGraphImpact
+    ...graphPreparation
   });
   if (launcherConfirmedNoCceAuthority) {
     readiness = foldLauncherConfirmedNoCceAuthority(readiness);

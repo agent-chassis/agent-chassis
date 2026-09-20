@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
 
+import {
+  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
+  fail
+} from "./launch-isolation-errors.mjs";
+import { resolveAuthenticatedCheckoutGitMetadata } from
+  "./launch-isolation-findings-git-metadata.mjs";
+
 export const ADVISORY_REVIEW_DESCRIPTOR_SCHEMA_VERSION =
   "workspace-agent-advisory-review-descriptor.v1";
 export const ADVISORY_REVIEW_INPUT_SCHEMA_VERSION =
@@ -19,7 +26,7 @@ function canonicalRole(role) {
   return role;
 }
 
-export function renderAdvisoryReviewBrief({ role, subject, parent, selected }) {
+export function renderAdvisoryReviewBrief({ role, subject, parent, selected, entryMaterial = null }) {
   canonicalRole(role);
   const project = (value) => Object.freeze({
     id: value?.id ?? null,
@@ -33,7 +40,8 @@ export function renderAdvisoryReviewBrief({ role, subject, parent, selected }) {
   });
   const material = Object.freeze({
     parent: project(parent),
-    selected: project(selected)
+    selected: project(selected),
+    entry_material: entryMaterial
   });
   return Object.freeze({
     role,
@@ -97,6 +105,18 @@ export function createAdvisoryReviewInput({ descriptor, checkoutRoot, toolProfil
   });
   trustedInputs.add(input);
   return input;
+}
+
+export function resolveAdvisoryReviewGitMetadataProjection(input) {
+  if (!trustedInputs.has(input)) {
+    fail(BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_INVALID,
+      "advisory review Git metadata requires a launcher-owned review input");
+  }
+  return resolveAuthenticatedCheckoutGitMetadata({
+    checkout: input.private_checkout_root,
+    repository: input.repository,
+    headCommit: input.reviewed_sha
+  });
 }
 
 export function consumeAdvisoryReviewInput(input, expected = {}) {

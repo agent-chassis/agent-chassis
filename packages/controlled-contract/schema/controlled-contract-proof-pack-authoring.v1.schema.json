@@ -115,7 +115,7 @@
       "required": [
         "input_version", "allowed_evaluation_stages", "reference_bindings",
         "number_bindings", "claim_pattern_bindings", "resolver_facts",
-        "delivered_evidence", "exact_binding"
+        "delivered_evidence"
       ],
       "additionalProperties": false,
       "properties": {
@@ -143,9 +143,6 @@
           "enum": [
             "not_required", "supply_every_required_delivered_evidence_pattern"
           ]
-        },
-        "exact_binding": {
-          "enum": ["not_applicable", "required_by_proof_plan"]
         }
       }
     },

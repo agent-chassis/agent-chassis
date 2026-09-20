@@ -1,0 +1,382 @@
+{
+  "schema_version": "wiki-core-controlled-contract-acceptance-coverage.v1",
+  "wk_id": "WK-2470",
+  "selected_unit": null,
+  "source_identity": {
+    "source_kind": "obligation-coverage",
+    "content_digest": "sha256:913f63e1389996151ab2406ded71d4684570c802eb4d19b065eb0fe0043d5be9"
+  },
+  "source_bindings": {
+    "workRecordLocatorDigest": "sha256:f2966afb78fe2a25f593a7fd47fdf98c102ebbe6fce9583e0dcc4571eb59ef2f",
+    "contractDigest": "sha256:ed3b5d62124473172c4991401fcc4c23bdbb9845441c4f365a76a8c1628ea69e",
+    "contractNodeDigest": "sha256:f893ef5261a7a83c2b624b111141a476390d61cffd4b3af45b5c92d8f0e3b03b",
+    "proofPlanDigest": "sha256:7fd5cd020f7e25d19fded4e047b5c9dd9adc4ce012c4ebfb017f593fe0e6d731",
+    "selectedPackDigest": "sha256:a5e08db87c348b40d56a75c22436c988135024ed9eece102434d7ec1c7e2dab9",
+    "assessmentDigest": null,
+    "proofAssessmentDigest": null,
+    "profileVersionDigest": "sha256:273e02157aff9974c1e490c6a4c613be8c8f0d4b4ef721ec64dc87e4d30edc71",
+    "selectorArtifactDigest": "sha256:07a00a11d9deb8b6aae370264940f6ddf46dbe7f11157fccfb2f4cdb30e2697d",
+    "ownershipDigest": "sha256:619d58ec584ad9ead088abc98efcee951d1e1d74e09f18a7f2ca5bced3ed3e3f",
+    "verificationDigest": "sha256:37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "optionalScopeDigest": null,
+    "sourceDigest": "sha256:913f63e1389996151ab2406ded71d4684570c802eb4d19b065eb0fe0043d5be9",
+    "sourceKind": "obligation-coverage",
+    "mappingDigest": "sha256:b6835e580dee8bf4db5461d44818b4aade923f6e46016dfbc92ef2b81b7c045b"
+  },
+  "criterion_identities": {
+    "version": "acceptance-coverage-criterion-identity.v1",
+    "identities": [
+      {
+        "position": 0,
+        "text": "The registered route round-trips.",
+        "identity": "derived:0e7c46a7bbb88602e9bb56a9fbae84fc52e700d8ae56d431410034305d079ef5",
+        "source": "derived"
+      }
+    ],
+    "bindings": {
+      "contractDigest": "sha256:ed3b5d62124473172c4991401fcc4c23bdbb9845441c4f365a76a8c1628ea69e",
+      "proofPlanDigest": "sha256:7fd5cd020f7e25d19fded4e047b5c9dd9adc4ce012c4ebfb017f593fe0e6d731",
+      "selectedPackDigest": "sha256:a5e08db87c348b40d56a75c22436c988135024ed9eece102434d7ec1c7e2dab9",
+      "mappingDigest": "sha256:b6835e580dee8bf4db5461d44818b4aade923f6e46016dfbc92ef2b81b7c045b"
+    },
+    "provenance": {
+      "selectedUnitDigest": "sha256:a6d2bab0a0c6d40e681aa51f03f9fbdc007612375d989c36905921b2703b82ab"
+    },
+    "digest": "46a3d9a8cce9fd8dd16106b626112442570995dca0f8f926ff6970906b817fb6"
+  },
+  "rows": [
+    {
+      "criterion_identity": "derived:1a220e554b13b3ba075950114bce9e98d982b8b172e7addd5324fd0a5ae542ff",
+      "node_ids": [
+        "ref-criterion-01",
+        "claim-criterion-01",
+        "claim-verify-criterion-01"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:95802e883902fcab4ffd18509f352d8c173a76d483dc83f71efeca27e1556c0f",
+      "node_ids": [
+        "ref-criterion-02",
+        "claim-criterion-02",
+        "claim-verify-criterion-02"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:2932ef8f09e314bfbc4d85d1d93b69dd779b6a14a13c717ea525ef8a3a957b5f",
+      "node_ids": [
+        "ref-criterion-03",
+        "claim-criterion-03",
+        "claim-verify-criterion-03"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:55682b53549d16253f26f37f4a091a82153453d7bb1e0f7957732e1e5e88e433",
+      "node_ids": [
+        "ref-criterion-04",
+        "claim-criterion-04",
+        "claim-verify-criterion-04"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:31fdf3dbb4af9de546d2fc6d2f36e903f383a58a6d0bbdddc27f82de264013d6",
+      "node_ids": [
+        "ref-criterion-05",
+        "claim-criterion-05",
+        "claim-verify-criterion-05"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:dc2b4cdb8eda1e779696fc1c2e1e71d177aa22263ef311e806209334315ee07e",
+      "node_ids": [
+        "ref-criterion-06",
+        "claim-criterion-06",
+        "claim-verify-criterion-06"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:5e338c1b6b16e108bb69891315a76c2ea0fccaa2c2ba9ef7341f71103a440a4b",
+      "node_ids": [
+        "ref-criterion-07",
+        "claim-criterion-07",
+        "claim-verify-criterion-07"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:643f8dca84e1f4e9dcfbb11e0fabc9d3786e2b35c66b92ebd3dae4fa61f01010",
+      "node_ids": [
+        "ref-criterion-08",
+        "claim-criterion-08",
+        "claim-verify-criterion-08"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:9728d4fc59a169ca298d5c67de86ecb1ed4fbea0ee4f2cfbd1f106da84229b47",
+      "node_ids": [
+        "ref-criterion-09",
+        "claim-criterion-09",
+        "claim-verify-criterion-09"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:3cb51eaa1d13575cd9883222ec8f77f9ba3499886c7f6300314c4e8a882c943e",
+      "node_ids": [
+        "ref-criterion-10",
+        "claim-criterion-10",
+        "claim-verify-criterion-10"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:c0e9b75140f398be2d908ccad90923433b84c23cc46735afcc29843b666f9a76",
+      "node_ids": [
+        "ref-criterion-11",
+        "claim-criterion-11",
+        "claim-verify-criterion-11",
+        "claim-attempt-performs-compound-operation",
+        "claim-compound-operation-writes-constituent-effects",
+        "claim-constituent-effect-population-members",
+        "claim-earlier-effect-population-membership",
+        "claim-later-effect-population-membership",
+        "claim-constituent-effect-population-cardinality",
+        "claim-constituent-effect-population-plurality",
+        "claim-constituent-effect-order",
+        "claim-failure-boundary-follows-earlier-effect",
+        "claim-failure-boundary-precedes-later-effect",
+        "claim-failure-injected-at-boundary",
+        "claim-settlement-follows-injected-failure",
+        "claim-settlement-follows-later-effect",
+        "claim-earlier-effect-settled-state",
+        "claim-later-effect-settled-state",
+        "claim-population-settled-state",
+        "claim-settled-result-composition",
+        "claim-earlier-effect-observation-record",
+        "claim-later-effect-observation-record",
+        "claim-earlier-effect-observation-read",
+        "claim-later-effect-observation-read",
+        "claim-fully-committed-state-allowed",
+        "claim-fully-uncommitted-state-allowed",
+        "claim-allowed-settlement-states-closed",
+        "claim-partial-commit-condition-state",
+        "claim-settled-outcome-is-fully-uncommitted",
+        "claim-settled-outcome-within-allowed-states",
+        "claim-atomic-settlement-verification",
+        "claim-partial-state-not-allowed"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:29b87654b8e81d0a8d895b90623de11e9c12022c16f6e0703b4057ca674d3017",
+      "node_ids": [
+        "ref-criterion-12",
+        "claim-criterion-12",
+        "claim-verify-criterion-12"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:da6739b20c8eee2f42b1c95a3b2b0eb555f98e1307847990d9da5e4909c44857",
+      "node_ids": [
+        "ref-criterion-13",
+        "claim-criterion-13",
+        "claim-verify-criterion-13"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:d7906453407797def112172fd77919afe8c57b9a2272624ddfa6c89f6f44a270",
+      "node_ids": [
+        "ref-criterion-14",
+        "claim-criterion-14",
+        "claim-verify-criterion-14"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:8101b73af7d587d4caf08dbc1c75a698d53c340b42227fa22894aeacec69d14f",
+      "node_ids": [
+        "ref-criterion-15",
+        "claim-criterion-15",
+        "claim-verify-criterion-15"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:2bacaad405a50350eda076543672cdbe17cbf605295630475c37a746903012a0",
+      "node_ids": [
+        "ref-criterion-16",
+        "claim-criterion-16",
+        "claim-verify-criterion-16"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:f1be0a45a8cde39692f26f20673f722155ef96ba34c2e84cd87cf6d9e9ac1a47",
+      "node_ids": [
+        "ref-criterion-17",
+        "claim-criterion-17",
+        "claim-verify-criterion-17"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:30ce08cc78423417d79c5ca73d85a786370cdafd88f865f6058e40e7a6d3ff8a",
+      "node_ids": [
+        "ref-criterion-18",
+        "claim-criterion-18",
+        "claim-verify-criterion-18"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:2e117f71e458974264b6c5c6719fd3705c24b5bc2233374b203569ffc4355489",
+      "node_ids": [
+        "ref-criterion-19",
+        "claim-criterion-19",
+        "claim-verify-criterion-19"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    }
+  ]
+}

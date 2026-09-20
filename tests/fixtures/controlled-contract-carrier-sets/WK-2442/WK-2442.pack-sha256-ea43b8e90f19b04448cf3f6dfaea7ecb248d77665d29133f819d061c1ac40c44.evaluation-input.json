@@ -1,0 +1,197 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "final-state-equals-expected",
+      "claim_id": "claim-sequential-preserves-state"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "attempt_count",
+      "value": 2
+    },
+    {
+      "role": "effect_count",
+      "value": 1
+    },
+    {
+      "role": "residue_count",
+      "value": 0
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-attempt-population"
+      ],
+      "role": "attempt_population"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-cleanup-event"
+      ],
+      "role": "cleanup_event"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-effect-count-signal"
+      ],
+      "role": "effect_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-effect-resource"
+      ],
+      "role": "effect_resource"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-expected-state"
+      ],
+      "role": "expected_state"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-failed-accepted-condition"
+      ],
+      "role": "failed_accepted_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-failed-attempt"
+      ],
+      "role": "failed_attempt"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-failed-effect-condition"
+      ],
+      "role": "failed_effect_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-failure-event"
+      ],
+      "role": "failure_event"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-final-effect"
+      ],
+      "role": "final_effect"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-final-effect-population"
+      ],
+      "role": "final_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-final-state-observation"
+      ],
+      "role": "final_state_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-input"
+      ],
+      "role": "input"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-non-single-effect-condition"
+      ],
+      "role": "non_single_effect_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-operation"
+      ],
+      "role": "operation"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-residue-count-signal"
+      ],
+      "role": "residue_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-residue-observation"
+      ],
+      "role": "residue_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-residue-population"
+      ],
+      "role": "residue_population"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-residue-survives-condition"
+      ],
+      "role": "residue_survives_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-retry-attempt"
+      ],
+      "role": "retry_attempt"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-retry-rejected-condition"
+      ],
+      "role": "retry_rejected_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-settlement-event"
+      ],
+      "role": "settlement_event"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-success-event"
+      ],
+      "role": "success_event"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-wrong-final-state-condition"
+      ],
+      "role": "wrong_final_state_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-failed-attempt",
+        "ref-failure-retry-convergence-retry-attempt"
+      ],
+      "role": "attempts"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-final-effect"
+      ],
+      "role": "final_effect_members"
+    },
+    {
+      "reference_ids": [
+        "ref-failure-retry-convergence-expected-state"
+      ],
+      "role": "final_state"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

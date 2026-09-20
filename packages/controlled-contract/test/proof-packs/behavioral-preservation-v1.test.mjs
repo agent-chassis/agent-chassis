@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { link, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,10 +11,7 @@ import {
   profileDigest,
   runProofPackAdequacy
 } from "../support/proof-pack-adequacy.mjs";
-import {
-  canonicalJsonBytes,
-  sha256
-} from "../../lib/exact-binding-common.mjs";
+import { canonicalJsonBytes } from "../../lib/exact-binding-common.mjs";
 import { loadAdmittedProofPack } from "../../lib/admitted-proof-packs.mjs";
 import {
   buildCrossRepresentationParityFixture,
@@ -101,9 +98,7 @@ async function runExact(subject) {
     packs: [{
       profileId,
       requestedIntents: ["controlled-proof-intent.behavioral-preservation"],
-      evaluationInputPath: path.join(subject.root, "evaluation.json"),
-      captureRoot: subject.root,
-      exactBindingSources: subject.sources
+      evaluationInputPath: path.join(subject.root, "evaluation.json")
     }]
   });
   await writeFile(proofPlanPath, canonicalJsonBytes(proofPlan));
@@ -113,29 +108,19 @@ async function runExact(subject) {
   ]);
 }
 
-test("behavioral-preservation profile, adequacy, and v2 admission form one bound release", async () => {
-  const [profile, adequacy, admission, declaration, certification, corpus] =
-    await Promise.all([
-      readJson(packDirectory, "profile.json"),
-      readJson(packDirectory, "adequacy.json"),
-      readJson(runtimeDirectory, "admission.json"),
-      readJson(runtimeDirectory, "exact-binding.json"),
-      readJson(runtimeDirectory, "exact-binding-certification.json"),
-      readJson(packDirectory, "exact-binding-corpus.json")
-    ]);
+test("behavioral-preservation profile, adequacy, and admission form one bound release", async () => {
+  const [profile, adequacy, admission] = await Promise.all([
+    readJson(packDirectory, "profile.json"),
+    readJson(packDirectory, "adequacy.json"),
+    readJson(runtimeDirectory, "admission.json")
+  ]);
   assert.equal(validateProfileSchemaV1(profile), true,
     JSON.stringify(validateProfileSchemaV1.errors));
   assert.deepEqual(validateProfileSemanticsV1(profile), []);
   assert.equal(profileDigest(profile), adequacy.profile_digest);
   assert.equal(admission.profile_digest, adequacy.profile_digest);
   assert.equal(guaranteeDigest(admission.guarantee), admission.guarantee_digest);
-  assert.equal(admission.exact_binding.declaration_digest,
-    sha256(canonicalJsonBytes(declaration, { file: true })));
-  assert.equal(admission.exact_binding.certification_result_digest,
-    sha256(canonicalJsonBytes(certification, { file: true })));
-  assert.equal(certification.corpus.corpus_digest,
-    sha256(canonicalJsonBytes(corpus, { file: true })));
-  assert.equal(certification.result.passed_control_ids.length, 12);
+  assert.equal(Object.hasOwn(admission, "exact_binding"), false);
   const loaded = await loadAdmittedProofPack(profileId);
   assert.equal(loaded.admission_version, 2);
   assert.equal(loaded.profile_digest, adequacy.profile_digest);
@@ -180,7 +165,7 @@ test("ordinary plan controls admit breadth and reject every inadequate plan", as
   ), true);
 });
 
-test("real v2 CLI proves joined profile discrimination only for matching captured bytes", async () => {
+test("the CLI proves profile discrimination for a well-formed plan", async () => {
   const subject = await exactFixture();
   try {
     const result = await runExact(subject);
@@ -188,70 +173,18 @@ test("real v2 CLI proves joined profile discrimination only for matching capture
     const compact = JSON.parse(result.stdout);
     assert.equal(compact.structure, "proven");
     assert.equal(compact.profile_discrimination, "proven");
-    assert.equal(compact.exact_binding, "proven");
     assert.equal(compact.assessment_scope, "planning");
-    assert.match(compact.overall_code, /__exact_binding_proven$/u);
+    assert.equal(Object.hasOwn(compact, "exact_binding"), false);
+    assert.match(compact.overall_code, /^structure_proven__profile_proven$/u);
   } finally {
     await rm(subject.root, { recursive: true, force: true });
   }
 });
 
-test("changed candidate bytes and omitted captures are visible non-proofs", async () => {
-  const changed = await exactFixture({
-    candidateBytes: canonicalJsonBytes({ status: 200, body: { id: "p-1", total: 43 } })
-  });
-  const omitted = await exactFixture({ omit: "candidate-behavior-report" });
-  try {
-    for (const subject of [changed, omitted]) {
-      const result = await runExact(subject);
-      assert.equal(result.code, 2, result.stderr);
-      const compact = JSON.parse(result.stdout);
-      assert.equal(compact.exact_binding, "not_proven");
-      assert.equal(compact.profile_discrimination, "not_proven");
-    }
-  } finally {
-    await Promise.all([changed, omitted].map(({ root }) =>
-      rm(root, { recursive: true, force: true })));
-  }
-});
 
-test("one source descriptor cannot impersonate distinct baseline and candidate reports", async () => {
-  const subject = await exactFixture();
-  try {
-    subject.sources["candidate-behavior-report"] = {
-      kind: "artifact_file", relative_path: "baseline-report.json"
-    };
-    await writeFile(path.join(subject.root, "sources.json"),
-      canonicalJsonBytes(subject.sources));
-    const result = await runExact(subject);
-    assert.equal(result.code, 2, result.stderr);
-    const compact = JSON.parse(result.stdout);
-    assert.equal(compact.exact_binding, "not_proven");
-    assert.equal(compact.profile_discrimination, "not_proven");
-  } finally {
-    await rm(subject.root, { recursive: true, force: true });
-  }
-});
 
-test("distinct descriptors intentionally do not claim distinct filesystem provenance", async () => {
-  const subject = await exactFixture();
-  try {
-    await rm(path.join(subject.root, "candidate-report.json"));
-    await link(
-      path.join(subject.root, "baseline-report.json"),
-      path.join(subject.root, "candidate-report.json")
-    );
-    const result = await runExact(subject);
-    assert.equal(result.code, 0, result.stderr);
-    const compact = JSON.parse(result.stdout);
-    assert.equal(compact.exact_binding, "proven");
-    assert.equal(compact.profile_discrimination, "proven");
-  } finally {
-    await rm(subject.root, { recursive: true, force: true });
-  }
-});
 
-test("a substituted evaluation binding cannot borrow a passing exact capture", async () => {
+test("a substituted evaluation binding cannot borrow a passing profile evaluation", async () => {
   const subject = await exactFixture({ swapEvaluationRoles: true });
   try {
     const result = await runExact(subject);
@@ -263,23 +196,6 @@ test("a substituted evaluation binding cannot borrow a passing exact capture", a
   }
 });
 
-test("exact-bound output is deterministic under source descriptor order", async () => {
-  const subject = await exactFixture();
-  try {
-    const first = await runExact(subject);
-    const reversed = Object.fromEntries(Object.entries(subject.sources).reverse());
-    await writeFile(path.join(subject.root, "sources.json"), canonicalJsonBytes(reversed));
-    const second = await runExact(subject);
-    assert.equal(first.code, 0, first.stderr);
-    assert.equal(second.code, 0, second.stderr);
-    const left = JSON.parse(first.stdout);
-    const right = JSON.parse(second.stdout);
-    assert.equal(left.overall_code, right.overall_code);
-    assert.equal(left.artifact, right.artifact);
-  } finally {
-    await rm(subject.root, { recursive: true, force: true });
-  }
-});
 
 test("admission digest is stable under an independent recomputation", async () => {
   const admission = await readJson(runtimeDirectory, "admission.json");

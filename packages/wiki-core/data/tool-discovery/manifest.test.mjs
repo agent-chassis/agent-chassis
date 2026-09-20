@@ -13,25 +13,41 @@ import {
 const manifestUrl = new URL('./manifest.json', import.meta.url);
 
 const EXPECTED_FRAGMENTS = [
-  ['mcp-tools.json', 31],
-  ['frozen-review-contract-tools.json', 1],
-  ['controlled-contract-tools.json', 44],
-  ['mcp-work-record-tools.json', 9],
-  ['mcp-launcher-tools.json', 7],
-  ['mcp-coordination-tools.json', 2],
-  ['tool-usage-audit-tools.json', 1],
 
-  ['work-record-core-mcp-tools.json', 7],
+  ['mcp-tools.json', 29],
+  ['frozen-review-contract-tools.json', 1],
+  ['controlled-contract-tools.json', 6],
+
+  ['mcp-work-record-tools.json', 7],
+
+  ['mcp-launcher-tools.json', 4],
+  ['mcp-coordination-tools.json', 2],
+
+  ['work-record-core-mcp-tools.json', 8],
   ['work-record-core-cli-tools.json', 7],
-  ['work-record-edit-mcp-tools.json', 10],
-  ['work-record-edit-cli-tools.json', 7],
-  ['code-index-tools.json', 28],
-  ['launcher-tools.json', 9],
-  ['cli-commands.json', 10],
+
+  ['work-record-edit-mcp-tools.json', 6],
+  ['work-record-edit-cli-tools.json', 6],
+  ['code-index-tools.json', 3],
+  ['code-index-query-tools.json', 4],
+  ['code-index-navigation-tools.json', 8],
+  ['launcher-tools.json', 8],
+  ['cli-commands.json', 11],
   ['integration-tools.json', 1],
   ['wrapper-commands.json', 0],
 ];
-const EXPECTED_TOOL_COUNT = 174;
+
+const EXPECTED_TOOL_COUNT = 111;
+
+const RETIRED_WORK_RECORD_ROUTES = Object.freeze([
+
+  'workspace_work_record_refresh_target_resolution_evidence',
+
+  'workspace_work_record_cleanup_derived_evidence',
+
+  'workspace_work_record_set_acceptance',
+  'wiki-work-records-set-acceptance',
+]);
 
 async function readJson(url) {
   return JSON.parse(await readFile(url, 'utf8'));
@@ -130,18 +146,18 @@ test('tool-discovery manifest carries one owner-bound conformance-debt baseline'
   );
   assert.equal(
     debt.baseline_entry_names_digest,
-    'sha256:7d9f887acc2237f34cc9612af9f640c7f77bed6cd4e17a8fe9687938a6778380',
+    'sha256:46d53dab6dac93faf037b8597d1b56638a8f2ed1ec991a3c6baa23a1034ef668',
   );
   assert.equal(
     debt.baseline_entry_digests_digest,
-    'sha256:33d721ca9ab3dcb58d69dd4bb1830d5df021473a45e62caf4b69101853899357',
+    'sha256:5e34a9c8d19c608acf9507003668fc469188cc867aa56a96dfecd611d7a90c52',
   );
   assert.equal(
     debt.compatibility_alias_records_digest,
     'sha256:66387f11d10654bc2d4c886e9d64e9faf9ac66514688fc9dbe252e830d1be880',
   );
   assert.deepEqual(debt.applicability_exceptions, []);
-  assert.equal(Object.keys(debt.baseline_entry_digests).length, 81);
+  assert.equal(Object.keys(debt.baseline_entry_digests).length, 60);
   assert.deepEqual(Object.keys(debt.compatibility_aliases).sort(), [
     'workspace_sidecar_build',
     'workspace_sidecar_context_for_path',
@@ -174,7 +190,7 @@ test('tool-discovery manifest pins exact aggregate token-budget debt baselines',
       target: 62000,
       baseline: 62001,
       denominator: 150,
-      digest: 'sha256:e04d5f8dbdf83951519ec57dfdad4b48ef9441efe6a338b04cfbc71b525f3cbb',
+      digest: 'sha256:2b676c66a5e2a841cb5d44001dd3acc7c4692a40ca7300f7a95f9f1c7ffb97ae',
     },
   );
   assert.deepEqual(
@@ -186,9 +202,9 @@ test('tool-discovery manifest pins exact aggregate token-budget debt baselines',
     },
     {
       target: 28000,
-      baseline: 46655,
-      denominator: 138,
-      digest: 'sha256:32bfc62715579c759883ccec0d8c165cab4dd47a4d416ce259cb0d4609a0924d',
+      baseline: 46042,
+      denominator: 136,
+      digest: 'sha256:c0791714ed3fed87b8b02d9855656f0b6cb2bb826bd11ef5154d567eb6413cbf',
     },
   );
 });
@@ -199,6 +215,12 @@ test('the manifest assembles into the full corpus through the loader', async () 
   assert.equal(descriptor.schema_version, TOOL_DISCOVERY_SCHEMA_VERSION);
   assert.equal(descriptor.repository, 'agent-chassis/agent-chassis');
   assert.equal(descriptor.tools.length, EXPECTED_TOOL_COUNT);
+
+  const mcpToolCount = descriptor.tools.filter(({ kind }) => kind === 'mcp_tool').length;
+  const cliCommandCount = descriptor.tools.filter(({ kind }) => kind === 'cli_command').length;
+  assert.equal(mcpToolCount, 81);
+  assert.equal(cliCommandCount, 30);
+  assert.equal(mcpToolCount + cliCommandCount, EXPECTED_TOOL_COUNT);
 
   const uniqueNames = new Set(descriptor.tools.map((tool) => tool.tool_name));
   assert.equal(uniqueNames.size, descriptor.tools.length, 'assembled tool_name set must be unique');
@@ -242,11 +264,16 @@ test('WK-1377: every assembled entry carries an explicit valid tier classificati
   for (const paid of [
     'workspace_node_engine_admission_runtime_diagnostic',
     'workspace_work_record_refresh_admission_metrics',
-    'workspace_work_record_refresh_target_resolution_evidence',
     'workspace_record_graph_impact_evidence',
-    'workspace_code_index_graph_impact_paths',
+    'workspace_code_index_impact',
   ]) {
     assert.deepEqual(byName.get(paid), ['paid_cce'], `${paid} must be paid/CCE-only`);
+  }
+
+  for (const retired of RETIRED_WORK_RECORD_ROUTES) {
+    assert.equal(byName.has(retired), false, `${retired} must stay retired`);
+    assert.equal(JSON.stringify(descriptor.tools).includes(retired), false,
+      `no descriptor row may advertise or route to retired ${retired}`);
   }
   for (const tool of descriptor.tools) {
     if (tool.kind === 'cli_command') {

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+
+import { buildStableTestProofPopulation } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import test from "node:test";
 
 import {
@@ -17,19 +20,28 @@ import {
 
 const intentId = "controlled-proof-intent.caller-input-authority-confinement";
 const profileId = "proof.input.caller-authority-confinement";
-const profileVersion = "2.0.0";
+const profileVersion = "4.0.0";
 
 function fixture() {
   const captured = buildCallerInputAuthorityConfinementSources();
+  const projected = captured.projection.contract;
+
   return {
-    contract: captured.projection.contract,
+    contract: {
+      ...projected,
+      test_proof_version: TEST_PROOF_VERSION_V1,
+      test_proofs: buildStableTestProofPopulation(projected)
+    },
     evaluationInput: buildCallerInputAuthorityConfinementEvaluationInput(captured.projection)
   };
 }
 
 test("caller-input authority intent is discoverable and selects its exact pack", () => {
   const discovery = discoverProofIntents({ query: "caller input authority confinement" });
-  assert.deepEqual(discovery.intents.map(({ intent_id: intent }) => intent), [intentId]);
+  const candidate = discovery.candidates.find(({ proof_name: name }) => name === profileId);
+  assert.ok(candidate);
+  assert.equal(candidate.profile_version, profileVersion);
+  assert.ok(candidate.associations.includes(intentId));
   const selection = selectProofPacks({
     contract: fixture().contract,
     requestedIntents: [intentId]
@@ -46,7 +58,7 @@ test("authoring description preserves the one-graph association-bound profile", 
   });
   assert.deepEqual(description.requested_intents, [intentId]);
   assert.equal(description.compatibility.admission_schema_version,
-    "controlled-contract-admitted-proof-pack.v2");
+    "controlled-contract-admitted-proof-pack.v3");
   assert.ok(Array.isArray(description.proof_obligations.satisfaction_expression.all_of));
   const associatedClaims = description.proof_obligations.claim_patterns.filter(
     ({ for_each: forEach }) => (forEach?.association_bindings?.length ?? 0) > 0
@@ -81,13 +93,10 @@ test("binding assistance accepts the projection-authored exact role set", async 
   assert.equal(assistance.summary.incompatible_binding_count, 0);
 });
 
-test("published admission binds the remediated adequacy and exact corpus", async () => {
+test("published admission binds the remediated adequacy", async () => {
   const pack = await loadAdmittedProofPack(profileId);
   assert.equal(pack.admission.certification.method, "executable_semantic_adequacy");
   assert.equal(pack.admission.certification.executable_control_count, 85);
-  assert.equal(pack.admission.exact_binding.executable_control_count, 32);
   assert.equal(pack.admission.profile_digest,
-    "82c491ef567f422ed6ddd22e6342e7f233511771082a42cf37555bcd26e94c18");
-  assert.equal(pack.admission.exact_binding.declaration_digest,
-    "be92d5e9229acb4c934450ac60b1f5e538d0a5cc6293c37ed8383463586806f2");
+    "3fd1bb644c2ef19e3326e5ce09b1a20eee221c16a1e75736ecdaef95533bfaf6");
 });

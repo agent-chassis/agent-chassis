@@ -5,8 +5,7 @@ import assert from "node:assert/strict";
 
 import {
   buildBlockedDispatchResult,
-  buildBlockedRunStatusResult,
-  buildBlockedRunWaitResult
+  buildBlockedRunStatusResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs";
 import {
   buildNextCall,
@@ -15,8 +14,7 @@ import {
 
 const BUILDERS = [
   ["buildBlockedDispatchResult", buildBlockedDispatchResult],
-  ["buildBlockedRunStatusResult", buildBlockedRunStatusResult],
-  ["buildBlockedRunWaitResult", buildBlockedRunWaitResult]
+  ["buildBlockedRunStatusResult", buildBlockedRunStatusResult]
 ];
 
 const BLOCKED_ARGS = { blockerCode: "operator_recovery_needed", reason: "blocked_for_test" };
@@ -24,7 +22,7 @@ const BLOCKED_ARGS = { blockerCode: "operator_recovery_needed", reason: "blocked
 function sampleRecommendedList() {
   return [
     buildNextCall({ tool: "workspace_validate_dispatch", arguments: { unit: "WK-0001" }, recommended: true }),
-    buildNextCall({ tool: "workspace_agent_faq", recommended: true }),
+    buildNextCall({ tool: "workspace_tools_list", recommended: true }),
     buildNextCall({ tool: "workspace_get_record" })
   ];
 }

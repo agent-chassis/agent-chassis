@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "20524d8830de268ea39fb3d3eb410ce3408b368d4b44a5f79a03c8d8b3d1846f",
+  "profile_id": "proof.integration.prefix-safety",
+  "profile_version": "4.0.0",
+  "profile_digest": "d5f787bf5a3db86d478030f193cac6efd2b26e903b35c98ce670b89350e7e14a",
+  "guarantee": "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.",
+  "guarantee_digest": "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e",
+  "explicit_exclusions": [
+    "caller-supplied-dag-unit-path-and-branch-source-truth-or-authority",
+    "concurrency-rollback-and-rollout-orchestration",
+    "dishonest-authored-preservation-claims-or-reference-grounding",
+    "pack-applicability-evidence-authority-or-cce-consequence",
+    "production-path-or-branch-discovery-outside-captured-sources",
+    "runtime-or-deployment-behavior-outside-captured-artifacts"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "8c04bf85fd83d45d37ef3c27d949861d56b96cc1498f0037580b661248b8f237",
+    "adequacy_result_digest": "d0a3f40808054a783f0cad498f716abedda3da485a2df80d6ce1ef5bfd9912db",
+    "executable_control_count": 18,
+    "negative_fixture_count": 44,
+    "coverage_witness_count": 44
+  }
+}

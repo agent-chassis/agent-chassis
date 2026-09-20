@@ -22,7 +22,6 @@ import {
 } from "@agent-chassis/controlled-contract/validator-cache";
 import { dispatchRefusal } from "./workspace-agent-dispatch-refusal.mjs";
 import { resolveWorkerSourceAccess } from "./workspace-agent-dispatch-source-access.mjs";
-import { bindReviewerValidationEvidence } from "./terminal-wk-candidate-validation.mjs";
 import {
   classifyLauncherFindingsCompletionTransport,
   LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS
@@ -46,17 +45,24 @@ import {
 import {
   isPlainObject,
   discardPendingManagedRunIdentity,
+  withManagedIdentityCleanupResidue,
   finalizeLaunchOutcome
 } from "./workspace-agent-dispatch-run-lifecycle-settlement.mjs";
+import { releaseDispatchSubjectReservation } from
+  "./workspace-agent-dispatch-reservation-release.mjs";
 import {
   CANONICAL_INTEGRATED_LIFECYCLE_STATE_IMPOSSIBLE_CODE
 } from "./backend-integrated-scope-authority.mjs";
+import { serializeWorkRecordDiagnosticValue } from
+  "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
+import {
+  provisioningRefusal,
+  serializeManagedBootstrapFailure
+} from "./backend-provisioning-state.mjs";
 
 export const MANAGED_RUN_IDENTITY_ENFORCEMENT_UNAVAILABLE =
   "managed_run_identity_enforcement_unavailable";
 
-const GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE =
-  "managed identity check failed";
 const ORIGINATING_CODE_STATUS_UNAVAILABLE = "unavailable";
 const ORIGINATING_CODE_STATUS_INVALID = "invalid";
 const RECOVERY_CARRIER_STATUS_ABSENT = "absent";
@@ -121,11 +127,10 @@ function projectRecovery(source, observed) {
       !hasExactKeys(observedTuple, MANAGED_CORRECTIVE_RECOVERY_OBSERVED_FIELDS) ||
       recovery.recovery_kind !== MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND ||
       recovery.responsible_actor !== "launcher" ||
-      recovery.next_action !== "retry_workspace_agent_run_status_same_monitor_and_subject" ||
+      recovery.next_action !== "retry_workspace_agent_run_status_same_subject" ||
       recovery.unit !== observed.record_id ||
       recovery.slice_unit !== `${observed.record_id}#${observed.slice_id}` ||
       recovery.exact_subject !== recovery.slice_unit ||
-      typeof recovery.monitor_handle !== "string" || recovery.monitor_handle.length === 0 ||
       recovery.launcher_retirement_required !== true ||
       recovery.filesystem_cleanup_forbidden !== true ||
       recovery.preserve_substantive_review !== true ||
@@ -143,7 +148,6 @@ function projectRecovery(source, observed) {
     unit: recovery.unit,
     slice_unit: recovery.slice_unit,
     exact_subject: recovery.exact_subject,
-    monitor_handle: recovery.monitor_handle,
     responsible_actor: "launcher",
     next_action: recovery.next_action,
     launcher_retirement_required: true,
@@ -156,13 +160,13 @@ function projectRecovery(source, observed) {
 }
 
 export function projectManagedIdentityCheckFailure(error) {
-  const detail = { message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE };
-  let originatingCode;
-  try {
-    originatingCode = error?.code;
-  } catch {
-    originatingCode = null;
-  }
+  const diagnostic = serializeWorkRecordDiagnosticValue(error, {
+    path: "managed_run_identity_check_failure"
+  });
+  const detail = { diagnostic };
+  const originatingCode = diagnostic !== null && typeof diagnostic === "object"
+    ? diagnostic.code
+    : null;
   if (typeof originatingCode === "string" && isStableDiagnosticCode(originatingCode)) {
     detail.code = originatingCode;
   } else if (typeof originatingCode === "string") {
@@ -170,60 +174,59 @@ export function projectManagedIdentityCheckFailure(error) {
   } else {
     detail.originating_code_status = ORIGINATING_CODE_STATUS_UNAVAILABLE;
   }
-  let source;
-  try {
-    source = error?.detail ?? null;
-    const sourceCode = source !== null && typeof source === "object" && !Array.isArray(source)
-      ? source.source_code
-      : null;
-    if (isStableSourceCode(sourceCode)) {
-      detail.source_code = sourceCode;
-    }
-    if (source === null || typeof source !== "object" || Array.isArray(source) ||
-        (error?.code !==
-            MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.INTEGRATED_STATE_UNRESOLVED &&
-          error?.code !==
-            MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.REVIEWED_TARGET_MISMATCH &&
-          error?.code !==
-            MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.RECEIPTS_CONTRADICTORY)) {
-      return Object.freeze(detail);
-    }
-
-    if (error.code ===
-          MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.REVIEWED_TARGET_MISMATCH ||
-        error.code ===
-          MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.RECEIPTS_CONTRADICTORY) {
-      return Object.freeze({ message: GENERIC_MANAGED_IDENTITY_CHECK_MESSAGE, code: error.code });
-    }
-    if (source.cause_code !== CANONICAL_INTEGRATED_LIFECYCLE_STATE_IMPOSSIBLE_CODE) {
-      return Object.freeze(detail);
-    }
-    const observed = projectObservedCanonicalStatus(source);
-    if (observed === null) return Object.freeze(detail);
-    detail.code =
-      MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.INTEGRATED_STATE_UNRESOLVED;
-    detail.cause_code = CANONICAL_INTEGRATED_LIFECYCLE_STATE_IMPOSSIBLE_CODE;
-    detail.observed_canonical_status = observed;
-    const recovery = projectRecovery(source, observed);
-
-    const actionable = observed.parent_status === MANAGED_CORRECTIVE_STATUSES.TODO &&
-      observed.slice_status === MANAGED_CORRECTIVE_STATUSES.TODO;
-    if (recovery === null &&
-        (Object.hasOwn(source, "recovery") || actionable)) {
-      detail.recovery_carrier_status = Object.hasOwn(source, "recovery")
-        ? RECOVERY_CARRIER_STATUS_MALFORMED
-        : RECOVERY_CARRIER_STATUS_ABSENT;
-      return Object.freeze(detail);
-    }
-    if (recovery !== null) detail.recovery = recovery;
-  } catch {
+  const source = diagnostic !== null && typeof diagnostic === "object"
+    ? diagnostic.detail ?? null
+    : null;
+  const sourceCode = source !== null && typeof source === "object" && !Array.isArray(source)
+    ? source.source_code
+    : null;
+  if (isStableSourceCode(sourceCode)) {
+    detail.source_code = sourceCode;
+  }
+  if (source === null || typeof source !== "object" || Array.isArray(source) ||
+      (originatingCode !==
+          MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.INTEGRATED_STATE_UNRESOLVED &&
+        originatingCode !==
+          MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.REVIEWED_TARGET_MISMATCH &&
+        originatingCode !==
+          MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.RECEIPTS_CONTRADICTORY)) {
     return Object.freeze(detail);
   }
+
+  if (originatingCode ===
+        MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.REVIEWED_TARGET_MISMATCH ||
+      originatingCode ===
+        MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.RECEIPTS_CONTRADICTORY) {
+    return Object.freeze({ ...detail, code: originatingCode });
+  }
+  if (source.cause_code !== CANONICAL_INTEGRATED_LIFECYCLE_STATE_IMPOSSIBLE_CODE) {
+    return Object.freeze(detail);
+  }
+  const observed = projectObservedCanonicalStatus(source);
+  if (observed === null) return Object.freeze(detail);
+  detail.code =
+    MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES.INTEGRATED_STATE_UNRESOLVED;
+  detail.cause_code = CANONICAL_INTEGRATED_LIFECYCLE_STATE_IMPOSSIBLE_CODE;
+  detail.observed_canonical_status = observed;
+  const recovery = projectRecovery(source, observed);
+
+  const actionable = observed.parent_status === MANAGED_CORRECTIVE_STATUSES.TODO &&
+    observed.slice_status === MANAGED_CORRECTIVE_STATUSES.TODO;
+  if (recovery === null &&
+      (Object.hasOwn(source, "recovery") || actionable)) {
+    detail.recovery_carrier_status = Object.hasOwn(source, "recovery")
+      ? RECOVERY_CARRIER_STATUS_MALFORMED
+      : RECOVERY_CARRIER_STATUS_ABSENT;
+    return Object.freeze(detail);
+  }
+  if (recovery !== null) detail.recovery = recovery;
   return Object.freeze(detail);
 }
 
-function validatorCacheBackingError(code, message, details = null) {
-  return Object.assign(new Error(message), { code, details });
+function validatorCacheBackingError(code, message, details = null, cause = null) {
+  const error = Object.assign(new Error(message), { code, details });
+  if (cause !== null) error.cause = cause;
+  return error;
 }
 
 function isContainedPath(root, candidate) {
@@ -242,7 +245,8 @@ function assertOwnedReadOnlyValidatorCachePath(candidate, root) {
     throw validatorCacheBackingError(
       "validator_cache_unavailable",
       "compiled-validator cache backing is unavailable",
-      { path: candidate, cause_code: error?.code ?? null }
+      { path: candidate },
+      error
     );
   }
   const launcherUid = typeof process.getuid === "function" ? process.getuid() : null;
@@ -270,7 +274,8 @@ function prepareStandaloneValidatorCacheMountpoint(workspaceDir) {
         throw validatorCacheBackingError(
           "validator_cache_containment_violation",
           "compiled-validator cache mountpoint parent could not be inspected",
-          { path: current, cause_code: error?.code ?? null }
+          { path: current },
+          error
         );
       }
       mkdirSync(current, { mode: 0o700 });
@@ -348,6 +353,7 @@ export function createLaunchFlow(deps = {}) {
     proveAssignedSourceReadable = null,
     captureSliceReviewTerminalResult = null,
     settleFormalReviewAttestation = null,
+    publishManagedRunResult = null,
 
     managedWorkerIdentityRequired = false,
     managedRunIdentityRootPresent = false,
@@ -360,6 +366,10 @@ export function createLaunchFlow(deps = {}) {
   const bootstrapManagedWkLifecycle =
     typeof freezeWorkerScopeSnapshot?.bootstrapManagedWkLifecycle === "function"
       ? freezeWorkerScopeSnapshot.bootstrapManagedWkLifecycle
+      : null;
+  const preflightManagedControlledAcceptance =
+    typeof freezeWorkerScopeSnapshot?.preflightManagedControlledAcceptance === "function"
+      ? freezeWorkerScopeSnapshot.preflightManagedControlledAcceptance
       : null;
   const authenticateManagedWkTip =
     typeof freezeWorkerScopeSnapshot?.authenticateManagedWkTip === "function"
@@ -402,17 +412,12 @@ export function createLaunchFlow(deps = {}) {
     return result;
   }
 
-  async function releaseSubjectReservation(holder) {
-    if (holder.reservation === null || holder.retain === true) return;
-    const reservation = holder.reservation;
-    holder.reservation = null;
-    if (typeof releaseManagedRunSubjectReservationForLaunch !== "function") return;
-    try {
-      await releaseManagedRunSubjectReservationForLaunch(reservation);
-    } catch {
-
-    }
-  }
+  const releaseSubjectReservation = (holder, options = undefined) =>
+    releaseDispatchSubjectReservation(
+      holder,
+      releaseManagedRunSubjectReservationForLaunch,
+      options
+    );
 
   async function startLaunchWithSubjectReservation(
     input = {},
@@ -446,6 +451,7 @@ export function createLaunchFlow(deps = {}) {
         canonical_unit_write_scope
       );
     } catch (error) {
+      const failure = serializeManagedBootstrapFailure(error);
       return dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
         error?.code ?? "launcher_effective_write_scope_invalid",
@@ -457,7 +463,9 @@ export function createLaunchFlow(deps = {}) {
           scope_is_array: Array.isArray(canonical_unit_write_scope),
           scope_is_frozen: Array.isArray(canonical_unit_write_scope)
             ? Object.isFrozen(canonical_unit_write_scope)
-            : false
+            : false,
+          cause: failure.cause,
+          diagnostic: failure.diagnostic
         })
       );
     }
@@ -480,6 +488,7 @@ export function createLaunchFlow(deps = {}) {
             : Object.freeze([])
         });
       } catch (error) {
+        const failure = serializeManagedBootstrapFailure(error);
         return dispatchRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
           error?.code ?? "launcher_findings_lifecycle_context_invalid",
@@ -487,7 +496,8 @@ export function createLaunchFlow(deps = {}) {
             subject,
             lifecycle: lifecycleKind,
             authority_limb: "mechanical_failure",
-            message: error?.message ?? String(error)
+            cause: failure.cause,
+            diagnostic: failure.diagnostic
           }
         );
       }
@@ -545,6 +555,25 @@ export function createLaunchFlow(deps = {}) {
     const identityEnforcementRefusal = assertManagedWorkerIdentityEnforceable(role, subject);
     if (identityEnforcementRefusal) return identityEnforcementRefusal;
 
+    if (!findingsLifecycle && preflightManagedControlledAcceptance === null) {
+      return dispatchRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        "controlled_acceptance_preflight_unavailable",
+        { subject, role, authority_limb: "mechanical_failure" }
+      );
+    }
+    if (!findingsLifecycle) {
+      const preflight = await preflightManagedControlledAcceptance({ subject });
+      if (preflight?.ok !== true) {
+        const refusal = preflight?.refusal ?? {};
+        return dispatchRefusal(
+          refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          refusal.reason ?? "controlled_acceptance_proof_posture_invalid",
+          refusal.detail ?? { subject }
+        );
+      }
+    }
+
     if (role === "worker" && typeof checkPriorManagedAttempt === "function") {
       let priorAttempt;
       try {
@@ -583,16 +612,24 @@ export function createLaunchFlow(deps = {}) {
 
         const priorTuple = priorAttempt.tuple ?? null;
         const committedReview = priorAttempt.committed_review_continuation === true;
-        const continuation = priorTuple !== null
+        const continuation = priorTuple !== null && !committedReview
           ? Object.freeze({
-              kind: committedReview ? "committed_review" : priorAttempt.verdict,
+              kind: priorAttempt.verdict,
               subject,
               run_id: priorTuple.run_id ?? null,
               monitor_handle: priorTuple.launch_ref ?? null,
-
-              next_action: committedReview
-                ? "dispatch_reviewer_for_committed_slice"
-                : "reissue_subject_dispatch_when_current_attempt_settles"
+              next_action: "observe_subject_attempt",
+              next_request: Object.freeze({
+                tool: "workspace_agent_run_status",
+                arguments: Object.freeze({ subject, attempt_id: priorTuple.run_id })
+              })
+            })
+          : null;
+        const committedDeliveryRecovery = committedReview
+          ? Object.freeze({
+              state: "callable",
+              route: "workspace_integrate_committed_slice",
+              args: Object.freeze({ subject })
             })
           : null;
         return dispatchRefusal(
@@ -605,13 +642,21 @@ export function createLaunchFlow(deps = {}) {
             liveness: priorAttempt.liveness ?? null,
             prior_tuple: priorTuple,
 
-            continuation,
+            ...(continuation === null ? {} : { continuation }),
 
             reservation_holder: priorAttempt.holder ?? null,
 
-            recovery_route: committedReview
-              ? (priorAttempt.review_route ?? "workspace_agent_dispatch(role=reviewer)")
-              : "workspace_agent_dispatch"
+            ...(committedDeliveryRecovery === null
+              ? { recovery_route: "workspace_agent_dispatch" }
+              : {
+                  actor_recovery: "coordinator",
+                  recovery: committedDeliveryRecovery,
+                  explanation:
+                    "This dispatch did not launch another worker. Request committed-slice " +
+                    "integration separately; that operation applies its own exact-target, CAS, " +
+                    "and configured CCE checks. Only after successful integration may remaining " +
+                    "remediation use a follow-up slice in the same WK."
+                })
           }
         );
       }
@@ -677,19 +722,11 @@ export function createLaunchFlow(deps = {}) {
           monitor_handle
         });
       } catch (error) {
+        const projected = provisioningRefusal(error).refusal;
         return dispatchRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "managed_wk_lifecycle_bootstrap_threw",
-          {
-            cause: Object.freeze({
-              type: "managed_wk_bootstrap_failure",
-              code: typeof error?.code === "string" &&
-                  /^[a-z][a-z0-9_.-]{0,159}$/u.test(error.code)
-                ? error.code
-                : null
-            }),
-            recovery: Object.freeze({ state: "no_supported_route", route: null })
-          }
+          projected.code,
+          projected.reason,
+          projected.detail
         );
       }
       if (bootstrap?.ok !== true) {
@@ -725,7 +762,7 @@ export function createLaunchFlow(deps = {}) {
         return postBootstrapRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "worker_scope_snapshot_freeze_threw",
-          { message: error?.message ?? String(error) }
+          serializeManagedBootstrapFailure(error)
         );
       }
       if (!freezeResult?.ok) {
@@ -763,7 +800,7 @@ export function createLaunchFlow(deps = {}) {
         return postBootstrapRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "worker_scope_snapshot_validation_threw",
-          { consumer, message: error?.message ?? String(error) }
+          { consumer, ...serializeManagedBootstrapFailure(error) }
         );
       }
       if (validation?.ok) return null;
@@ -792,7 +829,7 @@ export function createLaunchFlow(deps = {}) {
         return postBootstrapRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "worker_admission_threw",
-          { message: error?.message ?? String(error) }
+          serializeManagedBootstrapFailure(error)
         );
       }
       if (!admissionOutcome || typeof admissionOutcome !== "object") {
@@ -864,30 +901,6 @@ export function createLaunchFlow(deps = {}) {
     const startedAtMs = clock();
     const startedAt = new Date(startedAtMs).toISOString();
 
-    let reviewerValidationEvidence = null;
-    if (role === "reviewer" && Array.isArray(executorReadiness?.reviewer_validation_evidence) &&
-        executorReadiness.reviewer_validation_evidence.length > 0) {
-      const target = executorReadiness.frozen_terminal_candidate_review_target ?? null;
-      try {
-        reviewerValidationEvidence = bindReviewerValidationEvidence(
-          executorReadiness.reviewer_validation_evidence,
-          {
-            reviewerRunId: run_id,
-            subject,
-            reviewedSha: target?.candidate_sha ?? null,
-            diffBaseSha: target?.base_sha ?? null
-          }
-        );
-      } catch (error) {
-        return postBootstrapRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "reviewer_validation_evidence_invalid",
-          { code: error?.code ?? null }
-        );
-      }
-      executorReadiness.reviewer_validation_evidence = reviewerValidationEvidence;
-    }
-
     const executorSnapshotRefusal = await validateFrozenWorkerScope("executor_planning");
     if (executorSnapshotRefusal) return executorSnapshotRefusal;
 
@@ -896,10 +909,13 @@ export function createLaunchFlow(deps = {}) {
         typeof publishPendingManagedRunIdentity === "function") {
       try {
         pendingManagedRunIdentity = await publishPendingManagedRunIdentity({
+          app,
           role,
           subject,
           run_id,
           monitor_handle,
+
+          provisioning_ticket: managedWkLifecycleTicket,
 
           reservation: reservationHolder.reservation
         });
@@ -907,7 +923,7 @@ export function createLaunchFlow(deps = {}) {
         return postBootstrapRefusal(
           BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           "managed_run_identity_publication_failed",
-          { subject, code: error?.code ?? null, message: error?.message ?? String(error) }
+          { subject, ...serializeManagedBootstrapFailure(error) }
         );
       }
       if (pendingManagedRunIdentity === null || pendingManagedRunIdentity === undefined) {
@@ -950,7 +966,7 @@ export function createLaunchFlow(deps = {}) {
       return postBootstrapRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "compiled_validator_cache_preparation_failed",
-        { code: error?.code ?? null }
+        serializeManagedBootstrapFailure(error)
       );
     }
 
@@ -963,22 +979,21 @@ export function createLaunchFlow(deps = {}) {
         reason
       });
       pendingManagedRunIdentity = null;
-      return cleanup === null
-        ? postBootstrapRefusal(
-            BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-            reason,
-            detail
-          )
-        : attachTransitionPlan(cleanup);
+      return withManagedIdentityCleanupResidue(postBootstrapRefusal(
+        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+        reason,
+        detail
+      ), cleanup, reservationHolder);
     };
     if (managedBootstrapComplete) {
       let authenticatedWkTip;
       try {
         authenticatedWkTip = authenticateManagedWkTip?.({ subject }) ?? null;
       } catch (error) {
+        const failure = serializeManagedBootstrapFailure(error);
         return refusePreExecutorSettlement(
           "managed_wk_tip_authentication_failed",
-          { cause_code: typeof error?.code === "string" ? error.code : null }
+          failure
         );
       }
       if (authenticatedWkTip === null) {
@@ -991,8 +1006,11 @@ export function createLaunchFlow(deps = {}) {
           selection: transitionSelection,
           authenticated_wk_tip: authenticatedWkTip
         });
-      } catch {
-        return refusePreExecutorSettlement("managed_wk_tip_projection_invalid");
+      } catch (error) {
+        return refusePreExecutorSettlement(
+          "managed_wk_tip_projection_invalid",
+          serializeManagedBootstrapFailure(error)
+        );
       }
       if (projected !== activeTransitionPlan) {
         activeTransitionPlan = projected;
@@ -1038,9 +1056,10 @@ export function createLaunchFlow(deps = {}) {
             monitor_handle
           });
         } catch (error) {
+          const projected = provisioningRefusal(error).refusal;
           return refusePreExecutorSettlement(
-            "managed_wk_tip_resettlement_threw",
-            { cause_code: typeof error?.code === "string" ? error.code : null }
+            projected.reason,
+            projected.detail
           );
         }
         if (freshBootstrap?.ok !== true || activeTransitionPlan.phase !== "allocated" ||
@@ -1077,6 +1096,14 @@ export function createLaunchFlow(deps = {}) {
             );
           }
           frozenWorkerScopeSnapshot = refreshed.snapshot ?? null;
+
+          if (pendingManagedRunIdentity !== null &&
+              managedWorkerRequiresIdentityReconciliation(role) &&
+              pendingManagedRunIdentity.confirmProvisioning?.({
+                provisioning_ticket: managedWkLifecycleTicket
+              }) !== true) {
+            return refusePreExecutorSettlement("managed_run_execution_identity_changed");
+          }
           const refreshedScopeRefusal = await validateFrozenWorkerScope(
             "pre_executor_wk_tip_resettlement"
           );
@@ -1103,20 +1130,37 @@ export function createLaunchFlow(deps = {}) {
           }
         }
 
-        let finalAuthenticatedTip;
-        try {
-          finalAuthenticatedTip = authenticateManagedWkTip?.({ subject }) ?? null;
-        } catch {
-          finalAuthenticatedTip = null;
-        }
-        if (!revalidateLauncherTransitionPlan(activeTransitionPlan, {
-          subject,
-          selection: transitionSelection,
-          phase: "allocated",
-          authenticated_wk_tip: finalAuthenticatedTip
-        })) {
-          return refusePreExecutorSettlement("managed_wk_tip_moved_after_resettlement");
-        }
+      }
+
+      let finalAuthenticatedTip;
+      try {
+        finalAuthenticatedTip = authenticateManagedWkTip?.({ subject }) ?? null;
+      } catch (error) {
+        const failure = serializeManagedBootstrapFailure(error);
+        return refusePreExecutorSettlement(
+          "managed_wk_tip_authentication_failed",
+          failure
+        );
+      }
+      if (finalAuthenticatedTip === null) {
+        return refusePreExecutorSettlement("managed_wk_tip_authentication_unavailable");
+      }
+      if (!revalidateLauncherTransitionPlan(activeTransitionPlan, {
+        subject,
+        selection: transitionSelection,
+        phase: "allocated",
+        authenticated_wk_tip: finalAuthenticatedTip
+      })) {
+        return refusePreExecutorSettlement(
+          LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
+          {
+            reason: "scope_existence_base_unstable",
+            failure_class: "lifecycle",
+            mismatch_field: "current_wk_tip",
+            expected: activeTransitionPlan.lifecycle.authenticated_wk_tip?.base_sha ?? null,
+            actual: finalAuthenticatedTip?.base_sha ?? null
+          }
+        );
       }
     }
     try {
@@ -1190,11 +1234,11 @@ export function createLaunchFlow(deps = {}) {
           subject,
           reason: "launch_executor_threw"
         });
-      return attachTransitionPlan(cleanupRefusal ?? dispatchRefusal(
+      return attachTransitionPlan(withManagedIdentityCleanupResidue(dispatchRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "launch_executor_threw",
-        { message: error?.message ?? String(error) }
-      ));
+        serializeManagedBootstrapFailure(error)
+      ), cleanupRefusal, reservationHolder));
       }
     }
 
@@ -1207,6 +1251,7 @@ export function createLaunchFlow(deps = {}) {
       runs,
       captureSliceReviewTerminalResult,
       settleFormalReviewAttestation,
+      publishManagedRunResult,
       run_id,
       monitor_handle,
       app,
@@ -1217,7 +1262,6 @@ export function createLaunchFlow(deps = {}) {
       workspace_alias,
       caller_session_id,
       startedAt,
-      reviewerValidationEvidence,
       reviewerLaunchIdentity,
       workerAdmissionDiagnostic,
       sessionContract,

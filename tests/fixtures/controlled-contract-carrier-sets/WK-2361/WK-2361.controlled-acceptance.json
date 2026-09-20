@@ -1,0 +1,2475 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-wk2361-c001",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[0] | ARCHITECTURE DRAFT D10, dispositioned once from the complete D9 all-accepted-decisions review at current main `dba2c0d0b140d35a805f6eece32bb63ad67b0899`. D7 and its review evidence remain immutable historical evidence but are stale for implementation readiness. Retain one neutral guarded-owner enumeration and source-location engine consumed through category adapters. Remove duplicate recursive enumeration, site inventory, and owner-matrix mechanics from launcher boundary and durability controls; category controls retain their semantic corpora, authentication, and diagnostics but derive callers, sites, and the sole-owner matrix from neutral mechanics."
+    },
+    {
+      "annotation_id": "ann-wk2361-c002",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[1] | The neutral registry names, for every guarded class, the exact posture or boundary, sole semantic owner, sole code or translation owner where applicable, production discovery rule, stable diagnostic identity, and exact owner-produced proof or classification reference. It validates only mechanical registry facts: reference identity and grammar, location, current content digest, unique binding, contradiction, and the presence/currentness of the owner-produced classification or proof identity. It never revalidates authority-carrier content or schema, interprets owner classifications, decides policy, grants waivers, selects recovery, authenticates a carrier, or converts lifecycle state into local refusal authority."
+    },
+    {
+      "annotation_id": "ann-wk2361-c003",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[2] | WK-2359 remains the sole owner of public refusal dispositions, envelopes, translations, and their behavioral proofs. WK-2382 remains the sole owner of asynchronous settlement, teardown precedence, cache retryability, process fail-stop dispositions, and their witnesses. WK-2357 owns durable publication and liveness generally. Current successor boundaries must also be preserved: WK-2391 owns coordination-preflight fact-family and authenticated-projection boundaries; WK-2405 owns findings-only lifecycle and immutable review-target semantics; WK-2428 owns same-call recovery predicate conformance; WK-2258 owns launcher common-proof receipt durable publication and restart-safe exact selection; and WK-2257 owns only common-proof resolver construction and wiki-MCP injection. Those successors do not expand the catch/code semantic-owner set, which remains closed to WK-2359 public-boundary entries and WK-2382 asynchronous entries."
+    },
+    {
+      "annotation_id": "ann-wk2361-c004",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[3] | WK-2361 implementation depends on completed WK-2357, WK-2359, WK-2382, WK-2391, WK-2405, WK-2428, WK-2258, and WK-2257. Before implementation dispatch, freeze the exact current-main identity plus exact consumed leaf identities and SHA-256 digests for the WK-2359 exception/refusal corpora, runtime-code registry, translator carrier, and witnesses; the WK-2382 asynchronous census and witnesses; the WK-2391 preflight projection/authentication seams; the WK-2405 findings-target seams; the WK-2428 recovery predicate carrier; the WK-2258 receipt-store publication/selection carrier and witnesses; and the WK-2257 resolver/injection carrier and witnesses. Bind the provenance chain from original owner contracts and controlled carriers through every successor/remediation commit that changed a consumed path, including current-main digests and exact file-level `node --test <path>` selectors. Missing, moved, or ambiguous owners, artifacts, digests, successors, or selectors block readiness."
+    },
+    {
+      "annotation_id": "ann-wk2361-c005",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[4] | Re-derive the audit's complete production populations, treating the reported 1,210 non-propagating catches and 771 statically resolvable code-shaped literals only as historical observations. The closed population is every Git-tracked `.mjs` file under `packages/*/src/**`, `packages/*/lib/**`, and `tools/**`; exclude top-level `tests/**`, package `test/**` or `tests/**`, fixture directories, `node_modules`, `.agent-runs`, caches, ignored/generated outputs, and canonical `docs/` or `wiki/`. Catch membership is every lexically parsed `catch` clause in the closed file set whose handler does not unconditionally rethrow the caught value at entry; code-literal membership is every string literal or closed string-enum member matching the repository runtime/refusal code grammar and used by a throw, rejection, error construction, public refusal/result construction, code comparison, or registered code collection. Parse failure, unreadable included source, ambiguous syntax classification, or an unaccounted generated-source marker is a mechanical census defect. Source identity is repository path plus syntactic ordinal and normalized construct kind; members..."
+    },
+    {
+      "annotation_id": "ann-wk2361-c006",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[5] | There is no anonymous legacy allowlist or permanent grandfathering. A confirmed-defect fact remains owned by its semantic corpus and carries exact source identity, semantic owner, remediation WK, falsifying test, and an independently bounded expiry or finite repository milestone. The engine validates the binding's shape and reports current lifecycle and sunset observations; only an authenticated CCE or other accepted deciding-authority result may grant, deny, or expire a waiver or make a non-mechanical readiness decision."
+    },
+    {
+      "annotation_id": "ann-wk2361-c007",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[6] | An empty or unbound catch, log-and-continue path, detached rejection, generic module error default, or code-shaped literal is not automatically defective or safe. Owner corpora determine semantic disposition. Proven-safe suppression carries an exact reference to its semantic owner's executed witness; WK-2361 resolves the exact owner commit, content digest, file-level test selector, and execution contract, executes and freshness-checks that reference, and reports missing or stale evidence without redefining the proof or assigning policy consequence."
+    },
+    {
+      "annotation_id": "ann-wk2361-c008",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[7] | Internal typed errors do not need runtime-blocker registration merely because they exist. The engine mechanically proves every registered path crossing an authority boundary reaches exactly one declared translator and reports raw builtin errors, platform codes, or locally invented public codes that escape. WK-2359 or WK-2382 remains the owner of the referenced semantic proof and any resulting policy decision."
+    },
+    {
+      "annotation_id": "ann-wk2361-c009",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[8] | Preserve deny-by-default only for mechanical registry integrity: unparseable identities, duplicate bindings, contradictory owners, stale source locations, copied mechanical owner entries, missing or digest-mismatched owner-produced classification/proof references, census parse failures, and mechanically proven public-boundary escapes fail closed. Authority-carrier authentication and semantic classification remain with their current boundary owners; the neutral registry reports their exact owner-produced classification identities without revalidating carrier content. New callers, catches, code literals, missing semantic proofs, defect facts, and sunset observations are bounded evidence and do not produce a local nonzero readiness veto unless an exact authenticated deciding-authority result classifies that gate."
+    },
+    {
+      "annotation_id": "ann-wk2361-c010",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[9] | All D4-D7 reviews, direct-main notes, redteam, and blueteam results remain immutable historical evidence and do not qualify D10. The operator-authorized restart produced D8 DRY run `wkdb_8271d4cdd0b9bb02`; its three findings were accepted and dispositioned once into D9. The complete D9 all-decisions run `wkdb_c92ac3bba1e3950a` reviewed all 51 accepted decisions at aggregate corpus digest `sha256:c844dde680f6e6dde3eacc4d06a929f48a93e5ef93f7b6300ac35b44a365e404` and returned one finding, D9-DEC-001, accepted and dispositioned once into D10: absence from the point-in-time WK-2359/WK-2382 corpora is bounded unresolved evidence, not an unconditional lint failure; only mechanically proven malformed owner evidence or boundary escape, or an exact authenticated deciding-authority gate, is nonzero. A new D10 controlled contract, proof plan, and obligation source must now be authored before one new design redteam with at most one exact blueteam challenge. No stale evidence, prior direct-main authorization, waiver, or CCE authority carries forward."
+    },
+    {
+      "annotation_id": "ann-wk2361-review-lineage",
+      "kind": "provenance",
+      "text": "D10 incorporates the once-dispositioned operator-authorized D8 DRY review run wkdb_8271d4cdd0b9bb02 and complete D9 all-accepted-decisions review run wkdb_c92ac3bba1e3950a over all 51 accepted decisions at corpus digest sha256:c844dde680f6e6dde3eacc4d06a929f48a93e5ef93f7b6300ac35b44a365e404. Historical D4-D7 evidence does not qualify D10."
+    },
+    {
+      "annotation_id": "ann-wk2361-authority-boundary",
+      "kind": "rationale",
+      "text": "WK-2361 produces and validates mechanical ownership evidence only. Unresolved sites, defect facts, proof observations, lifecycle observations, waivers, recovery, and non-mechanical readiness remain inputs or outcomes of authenticated deciding authorities and are not locally authorized by this carrier."
+    },
+    {
+      "annotation_id": "ann-wk2361-dependency-authority",
+      "kind": "provenance",
+      "text": "D10 binds the current owner and successor chain: WK-2357, WK-2359, WK-2382, WK-2391, WK-2405, WK-2428, WK-2258, and WK-2257. WK-2258 owns common-proof durable publication/selection; WK-2257 owns resolver construction/wiki-MCP injection only. Current-main consumed paths require exact successor/remediation provenance."
+    },
+    {
+      "annotation_id": "ann-wk2361-c011",
+      "kind": "provenance",
+      "text": "WK-2361 D10 acceptance.criteria[10] | Add a repository lint rule that fails on mechanically proven production legacy raw throws or rejected promises crossing a public boundary; malformed registered public envelopes or translator bindings; route-local public refusal builders mechanically proven to bypass the declared owner; malformed registry/census state; prohibited bypass mechanisms; and an exact authenticated deciding-authority gate. A public emission or code-shaped identity absent from the point-in-time WK-2359/WK-2382 corpora is emitted as complete source-located unresolved evidence and does not itself make lint nonzero. Each site must resolve to a registered public translation, an explicitly private typed cause with one declared boundary translator, a proven-safe suppression carrying an exact owner witness, or bounded unresolved evidence. Anonymous allowlists, filename exemptions, inline disables, and fallback/graceful-degradation comments cannot bypass mechanical checks; internal typed errors proven not to cross a public boundary remain allowed."
+    },
+    {
+      "annotation_id": "ann-wk2361-redteam-blueteam-disposition",
+      "kind": "provenance",
+      "text": "The prior D7 redteam/blueteam remains immutable historical evidence only. The operator-authorized restart permits one new D10 design redteam after D10 contract/proof/obligation authoring and at most one exact blueteam challenge if findings are returned; no prior finding or waiver is carried forward."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-wk2361-c001",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c001-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c001",
+      "falsifying_proposition_id": "prop-wk2361-c001-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c001-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c002",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c002-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c002",
+      "falsifying_proposition_id": "prop-wk2361-c002-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c002-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c003",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c003-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c003",
+      "falsifying_proposition_id": "prop-wk2361-c003-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c003-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c004",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c004-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c004",
+      "falsifying_proposition_id": "prop-wk2361-c004-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c004-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c005",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c005-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c005",
+      "falsifying_proposition_id": "prop-wk2361-c005-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c005-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c006",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c006-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c006",
+      "falsifying_proposition_id": "prop-wk2361-c006-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c006-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c007",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c007-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c007",
+      "falsifying_proposition_id": "prop-wk2361-c007-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c007-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c008",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c008-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c008",
+      "falsifying_proposition_id": "prop-wk2361-c008-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c008-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c009",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c009-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c009",
+      "falsifying_proposition_id": "prop-wk2361-c009-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c009-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c010",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c010-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c010",
+      "falsifying_proposition_id": "prop-wk2361-c010-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c010-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-c011",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c011-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-wk2361-c011",
+      "falsifying_proposition_id": "prop-wk2361-c011-omitted",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-c011-covered",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-requirements-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-requirements-count"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-requirements-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-requirements-members"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-shape-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-shape-count"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-shape-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-shape-members"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-required-warning-shape-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-required-warning-shape-count"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-required-warning-shape-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-required-warning-shape-members"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-validation-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-validation-count"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-validation-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-validation-members"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-placeholder-population-empty",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-placeholder-population-empty"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-design-names-grounded-loci",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-design-names-grounded-loci"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-implementation-locus-targets-requirements",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-implementation-locus-targets-requirements"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-test-locus-covers-validation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-test-locus-covers-validation"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-test-locus-targets-implementation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-test-locus-targets-implementation"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-validation-covers-all-requirements",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-validation-covers-all-requirements"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-code-value-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-code-value-exact"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-message-template-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-message-template-exact"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-payload-schema-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-payload-schema-exact"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-severity-value-exact",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-severity-value-exact"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-shape-exact",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-shape-exact"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-shape-includes-required-fields",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-shape-includes-required-fields"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-shape-verification",
+      "falsifying_proposition_id": "prop-wk2361-proof-falsifier-warning-shape-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-shape-verification",
+      "verification_method": "analysis"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-signal-carries-exact-values",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-signal-carries-exact-values"
+    },
+    {
+      "claim_id": "claim-wk2361-proof-warning-signal-contains-shape",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-proof-warning-signal-contains-shape"
+    },
+    {
+      "claim_id": "claim-wk2361-frozen-wk2359-leaf-set",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-frozen-wk2359-leaf-set"
+    },
+    {
+      "claim_id": "claim-wk2361-frozen-wk2382-leaf-set",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-frozen-wk2382-leaf-set"
+    },
+    {
+      "claim_id": "claim-wk2361-criterion005-uses-census-spec",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-criterion005-uses-census-spec"
+    },
+    {
+      "claim_id": "claim-wk2361-unresolved-routes-to-authority",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-unresolved-routes-to-authority"
+    },
+    {
+      "claim_id": "claim-wk2361-unresolved-isolated-from-local-gate",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-unresolved-isolated-from-local-gate"
+    },
+    {
+      "claim_id": "claim-wk2361-current-successor-set",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2361-current-successor-set"
+    }
+  ],
+  "collections": [],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c001-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-001"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-001"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c001-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-001"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c001-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c002-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-002"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-002"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c002-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-002"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c002-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c003-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-003"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-003"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c003-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-003"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c003-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c004-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-004"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-004"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c004-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-004"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c004-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c005-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-005"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-005"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c005-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-005"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c005-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c006-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-006"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-006"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c006-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-006"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c006-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c007-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-007"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-007"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c007-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-007"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c007-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c008-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-008"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-008"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c008-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-008"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c008-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c009-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-009"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-009"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c009-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-009"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c009-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c010-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-010"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-010"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c010-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-010"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c010-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-wk2361-c011-authoritative",
+      "subject_reference_id": "ref-wk2361-criterion-011"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-011"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-c011-covered",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-011"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-wk2361-c011-omitted",
+      "subject_reference_id": "ref-wk2361-d11-contract"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 11
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-wk2361-proof-requirements-count",
+      "subject_reference_id": "ref-wk2361-requirement-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-001"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-002"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-003"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-004"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-005"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-006"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-007"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-008"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-009"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-010"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-011"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-wk2361-proof-requirements-members",
+      "subject_reference_id": "ref-wk2361-requirement-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 4
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-wk2361-proof-warning-shape-count",
+      "subject_reference_id": "ref-wk2361-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-code-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-severity-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-message-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-details-field"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-wk2361-proof-warning-shape-members",
+      "subject_reference_id": "ref-wk2361-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 4
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-wk2361-proof-required-warning-shape-count",
+      "subject_reference_id": "ref-wk2361-required-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-code-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-severity-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-message-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-details-field"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-wk2361-proof-required-warning-shape-members",
+      "subject_reference_id": "ref-wk2361-required-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 11
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-wk2361-proof-validation-count",
+      "subject_reference_id": "ref-wk2361-validation-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-001"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-002"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-003"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-004"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-005"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-006"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-007"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-008"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-009"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-010"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-criterion-011"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-wk2361-proof-validation-members",
+      "subject_reference_id": "ref-wk2361-validation-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-wk2361-proof-placeholder-population-empty",
+      "subject_reference_id": "ref-wk2361-placeholder-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-registry-implementation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-registry-data"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-registry-test"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-exception-adapter-implementation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-exception-adapter-test"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-family-adapter-implementation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-family-adapter-test"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-injection-guard-test"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-lint-warning-signal"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-lint-test"
+        }
+      ],
+      "operator": "reference:includes",
+      "proposition_id": "prop-wk2361-proof-design-names-grounded-loci",
+      "subject_reference_id": "ref-wk2361-d11-slice-graph"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-requirement-population"
+        }
+      ],
+      "operator": "reference:targets",
+      "proposition_id": "prop-wk2361-proof-implementation-locus-targets-requirements",
+      "subject_reference_id": "ref-wk2361-registry-implementation"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-validation-population"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-proof-test-locus-covers-validation",
+      "subject_reference_id": "ref-wk2361-registry-test"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-registry-implementation"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-proof-test-locus-targets-implementation",
+      "subject_reference_id": "ref-wk2361-registry-test"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-requirement-population"
+        }
+      ],
+      "operator": "reference:equals",
+      "proposition_id": "prop-wk2361-proof-validation-covers-all-requirements",
+      "subject_reference_id": "ref-wk2361-validation-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-code-value"
+        }
+      ],
+      "operator": "reference:has_value",
+      "proposition_id": "prop-wk2361-proof-warning-code-value-exact",
+      "subject_reference_id": "ref-wk2361-diagnostic-code-field"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-message-template"
+        }
+      ],
+      "operator": "reference:has_value",
+      "proposition_id": "prop-wk2361-proof-warning-message-template-exact",
+      "subject_reference_id": "ref-wk2361-diagnostic-message-field"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-payload-schema"
+        }
+      ],
+      "operator": "reference:conforms_to",
+      "proposition_id": "prop-wk2361-proof-warning-payload-schema-exact",
+      "subject_reference_id": "ref-wk2361-diagnostic-details-field"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-severity-value"
+        }
+      ],
+      "operator": "reference:has_value",
+      "proposition_id": "prop-wk2361-proof-warning-severity-value-exact",
+      "subject_reference_id": "ref-wk2361-diagnostic-severity-field"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-required-diagnostic-shape-population"
+        }
+      ],
+      "operator": "reference:equals",
+      "proposition_id": "prop-wk2361-proof-warning-shape-exact",
+      "subject_reference_id": "ref-wk2361-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-code-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-severity-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-message-field"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-details-field"
+        }
+      ],
+      "operator": "reference:includes",
+      "proposition_id": "prop-wk2361-proof-warning-shape-includes-required-fields",
+      "subject_reference_id": "ref-wk2361-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-lint-warning-signal"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2361-proof-warning-shape-verification",
+      "subject_reference_id": "ref-wk2361-registry-test"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-wk2361-diagnostic-shape-mismatch"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-required-diagnostic-shape-population"
+        }
+      ],
+      "operator": "reference:not_equals",
+      "proposition_id": "prop-wk2361-proof-falsifier-warning-shape-verification",
+      "subject_reference_id": "ref-wk2361-diagnostic-shape-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-code-value"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-severity-value"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-message-template"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-payload-schema"
+        }
+      ],
+      "operator": "reference:has_value",
+      "proposition_id": "prop-wk2361-proof-warning-signal-carries-exact-values",
+      "subject_reference_id": "ref-wk2361-lint-warning-signal"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-diagnostic-shape-population"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-wk2361-proof-warning-signal-contains-shape",
+      "subject_reference_id": "ref-wk2361-lint-warning-signal"
+    },
+    {
+      "proposition_id": "prop-wk2361-frozen-wk2359-leaf-set",
+      "subject_reference_id": "ref-wk2359-owner-artifacts",
+      "operator": "reference:includes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-exception-corpus"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-refusal-corpus"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-runtime-codes"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-translator-carrier"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-witness-dispatch-ergonomics"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-witness-backend-routing"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-witness-internal-exception"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-witness-coordination-preflight"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-witness-response-dedup"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2359-witness-compact-read"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk2361-frozen-wk2382-leaf-set",
+      "subject_reference_id": "ref-wk2382-owner-artifacts",
+      "operator": "reference:includes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2382-async-census"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2382-witness-census"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2382-witness-memo"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2382-witness-cleanup"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2382-witness-process-fail-stop"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2382-witness-handler-boundary"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk2361-criterion005-uses-census-spec",
+      "subject_reference_id": "ref-wk2361-criterion-005",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-census-population-spec"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk2361-unresolved-routes-to-authority",
+      "subject_reference_id": "ref-wk2361-unresolved-evidence",
+      "operator": "reference:routes_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-cce-deciding-authority"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk2361-unresolved-isolated-from-local-gate",
+      "subject_reference_id": "ref-wk2361-unresolved-evidence",
+      "operator": "reference:isolated_from",
+      "applicability_context": {
+        "mode": "unless",
+        "operand_reference_ids": [
+          "ref-cce-deciding-authority"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2361-lint-nonzero-gate"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-wk2361-current-successor-set",
+      "subject_reference_id": "ref-wk2361-current-main",
+      "operator": "reference:includes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2391-owner-artifacts"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2405-owner-artifacts"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2428-owner-artifacts"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2258-owner-artifacts"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2257-owner-artifacts"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2391-preflight-source"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2391-preflight-route"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2391-preflight-witness"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2405-findings-admission"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2428-recovery-register"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2405-findings-witness"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2428-recovery-witness"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2258-receipt-store"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2257-behavioral-preservation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2258-receipt-witness"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2257-preservation-witness"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2357 record sha256:b489739d3c11a7c2ac6f88e4f822b26bdb0990e4f08fc96be146c9269584ec9d; controlled contract sha256:7f3863c8a84208191f56ac8105ce72b2ae74759f988ea16b0e1ecd0436580565; evaluation input sha256:5287cac1772c44c31ba00ce80b5bf56ef1a24a0f45f983a69b398dfa51799ae6; proof-plan request sha256:d4f27a26b9093877e5ccd68a346732f84c4b180f5ad3365bea88025670c67017; proof plan sha256:e50257b3efc70ada855f230dd9d9684e15c8450bd29b52052d31dc17950b24fb"
+      },
+      "reference_id": "ref-wk2357-owner-artifacts",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2359 record sha256:884e1ae5fd8f3fd56d0967632b63a9bc9faf6e722f651445da216630437389bd; controlled contract sha256:585b4549824cd53b195f2751f38861946d5e364fcab498bf0d5e114761a78690; evaluation input sha256:5287cac1772c44c31ba00ce80b5bf56ef1a24a0f45f983a69b398dfa51799ae6; proof-plan request sha256:e3208a0edf6fa52865dbfb9f771589de775b1e9812ccbdede8b99aac2e5a0aac; proof plan sha256:2df4341705acab6ecc3013f175d58319f47f33478c95f946e7c7353441b14449; landed commits e7baa73af0285d088e3e522b3b4c56e64192a1f8, 3e12428191438a3aca4f59ecb707277ce32386b1, 8829a59b50ce25b14e6834784afb1f45c899ba51 over e15cacbf0e663e0d6aabc4eabf3ca73f796a7f7d; closure residue remains owned by WK-2386"
+      },
+      "reference_id": "ref-wk2359-owner-artifacts",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2382 record sha256:8ee223ce8b9ed47f256dbe9e2a4efb9aa475f2a855ab7d1a252f7064cb4d645f; controlled contract sha256:dca443f77696aa146bce25301382e5db0d112c641f610273df6bde8fe4bb9acd; evaluation input sha256:10fd64404618dd36b4734f0e5256f98e74c9203b9770291cdbe987be70842492; proof-plan request sha256:7aeabfe122b46d3822a19ab0ab237eba06a204e08512c6229b3a4fc5b1105c69; proof plan sha256:195110be4e32e0b05de5ad05fe367f9d35d948867f67967ec977d7a1c14f220a; landed commit c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f with sole parent 59de310f9ef8ec55d5ebfdc14ab75dfb3b4e853e; closure follow-ups WK-2393, WK-2394, and WK-2395 remain external owners"
+      },
+      "reference_id": "ref-wk2382-owner-artifacts",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis.authority",
+        "kind": "durable_id",
+        "value": "authenticated CCE or accepted deciding-authority result"
+      },
+      "reference_id": "ref-cce-deciding-authority",
+      "type_term": "cc:actor"
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-001",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "ARCHITECTURE DRAFT D11, the single post-redteam disposition of D10 at current main `19b8bca3ce88b91bf8ad543017b8049b0baa1f84`. D4-D7 and D8-D10 review evidence remain immutable history. Retain one neutral guarded-owner enumeration and source-location en..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-002",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "The neutral registry names, for every guarded class, the exact posture or boundary, sole semantic owner, sole code or translation owner where applicable, production discovery rule, stable diagnostic identity, and exact owner-produced proof or classifica..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-003",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "WK-2359 remains the sole owner of public refusal dispositions, envelopes, translations, and their behavioral proofs. WK-2382 remains the sole owner of asynchronous settlement, teardown precedence, cache retryability, process fail-stop dispositions, and ..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-004",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "WK-2361 implementation depends on completed WK-2357, WK-2359, WK-2382, WK-2391, WK-2405, WK-2428, WK-2258, and WK-2257; record-level and slice-level dependencies are mechanically combined, so WK-2405 is not duplicated on SLICE-012. Before implementation..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-005",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "Re-derive the audit's complete production populations, treating the reported 1,210 non-propagating catches and 771 statically resolvable code-shaped literals only as historical observations. The closed population is every Git-tracked `.mjs` file under `..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-006",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "There is no anonymous legacy allowlist or permanent grandfathering. A confirmed-defect fact remains owned by its semantic corpus and carries exact source identity, semantic owner, remediation WK, falsifying test, and an independently bounded expiry or f..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-007",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "An empty or unbound catch, log-and-continue path, detached rejection, generic module error default, or code-shaped literal is not automatically defective or safe. Owner corpora determine semantic disposition. Proven-safe suppression carries an exact ref..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-008",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "Internal typed errors do not need runtime-blocker registration merely because they exist. The engine mechanically proves every registered path crossing an authority boundary reaches exactly one declared translator and reports raw builtin errors, platfor..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-009",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "Preserve deny-by-default only for mechanical registry integrity: unparseable identities, duplicate bindings, contradictory owners, stale source locations, copied mechanical owner entries, missing or digest-mismatched owner-produced classification/proof ..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-010",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "The operator-authorized restart produced D8 DRY run `wkdb_8271d4cdd0b9bb02` and D9 all-accepted-decisions run `wkdb_c92ac3bba1e3950a`; their one-time dispositions produced D10. D10 design-redteam run `wkdb_a231cf390df2e8cc` is authenticated in the canon..."
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-criterion-011",
+      "type_term": "cc:criterion",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.acceptance.D11",
+        "value": "Add a repository lint rule that fails on mechanically proven production legacy raw throws or rejected promises crossing a public boundary; malformed registered public envelopes or translator bindings; route-local public refusal builders mechanically pro..."
+      }
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/wiki-core/src/lib/guarded-owner-registry.mjs",
+        "repository": "agent-chassis"
+      },
+      "reference_id": "ref-wk2361-registry-implementation",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/unit/guarded-owner-registry.test.mjs",
+        "repository": "agent-chassis"
+      },
+      "reference_id": "ref-wk2361-registry-test",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/controlled-contract-population",
+        "kind": "durable_id",
+        "value": "WK-2361 criteria 001-011"
+      },
+      "reference_id": "ref-wk2361-requirement-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/controlled-contract-population",
+        "kind": "durable_id",
+        "value": "WK-2361 validated criteria 001-011"
+      },
+      "reference_id": "ref-wk2361-validation-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/controlled-contract-population",
+        "kind": "durable_id",
+        "value": "WK-2361 empty placeholder population"
+      },
+      "reference_id": "ref-wk2361-placeholder-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/guarded-owner-diagnostic",
+        "kind": "durable_id",
+        "value": "guarded-owner-diagnostic.v1 exact four-field shape"
+      },
+      "reference_id": "ref-wk2361-diagnostic-shape-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "code"
+      },
+      "reference_id": "ref-wk2361-diagnostic-code-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "severity"
+      },
+      "reference_id": "ref-wk2361-diagnostic-severity-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "message"
+      },
+      "reference_id": "ref-wk2361-diagnostic-message-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "kind": "runtime_parameter",
+        "name": "details"
+      },
+      "reference_id": "ref-wk2361-diagnostic-details-field",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/guarded-owner-diagnostic-code",
+        "kind": "durable_id",
+        "value": "guarded_owner_unresolved_evidence"
+      },
+      "reference_id": "ref-wk2361-diagnostic-code-value",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/diagnostic-severity",
+        "kind": "durable_id",
+        "value": "error"
+      },
+      "reference_id": "ref-wk2361-diagnostic-severity-value",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/message-template",
+        "kind": "durable_id",
+        "value": "Guarded owner evidence unresolved for {source_identity}: {reason_code}"
+      },
+      "reference_id": "ref-wk2361-diagnostic-message-template",
+      "type_term": "cc:configuration"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/schema",
+        "kind": "durable_id",
+        "value": "guarded-owner-diagnostic.v1"
+      },
+      "reference_id": "ref-wk2361-diagnostic-payload-schema",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/guarded-owner-diagnostic",
+        "kind": "durable_id",
+        "value": "diagnostic shape differs from guarded-owner-diagnostic.v1"
+      },
+      "reference_id": "ref-wk2361-diagnostic-shape-mismatch",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tools/guarded-owner-lint.mjs",
+        "repository": "agent-chassis"
+      },
+      "reference_id": "ref-wk2361-lint-warning-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "agent-chassis/guarded-owner-diagnostic",
+        "kind": "durable_id",
+        "value": "guarded-owner-diagnostic.v1 required exact four-field shape"
+      },
+      "reference_id": "ref-wk2361-required-diagnostic-shape-population",
+      "type_term": "cc:population"
+    },
+    {
+      "reference_id": "ref-wk2359-exception-corpus",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=6ce0ecf42a306ca80b9a626102449b1d138ded7a:packages/wiki-core/data/exception-disposition-census.v1.json@sha256:ccf3d3c9f4eeee6de5c0175b7a8846f8e7b07c587bc7219e507e4c7d7d739c99"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-refusal-corpus",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=6ce0ecf42a306ca80b9a626102449b1d138ded7a:packages/wiki-core/data/refusal-emission-census.v1.json@sha256:e94d330f69d26b683e6d5b2f791be60f00d3003f1df6b4fd1b8255b03e9d57f9"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-runtime-codes",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=b5a3f94f1f29b4e5fcc3bb183d738ff83f1031c9:packages/wiki-core/data/runtime-blocker-codes.v1.json@sha256:7948c149e957bc7b5ffd1b4a6477562df228ec969c33483829ef8afba3c7bac7"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-translator-carrier",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=567095e28f33a9effdffe532ddacac2b6aafd4fa:packages/wiki-core/src/lib/refusal-payload.mjs@sha256:77a1591b70b2617cb76406648a19d26598c85e8412b36190ca88022b8779c7e7"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-witness-dispatch-ergonomics",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=bd1354fbcf042dc9e17a75654d2dbe14a2b6e28e;last=bd1354fbcf042dc9e17a75654d2dbe14a2b6e28e:tests/integration/dispatch-tools-ergonomics.test.mjs@sha256:e88ef6808f90c7b521c9b04bfea2930bfedd01521edcd27845cbb8f57b9e50dfe3;selector=node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-witness-backend-routing",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=ed641ab2dbb15cfe647e8e600fef5f3af52eedb7;last=ed641ab2dbb15cfe647e8e600fef5f3af52eedb7:tests/integration/workspace-agent-dispatch-backend-routing.test.mjs@sha256:6672d84878406fe960d7d6dddfa44aa105bd320c1c2c2e77d32c5afe5943e568;selector=node --test tests/integration/workspace-agent-dispatch-backend-routing.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-witness-internal-exception",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=d36e4e5951a68707ce9de706fa560f6b79a338b3:tests/unit/controlled-contract-refusal-internal-exception.test.mjs@sha256:9c5b4101c10724df7120a90f40a2b0d3df5042e5a14b2b1f6a8f4c266269c7b5;selector=node --test tests/unit/controlled-contract-refusal-internal-exception.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-witness-coordination-preflight",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=c59b3c25bc1ffba7ce25f6b70d6910a4ef95c934:tests/unit/coordination-preflight.test.mjs@sha256:f13fdb995ea82f1fe48d95fff59d38b3cce8baa86a8f1c52a4dd9bc74abb25b6;selector=node --test tests/unit/coordination-preflight.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-witness-response-dedup",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=bd1354fbcf042dc9e17a75654d2dbe14a2b6e28e;last=bd1354fbcf042dc9e17a75654d2dbe14a2b6e28e:tests/unit/mcp-response-content-deduplication.test.mjs@sha256:82f9bf04184ec11c447c5ff7322d2df816d949c366a4edbe40decccd44299d46;selector=node --test tests/unit/mcp-response-content-deduplication.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2359-witness-compact-read",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 original=8829a59b50ce25b14e6834784afb1f45c899ba51;current=ed641ab2dbb15cfe647e8e600fef5f3af52eedb7;last=ed641ab2dbb15cfe647e8e600fef5f3af52eedb7:tests/unit/work-record-compact-read-gate.test.mjs@sha256:5ec29372284478ae3bbe2e3af6853a3ec3b69ef2dadd0e0f03611aab133b99ce;selector=node --test tests/unit/work-record-compact-read-gate.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2382-async-census",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2382@c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f:tests/fixtures/async-failure-census.v1.json@sha256:b105e5181892d10942fc79b54644de615dcdbcdd64b0709ddb08a84ad627e443"
+      }
+    },
+    {
+      "reference_id": "ref-wk2382-witness-census",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2382@c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f:tests/unit/async-failure-census.test.mjs@sha256:b723a283108d438ac9eb233c88bf527c68687bcd7a843dca31584cd2b80e59b8;selector=node --test tests/unit/async-failure-census.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2382-witness-memo",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2382@c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f:tests/unit/async-memo-retryability.test.mjs@sha256:657f083aaaea6d4dd6615395d6da4ac217ef7537c760526f6fed514e97527de9;selector=node --test tests/unit/async-memo-retryability.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2382-witness-cleanup",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2382@c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f:tests/unit/cleanup-precedence.test.mjs@sha256:2849cea07c3d47d30c8340f41beadc2ec501c862d1b5cec37187433b405a7b13;selector=node --test tests/unit/cleanup-precedence.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2382-witness-process-fail-stop",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2382@c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f:tests/integration/mcp-process-fail-stop.test.mjs@sha256:39a629c281adc41a25023556746af8af485fdeed8dc57faa2ad10b91db9e10aa;selector=node --test tests/integration/mcp-process-fail-stop.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2382-witness-handler-boundary",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2382 original=c5e4ae8f8d33136b228adcc626d0a4e14ca4d08f;current=dba2c0d0b140d35a805f6eece32bb63ad67b0899;last=793c78fed0f08fe7901c574ee22c63683d8e5a41:tests/unit/wiki-mcp-tool-handler-error-boundary.test.mjs@sha256:1109f466e91e4a51dc94309775f0ce3468224163044625a5edd3d7fb68b14354;selector=node --test tests/unit/wiki-mcp-tool-handler-error-boundary.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-census-population-spec",
+      "type_term": "cc:configuration",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2361 D10 deterministic production catch/code census: tracked packages/*/{src,lib}/**/*.mjs and tools/**/*.mjs; explicit test/fixture/generated/cache/docs/wiki exclusions; lexical catch and code-use membership; path+ordinal+kind identity"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-unresolved-evidence",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2361 bounded unresolved guarded-owner fact"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-lint-nonzero-gate",
+      "type_term": "cc:state",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2361 guarded-owner lint nonzero gate"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-current-main",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.git",
+        "kind": "durable_id",
+        "value": "operator-authorized direct-to-main landed implementation 19b8bca3ce88b91bf8ad543017b8049b0baa1f84; exact parent 0045e3fced7e55a0b18fb5066d7929054059016f; D11 pre-refresh base dba2c0d0b140d35a805f6eece32bb63ad67b0899; exact successor chain dba2c0d0b140d35a805f6eece32bb63ad67b0899>da015f29a413d18804a4ef83d89acccef18af9ef>482f6800dc2f2ab48b7f142826e42c49de662698>2f9d036ab6b69569e345f73bd7ba89fbc50ab3c7>cb9e7cbb8592eda04457105efbf08d526c7fdbb8>2a68e2e9b52d1a6e85e2b882653b74cc878e2c7b>2f069406bb132aed155af5a3b687d8f08a91a388>ab171ba310b9faa9857781fa7d4d1470cfb2630f>f4a41819c734d17b3943a0559a4336b01927d39d>9a192b5c1d114a505d5495f3e8deee105570eb6e>1ec04b6e85259193c7c90685bcb433035446a1a7>3fa4aff7728d1706fefd5a21c2ecc13ca46c44e3>d833e679863c5196855634278c38bc5e6a242e13>d17bd0d6cc7db6aa25ab1f763c6c1b6ad210628d>ca57f2c941830d84559332d12c8e76a51d877d7e>6c57569e8e6612d556f7ece7a82654a2460cd2ab>3fca381c85ba186b2c132a543aefa05c9a56e498>629634929bb5de6f1b9633561ae8a1f21a6bf1dd>79487870a0bf06bb7ca2129ef050e0a5114908c8>5dcd0e6bbd70f84b92a54f4a66d663e8343087f7>c9f7e798e7ca1d146fd8b0766f5acb766330a1f1>ea7f348de0d37d9a4019f995cacd44a0e79fbb84>399c222c5366e5c652617ea94b039aac724d7378>6d59d8340882d8ae8a967b71fb86a72cb2283c7b>cc9ad60ec381cb5eee5c8d39e0f09093cb287a01>b990534ee450238315b415ee4d62706ea7ecbe98>63ed1c42784db99d375514ea60d7eb7ce25ff07f>f4eb3a961fc70faf58404ecbc680c4ee9e5570cf>0045e3fced7e55a0b18fb5066d7929054059016f>19b8bca3ce88b91bf8ad543017b8049b0baa1f84"
+      }
+    },
+    {
+      "reference_id": "ref-wk2391-owner-artifacts",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2391 record sha256:c8c72c467fbf19d2fd656d7f84443f67c4615db4c2c8b2b50a7258eab1ad2be0; contract sha256:9db62ca8f596b967ae6c1f2afeaa48793651ee6b2a978c992829f31975f1db8f; generation d14ce6a312372d6960e7cf51263dd5dbdadb8efe27da7f0dee64575ffb84d83e; remediation commit c59b3c25bc1ffba7ce25f6b70d6910a4ef95c934; owns current coordination-preflight fact-family/projection authentication"
+      }
+    },
+    {
+      "reference_id": "ref-wk2405-owner-artifacts",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2405 record sha256:c70fbe11520d501b986491ac721d034465825252b7acf22bc285b48fdb908a9c is done with complete review state and no open slices or blockers; contract sha256:e1782f78fcc9c782fceb24e0f70be64bcf1105ffd23600de89fda5674caea40a; proof plan sha256:ef5c1d46a3cba16735d665e105d1e615c6a666e8775312bda67c568b2f0ef045; final implementation remediation da015f29a413d18804a4ef83d89acccef18af9ef; canonical closure commit c9f7e798e7ca1d146fd8b0766f5acb766330a1f1"
+      }
+    },
+    {
+      "reference_id": "ref-wk2428-owner-artifacts",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2428 record sha256:c4f8d4b269c5ca5a50f788f636b1fdaa9f4eb822c4fdf862fe856d0ffd3a1a58; contract sha256:63239ed5b27628164ca0e39310b0c013dacadda4fc639df3808a874730cfe625; proof plan sha256:5af60b3c46c32ec852afe477f55c7030040bdca6b84eeb44690f808396dd07e8; final remediation main 84bfef33af6cfb62654bc714e862f14b521aa857; owns same-call recovery predicate conformance"
+      }
+    },
+    {
+      "reference_id": "ref-wk2258-owner-artifacts",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2258 record sha256:5e4d652f33dae20510f09fefc5d01441ae750425fa0989ec79d511fc96879b41; contract sha256:50b6922ed69cc2128b989eada5335b644af1a266626c749e9adfb36a946af235; proof plan sha256:b81dcc1dc1d8d70848384978f4d0600f3389ae244f96f0d2646ba7be0cf05d7c; initial b72d4432d2061562e325df89b8e60ac5bc4129a3 and remediation 76fd64533f7eb04586ac07cf9a82fdc466696abe; owns durable common-proof receipt publication and exact selection"
+      }
+    },
+    {
+      "reference_id": "ref-wk2257-owner-artifacts",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.work-record-artifact-set",
+        "kind": "durable_id",
+        "value": "WK-2257 record sha256:8ed8ecaab1fc372e259c24f9c6f064082a222167d7c2c63a881825f79f3766c8; contract sha256:b83ad0c8f719708d26f2db144f09d1d81afd90ef0fc51a655d342ccd9f1033ee; proof plan sha256:238359c20b3b181b8c1b69f300e36104a96c84103823466941aa6a0494807cab; initial cf2adf64270d2b1eb96703af1658bcb73395dfd9 and remediation dba2c0d0b140d35a805f6eece32bb63ad67b0899; owns common-proof resolver construction and wiki-MCP injection only"
+      }
+    },
+    {
+      "reference_id": "ref-wk2391-preflight-source",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.current-main-leaf",
+        "kind": "durable_id",
+        "value": "packages/wiki-core/src/lib/coordination-preflight.mjs sha256:8fb497f30efd50bb1eb9af4033d47026c39f65b34d7bc966fd2e58402aaca4f1"
+      }
+    },
+    {
+      "reference_id": "ref-wk2391-preflight-route",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.current-main-leaf",
+        "kind": "durable_id",
+        "value": "packages/wiki-mcp/src/lib/dispatch-diagnostic-routes.mjs sha256:3241c400343f4e2c5214fa18f3b8d696de48796cf4d1d8ed6cf2930e76fe1b0a"
+      }
+    },
+    {
+      "reference_id": "ref-wk2391-preflight-witness",
+      "type_term": "cc:test",
+      "identity": {
+        "domain": "agent-chassis.current-main-test",
+        "kind": "durable_id",
+        "value": "tests/unit/coordination-preflight.test.mjs sha256:f13fdb995ea82f1fe48d95fff59d38b3cce8baa86a8f1c52a4dd9bc74abb25b6; selector node --test tests/unit/coordination-preflight.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2405-findings-admission",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.current-main-leaf",
+        "kind": "durable_id",
+        "value": "packages/wiki-mcp/src/lib/dispatch-tools/findings-only-admission.mjs sha256:696cd258bb43d6203e32066098fda5313a4d12bc3aca8ded5bafdba4e54bcd8b"
+      }
+    },
+    {
+      "reference_id": "ref-wk2428-recovery-register",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.current-main-leaf",
+        "kind": "durable_id",
+        "value": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs sha256:cdad199622af3f62a7ff14d62a7489da3005abf016c62b75af94d54af4c2a882"
+      }
+    },
+    {
+      "reference_id": "ref-wk2405-findings-witness",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis.current-main-test",
+        "value": "tests/integration/workspace-agent-dispatch-registered-findings-routing.test.mjs sha256:ea746fb1694500f16e1eb0481bb4c1068d9f237d0f7cf0a9e48d9b8671eb9086; selector node --test tests/integration/workspace-agent-dispatch-registered-findings-routing.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2428-recovery-witness",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis.current-main-test",
+        "value": "tests/integration/dispatch-tools-ergonomics.test.mjs sha256:e88ef6808f90c7b521c9b04bfea2930bfedd01521edcd27845cbb8f57b9e50dfe3; selector node --test tests/integration/dispatch-tools-ergonomics.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2258-receipt-store",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.current-main-leaf",
+        "kind": "durable_id",
+        "value": "packages/agent-launch-cli/src/lib/workspace-agent-common-proof-receipt-store.mjs sha256:03bcb92483e9d5bbcf463209994ba54a5f5cf611a488603e3f07183ff00d5868; owner chain b72d4432d2061562e325df89b8e60ac5bc4129a3 -> 76fd64533f7eb04586ac07cf9a82fdc466696abe -> cf2adf64270d2b1eb96703af1658bcb73395dfd9 -> dba2c0d0b140d35a805f6eece32bb63ad67b0899"
+      }
+    },
+    {
+      "reference_id": "ref-wk2257-behavioral-preservation",
+      "type_term": "cc:artifact",
+      "identity": {
+        "domain": "agent-chassis.current-main-leaf",
+        "kind": "durable_id",
+        "value": "packages/agent-launch-cli/src/lib/workspace-agent-behavioral-preservation-evidence.mjs sha256:f0cd85f6a1b62a4eea4efa17f961664fbf1db1aedadc61e44a50c9806fdc6dc1"
+      }
+    },
+    {
+      "reference_id": "ref-wk2258-receipt-witness",
+      "type_term": "cc:test",
+      "identity": {
+        "domain": "agent-chassis.current-main-test",
+        "kind": "durable_id",
+        "value": "tests/unit/common-proof-receipt-store.test.mjs sha256:5ceae60d255d8e05db5023e2a45b1955cd6f35863efef91e853d961353a8d7ba; selector node --test tests/unit/common-proof-receipt-store.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2257-preservation-witness",
+      "type_term": "cc:test",
+      "identity": {
+        "domain": "agent-chassis.current-main-test",
+        "kind": "durable_id",
+        "value": "tests/unit/workspace-agent-behavioral-preservation-evidence.test.mjs sha256:48b34c2d4803cf286f814184444ac5812e6eca740c5459a01901df7f9c9cad48; selector node --test tests/unit/workspace-agent-behavioral-preservation-evidence.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-d11-contract",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.design",
+        "value": "D11 post-redteam-disposition neutral guarded-owner mechanical-evidence contract"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-d11-slice-graph",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.design",
+        "value": "WK-2361 D11 complete SLICE-012 through SLICE-016 implementation and proof topology"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-d11-current-owner-leaf-set",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "current=19b8bca3ce88b91bf8ad543017b8049b0baa1f84; WK-2359 refreshed leaves preserved: exception=ccf3d3c9f4eeee6de5c0175b7a8846f8e7b07c587bc7219e507e4c7d7d739c99, refusal=e94d330f69d26b683e6d5b2f791be60f00d3003f1df6b4fd1b8255b03e9d57f9, codes=7948c149e957bc7b5ffd1b4a6477562df228ec969c33483829ef8afba3c7bac7, translator=77a1591b70b2617cb76406648a19d26598c85e8412b36190ca88022b8779c7e7, ergonomics=6f69f1eeca07ef446893fdbe2e68c76bb4eba39ccf413c8da3d08a88095700e3, backend=06d53301b167b2e9ecc0521987059ca5dbab202c6c1471627d5744ed43e144d7, internal=9c5b4101c10724df7120a90f40a2b0d3df5042e5a14b2b1f6a8f4c266269c7b5, preflight=f13fdb995ea82f1fe48d95fff59d38b3cce8baa86a8f1c52a4dd9bc74abb25b6, response=1d4d970dec9cb26a8ec69dc3ad551edb6ac868b42811d1b3a4a13f9a99408f4d, compact=abf9bed54ebd01d68f863a14872524dd68879837816eff2d77623cd237488379; WK-2382 handler=1109f466e91e4a51dc94309775f0ce3468224163044625a5edd3d7fb68b14354 with five other WK-2382 leaves unchanged; WK-2405 findings witness=ab8ec7f64cf504f073b7e12da7e5800966d41c14bd1d2faf9bfecdab2c90efe2; WK-2428 recovery register=cdad199622af3f62a7ff14d62a7489da3005abf016c62b75af94d54af4c2a882; every other consumed owner leaf matches D11; direct-to-main commit 19b8bca3ce88b91bf8ad543017b8049b0baa1f84 adds only the three SLICE-012 neutral-registry paths"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-d11-owner-provenance-chain",
+      "type_term": "cc:evidence",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis/frozen-owner-evidence",
+        "value": "WK-2359 and WK-2382 provenance remains exactly as frozen in D11 generation f070e54d7d55c324dfe6f0cc169be6a65277fb16a589081d2c08ce3ab5a1814e; WK-2405 findings witness changed after D11 through 2f9d036ab6b69569e345f73bd7ba89fbc50ab3c7>d17bd0d6cc7db6aa25ab1f763c6c1b6ad210628d; WK-2428 recovery register changed after D11 through d17bd0d6cc7db6aa25ab1f763c6c1b6ad210628d; current-main successor chain is dba2c0d0b140d35a805f6eece32bb63ad67b0899>da015f29a413d18804a4ef83d89acccef18af9ef>482f6800dc2f2ab48b7f142826e42c49de662698>2f9d036ab6b69569e345f73bd7ba89fbc50ab3c7>cb9e7cbb8592eda04457105efbf08d526c7fdbb8>2a68e2e9b52d1a6e85e2b882653b74cc878e2c7b>2f069406bb132aed155af5a3b687d8f08a91a388>ab171ba310b9faa9857781fa7d4d1470cfb2630f>f4a41819c734d17b3943a0559a4336b01927d39d>9a192b5c1d114a505d5495f3e8deee105570eb6e>1ec04b6e85259193c7c90685bcb433035446a1a7>3fa4aff7728d1706fefd5a21c2ecc13ca46c44e3>d833e679863c5196855634278c38bc5e6a242e13>d17bd0d6cc7db6aa25ab1f763c6c1b6ad210628d>ca57f2c941830d84559332d12c8e76a51d877d7e>6c57569e8e6612d556f7ece7a82654a2460cd2ab>3fca381c85ba186b2c132a543aefa05c9a56e498>629634929bb5de6f1b9633561ae8a1f21a6bf1dd>79487870a0bf06bb7ca2129ef050e0a5114908c8>5dcd0e6bbd70f84b92a54f4a66d663e8343087f7>c9f7e798e7ca1d146fd8b0766f5acb766330a1f1>ea7f348de0d37d9a4019f995cacd44a0e79fbb84>399c222c5366e5c652617ea94b039aac724d7378>6d59d8340882d8ae8a967b71fb86a72cb2283c7b>cc9ad60ec381cb5eee5c8d39e0f09093cb287a01>b990534ee450238315b415ee4d62706ea7ecbe98>63ed1c42784db99d375514ea60d7eb7ce25ff07f>f4eb3a961fc70faf58404ecbc680c4ee9e5570cf>0045e3fced7e55a0b18fb5066d7929054059016f>19b8bca3ce88b91bf8ad543017b8049b0baa1f84; operator-authorized direct-to-main implementation range is 0045e3fced7e55a0b18fb5066d7929054059016f..19b8bca3ce88b91bf8ad543017b8049b0baa1f84"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-registry-data",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/wiki-core/data/guarded-owner-registry.v1.json"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-exception-adapter-implementation",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "packages/wiki-core/src/lib/guarded-owner-exception-adapter.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-exception-adapter-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/unit/guarded-owner-exception-adapter.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-family-adapter-implementation",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/workspace-agent-family-adapter-boundary.helpers.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-family-adapter-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/integration/workspace-agent-family-adapter-boundary.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-injection-guard-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/integration/workspace-agent-dispatch-registration.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-lint-test",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis",
+        "path": "tests/integration/guarded-owner-lint.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-injection-guard-implementation-scope",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.slice-locus",
+        "value": "SLICE-015 test-only implementation scope at tests/integration/workspace-agent-dispatch-registration.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-wk2361-lint-implementation",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2361.slice-locus",
+        "value": "SLICE-016 implementation locus tools/guarded-owner-lint.mjs plus package.json and durable enforcement documentation"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-wk2361-c001",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c001",
+      "target_claim_id": "claim-wk2361-c001"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c002",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c002",
+      "target_claim_id": "claim-wk2361-c002"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c003",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c003",
+      "target_claim_id": "claim-wk2361-c003"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c004",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c004",
+      "target_claim_id": "claim-wk2361-c004"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c005",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c005",
+      "target_claim_id": "claim-wk2361-c005"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c006",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c006",
+      "target_claim_id": "claim-wk2361-c006"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c007",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c007",
+      "target_claim_id": "claim-wk2361-c007"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c008",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c008",
+      "target_claim_id": "claim-wk2361-c008"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c009",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c009",
+      "target_claim_id": "claim-wk2361-c009"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c010",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c010",
+      "target_claim_id": "claim-wk2361-c010"
+    },
+    {
+      "relation_id": "rel-verify-wk2361-c011",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-wk2361-c011",
+      "target_claim_id": "claim-wk2361-c011"
+    },
+    {
+      "relation_id": "rel-wk2361-proof-verification-targets-warning-shape",
+      "role": "verifies",
+      "source_claim_id": "claim-wk2361-proof-warning-shape-verification",
+      "target_claim_id": "claim-wk2361-proof-warning-shape-exact"
+    }
+  ],
+  "residue": [
+    {
+      "residue_id": "res-deciding-authority-bindings",
+      "candidate_concept": "authenticated-deciding-authority-result-bindings",
+      "reason": "unresolved_context",
+      "text": "Exact authenticated CCE or accepted deciding-authority result identities for non-mechanical gates are not bound. WK-2361 validates only registry references and consumes owner-produced classifications; it cannot authenticate carrier content, synthesize a deciding result, grant a waiver, or turn unresolved evidence into a local veto."
+    },
+    {
+      "residue_id": "res-runtime-test-proofs",
+      "candidate_concept": "implementation-runtime-proof-bindings",
+      "reason": "review_only",
+      "text": "Exact planned per-criterion/per-slice proof obligations are authored through the canonical obligation-coverage source. Delivered runtime test results, candidate-specific provider evidence, and post-delivery coverage remain deferred to the implementation slices and are not claimed pre-dispatch."
+    },
+    {
+      "residue_id": "res-proof-plan-and-redteam",
+      "candidate_concept": "d10-proof-plan-slice-graph-and-design-redteam",
+      "reason": "unresolved_context",
+      "text": "D10 DRY and complete all-decisions reviews are dispositioned. The D10 controlled contract, proof plan, obligation source, and blocked implementation slices are being synchronized against current main; one operator-authorized D10 design redteam remains required before implementation, with at most one exact blueteam challenge if it returns findings."
+    },
+    {
+      "residue_id": "res-wk2405-incomplete-dependency",
+      "candidate_concept": "wk2405-findings-lifecycle-current-owner-closure",
+      "reason": "unresolved_context",
+      "text": "WK-2405 owns current findings-only lifecycle and immutable review-target semantics but its canonical status is active and closure is empty. D10 binds its current controlled carrier and committed current-main path identities as provisional owner evidence; WK-2361 implementation remains blocked until WK-2405 reaches canonical completion or an accepted successor contract explicitly replaces that dependency."
+    }
+  ],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

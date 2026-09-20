@@ -16,8 +16,10 @@ import {
   VOCABULARY_VERSION_V1,
   validateAndResolveNativeContractV1
 } from "./native-contract-carrier-v1.mjs";
-import { validateSuppliedProofPackBindings } from
-  "./proof-pack-binding-assistance.mjs";
+import {
+  validateSuppliedClaimPatternBindings,
+  validateSuppliedProofPackBindings
+} from "./proof-pack-binding-assistance.mjs";
 import { buildProofPlan } from "./proof-plan-compiler.mjs";
 import {
   PROOF_GRAPH_CARRIER_KINDS,
@@ -28,7 +30,7 @@ const PROOF_GRAPH_COMPOSITION_SCHEMA_VERSION =
   "controlled-proof-graph-composition.v1";
 
 const EVALUATION_INPUT_VERSION_V1 =
-  "controlled-contract-verification-profile-input.v1";
+  "controlled-contract-verification-profile-input.v2";
 const PROOF_PLAN_REQUEST_VERSION_V1 = "controlled-contract-proof-plan-request.v1";
 
 const PROOF_GRAPH_CARRIER_ORDER = PROOF_GRAPH_CARRIER_KINDS;
@@ -40,9 +42,21 @@ const PERMITTED_CROSS_CARRIER_JOIN = Object.freeze({
   target_path: "/references/{index}/reference_id",
   key: "nfc_stable_semantic_key"
 });
+
+const PERMITTED_CLAIM_PATTERN_JOIN = Object.freeze({
+  source_carrier: "evaluation_input",
+  source_path: "/claim_pattern_bindings/{binding}/claim_id",
+  target_carrier: "contract",
+  target_path: "/claims/{index}/claim_id",
+  key: "exact_claim_id",
+  pattern_authority: "validateSuppliedClaimPatternBindings"
+});
+const PERMITTED_CROSS_CARRIER_JOINS = Object.freeze([
+  PERMITTED_CROSS_CARRIER_JOIN,
+  PERMITTED_CLAIM_PATTERN_JOIN
+]);
 const FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS = Object.freeze({
   resolver_facts: "argument_reference_ids",
-  claim_pattern_bindings: "claim_id",
   delivered_evidence: "verification_claim_id"
 });
 
@@ -75,7 +89,7 @@ function conflict(pointer, reason, details = {}) {
       carrier_kind: "evaluation_input",
       pointer,
       reason,
-      permitted_join: PERMITTED_CROSS_CARRIER_JOIN,
+      permitted_joins: PERMITTED_CROSS_CARRIER_JOINS,
       ...details
     });
 }
@@ -259,6 +273,13 @@ function referenceIdentityWithoutContractPointers(evaluationInput) {
   return pointers;
 }
 
+function claimIdentityWithoutContractPointers(evaluationInput) {
+  return (evaluationInput.claim_pattern_bindings ?? []).map(
+    (binding, bindingIndex) => unresolved("evaluation_input",
+      `/claim_pattern_bindings/${bindingIndex}/claim_id`,
+      "claim_identity_contract_source_expectation_missing"));
+}
+
 function applyCarrierOperations({ proposal, prospective }) {
   const patchOperations = new Map(
     PROOF_GRAPH_CARRIER_ORDER.map((kind) => [kind, []]));
@@ -385,6 +406,34 @@ function joinReferenceIdentities({ contract, evaluationInput }) {
   };
 }
 
+function joinClaimPatternIdentities({ contract, evaluationInput }) {
+  const claimById = new Map((contract.claims ?? [])
+    .map((claim, index) => [claim?.claim_id, { claim, index }])
+    .filter(([claimId]) => typeof claimId === "string"));
+  const bindings = [];
+  for (const [bindingIndex, binding] of
+    (evaluationInput.claim_pattern_bindings ?? []).entries()) {
+    const pointer = `/claim_pattern_bindings/${bindingIndex}/claim_id`;
+    const claimId = binding?.claim_id;
+    if (typeof claimId !== "string") conflict(pointer,
+      "evaluation_input_claim_identity_invalid");
+    const resolved = claimById.get(claimId);
+    if (resolved === undefined) conflict(pointer, "contract_claim_missing",
+      { claim_id: claimId, pattern_id: binding?.pattern_id ?? null });
+    bindings.push({
+      pattern_id: typeof binding?.pattern_id === "string" ? binding.pattern_id : null,
+      claim_id: claimId,
+      claim_kind: resolved.claim.kind ?? null,
+      modality: resolved.claim.modality ?? null,
+      contract_pointer: `/claims/${resolved.index}/claim_id`,
+      evaluation_input_pointer: pointer
+    });
+  }
+  return bindings.sort((left, right) =>
+    compareCodeUnits(`${left.pattern_id}\0${left.claim_id}`,
+      `${right.pattern_id}\0${right.claim_id}`));
+}
+
 function delegatedRefusal(owner, error, details = {}) {
   refuse("controlled_contract_proof_graph_prospective_carrier_invalid",
     "a prospective carrier was refused by its existing validation owner", {
@@ -423,6 +472,27 @@ async function authorizeReferenceJoin({ contract, evaluationInput, selectedPack,
     "validateSuppliedProofPackBindings",
     { code: "proof_pack_binding_role_not_validly_bound" },
     { unauthorized_roles: unauthorized });
+  return validation;
+}
+
+async function authorizeClaimPatternJoin({ contract, evaluationInput, selectedPack }) {
+  let validation;
+  try {
+    validation = await validateSuppliedClaimPatternBindings({
+      contract,
+      profileId: selectedPack.profile_id,
+      profileVersion: selectedPack.profile_version,
+      evaluationInput
+    });
+  } catch (error) {
+    delegatedRefusal("validateSuppliedClaimPatternBindings", error);
+  }
+  if (validation.summary.status !== "valid") delegatedRefusal(
+    "validateSuppliedClaimPatternBindings",
+    { code: "claim_pattern_binding_admission_not_valid" }, {
+      summary: structuredClone(validation.summary),
+      admission_diagnostics: structuredClone(validation.admission_diagnostics)
+    });
   return validation;
 }
 
@@ -479,7 +549,7 @@ function incompleteResult(admitted, pointers, requestedIntents, selectedPacks) {
     contract_content_digest: admitted.contract_content_digest,
     proposal_operation_count: admitted.operation_count,
     proposal_projection_bytes: admitted.projection_bytes,
-    permitted_cross_carrier_join: PERMITTED_CROSS_CARRIER_JOIN,
+    permitted_cross_carrier_joins: PERMITTED_CROSS_CARRIER_JOINS,
     counts: {
       carrier_operations: admitted.operation_count,
       carrier_patch_operations: admitted.carrier_patch_operation_count,
@@ -489,11 +559,13 @@ function incompleteResult(admitted, pointers, requestedIntents, selectedPacks) {
       selected_packs: selectedPacks,
       cross_carrier_bindings: 0,
       cross_carrier_provenance_pointers: 0,
+      claim_pattern_bindings: 0,
       unresolved_pointers: pointers.length
     },
     carriers: [],
     manifest_inputs: [],
     cross_carrier_bindings: [],
+    claim_pattern_bindings: [],
     delegated_validations: [],
     proof_plan_digest: null,
     proof_plan_derivation: deepFreeze({
@@ -551,13 +623,10 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
 
   const postComposition = [];
   if (Object.hasOwn(prospective, "evaluation_input") &&
-      !Object.hasOwn(prospective.evaluation_input, "evaluation_stage")) {
-    postComposition.push(unresolved("evaluation_input", "/evaluation_stage",
-      "evaluation_stage_unresolved"));
-  }
-  if (Object.hasOwn(prospective, "evaluation_input") &&
       !expectationByKind.has("contract")) {
     postComposition.push(...referenceIdentityWithoutContractPointers(
+      prospective.evaluation_input));
+    postComposition.push(...claimIdentityWithoutContractPointers(
       prospective.evaluation_input));
   }
   if (Object.hasOwn(prospective, "proof_plan_request") &&
@@ -571,10 +640,15 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
     selectedPackCount(prospective.proof_plan_request));
 
   let join = { bindings: [], addressed_roles: [] };
+  let claimJoin = [];
   const joinable = Object.hasOwn(prospective, "contract") &&
     Object.hasOwn(prospective, "evaluation_input");
   if (joinable) {
     join = joinReferenceIdentities({
+      contract: prospective.contract,
+      evaluationInput: prospective.evaluation_input
+    });
+    claimJoin = joinClaimPatternIdentities({
       contract: prospective.contract,
       evaluationInput: prospective.evaluation_input
     });
@@ -599,6 +673,12 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
       addressedRoles: join.addressed_roles
     });
     delegated.push("validateSuppliedProofPackBindings");
+    await authorizeClaimPatternJoin({
+      contract: prospective.contract,
+      evaluationInput: prospective.evaluation_input,
+      selectedPack: admitted.selected_pack
+    });
+    delegated.push("validateSuppliedClaimPatternBindings");
   }
 
   let proofPlanDigest = null;
@@ -674,7 +754,7 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
     contract_content_digest: admitted.contract_content_digest,
     proposal_operation_count: admitted.operation_count,
     proposal_projection_bytes: admitted.projection_bytes,
-    permitted_cross_carrier_join: PERMITTED_CROSS_CARRIER_JOIN,
+    permitted_cross_carrier_joins: PERMITTED_CROSS_CARRIER_JOINS,
     counts: {
       carrier_operations: admitted.operation_count,
       carrier_patch_operations: admitted.carrier_patch_operation_count,
@@ -684,6 +764,7 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
       selected_packs: selectedPackCount(prospective.proof_plan_request),
       cross_carrier_bindings: join.bindings.length,
       cross_carrier_provenance_pointers: provenanceCount,
+      claim_pattern_bindings: claimJoin.length,
       unresolved_pointers: 0
     },
     carriers,
@@ -695,6 +776,7 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
       byte_length: length
     })),
     cross_carrier_bindings: join.bindings,
+    claim_pattern_bindings: claimJoin,
     delegated_validations: delegated,
     proof_plan_digest: proofPlanDigest,
     proof_plan_derivation: deepFreeze(proofPlanDerivation),
@@ -710,7 +792,9 @@ async function composeProofGraphCarrierSet(request, ...unexpectedArguments) {
 
 export {
   FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS,
+  PERMITTED_CLAIM_PATTERN_JOIN,
   PERMITTED_CROSS_CARRIER_JOIN,
+  PERMITTED_CROSS_CARRIER_JOINS,
   PROOF_GRAPH_CARRIER_ORDER,
   PROOF_GRAPH_COMPOSITION_SCHEMA_VERSION,
   ProofGraphCompositionError,

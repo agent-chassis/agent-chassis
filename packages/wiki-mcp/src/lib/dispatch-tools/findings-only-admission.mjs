@@ -36,7 +36,7 @@ function findingsRefusalCarrier({ classification, decidingFacts, observedFacts, 
       prerequisite: "no findings-only unit with an empty write scope exists for this subject",
       operation: continuation.tool,
       success_condition:
-        "workspace_work_record_ready_slice returns a ready findings unit whose write_scope is empty",
+        "workspace_work_record_ready_slice acknowledges saving a findings unit; workspace_work_record_summary or workspace_read_page with selected_slice confirms the canonical saved unit has an empty write_scope before dispatch",
       success_predicate: continuation.success_predicate,
       selected_from: decidingFacts.map((fact) => fact.field)
     }

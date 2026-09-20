@@ -1,0 +1,25 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.test-verification-validity",
+    "controlled-proof-intent.forbidden-operation-noninvocation",
+    "controlled-proof-intent.bounded-interval-nonmutation"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2518.evaluation-input.json",
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "2.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2518.pack-sha256-1fda9d52d9301922224ccb59ad0fc784dec4d3b913bbe4ef35c93b6ab839fe46.evaluation-input.json",
+      "profile_id": "proof.operation.forbidden-noninvocation",
+      "profile_version": "2.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2518.pack-sha256-ad1d0f370fdf78abdd3dec92e996f848c70e3aed82ae9cb5d130e1b3726f7ee8.evaluation-input.json",
+      "profile_id": "proof.state.bounded-interval-nonmutation",
+      "profile_version": "2.0.0"
+    }
+  ]
+}

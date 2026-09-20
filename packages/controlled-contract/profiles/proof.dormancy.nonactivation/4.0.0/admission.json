@@ -1,0 +1,27 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "85c19aac685798cb71b578a29354852064a951c23106687d917133bd5a58451f",
+  "profile_id": "proof.dormancy.nonactivation",
+  "profile_version": "4.0.0",
+  "profile_digest": "1f229576477a504057b41719d0c8c49144159117d5ba871ab5a0a78896f38e26",
+  "guarantee": "For one directly constructible and independently registrable declared component, one exact captured complete production reachability snapshot, one exact captured default-configuration artifact, and one exact captured activation-observation artifact, the declared complete graph and production-entrypoint populations contain the selected component and entrypoints, the default configuration declares the component inactive, the declared complete activation-event population has exactly zero members, and a separately bound no-path result covers every declared production entrypoint and that component.",
+  "guarantee_digest": "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738",
+  "explicit_exclusions": [
+    "activation-after-the-captured-observation-boundary",
+    "dishonest-complete-population-or-resolver-result",
+    "dishonest-reference-artifact-state-or-identity-grounding",
+    "dynamic-reflection-loading-or-environment-routes-absent-from-the-captured-graph",
+    "independent-proof-that-captured-artifact-bytes-semantically-mean-inactive",
+    "production-path-discovery-outside-the-caller-supplied-complete-snapshot",
+    "resolver-authority-or-independent-transitive-reachability-recomputation",
+    "runtime-authority-pack-applicability-or-cce-consequence"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "56eade322f0732444278c2ce7d42d1c9e83a8b404ee2f4f06f48f26a4cc9876b",
+    "adequacy_result_digest": "bb89af453815a5ab8e0bc0471e4416be78c510369537e736ba88a69f36f7ff8a",
+    "executable_control_count": 42,
+    "negative_fixture_count": 52,
+    "coverage_witness_count": 52
+  }
+}

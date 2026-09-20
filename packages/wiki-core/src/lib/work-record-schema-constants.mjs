@@ -1,6 +1,7 @@
 
 
 export const WORK_RECORD_SCHEMA_VERSION = "work-record.v1";
+export const WORK_RECORD_AGENT_NOTES_MAX_UTF8_BYTES = 8192;
 export const WORK_RECORD_CLOSURE_FIELD_NAMES = Object.freeze([
   "summary",
   "validation",
@@ -9,6 +10,13 @@ export const WORK_RECORD_CLOSURE_FIELD_NAMES = Object.freeze([
 export const WORK_RECORD_RENDER_SCHEMA_VERSION = "work-record-render.v1";
 export const WORK_RECORD_PROJECTION_AUTHORITY = "generated_projection";
 export const WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSION = "worker-admission-derived-evidence.v1";
+
+export const WORK_RECORD_REFERENCE_CANDIDATE_EVIDENCE_SCHEMA_VERSION =
+  "controlled-contract-reference-candidates.v1";
+export const WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSIONS = Object.freeze([
+  WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSION,
+  WORK_RECORD_REFERENCE_CANDIDATE_EVIDENCE_SCHEMA_VERSION
+]);
 export const WORK_UNIT_FEATURE_VECTOR_SCHEMA_VERSION = "work-unit-feature-vector.v1";
 export const WORK_UNIT_ONTOLOGY_SCHEMA_VERSION = "wk-ontology.v1";
 export const WORK_RECORD_DERIVED_EVIDENCE_DECISION_KIND_VALUES = Object.freeze([

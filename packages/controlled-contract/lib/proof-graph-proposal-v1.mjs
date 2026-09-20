@@ -16,7 +16,6 @@ const PROOF_GRAPH_PROPOSAL_FIELDS = Object.freeze([
 ]);
 
 const PROOF_GRAPH_PROPOSAL_LIMITS = Object.freeze({
-  carrier_operations: 64,
   projection_bytes: 1048576
 });
 
@@ -144,18 +143,7 @@ function assertProposalEnvelope(proposal) {
   }
 }
 
-function assertProposalBounds(operationCount, projectionBytes) {
-  if (!Number.isInteger(operationCount) || operationCount < 0 ||
-      operationCount > PROOF_GRAPH_PROPOSAL_LIMITS.carrier_operations) {
-    refuse("controlled_contract_proof_graph_bound_exceeded",
-      "carrier_operations.length is measured inclusively over 0 through 64", {
-        pointer: "/carrier_operations",
-        bound: "carrier_operations",
-        minimum: 0,
-        maximum: PROOF_GRAPH_PROPOSAL_LIMITS.carrier_operations,
-        actual: operationCount
-      });
-  }
+function assertProposalBounds(projectionBytes) {
   if (projectionBytes > PROOF_GRAPH_PROPOSAL_LIMITS.projection_bytes) {
     refuse("controlled_contract_proof_graph_bound_exceeded",
       "the fixed-key proposal projection is measured inclusively over 0 through 1,048,576 UTF-8 bytes", {
@@ -198,7 +186,7 @@ function validateProofGraphProposal(proposal) {
   const serverProjection = projectProofGraphProposal(proposal);
   const projectionBytes = measureProofGraphProposalBytes(serverProjection);
   const operationCount = proposal.carrier_operations.length;
-  assertProposalBounds(operationCount, projectionBytes);
+  assertProposalBounds(projectionBytes);
 
   const routes = proposal.carrier_operations.map(assertCarrierOperation);
 

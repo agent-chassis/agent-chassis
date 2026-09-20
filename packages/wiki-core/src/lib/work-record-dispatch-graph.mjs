@@ -176,11 +176,25 @@ export function normalizeGraphState(graphState = null) {
       edge_source: edgeSource,
       dirty_graph_mode: dirtyGraphMode,
       graph_schema_version: graphSchemaVersion,
-      unavailable_paths: unavailablePaths
+      unavailable_paths: unavailablePaths,
+      ...(isObject(source.graph_snapshot) ? { graph_snapshot: clone(source.graph_snapshot) } : {})
     };
   }
 
   return emptyState;
+}
+
+function canonicalSnapshotValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalSnapshotValue);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.keys(value).sort()
+    .map((key) => [key, canonicalSnapshotValue(value[key])]));
+}
+
+export function graphSnapshotsMatch(evidenceSnapshot, currentSnapshot) {
+  return isObject(evidenceSnapshot) && isObject(currentSnapshot) &&
+    JSON.stringify(canonicalSnapshotValue(evidenceSnapshot)) ===
+      JSON.stringify(canonicalSnapshotValue(currentSnapshot));
 }
 
 export function isGraphImpactEnvelope(value) {
@@ -213,6 +227,7 @@ export function normalizeGraphImpactEvidence(graphImpact = null) {
     invalid_paths: stringifyPathList(graphImpact.invalid_paths),
     graph_state: normalizeGraphState(graphImpact),
     summary: isObject(graphImpact.summary) ? clone(graphImpact.summary) : null,
+    graph_snapshot: isObject(graphImpact.graph_snapshot) ? clone(graphImpact.graph_snapshot) : null,
     record_id: isNonEmptyString(graphImpact.record_id) ? graphImpact.record_id : null,
     slice_id: isNonEmptyString(graphImpact.slice_id) ? graphImpact.slice_id : null,
     unit: isObject(graphImpact.unit) ? clone(graphImpact.unit) : null
@@ -254,6 +269,7 @@ function compactInlineGraphRefCandidate(ref, entry) {
     record_id: isNonEmptyString(ref.record_id) ? ref.record_id : null,
     slice_id: isNonEmptyString(ref.slice_id) ? ref.slice_id : null,
     unit: isObject(ref.unit) ? clone(ref.unit) : null,
+    graph_snapshot: isObject(ref.graph_snapshot) ? clone(ref.graph_snapshot) : null,
     source_record_digest: refDigest ?? entryDigest ?? null
   };
 }

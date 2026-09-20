@@ -16,7 +16,10 @@ import {
 import path from "node:path";
 import {
   computeWorkRecordSourceDigest
-} from "@agent-chassis/wiki-core";
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import {
+  resolveWorkRecordEntryMaterial
+} from "@agent-chassis/wiki-core/src/lib/work-record-entry-material.mjs";
 import {
   resolveCanonicalControlledContractCarrierSet,
   resolveCanonicalControlledContractGenerationSelection
@@ -34,12 +37,13 @@ function digest(bytes) {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-function fail(code, inputPath, cause = null) {
+function fail(code, inputPath, cause = null, detail = null) {
   const error = new Error(`canonical design review input could not be captured: ${inputPath}`,
     cause === null ? undefined : { cause });
   error.code = code;
   error.cause_code = code;
   error.input_path = inputPath;
+  if (detail !== null) error.detail = Object.freeze(detail);
   throw error;
 }
 
@@ -369,7 +373,10 @@ async function captureSelectedContractInputs(repoRoot, recordId) {
 export async function captureCanonicalDesignReviewInputs({
   mainRepo,
   recordId,
-  initiallyAuthenticatedRecord
+  initiallyAuthenticatedRecord,
+  selectedSliceId = null,
+
+  repository = null
 }) {
   const repoRoot = path.resolve(mainRepo);
   const recordPath = `wiki/work-records/${recordId}.json`;
@@ -380,15 +387,48 @@ export async function captureCanonicalDesignReviewInputs({
         computeWorkRecordSourceDigest(record)) {
     fail(FINDINGS_DESIGN_CAPTURE_CODES.MOVED, recordPath);
   }
+  const selected = selectedSliceId === null ? record
+    : record.slices?.find((slice) => slice?.id === selectedSliceId) ?? record;
+  const entryCaptures = new Map([[recordId, recordCapture]]);
+  const entryMaterial = await resolveWorkRecordEntryMaterial({
+    record,
+    selected,
+    repository,
+    dir: repoRoot,
+    loadWorkRecordById: async ({ id }) => {
+      let captured = entryCaptures.get(id);
+      if (!captured) {
+        captured = captureRegularFile(repoRoot, `wiki/work-records/${id}.json`);
+        entryCaptures.set(id, captured);
+      }
+      const sourceRecord = parseCapturedRecord(captured, id);
+      return { valid: true, record: sourceRecord,
+        source_digest: computeWorkRecordSourceDigest(sourceRecord), diagnostics: [] };
+    }
+  });
+  if (!entryMaterial.ok) {
+
+    const diagnostic = entryMaterial.diagnostic ?? null;
+    fail(FINDINGS_DESIGN_CAPTURE_CODES.MALFORMED, diagnostic?.path ?? "sections.material_refs", null, {
+      material_diagnostic: diagnostic === null ? null : Object.freeze({
+        code: diagnostic.code ?? null,
+        message: diagnostic.message ?? null,
+        path: diagnostic.path ?? null
+      })
+    });
+  }
   const contractCaptures = await captureSelectedContractInputs(repoRoot, recordId);
-  for (const capture of [recordCapture, ...contractCaptures]) {
+  const files = [recordCapture, ...[...entryCaptures.entries()]
+    .filter(([id]) => id !== recordId).map(([, capture]) => capture), ...contractCaptures];
+  for (const capture of files) {
     assertCaptureStillCurrent(capture);
   }
   return Object.freeze({
     schema_version: "workspace-agent-frozen-design-review-inputs.v1",
     record,
     record_source_digest: computeWorkRecordSourceDigest(record),
-    files: Object.freeze([recordCapture, ...contractCaptures])
+    entry_material: entryMaterial,
+    files: Object.freeze(files)
   });
 }
 

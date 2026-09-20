@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readCommittedBlobBytes } from "./sidecar-committed-blobs.mjs";
 
 const execFileAsync = promisify(execFile);
 export const SIDECAR_GENERATOR_IDENTITY_PROTOCOL_VERSION =
   "sidecar-generator-identity.v1";
 export const SIDECAR_GRAPH_GENERATOR_DEPENDENCIES = Object.freeze([
-  "@vscode/tree-sitter-wasm", "protobufjs", "web-tree-sitter"
+  "@bufbuild/protobuf", "@scip-code/scip", "@vscode/tree-sitter-wasm", "web-tree-sitter"
 ]);
 
 export const SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS = Object.freeze([
@@ -17,24 +18,38 @@ export const SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS = Object.freeze([
   "packages/wiki-core/src/lib/sidecar-graph-impact-artifact.mjs",
   "packages/wiki-core/src/lib/sidecar-build.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-extractors.mjs",
+  "packages/wiki-core/src/lib/sidecar-graph-import-facts.mjs",
+  "packages/wiki-core/src/lib/sidecar-graph-import-resolution.mjs",
+  "packages/wiki-core/src/lib/sidecar-graph-contributions.mjs",
+  "packages/wiki-core/src/lib/sidecar-committed-diff.mjs",
+  "packages/wiki-core/src/lib/sidecar-incremental.mjs",
+  "packages/wiki-core/src/lib/sidecar-store.mjs",
+  "packages/wiki-core/src/lib/sidecar-store-schema.mjs",
+  "packages/wiki-core/src/lib/sidecar-store-queries.mjs",
+  "packages/wiki-core/src/lib/sidecar-store-publication.mjs",
+  "packages/wiki-core/src/lib/sidecar-store-codec.mjs",
+  "packages/wiki-core/src/lib/sidecar-store-lifecycle.mjs",
+  "packages/wiki-core/src/lib/sidecar-repository-identity.mjs",
   "packages/wiki-core/src/lib/sidecar-paths.mjs",
   "packages/wiki-core/src/lib/sidecar-schema.mjs",
   "packages/wiki-core/src/lib/sidecar-scip-overlay.mjs",
   "packages/wiki-core/src/lib/sidecar-scip-normalize.mjs",
   "packages/wiki-core/src/lib/sidecar-scip-provision.mjs",
-  "packages/wiki-core/src/lib/sidecar-artifact-bytes.mjs",
-  "packages/wiki-core/src/lib/sidecar-artifact-query-cache.mjs",
+  "packages/wiki-core/src/lib/sidecar-committed-preparation.mjs",
+  "packages/wiki-core/src/lib/sidecar-ensure.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact.mjs",
-  "packages/wiki-core/src/lib/sidecar-build-lock.mjs",
   "packages/wiki-core/src/lib/sidecar-joins.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-shared.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-overlay.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-graph.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-summary.mjs",
+  "packages/wiki-core/src/lib/sidecar-impact.mjs",
+  "packages/wiki-core/src/lib/sidecar-symbol-query.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-diff.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-hints.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact-surfaces-actions.mjs",
-  "packages/wiki-core/src/lib/wiki.mjs"
+  "packages/wiki-core/src/lib/wiki.mjs",
+  "packages/wiki-core/src/lib/sidecar-committed-blobs.mjs"
 ]);
 export class SidecarGeneratorIdentityRefusalError extends Error {
   constructor(message, { code, cause = null } = {}) {
@@ -62,17 +77,6 @@ async function captureHead(repoRoot) {
     throw new SidecarGeneratorIdentityRefusalError(
       "graph-generator identity requires one stable committed HEAD",
       { code: "generator_identity_head_unstable", cause }
-    );
-  }
-}
-async function readCommittedBlob(repoRoot, head, relativePath) {
-  try {
-    const { stdout } = await runPinnedGit(repoRoot, ["cat-file", "blob", `${head}:${relativePath}`]);
-    return stdout;
-  } catch (cause) {
-    throw new SidecarGeneratorIdentityRefusalError(
-      `graph-generator input is not readable at captured HEAD: ${relativePath}`,
-      { code: "generator_identity_input_unreadable", cause }
     );
   }
 }
@@ -190,23 +194,55 @@ function packagedIdentity(lockBytes) {
   });
 }
 
-async function committedPresentPaths(repoRoot, head, relativePaths) {
+async function resolveCommittedDescriptors(repoRoot, head, relativePaths) {
   let stdout;
   try {
     ({ stdout } = await runPinnedGit(repoRoot, ["--literal-pathspecs", "ls-tree", "-z",
-      "--name-only", head, "--", ...relativePaths]));
+      "--full-tree", head, "--", ...relativePaths]));
   } catch (cause) {
     throw unreadable("graph-generator inputs are not listable at captured HEAD", cause);
   }
   const declared = new Set(relativePaths);
-  const listed = stdout.toString("utf8").split("\0").filter((entry) => entry.length > 0);
-  if (listed.some((entry) => !declared.has(entry))) {
-    throw unreadable("graph-generator input listing is malformed at captured HEAD");
+  const descriptors = new Map();
+  for (const entry of stdout.toString("utf8").split("\0")) {
+    if (entry.length === 0) continue;
+    const match = entry.match(/^([0-7]{6}) ([a-z]+) ([0-9a-fA-F]{40}|[0-9a-fA-F]{64})\t([\s\S]+)$/);
+    if (!match || !declared.has(match[4]) || descriptors.has(match[4])) {
+      throw unreadable("graph-generator input listing is malformed at captured HEAD");
+    }
+    descriptors.set(match[4], Object.freeze({
+      mode: match[1], type: match[2], object_id: match[3].toLowerCase()
+    }));
   }
-  return new Set(listed);
+  return descriptors;
 }
-async function packagedGeneratorIdentity(repoRoot, committedHead) {
-  const lockBytes = await readCommittedBlob(repoRoot, committedHead, "package-lock.json");
+async function readDescriptorBytes(repoRoot, descriptors, relativePaths) {
+  const selected = relativePaths.map((relativePath) => {
+    const descriptor = descriptors.get(relativePath);
+    if (!descriptor || descriptor.type !== "blob") {
+      throw unreadable(`graph-generator input is not readable at captured HEAD: ${relativePath}`);
+    }
+    return { relativePath, objectId: descriptor.object_id };
+  });
+  let objects;
+  try {
+    objects = await readCommittedBlobBytes({
+      repoRoot,
+      objectIds: selected.map(({ objectId }) => objectId)
+    });
+  } catch (cause) {
+    throw unreadable("graph-generator committed inputs are not readable", cause);
+  }
+  return selected.map(({ relativePath, objectId }) => {
+    const result = objects.get(objectId);
+    if (result?.state !== "available") {
+      throw unreadable(`graph-generator input is not readable at captured HEAD: ${relativePath}`);
+    }
+    return result.bytes;
+  });
+}
+async function packagedGeneratorIdentity(repoRoot, committedHead, descriptors) {
+  const [lockBytes] = await readDescriptorBytes(repoRoot, descriptors, ["package-lock.json"]);
   const packaged = packagedIdentity(lockBytes);
   const identityInput = {
     protocol_version: SIDECAR_GENERATOR_IDENTITY_PROTOCOL_VERSION,
@@ -229,17 +265,22 @@ export async function computeSidecarGeneratorIdentity({ repoRoot }) {
 
   const committedHead = await captureHead(repoRoot);
   const producerPaths = SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS.slice(2);
-  const present = await committedPresentPaths(repoRoot, committedHead, producerPaths);
-  if (present.size === 0) {
-    return packagedGeneratorIdentity(repoRoot, committedHead);
+  const descriptors = await resolveCommittedDescriptors(
+    repoRoot,
+    committedHead,
+    SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS
+  );
+  const presentProducerCount = producerPaths.filter((path) => descriptors.has(path)).length;
+  if (presentProducerCount === 0) {
+    return packagedGeneratorIdentity(repoRoot, committedHead, descriptors);
   }
-  if (present.size !== producerPaths.length) {
+  if (presentProducerCount !== producerPaths.length) {
     throw unreadable("graph-generator monorepo inputs are only partially present at captured HEAD");
   }
-  const blobs = await Promise.all(
-    SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS.map((relativePath) =>
-      readCommittedBlob(repoRoot, committedHead, relativePath)
-    )
+  const blobs = await readDescriptorBytes(
+    repoRoot,
+    descriptors,
+    SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS
   );
   const committedFiles = SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS.map((relativePath, index) => ({
     path: relativePath,

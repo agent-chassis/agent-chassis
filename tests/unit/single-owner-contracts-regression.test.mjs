@@ -29,6 +29,8 @@ import { readCanonicalContractGenerationIdentity } from
   "../../packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs";
 import { publishNewControlledContractCarrierGeneration } from
   "../../packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
+import { writeCanonicalWorkRecord } from
+  "../helpers/controlled-contract-carrier-set-fixtures.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const DIGEST_A = `sha256:${"a".repeat(64)}`;
@@ -240,9 +242,10 @@ function assertPublicationManifestSerializationOwned(source) {
   assert.doesNotMatch(source, /canonicalJsonBytes\s*\(\s*(?:manifest|value)\s*\)/u);
   assert.doesNotMatch(source,
     /(?:JSON\.stringify|Buffer\.from)\s*\([^\n]*(?:manifest|carrier-set-manifest)/iu);
+
   assert.equal(
     [...source.matchAll(/canonicalControlledContractCarrierSetManifestBytes\s*\(/gu)].length,
-    4,
+    5,
     "every authoring, integration-capture, comparison, and validation path must call the owner"
   );
 }
@@ -251,18 +254,21 @@ test("publication writes owner-canonical manifest bytes and a local serializer m
   const repo = mkdtempSync(path.join(os.tmpdir(), "single-manifest-publication-owner-"));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   mkdirSync(path.join(repo, "wiki", "contracts"), { recursive: true });
-  const contract = JSON.parse(readFileSync(
-    path.join(ROOT, "wiki/contracts/WK-2271.controlled-acceptance.json"), "utf8"));
+
+  const contract = JSON.parse(readFileSync(path.join(ROOT,
+    "tests/fixtures/controlled-contract-frozen-witnesses/WK-9462.controlled-acceptance.json"),
+  "utf8"));
+  await writeCanonicalWorkRecord(repo, "WK-9462");
   const receipt = await publishNewControlledContractCarrierGeneration({
     repoRoot: repo,
-    wkId: "WK-2271",
+    wkId: "WK-9462",
     repository: "agent-chassis/agent-chassis",
-    members: { "WK-2271.controlled-acceptance.json": contract }
+    members: { "WK-9462.controlled-acceptance.json": contract }
   });
   const visiblePath = path.join(repo, "wiki", "contracts", receipt.manifest_basename);
   const visibleBytes = readFileSync(visiblePath);
   const visibleManifest = parseControlledContractCarrierSetManifest(visibleBytes, {
-    wkId: "WK-2271", focus: null
+    wkId: "WK-9462", focus: null
   });
   const ownerBytes = canonicalControlledContractCarrierSetManifestBytes(visibleManifest);
   assert.deepEqual(visibleBytes, ownerBytes);

@@ -1,0 +1,56 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "execution_context",
+      "reference_ids": [
+        "ref-wk2327-forbidden-context"
+      ]
+    },
+    {
+      "role": "forbidden_operation_population",
+      "reference_ids": [
+        "ref-wk2327-forbidden-population"
+      ]
+    },
+    {
+      "role": "forbidden_operations",
+      "reference_ids": [
+        "ref-wk2327-forbidden-reviewed-constructor",
+        "ref-wk2327-forbidden-direct-constructor",
+        "ref-wk2327-forbidden-receipt-fallback",
+        "ref-wk2327-forbidden-recovery-fallback",
+        "ref-wk2327-forbidden-adapter-envelope-attachment"
+      ]
+    },
+    {
+      "role": "subject_operation",
+      "reference_ids": [
+        "ref-wk2327-forbidden-subject"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-wk2327-suite"
+      ]
+    }
+  ],
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "subject-does-not-use-forbidden-operations",
+      "claim_id": "claim-behavior-wk2327-forbidden-noninvocation"
+    },
+    {
+      "pattern_id": "verification-observes-exact-noninvocation-subjects",
+      "claim_id": "claim-evidence-wk2327-forbidden-read"
+    },
+    {
+      "pattern_id": "verify-forbidden-operation-noninvocation",
+      "claim_id": "claim-verify-wk2327-forbidden-noninvocation"
+    }
+  ],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

@@ -33,11 +33,24 @@ function staleTipOwnerCarrier({ tip, subject = "WK-2347#SLICE-003" } = {}) {
       output_branch: "wk/IN-0059/WK-2347",
       wk_tip_sha: tip
     }),
+    controlled_acceptance_state: Object.freeze({
+      schema_version: "controlled-acceptance-state.v1",
+      wk_id: "WK-2347", state: "complete",
+      generation: "e".repeat(64),
+      disposition: { required: true, exemption: null, classification: "standard",
+        classification_rationale: null },
+      population: { dimension_count: 9, incomplete_row_count: 0,
+        actionable_row_count: 0, non_actionable_row_count: 0 },
+      mechanically_complete: true, recovery: null
+    }),
     controlled_contract_generation: Object.freeze({
       schema_version: "controlled-contract-resolved-generation.v1",
       record_id: "WK-2347",
       count: 1,
-      generation_digest: `sha256:${"d".repeat(64)}`
+      generation_digest: `sha256:${"d".repeat(64)}`,
+      manifest_selection: Object.freeze([Object.freeze({
+        focus: null, generation: "e".repeat(64)
+      })])
     }),
     wk_snapshot: Object.freeze({
       ref: "refs/heads/wk/IN-0059/WK-2347",

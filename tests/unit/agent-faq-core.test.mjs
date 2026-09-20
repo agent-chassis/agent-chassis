@@ -67,8 +67,9 @@ test("both seed entries carry actor and routes", () => {
   assert.ok(readScope);
   assert.equal(readScope.actor, "agent");
   assert.ok(
-    readScope.routes.some((route) => route.tool === "workspace_work_record_set_list_field"),
-    "read_scope entry must route through workspace_work_record_set_list_field"
+    readScope.routes.some((route) => route.tool === "workspace_work_record_edit" &&
+      route.args?.kind === "list" && route.args?.field === "read_scope"),
+    "read_scope entry must route through workspace_work_record_edit"
   );
 
   const graphImpact = getAgentFaqEntryById("graph-impact-required-unavailable");
@@ -78,7 +79,7 @@ test("both seed entries carry actor and routes", () => {
   const forkTools = graphImpact.fork.flatMap((branch) =>
     branch.routes.map((route) => route.tool)
   );
-  assert.ok(forkTools.includes("workspace_code_index_graph_impact_paths"));
+  assert.ok(forkTools.includes("workspace_code_index_impact"));
   assert.ok(forkTools.includes("workspace_record_graph_impact_evidence"));
 });
 
@@ -303,7 +304,7 @@ test("WK-1377: paid/CCE FAQ projection exposes the paid remediation entries", ()
   assert.ok(free.total_entry_count < paid.total_entry_count);
 });
 
-test("WK-2293#SLICE-018: FAQ does not grant corrective status or integration authority", () => {
+test("FAQ exposes committed-delivery integration recovery without granting authority", () => {
   const corpus = JSON.stringify(loadAgentFaqCorpus());
   for (const staleId of [
     "managed-corrective-status-reconciliation",
@@ -313,11 +314,19 @@ test("WK-2293#SLICE-018: FAQ does not grant corrective status or integration aut
   }
   for (const forbidden of [
     "workspace_work_record_set_status",
-    "workspace_integrate_committed_slice",
     "managed_corrective_status_reconciliation_required"
   ]) {
     assert.equal(corpus.includes(forbidden), false, `FAQ must not expose ${forbidden}`);
   }
+  const recovery = getAgentFaqEntryById("committed-slice-redispatch-refused");
+  assert.equal(recovery.routes[0].tool, "workspace_integrate_committed_slice");
+  assert.deepEqual(recovery.routes[0].args, { subject: "$canonical_slice_subject" });
+  assert.match(recovery.cause, /launched no replacement worker/u);
+  assert.match(recovery.cause, /not an integration decision/u);
+  assert.match(recovery.cause, /independently authenticates/u);
+  assert.match(recovery.cause, /follow-up slice of the same WK/u);
+  assert.equal(Object.hasOwn(recovery.routes[0].args, "comment_dispositions"), false);
+  assert.match(recovery.routes[0].note, /registered dispositions array/u);
 });
 
 test("WK-1377: every shipped FAQ entry carries an explicit tier classification", () => {
@@ -531,4 +540,13 @@ test("WK-2153 forge-handoff FAQ route note still rejects authority-shaped input"
   for (const absent of ["gh pr", "git push", "workspace_wk_forge_merge"]) {
     assert.ok(!serialized.includes(absent), `entry must not name ${absent}`);
   }
+});
+
+test("WK-2524 FAQ distinguishes applied configuration from empirical tests", () => {
+  const entry = getAgentFaq({ id: "claude-permission-configuration" }).entries[0];
+  assert.ok(entry);
+  assert.match(entry.cause, /Applied configuration is not empirical certification/);
+  assert.match(entry.cause, /before binary discovery or invocation/);
+  assert.deepEqual(entry.related_codes, ["claude_native_permission_settings_unavailable"]);
+  assert.ok(entry.related_docs.includes("docs/claude-native-permission-probe.md"));
 });

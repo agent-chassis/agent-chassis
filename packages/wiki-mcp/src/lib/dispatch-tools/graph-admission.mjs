@@ -1,44 +1,36 @@
 
 
-import { classifyMechanicalRuntimeBlocker } from "./runtime-blocker-classifier.mjs";
-import {
-  buildBlockedDispatchResult,
-  buildDispatchMechanicalRefusal,
-  NO_SUPPORTED_ROUTE_RECOVERY
-} from "../dispatch-tool-helpers.mjs";
+function isGraphIndexUnbuildableError(error) {
+  return error instanceof Error &&
+    error.name === "SidecarGraphIndexUnbuildableError" &&
+    error.envelope?.kind === "sidecar_graph_index_unbuildable";
+}
 
-function blockedGraphAdmission({ condition, reason, detail }) {
-  const classification = classifyMechanicalRuntimeBlocker({
-    producer: "graph",
-    condition,
-    detail: { graph_condition: condition }
-  });
-  const observedFacts = {
-    "graph_impact.condition": condition,
-    "graph_impact.trusted_baseline_available": false
+async function captureGraphPreparation({ dir, unitAddress, generateGraphImpactEvidence }) {
+  let generated;
+  try {
+    generated = await generateGraphImpactEvidence({ dir, unitAddress });
+  } catch (error) {
+
+    if (!isGraphIndexUnbuildableError(error)) throw error;
+    return {
+      graph_preparation_failure: {
+        code: error.code ?? null,
+        envelope: { status_reason: error.envelope?.status_reason ?? null }
+      }
+    };
+  }
+  const envelope = generated?.graph_available === true
+    ? generated.graph_impact_envelope ?? null
+    : null;
+  if (envelope) return { graph_impact: envelope };
+
+  if (generated?.outcome === "no_graph_bearing_paths") {
+    return { graph_impact: null, suppress_live_graph_resolution: true };
+  }
+  return {
+    graph_preparation_failure: { code: generated?.diagnostics?.[0]?.code ?? generated?.outcome ?? null }
   };
-  const refusal = buildDispatchMechanicalRefusal({
-    code: classification.code,
-    decidingFacts: [
-      { field: "graph_impact.trusted_baseline_available", value: false },
-      { field: "graph_impact.condition", value: condition }
-    ],
-    observedFacts,
-    noSupportedRoute: true,
-    recovery: NO_SUPPORTED_ROUTE_RECOVERY,
-    route: "workspace_agent_dispatch",
-    carried: { mechanical_classification: classification }
-  });
-  return buildBlockedDispatchResult({
-    refusal,
-    reason,
-    detail: {
-      ...detail,
-      authority_limb: classification.authority_limb,
-      cause: classification.cause,
-      actor_recovery: classification.actor_recovery
-    }
-  });
 }
 
 export async function prepareCommittedHeadGraphAdmission({
@@ -48,42 +40,17 @@ export async function prepareCommittedHeadGraphAdmission({
   readinessDispatchRole,
   graphDerivationRequiredForDispatch,
   generateGraphImpactEvidence,
-  validateDispatch,
-  boundedRecoveryDetail
+  validateDispatch
 }) {
-  let recoveredGraphImpact = null;
-  if (graphDerivationRequiredForDispatch(readiness.recovery?.graph_impact)) {
-    let generated;
-    try {
-      generated = await generateGraphImpactEvidence({ dir, unitAddress });
-    } catch {
+  const graphRecovery = readiness.recovery?.graph_impact;
 
-      return { readiness, recoveredGraphImpact, refusal: blockedGraphAdmission({
-        condition: "query_error",
-        reason: "graph_impact_query_error",
-        detail: boundedRecoveryDetail(readiness, { issue: "graph_generation_failed" })
-      }) };
-    }
-    if (generated?.graph_available !== true) {
-
-      return { readiness, recoveredGraphImpact, refusal: blockedGraphAdmission({
-        condition: "query_error",
-        reason: "graph_head_unbuildable",
-        detail: boundedRecoveryDetail(readiness, { outcome: generated?.outcome ?? "graph_unavailable" })
-      }) };
-    }
-    recoveredGraphImpact = generated.graph_impact_envelope ?? null;
-    if (!recoveredGraphImpact) {
-
-      return { readiness, recoveredGraphImpact, refusal: blockedGraphAdmission({
-        condition: "persistence_unavailable",
-        reason: "graph_impact_recovery_failed",
-        detail: boundedRecoveryDetail(readiness, { outcome: generated?.outcome ?? "not_persisted" })
-      }) };
-    }
-  }
-  readiness = await validateDispatch({
-    dir, unitAddress, dispatch_role: readinessDispatchRole, mode: "strict", graph_impact: recoveredGraphImpact
+  const prepare = graphDerivationRequiredForDispatch(graphRecovery) ||
+    graphRecovery === "nonrecoverable_missing_paths";
+  const graphPreparation = prepare
+    ? await captureGraphPreparation({ dir, unitAddress, generateGraphImpactEvidence })
+    : { graph_impact: null };
+  const revalidated = await validateDispatch({
+    dir, unitAddress, dispatch_role: readinessDispatchRole, mode: "strict", ...graphPreparation
   });
-  return { readiness, recoveredGraphImpact, refusal: null };
+  return { readiness: revalidated, graphPreparation };
 }

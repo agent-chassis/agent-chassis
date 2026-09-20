@@ -66,15 +66,12 @@ export function observedCanonicalStatusFacts(cause) {
     : null;
 }
 
-export function correctiveStatusReconciliationRecovery(subject, observed, {
-  monitorHandle = null
-} = {}) {
+export function correctiveStatusReconciliationRecovery(subject, observed) {
   if (observed === null ||
       observed.parent_status !== MANAGED_CORRECTIVE_STATUSES.TODO ||
       observed.slice_status !== MANAGED_CORRECTIVE_STATUSES.TODO) {
     return null;
   }
-  if (typeof monitorHandle !== "string" || monitorHandle.length === 0) return null;
   return Object.freeze({
     recovery_kind: MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND,
 
@@ -86,8 +83,7 @@ export function correctiveStatusReconciliationRecovery(subject, observed, {
     unit: observed.record_id,
     slice_unit: subject,
     responsible_actor: "launcher",
-    next_action: "retry_workspace_agent_run_status_same_monitor_and_subject",
-    monitor_handle: monitorHandle,
+    next_action: "retry_workspace_agent_run_status_same_subject",
     exact_subject: subject,
     launcher_retirement_required: true,
     filesystem_cleanup_forbidden: true,
@@ -95,7 +91,7 @@ export function correctiveStatusReconciliationRecovery(subject, observed, {
     preserve_review_status: true,
     replacement_review_required: false,
     notification:
-      "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the same monitor handle and exact subject"
+      "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the exact subject"
   });
 }
 
@@ -126,9 +122,6 @@ export function sharedRejectedCanonicalStatusFacts(subject, rejected) {
 }
 
 export const NO_DELIVERY_COMMIT_ID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-
-export const NO_DELIVERY_DIAGNOSTIC_VALUE_MAX = 120;
-
 export class ManagedNoDeliveryEvidenceError extends Error {
   constructor(message, { code, detail = null, cause = null } = {}) {
     super(message);

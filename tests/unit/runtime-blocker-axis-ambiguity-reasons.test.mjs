@@ -1,3 +1,4 @@
+import { RUNTIME_BLOCKER_DESCRIPTOR as composedTaxonomy } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -5,13 +6,7 @@ import { readFile } from "node:fs/promises";
 const AXIS_AMBIGUITY_CODE = "dispatch_readiness_axis_ambiguous";
 
 async function loadAxisAmbiguityEntry() {
-  const taxonomy = JSON.parse(await readFile(
-    new URL(
-      "../../packages/wiki-core/data/runtime-blocker-codes.v1.json",
-      import.meta.url
-    ),
-    "utf8"
-  ));
+  const taxonomy = composedTaxonomy;
   return taxonomy.codes.find(({ code }) => code === AXIS_AMBIGUITY_CODE);
 }
 

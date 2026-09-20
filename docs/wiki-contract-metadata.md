@@ -6,6 +6,7 @@ It covers:
 
 - what the file is for
 - which fields are shared-runtime metadata versus repo-owned local settings
+- where the `sourceRepo` provenance coordinate comes from
 - how local topics are declared
 - how path-based inference defaults are declared
 - which retrieval facets are usually inferred versus authored
@@ -79,6 +80,32 @@ Example:
   }
 }
 ```
+
+## `sourceRepo`
+
+`sourceRepo` is the `owner/repository` coordinate declared by the executing shipped `wiki-core` package's own `package.json` `repository.url`. It records which wiki-core package produced the enrolled contract.
+
+It is not:
+
+- `repo`, the consuming repository's identity, which stays a separate field and is never derived from `sourceRepo`
+- an npm package name
+- a redefinition of the canonical repository qualifiers that work records, decisions and discovery use for cross-repository references
+
+The coordinate is resolved relative to the wiki-core module, so an installed package reports its own shipped coordinate with no source checkout present, and neither the consuming repo's working directory nor its Git remotes can change the answer. There is no working-directory walk, no Git lookup and no environment override.
+
+The value is therefore per-package and per-build. A repository driven from this checkout records the coordinate `packages/wiki-core/package.json` declares; a repository driven from a public build whose package manifests were rewritten for publication records that public coordinate instead. Cross-build stability is not a property of this field: two repositories enrolled by different builds legitimately record different values.
+
+One `repository.url` shape is supported:
+
+```
+git+https://github.com/<owner>/<repository>[.git]
+```
+
+Anything else — ssh, plain https, another host, embedded credentials, a deeper path, a query or a fragment — is rejected rather than coerced, because a coerced coordinate would be published into every enrolled repository's contract metadata.
+
+Resolution is strict and fails closed. An unreadable or unparseable package manifest, a missing `repository` object, a missing or empty `repository.url`, and an unsupported `repository.url` each raise an error naming the exact package manifest path and offending field. `wiki bootstrap` and `wiki sync-contract` build the expected metadata before touching `wiki/.wiki-contract.json`, so an unresolvable package leaves existing metadata untouched rather than writing a guess. There is no fallback value.
+
+Stale metadata is corrected by syncing, not by tolerance. `wiki sync-contract --check` and `wiki lint` compare the recorded `sourceRepo` strictly against the current package coordinate and report a `contract_metadata_mismatch` naming both values; re-running `wiki sync-contract` writes the current coordinate and both pass again. No alias or compatibility mapping exists for a previously recorded coordinate.
 
 ## `vocab`
 

@@ -22,7 +22,10 @@ import {
   validateAcceptanceCriterionEntry,
   validateAcceptanceValidationSection
 } from "./work-record-schema-validators.mjs";
-import { validateWorkerAdmissionDerivedEvidenceStructure } from "./work-record-schema-derived-evidence.mjs";
+import {
+  validateControlledContractReferenceCandidateEvidenceStructure,
+  validateWorkerAdmissionDerivedEvidenceStructure
+} from "./work-record-schema-derived-evidence.mjs";
 import {
   analyzeWorkRecordFindingsUnit,
   isTerminalWorkUnitStatus
@@ -46,6 +49,8 @@ import {
   WORK_RECORD_SCHEMA_VERSION,
   WORK_RECORD_PROJECTION_AUTHORITY,
   WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSION,
+  WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSIONS,
+  WORK_RECORD_REFERENCE_CANDIDATE_EVIDENCE_SCHEMA_VERSION,
   WORK_RECORD_DERIVED_EVIDENCE_DECISION_KIND_VALUES,
   WORK_RECORD_MIGRATION_REVIEW_STATE_VALUES,
   REQUIRED_ARRAY_OF_STRING_TOP_LEVEL_FIELDS,
@@ -55,6 +60,8 @@ import {
   ESCALATION_ID_PATTERN,
   SHA256_PATTERN
 } from "./work-record-schema-constants.mjs";
+import { validateWorkRecordEntries, validateWorkRecordEntryPopulation } from "./work-record-entry-schema.mjs";
+import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs";
 
 function validateExpectedEditTargetFacetFields(diagnostics, entry, path) {
   validateControlledStringField(
@@ -479,6 +486,12 @@ function validateSlice(diagnostics, slice, path, { recordTerminal = false } = {}
         });
       }
     }
+    diagnostics.push(...validateWorkRecordEntries(sections.entries, {
+      path: `${path}.sections.entries`
+    }));
+    diagnostics.push(...validateWorkRecordMaterialRefs(sections.material_refs, {
+      path: `${path}.sections.material_refs`
+    }));
   }
   if (slice.dispatch_intent && slice.dispatch_intent.target_unit !== "slice") {
     addDiagnostic(
@@ -789,12 +802,12 @@ function validateDerivedEvidence(diagnostics, evidence, path, recordId, recordRe
   });
   if (
     isString(evidence.schema_version) &&
-    evidence.schema_version !== WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSION
+    !WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSIONS.includes(evidence.schema_version)
   ) {
     addDiagnostic(
       diagnostics,
       "invalid_record",
-      `${path}.schema_version must be ${WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSION}`,
+      `${path}.schema_version must be one of: ${WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSIONS.join(", ")}`,
       { path: `${path}.schema_version` }
     );
   }
@@ -802,6 +815,13 @@ function validateDerivedEvidence(diagnostics, evidence, path, recordId, recordRe
   validateStringField(diagnostics, evidence, "record_id", {
     path: `${path}.record_id`
   });
+
+  if (evidence.schema_version === WORK_RECORD_REFERENCE_CANDIDATE_EVIDENCE_SCHEMA_VERSION) {
+    validateControlledContractReferenceCandidateEvidenceStructure(
+      diagnostics, evidence, path, recordId);
+    return;
+  }
+  if (evidence.schema_version !== WORK_RECORD_DERIVED_EVIDENCE_SCHEMA_VERSION) return;
   if (isString(evidence.record_id) && recordId && evidence.record_id !== recordId) {
     addDiagnostic(
       diagnostics,
@@ -1003,6 +1023,10 @@ function validateSections(diagnostics, sections) {
     path: "sections.agent_notes",
     allowEmpty: true
   });
+  diagnostics.push(...validateWorkRecordEntries(sections.entries, { path: "sections.entries" }));
+  diagnostics.push(...validateWorkRecordMaterialRefs(sections.material_refs, {
+    path: "sections.material_refs"
+  }));
   validateClosure(diagnostics, sections.closure, "sections.closure");
 }
 
@@ -1075,6 +1099,7 @@ function validateTopLevelArrays(diagnostics, record) {
       path: "derived_evidence"
     });
   }
+  diagnostics.push(...validateWorkRecordEntryPopulation(record));
 }
 
 export {

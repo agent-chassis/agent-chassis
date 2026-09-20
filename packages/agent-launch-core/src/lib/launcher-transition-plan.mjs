@@ -7,15 +7,14 @@ import { assertStructuralManagedProvisioningResult } from
   "./managed-provisioning-result-assertion.mjs";
 import {
   getRuntimeBlockerEntry,
+  projectPublicBlockerCodeForIdentity,
   RUNTIME_BLOCKER_CODES
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { BACKEND_REFUSAL_CODES } from "./dispatch-runtime.mjs";
-import {
-  captureStructuredDiagnostic,
-  isDiagnosticValue,
-  isStructuredDiagnostic,
-  projectDiagnostic
-} from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
+import { serializeWorkRecordDiagnosticValue } from
+  "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
+import { assertControlledAcceptanceStateProjection } from
+  "@agent-chassis/wiki-core/src/lib/work-record-proof-posture.mjs";
 
 export const LAUNCHER_TRANSITION_PLAN_SCHEMA_VERSION =
   "launcher-transition-plan.v1";
@@ -82,6 +81,13 @@ const FRESH_SETTLEMENT_REQUIRED = "fresh_settlement_required";
 const FRESH_SETTLEMENT_OBSERVED = "fresh_settlement_observed";
 const FRESH_SETTLEMENT_REFUSED = "fresh_settlement_refused";
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+export const LAUNCHER_TRANSITION_MISMATCH_FIELDS = Object.freeze([
+  "slice_binding.base_ref",
+  "slice_binding.base_sha",
+  "wk_binding.output_branch",
+  "wk_binding.wk_tip_sha",
+  "current_wk_tip"
+]);
 
 function exactKeys(value, fields) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
@@ -159,7 +165,10 @@ function authenticatedSettlementWkTip(settlement, plannedBase) {
   const sliceBinding = settlement?.slice_binding ?? null;
   const plannedBaseMatches = sliceBinding === null
     ? binding?.output_branch === plannedBase.base_ref && binding?.wk_tip_sha === plannedBase.base_sha
-    : sliceBinding.base_ref === plannedBase.base_ref && sliceBinding.base_sha === plannedBase.base_sha;
+    : sliceBinding.base_ref === plannedBase.base_ref &&
+      sliceBinding.base_sha === plannedBase.base_sha &&
+      sliceBinding.base_ref === binding?.output_branch &&
+      sliceBinding.base_sha === binding?.wk_tip_sha;
   if (!plannedBaseMatches || binding?.output_branch !== plannedBase.base_ref ||
       !OID_RE.test(binding?.wk_tip_sha ?? "")) return null;
   return plannedBaseProjection({
@@ -171,14 +180,25 @@ function authenticatedSettlementWkTip(settlement, plannedBase) {
 const MANAGED_WK_LIFECYCLE_SETTLEMENT_FIELDS = Object.freeze([
   "schema_version", "complete", "main_repo", "initiative", "record_id",
   "subject", "launch_ref", "run_id", "retry_id", "worktree_root",
-  "wk_binding", "controlled_contract_generation", "wk_snapshot"
+  "wk_binding", "controlled_acceptance_state",
+  "controlled_contract_generation", "wk_snapshot"
 ]);
 
 function authenticManagedWkLifecycleSettlement(settlement, subject, authenticatedWkTip) {
   const wkId = subject.split("#", 1)[0];
+  const sliceId = subject.split("#")[1] || null;
   const binding = settlement?.wk_binding;
   const snapshot = settlement?.wk_snapshot;
   const generation = settlement?.controlled_contract_generation;
+  const controlledAcceptanceState = settlement?.controlled_acceptance_state;
+  let controlledAcceptanceValid = false;
+  try {
+
+    assertControlledAcceptanceStateProjection(controlledAcceptanceState, wkId, sliceId);
+    controlledAcceptanceValid = true;
+  } catch {
+    controlledAcceptanceValid = false;
+  }
   return exactKeys(settlement, MANAGED_WK_LIFECYCLE_SETTLEMENT_FIELDS) &&
     settlement.schema_version === "managed-wk-lifecycle-allocation.v1" &&
     settlement.complete === true && Object.isFrozen(settlement) &&
@@ -197,6 +217,14 @@ function authenticManagedWkLifecycleSettlement(settlement, subject, authenticate
     snapshot !== null && typeof snapshot === "object" && Object.isFrozen(snapshot) &&
     snapshot.ref === `refs/heads/${authenticatedWkTip.base_ref}` &&
     snapshot.tip === authenticatedWkTip.base_sha && OID_RE.test(snapshot.tree ?? "") &&
+    controlledAcceptanceState !== null && typeof controlledAcceptanceState === "object" &&
+    Object.isFrozen(controlledAcceptanceState) && controlledAcceptanceValid &&
+    (!["absent", "opted_out"].includes(controlledAcceptanceState.state) ||
+      generation === null) &&
+    (controlledAcceptanceState.state !== "complete" || generation !== null) &&
+    (generation === null || controlledAcceptanceState.generation ===
+      (generation.manifest_selection?.find(({ focus }) => focus === null)
+        ?.generation ?? null)) &&
     (generation === null || (
       typeof generation === "object" && Object.isFrozen(generation) &&
       generation.schema_version === "controlled-contract-resolved-generation.v1" &&
@@ -372,6 +400,11 @@ export function createLauncherTransitionPlan(input = {}) {
   }
   const base = plannedBaseProjection(plannedBase);
   const settlementWkTip = authenticatedSettlementWkTip(settlement, base);
+  if (settlement !== null && settlementWkTip === null) {
+    throw new TypeError(
+      "launcher transition settlement must bind the exact current WK tip"
+    );
+  }
   const inheritedWkTip = previousPlan?.lifecycle?.authenticated_wk_tip ?? null;
   if (settlementWkTip !== null && inheritedWkTip !== null &&
       !samePlannedBase(settlementWkTip, inheritedWkTip)) {
@@ -603,48 +636,11 @@ export const LAUNCHER_TRANSITION_CLASSIFICATION_STATES = Object.freeze({
   AUTHENTICATED_UNCLASSIFIED: "authenticated_unclassified"
 });
 
-export const LAUNCHER_TRANSITION_REDACTION_REASONS = Object.freeze({
-  SECRET_MATERIAL: "secret_material",
-  LAUNCHER_PRIVATE_STATE: "launcher_private_state",
-  INTERNAL_IDENTIFIER: "internal_identifier",
-  PERSONAL_DATA: "personal_data"
-});
-
 export const LAUNCHER_TRANSITION_BACKEND_CAUSE_CODE_RE = /^[a-z][a-z0-9_.-]{0,159}$/u;
 
 export const LAUNCHER_TRANSITION_ABSENT_BACKEND_CAUSES = Object.freeze([
   "launch_backend_unavailable",
   "backend_unavailable"
-]);
-
-export const LAUNCHER_TRANSITION_PUBLIC_SAFE_DETAIL_PATHS = Object.freeze([
-  "refusal.code",
-  "refusal.reason",
-  "detail.cause.type",
-  "detail.cause.code",
-  "detail.cause_code",
-  "detail.recovery.state",
-  "detail.recovery.route",
-  "detail.recovery.args",
-  "detail.next_action",
-  "detail.actor_recovery",
-  "detail.next_action_args.role",
-  "detail.next_action_args.subject",
-  "detail.mismatch_field",
-  "detail.expected",
-  "detail.actual",
-  "detail.subject",
-  "detail.role",
-  "detail.message",
-  "detail.detail",
-  "detail.error",
-  "detail.stderr",
-  "detail.stdout",
-  "detail.stack",
-  "detail.explanation",
-  "detail.reason_detail",
-  "detail.diagnostic",
-  "detail.output"
 ]);
 
 export class LauncherTransitionRefusalSchemaError extends TypeError {
@@ -659,37 +655,6 @@ export class LauncherTransitionRefusalSchemaError extends TypeError {
 }
 
 const CLASSIFICATION_STATES = LAUNCHER_TRANSITION_CLASSIFICATION_STATES;
-const REDACTION_REASONS = LAUNCHER_TRANSITION_REDACTION_REASONS;
-
-const DIAGNOSTIC_DETAIL_KEYS = new Set([
-  "message", "detail", "error", "stderr", "stdout", "stack", "explanation",
-  "reason_detail", "diagnostic", "output"
-]);
-
-const STDIO_MCP_SENSITIVE_DETAIL_REASONS = Object.freeze({
-  secret: "secret_material",
-  token: "secret_material",
-  credential: "secret_material",
-  authorization: "secret_material",
-  api_key: "secret_material",
-  private_root: "internal_identifier",
-  internal_path: "internal_identifier",
-  internal_url: "internal_identifier",
-  internal_digest: "internal_identifier",
-  fifo_path: "internal_identifier",
-  request_fifo_path: "internal_identifier",
-  response_fifo_path: "internal_identifier",
-  personal_data: "personal_data",
-  capability_scope: "launcher_private_state"
-});
-const STDIO_MCP_SECRET_DETAIL_CONTAINERS = new Set(["env", "environment"]);
-
-const LAUNCHER_PRIVATE_STATE_DETAIL_KEYS = new Set([
-  "observed_canonical_status", "authority_limb", "capability", "reason",
-  "contract_side", "mismatch_class", "parent_status", "slice_status",
-  "remediation", "cce_recovery", "remote_needs_review_recovery",
-  "monitor_handle", "notification"
-]);
 
 const CAUSE_TYPES = new Set(["managed_wk_bootstrap_failure", "launcher_refusal"]);
 const RECOVERY_STATES = new Set(["callable", "no_supported_route"]);
@@ -699,13 +664,12 @@ const RECOVERY_ROUTE_RE = /^[a-z][a-z0-9_]{0,63}$/u;
 const RECOVERY_SUBJECT_RE = /^(?:WK-\d{4})(?:#SLICE-\d{3})?$/u;
 const BOUNDED_TOKEN_RE = /^[a-z][a-z0-9_.-]{0,159}$/u;
 
-const MISMATCH_VALUE_MAX_LENGTH = 512;
-
 const BLOCKER_CODE_BY_REFUSAL_CODE = Object.freeze({
   [BACKEND_REFUSAL_CODES.BACKEND_UNAVAILABLE]: RUNTIME_BLOCKER_CODES.BACKEND_UNAVAILABLE,
   [BACKEND_REFUSAL_CODES.LAUNCH_REFUSED]: RUNTIME_BLOCKER_CODES.VALIDATION_FAILURE,
+
   [BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START]:
-    RUNTIME_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+    "agent_launch.launch_failed_before_start.v1",
   [BACKEND_REFUSAL_CODES.MONITOR_HANDLE_UNKNOWN]: RUNTIME_BLOCKER_CODES.MONITOR_HANDLE_UNKNOWN,
   [BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH]:
     RUNTIME_BLOCKER_CODES.MONITOR_HANDLE_CALLER_MISMATCH,
@@ -767,61 +731,6 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function collectSensitiveStringLeaves(value, field, reason, declarations, seen) {
-  if (typeof value === "string" && value.length > 0) {
-    declarations.push({ field, value, reason });
-    return;
-  }
-  if (value === null || typeof value !== "object" || seen.has(value)) return;
-  seen.add(value);
-  const entries = Array.isArray(value)
-    ? value.map((entry, index) => [String(index), entry])
-    : isPlainObject(value)
-      ? Object.entries(value)
-      : [];
-  for (const [key, entry] of entries) {
-    collectSensitiveStringLeaves(entry, `${field}.${key}`, reason, declarations, seen);
-  }
-  seen.delete(value);
-}
-
-function collectStdioMcpSensitiveValues(value, field, declarations, seen) {
-  if (value === null || typeof value !== "object" || seen.has(value)) return;
-  seen.add(value);
-  const entries = Array.isArray(value)
-    ? value.map((entry, index) => [String(index), entry])
-    : isPlainObject(value)
-      ? Object.entries(value)
-      : [];
-  for (const [key, entry] of entries) {
-    const entryField = field.length > 0 ? `${field}.${key}` : key;
-    const reason = STDIO_MCP_SENSITIVE_DETAIL_REASONS[key];
-    if (reason !== undefined && typeof entry === "string" && entry.length > 0) {
-      declarations.push({ field: entryField, value: entry, reason });
-    } else if (STDIO_MCP_SECRET_DETAIL_CONTAINERS.has(key)) {
-      collectSensitiveStringLeaves(entry, entryField, "secret_material", declarations, seen);
-    } else {
-      collectStdioMcpSensitiveValues(entry, entryField, declarations, seen);
-    }
-  }
-  seen.delete(value);
-}
-
-function stdioMcpSensitiveValues(causeCode, detail) {
-  if (!causeCode.startsWith("stdio_mcp_") || !isPlainObject(detail.detail) ||
-      isStructuredDiagnostic(detail.detail)) {
-    return Object.freeze([]);
-  }
-  const declarations = [];
-  collectStdioMcpSensitiveValues(detail.detail, "", declarations, new Set());
-  return Object.freeze(declarations.map((entry) => Object.freeze(entry)));
-}
-
-function redactionReasonForDetailKey(key) {
-  if (LAUNCHER_PRIVATE_STATE_DETAIL_KEYS.has(key)) return REDACTION_REASONS.LAUNCHER_PRIVATE_STATE;
-  return null;
-}
-
 function readDeclaredCauseCode(value, field) {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") {
@@ -868,41 +777,11 @@ function classifyKnownCause(causeCode) {
   };
 }
 
-function projectNestedAllowlist(value, path, allowed, { redactions, schemaRejected }) {
-  if (value === undefined) return null;
-  if (!isPlainObject(value)) {
-    schemaRejected.push(path);
-    return null;
-  }
-  const projected = {};
-  for (const key of Object.keys(value)) {
-    const field = `${path}.${key}`;
-    const validate = allowed[key];
-    if (validate === undefined) {
-      const reason = redactionReasonForDetailKey(key);
-      if (reason === null) schemaRejected.push(field);
-      else redactions.push({ field, reason });
-      continue;
-    }
-    const outcome = validate(value[key]);
-    if (outcome.ok) projected[key] = outcome.value;
-    else schemaRejected.push(field);
-  }
-  return projected;
-}
-
 const accept = (value) => ({ ok: true, value });
 const reject = { ok: false, value: null };
 
 function validateCauseType(value) {
   return typeof value === "string" && CAUSE_TYPES.has(value) ? accept(value) : reject;
-}
-
-function validateCauseCodeField(value) {
-  if (value === null) return accept(null);
-  return typeof value === "string" && LAUNCHER_TRANSITION_BACKEND_CAUSE_CODE_RE.test(value)
-    ? accept(value)
-    : reject;
 }
 
 function validateRecoveryState(value) {
@@ -943,20 +822,6 @@ function validateNextAction(value) {
   return typeof value === "string" && BOUNDED_TOKEN_RE.test(value) ? accept(value) : reject;
 }
 
-function validateMismatchField(value) {
-  if (value === null) return accept(null);
-  return typeof value === "string" && BOUNDED_TOKEN_RE.test(value) ? accept(value) : reject;
-}
-
-function validateMismatchValue(value) {
-  if (value === null || typeof value === "number" || typeof value === "boolean") {
-    return accept(value);
-  }
-  return typeof value === "string" && value.length <= MISMATCH_VALUE_MAX_LENGTH
-    ? accept(value)
-    : reject;
-}
-
 function validateSubjectField(value) {
   return typeof value === "string" && RECOVERY_SUBJECT_RE.test(value) ? accept(value) : reject;
 }
@@ -965,38 +830,61 @@ function validateRoleField(value) {
   return typeof value === "string" && RECOVERY_ROLE_VALUES.has(value) ? accept(value) : reject;
 }
 
-const NEXT_ACTION_ARGS_ALLOWLIST = Object.freeze({
-  role: (value) => (value === null ? accept(null) : validateRoleField(value)),
-  subject: validateSubjectField
-});
+function validateDeclaredRecovery(value, schemaRejected) {
+  if (value === undefined) return null;
+  if (!isPlainObject(value)) {
+    schemaRejected.push("detail.recovery");
+    return null;
+  }
+  const state = validateRecoveryState(value.state);
+  const route = validateRecoveryRoute(value.route);
+  const args = validateRecoveryArgs(value.args);
+  if (!state.ok) schemaRejected.push("detail.recovery.state");
+  if (!route.ok) schemaRejected.push("detail.recovery.route");
+  if (!args.ok) schemaRejected.push("detail.recovery.args");
+  if (!state.ok || !route.ok || !args.ok) return null;
+  if (state.value === "callable" && typeof route.value !== "string") {
+    schemaRejected.push("detail.recovery.route");
+    return null;
+  }
+  if (state.value === "no_supported_route" && route.value !== null) {
+    schemaRejected.push("detail.recovery.route");
+    return null;
+  }
+  return Object.freeze({ state: state.value, route: route.value, args: args.value });
+}
 
-const CAUSE_ALLOWLIST = Object.freeze({
-  type: validateCauseType,
-  code: validateCauseCodeField
-});
+function validateDeclaredNextActionArgs(value, schemaRejected) {
+  if (value === undefined) return null;
+  if (!isPlainObject(value)) {
+    schemaRejected.push("detail.next_action_args");
+    return null;
+  }
+  const keys = Object.keys(value);
+  if (keys.some((key) => key !== "role" && key !== "subject")) {
+    schemaRejected.push("detail.next_action_args");
+    return null;
+  }
+  const role = value.role === null ? accept(null) : validateRoleField(value.role);
+  const subject = validateSubjectField(value.subject);
+  if (!role.ok) schemaRejected.push("detail.next_action_args.role");
+  if (!subject.ok) schemaRejected.push("detail.next_action_args.subject");
+  return role.ok && subject.ok
+    ? Object.freeze({ role: role.value, subject: subject.value })
+    : null;
+}
 
-const RECOVERY_ALLOWLIST = Object.freeze({
-  state: validateRecoveryState,
-  route: validateRecoveryRoute,
-  args: validateRecoveryArgs
-});
-
-const SCALAR_DETAIL_ALLOWLIST = Object.freeze({
-  cause_code: validateCauseCodeField,
-  next_action: validateNextAction,
-  actor_recovery: validateActorRecovery,
-  mismatch_field: validateMismatchField,
-  expected: validateMismatchValue,
-  actual: validateMismatchValue,
-  subject: validateSubjectField,
-  role: validateRoleField
-});
-
-const NESTED_DETAIL_ALLOWLIST = Object.freeze({
-  cause: CAUSE_ALLOWLIST,
-  recovery: RECOVERY_ALLOWLIST,
-  next_action_args: NEXT_ACTION_ARGS_ALLOWLIST
-});
+function projectUndeclaredBackendRefusalIdentity(refusalCode, causeCode) {
+  if (typeof refusalCode !== "string" || refusalCode.length === 0) {
+    return "launcher_transition.backend_refusal_identity_missing.v1";
+  }
+  if (refusalCode === RUNTIME_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED) {
+    return projectPublicBlockerCodeForIdentity(causeCode) ??
+      "launcher_transition.authenticated_backend_refusal_unclassified.v1";
+  }
+  return projectPublicBlockerCodeForIdentity(refusalCode) ??
+    "launcher_transition.backend_refusal_identity_unknown.v1";
+}
 
 function assertAuthenticatedRefusalEnvelope(envelope) {
   if (!isPlainObject(envelope) || typeof envelope.schema_version !== "string" ||
@@ -1025,8 +913,9 @@ function assertAuthenticatedRefusalEnvelope(envelope) {
 
 export function classifyLauncherTransitionBackendRefusal(envelope) {
   const refusal = assertAuthenticatedRefusalEnvelope(envelope);
-  const detail = refusal.detail ?? {};
-  const redactions = [];
+  const detail = serializeWorkRecordDiagnosticValue(refusal.detail ?? {}, {
+    path: "launcher_backend_refusal.detail"
+  });
   const schemaRejected = [];
 
   const refusalCode = readDeclaredCauseCode(refusal.code, "refusal.code");
@@ -1049,43 +938,19 @@ export function classifyLauncherTransitionBackendRefusal(envelope) {
     );
   }
 
-  const diagnostics = {};
-  const conduitSensitiveValues = stdioMcpSensitiveValues(causeCode, detail);
-  for (const key of Object.keys(detail)) {
-    if (DIAGNOSTIC_DETAIL_KEYS.has(key)) {
-      if (!isDiagnosticValue(detail[key])) {
-        schemaRejected.push(`detail.${key}`);
-        continue;
-      }
-      const diagnostic = conduitSensitiveValues.length > 0
-        ? captureStructuredDiagnostic(detail[key], { sensitiveValues: conduitSensitiveValues })
-        : detail[key];
-      const projected = projectDiagnostic(diagnostic, { fieldPrefix: `detail.${key}` });
-      diagnostics[key] = projected.value;
-      redactions.push(...projected.redactions);
-      continue;
-    }
-    const scalarValidate = SCALAR_DETAIL_ALLOWLIST[key];
-    if (scalarValidate !== undefined) {
-      const outcome = scalarValidate(detail[key]);
-      if (outcome.ok) diagnostics[key] = outcome.value;
-      else schemaRejected.push(`detail.${key}`);
-      continue;
-    }
-    if (NESTED_DETAIL_ALLOWLIST[key] !== undefined) continue;
-    const reason = redactionReasonForDetailKey(key);
-    if (reason === null) schemaRejected.push(`detail.${key}`);
-    else redactions.push({ field: `detail.${key}`, reason });
+  const declaredRecovery = validateDeclaredRecovery(detail.recovery, schemaRejected);
+  const nextAction = validateNextAction(detail.next_action);
+  if (detail.next_action !== undefined && !nextAction.ok) {
+    schemaRejected.push("detail.next_action");
   }
-  for (const [key, allowlist] of Object.entries(NESTED_DETAIL_ALLOWLIST)) {
-    const projected = projectNestedAllowlist(
-      detail[key], `detail.${key}`, allowlist, { redactions, schemaRejected }
-    );
-
-    if (projected !== null && Object.keys(projected).length > 0) {
-      diagnostics[key] = Object.freeze(projected);
-    }
+  const actorRecovery = validateActorRecovery(detail.actor_recovery);
+  if (detail.actor_recovery !== undefined && !actorRecovery.ok) {
+    schemaRejected.push("detail.actor_recovery");
   }
+  const nextActionArgs = validateDeclaredNextActionArgs(
+    detail.next_action_args,
+    schemaRejected
+  );
 
   const baseKnown = classifyKnownCause(causeCode);
   const specificFailure = selectSpecificMechanicalTransition(causeCode, detail);
@@ -1100,14 +965,13 @@ export function classifyLauncherTransitionBackendRefusal(envelope) {
   const transitionFailure = known?.failure ??
     LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED;
 
-  const declaredRecovery = diagnostics.recovery ?? null;
-  const declaredCallableArgs = diagnostics.next_action === "workspace_agent_dispatch" &&
-      diagnostics.actor_recovery === "coordinator" &&
-      typeof diagnostics.next_action_args?.subject === "string"
-    ? diagnostics.next_action_args
+  const declaredCallableArgs = nextAction.ok && nextAction.value === "workspace_agent_dispatch" &&
+      actorRecovery.ok && actorRecovery.value === "coordinator" &&
+      typeof nextActionArgs?.subject === "string"
+    ? nextActionArgs
     : null;
 
-  const recovery = typeof declaredRecovery?.state === "string"
+  const recovery = declaredRecovery !== null
     ? (declaredRecovery.state === "callable" && typeof declaredRecovery.route === "string"
         ? Object.freeze({
             state: "callable",
@@ -1126,11 +990,17 @@ export function classifyLauncherTransitionBackendRefusal(envelope) {
         })
       : Object.freeze({ state: "no_supported_route", route: null });
 
-  const causeType = diagnostics.cause?.type ?? "launcher_refusal";
+  const causeTypeValidation = validateCauseType(detail.cause?.type);
+  if (detail.cause?.type !== undefined && !causeTypeValidation.ok) {
+    schemaRejected.push("detail.cause.type");
+  }
+  const causeType = causeTypeValidation.ok ? causeTypeValidation.value : "launcher_refusal";
 
   const blockerCode = state === CLASSIFICATION_STATES.ACTUAL_BACKEND_UNAVAILABLE
     ? RUNTIME_BLOCKER_CODES.BACKEND_UNAVAILABLE
-    : BLOCKER_CODE_BY_REFUSAL_CODE[refusalCode] ?? RUNTIME_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
+
+    : BLOCKER_CODE_BY_REFUSAL_CODE[refusalCode] ??
+      projectUndeclaredBackendRefusalIdentity(refusalCode, causeCode);
 
   return Object.freeze({
     schema_version: LAUNCHER_TRANSITION_BACKEND_REFUSAL_CLASSIFICATION_SCHEMA_VERSION,
@@ -1148,12 +1018,12 @@ export function classifyLauncherTransitionBackendRefusal(envelope) {
     transition_failure: transitionFailure,
     blocker_code: blockerCode,
     authority_limb: transitionFailure.authority_limb,
-    actor_recovery: diagnostics.actor_recovery ?? known?.actorRecovery ?? null,
+    actor_recovery: actorRecovery.ok ? actorRecovery.value : known?.actorRecovery ?? null,
 
     next_action: recovery.state === "callable" ? recovery.route : null,
     recovery,
-    diagnostics: Object.freeze(diagnostics),
-    redactions: Object.freeze(redactions.map((signal) => Object.freeze({ ...signal }))),
+    diagnostics: Object.freeze(detail),
+    redactions: Object.freeze([]),
     schema_rejected: Object.freeze([...schemaRejected])
   });
 }

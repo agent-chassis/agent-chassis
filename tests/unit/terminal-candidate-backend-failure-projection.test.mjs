@@ -226,8 +226,8 @@ async function assertUnknown(thrown, forbidden = []) {
   }
 }
 
-test("WK-1783 pure projection validates all eight typed codes without granting provenance", () => {
-  assert.equal(Object.values(TERMINAL_WK_CANDIDATE_CODES).length, 8);
+test("WK-1783 pure projection validates every typed code without granting provenance", () => {
+  assert.equal(Object.values(TERMINAL_WK_CANDIDATE_CODES).length, 9);
   for (const code of Object.values(TERMINAL_WK_CANDIDATE_CODES)) {
     const expected = typedProjection(code);
     const projected = projectTerminalWkCandidateFailure(sourceErrorForProjection(expected));
@@ -292,7 +292,7 @@ test("forged recovery authority is refused before any Git observation", async ()
   assert.deepEqual(gitCalls, []);
 });
 
-test("WK-1783 injected callbacks cannot authenticate any of the eight typed codes", async () => {
+test("WK-1783 injected callbacks cannot authenticate any typed code", async () => {
   for (const code of Object.values(TERMINAL_WK_CANDIDATE_CODES)) {
     const secret = `injected-${code}-secret`;
     const expected = typedProjection(code);

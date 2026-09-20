@@ -50,7 +50,7 @@ function stabilizeFixture(value) {
   fixtureValue.contract.vocabulary_version = "controlled-contract-vocabulary.v1";
   fixtureValue.contract.test_proof_version = "controlled-contract-test-proof.v1";
   fixtureValue.contract.test_proofs = buildStableTestProofPopulation(fixtureValue.contract);
-  fixtureValue.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixtureValue.input.input_version = "controlled-contract-verification-profile-input.v2";
   fixtureValue.input.stable_evaluation = {};
   return fixtureValue;
 }

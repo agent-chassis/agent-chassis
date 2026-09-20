@@ -50,6 +50,14 @@ export {
   evaluateWorkRecordWrapperGate,
   parseWorkRecordUnitAddress
 } from "./lib/work-record-gate.mjs";
+
+export {
+  WORKER_ASSIGNMENT_PRESENTATION_SCHEMA_VERSION,
+  WORKER_ASSIGNMENT_PROJECTION_INVALID_CODE,
+  buildWorkerAssignmentBrief,
+  buildWorkerAssignmentCanonicalSummary,
+  prepareWorkerAssignmentPresentation
+} from "./lib/worker-assignment-preparation.mjs";
 export {
   buildLauncherContextActionBinding,
   computeActionPayloadHash,
@@ -83,6 +91,7 @@ export {
 
 export {
   ATTEMPT_EVENT_KINDS,
+  ATTEMPT_INFORMATIONAL_EVENT_KINDS,
   ATTEMPT_EXECUTION_LIVENESS,
   ATTEMPT_JOURNAL_REFUSALS,
   ATTEMPT_NEXT_COMMANDS,
@@ -115,6 +124,16 @@ export {
   isValidLegacyEvidence,
   legacyEvidenceAlreadyImported
 } from "./lib/managed-worker-attempt-journal.mjs";
+export {
+  MANAGED_ATTEMPT_CURSOR_SCHEMA_VERSION,
+  MANAGED_ATTEMPT_DETAIL_KINDS,
+  MANAGED_ATTEMPT_PROOF_VERIFICATION_SUMMARY_SCHEMA_VERSION,
+  pageManagedAttemptDetail,
+  projectManagedAttemptObservations,
+  resultDigest,
+  selectManagedAdmissionAttempt,
+  selectManagedAttempt
+} from "./lib/managed-run-observation.mjs";
 
 export {
   INTEGRATION_INCOMPLETE,

@@ -6,30 +6,32 @@ import { loadExactAdmittedProofPack } from
 import { resolveExactProofEvaluator } from
   "../../packages/controlled-contract/lib/proof-evaluator-registry.mjs";
 
-test("historical 3.0.0 and corrected 4.0.0 resolve only by exact identity", async () => {
-  await assert.rejects(loadExactAdmittedProofPack({
-    profileId: "proof.verification.test-validity",
-    profileVersion: "2.0.0",
-    evaluationStage: "post_delivery"
-  }));
+test("current test-validity definitions resolve only by exact identity", async () => {
+  for (const profileVersion of ["2.0.0", "4.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0"]) {
+    await assert.rejects(loadExactAdmittedProofPack({
+      profileId: "proof.verification.test-validity", profileVersion
+    }), { code: "proof_pack_exact_version_not_current" });
+  }
   const pack = await loadExactAdmittedProofPack({
-    profileId: "proof.verification.test-validity",
-    profileVersion: "3.0.0",
-    evaluationStage: "post_delivery"
+    profileId: "proof.verification.test-validity", profileVersion: "10.0.0"
   });
-  assert.equal(pack.profile.profile_version, "3.0.0");
-  assert.equal(pack.test_validity_evaluator.status, "resolved");
-  const corrected = await loadExactAdmittedProofPack({
-    profileId: "proof.verification.test-validity",
-    profileVersion: "4.0.0",
-    evaluationStage: "post_delivery"
+  assert.equal(pack.profile.profile_version, "10.0.0");
+  assert.deepEqual({
+    status: pack.test_validity_evaluator.status,
+    profile_id: pack.test_validity_evaluator.profile_id,
+    profile_version: pack.test_validity_evaluator.profile_version,
+    implementation_id: pack.test_validity_evaluator.implementation_id,
+    implementation_version: pack.test_validity_evaluator.implementation_version
+  }, {
+    status: "resolved",
+    profile_id: "proof.verification.test-validity",
+    profile_version: "10.0.0",
+    implementation_id: "proof.verification.test-validity.execution-evaluator",
+    implementation_version: "8.0.0"
   });
-  assert.equal(corrected.profile.profile_version, "4.0.0");
-  assert.equal(corrected.test_validity_evaluator.implementation_version, "4.0.0");
   const absent = await resolveExactProofEvaluator({
     proofPack: { profile: { profile_id: "proof.verification.test-validity",
-      profile_version: "5.0.0" } },
-    evaluationStage: "post_delivery"
+      profile_version: "999.0.0" } }
   });
   assert.equal(absent.status, "not_executable");
   assert.equal(Object.hasOwn(absent, "fallback"), false);

@@ -445,7 +445,7 @@ test("selected_slice: returns the canonical selected-unit contract without sibli
     assert.equal(sl.agent_notes, "string note body");
     assert.equal(Object.hasOwn(sl, "agent_notes_bytes"), false);
     assert.equal(Object.hasOwn(sl, "closure_summary"), false);
-    assert.deepEqual(sl.sections, { agent_notes: "string note body" });
+    assert.deepEqual(sl.sections, {});
 
     assert.equal(
       Object.prototype.hasOwnProperty.call(result, "record"),
@@ -616,7 +616,7 @@ test("selected_slice preserves canonical empty notes and nullable non-negative b
       selected_slice: "active-slice"
     });
     assert.equal(emptyString.selected_slice.agent_notes, "");
-    assert.equal(emptyString.selected_slice.sections.agent_notes, "");
+    assert.deepEqual(emptyString.selected_slice.sections, {});
     assert.equal(emptyString.selected_slice.expected_changed_line_budget, null);
 
     const emptyArray = await getWikiRecord({
@@ -625,7 +625,7 @@ test("selected_slice preserves canonical empty notes and nullable non-negative b
       selected_slice: "blocked-slice"
     });
     assert.deepEqual(emptyArray.selected_slice.agent_notes, []);
-    assert.deepEqual(emptyArray.selected_slice.sections.agent_notes, []);
+    assert.deepEqual(emptyArray.selected_slice.sections, {});
     assert.equal(emptyArray.selected_slice.expected_changed_line_budget, 0);
   });
 });

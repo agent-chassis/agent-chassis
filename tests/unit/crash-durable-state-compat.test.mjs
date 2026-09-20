@@ -1154,6 +1154,7 @@ export function buildDurableStoreBaselineCorpus() {
 
     Object.freeze({
       store_id: "canonical-work-record-write-lock",
+
       owner_module: "packages/wiki-core/src/operations/work-records-store-io.mjs",
       artifact_class: DURABLE_STORE_ARTIFACT_CLASSES.LOCK_ARTIFACT,
       compatibility: DURABLE_STORE_COMPATIBILITY.LOCK_MIGRATION_AUTHORIZED,
@@ -1641,6 +1642,14 @@ const CENSUS_CLASSIFICATIONS = Object.freeze({
 const A = "packages/agent-launch-cli/src/lib";
 const B = "packages/agent-launch-core/src/lib";
 const C = "packages/wiki-core/src/operations/work-records-store-io.mjs";
+
+const D = "packages/wiki-core/src/operations/work-record-write-lock.mjs";
+const WORK_RECORD_WRITE_LOCK_WRITER_IDENTITIES = Object.freeze([
+  `${D}#completeWorkRecordWriteLockRetirement`,
+  `${D}#releaseWorkRecordWriteLock`,
+  `${D}#transferCrashedWorkRecordWriteLockClaim`,
+  `${D}#withWorkRecordWriteLock`
+]);
 export const EXPECTED_CENSUS_WRITER_IDENTITIES = Object.freeze([
   `${A}/managed-run-process-identity-store.mjs#discardManagedRunProcessIdentity`,
   `${A}/managed-run-process-identity-store.mjs#replaceAtomically`,
@@ -1671,12 +1680,11 @@ export const EXPECTED_CENSUS_WRITER_IDENTITIES = Object.freeze([
   `${B}/launcher-context-mint.mjs#ensureLauncherRoleGuardSecret`,
   `${B}/launcher-context-mint.mjs#ensureWorkerFamilyTrustedLauncherRoleGuardSecret`,
   `${B}/registry.mjs#initializeDefaultRegistry`,
-  `${C}#breakStaleWorkRecordWriteLock`,
   `${C}#cleanupRecordOwnedAdmissionArtifacts`,
-  `${C}#withWorkRecordWriteLock`,
   `${C}#writeJsonFileToTemp`,
   `${C}#writeValidatedWorkRecord`,
   `${C}#writeValidatedWorkRecordWithAdmissionSidecars`,
+  ...WORK_RECORD_WRITE_LOCK_WRITER_IDENTITIES,
 
   `${A}/managed-run-attempt-supervisor.mjs#publishSupervisorTermination`,
   `${A}/managed-run-process-identity-store.mjs#publishAttemptJournalEvents`,
@@ -1728,6 +1736,7 @@ test("the deny-by-default durable writer census is present, closed, and complete
     assert.fail(`the writer census must be parseable JSON: ${error.message}`);
   }
   assert.equal(census.schema_version, "crash-durable-state-writer-census.v1");
+
   assert.equal(census.captured_against, "pre_migration");
   assert.ok(Array.isArray(census.writers) && census.writers.length > 0);
 
@@ -1853,6 +1862,53 @@ test("census completeness is identity-exact, so a sibling writer cannot be dropp
     censusWriterIdentityViolations(mutated),
     [`missing writer identity: ${sibling}`],
     "identity-exact completeness fails on the dropped sibling"
+  );
+});
+
+test("census completeness holds the work-record lock writers at their current module", () => {
+  const census = readCanonicalWriterCensus();
+  assert.deepEqual(
+    census.writers
+      .filter((writer) => writer.store_id === "canonical-work-record-write-lock")
+      .map((writer) => writer.source_identity)
+      .sort(),
+    [...WORK_RECORD_WRITE_LOCK_WRITER_IDENTITIES].sort(),
+    "the lock store is written exactly by the lock module's current writers"
+  );
+  assert.equal(censusWriterIdentityViolations(census).length, 0);
+
+  const omitted = `${D}#releaseWorkRecordWriteLock`;
+  assert.deepEqual(
+    censusWriterIdentityViolations({
+      ...census,
+      writers: census.writers.filter((writer) => writer.source_identity !== omitted)
+    }),
+    [`missing writer identity: ${omitted}`],
+    "omitting a current lock writer fails"
+  );
+
+  const current = `${D}#withWorkRecordWriteLock`;
+  const former = `${C}#withWorkRecordWriteLock`;
+  assert.deepEqual(
+    censusWriterIdentityViolations({
+      ...census,
+      writers: census.writers.map((writer) =>
+        writer.source_identity === current ? { ...writer, source_identity: former } : writer
+      )
+    }),
+    [`missing writer identity: ${current}`, `unknown writer identity: ${former}`],
+    "substituting the former store-module identity fails"
+  );
+
+  const retired = `${C}#breakStaleWorkRecordWriteLock`;
+  const lockWriter = census.writers.find((writer) => writer.source_identity === current);
+  assert.deepEqual(
+    censusWriterIdentityViolations({
+      ...census,
+      writers: [...census.writers, { ...lockWriter, source_identity: retired }]
+    }),
+    [`unknown writer identity: ${retired}`],
+    "the retired reclaimer is not a current writer"
   );
 });
 

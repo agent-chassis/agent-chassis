@@ -45,7 +45,7 @@ const at = (mode, ...roles) => ({ mode, operand_roles: roles });
 function pattern(id, kind, modality, subject, operator, context, operands, falsifier) {
   const value = {
     pattern_id: id,
-    required_by_stage: "pre_dispatch",
+
     claim_kind: kind,
     allowed_modalities: [modality],
     proposition_template: {
@@ -133,7 +133,7 @@ const relations = [
   ["cause-verifies-preservation", "cause-preservation-verification",
     "original-failure-cause-preserved"]
 ].map(([pattern_id, source_claim_pattern_id, target_claim_pattern_id]) => ({
-  pattern_id, required_by_stage: "pre_dispatch", role: "verifies",
+  pattern_id, role: "verifies",
   source_claim_pattern_id, target_claim_pattern_id
 }));
 const sequenceMembers = [
@@ -146,15 +146,13 @@ const sequenceMembers = [
 ];
 const collections = [
   {
-    pattern_id: "proof-sequence", required_by_stage: "pre_dispatch",
-    collection_kind: "ordered_sequence", match_mode: "subsequence",
+    pattern_id: "proof-sequence", collection_kind: "ordered_sequence", match_mode: "subsequence",
     candidate_quantifier: "all_covering",
     collection_purpose: "proof_failure_settlement_cleanup_sequence",
     member_claim_pattern_ids: sequenceMembers
   },
   {
-    pattern_id: "proof-population", required_by_stage: "pre_dispatch",
-    collection_kind: "closed_set", match_mode: "exact",
+    pattern_id: "proof-population", collection_kind: "closed_set", match_mode: "exact",
     candidate_quantifier: "all_covering",
     collection_purpose: "proof_failure_settlement_cleanup_population",
     member_claim_pattern_ids: patterns.map(({ pattern_id }) => pattern_id)
@@ -167,16 +165,16 @@ const referenceRoles = Object.entries(roleTypes).map(([role, allowed_type_terms]
   cardinality: "exactly_one"
 }));
 const profile = {
-  schema_version: "controlled-contract-verification-profile.v1",
+  schema_version: "controlled-contract-verification-profile.v2",
   profile_id: "proof.failure.settlement-and-cleanup",
-  profile_version: "2.0.0",
+  profile_version: "3.0.0",
   contract_schema_version: SCHEMA_VERSION_V1,
   vocabulary_version: VOCABULARY_VERSION_V1,
   vocabulary_signature_digest: V.signature,
   vocabulary_algebra_digest: V.algebra,
   vocabulary_definitions_digest: V.definitions,
   vocabulary_complete_digest: V.complete,
-  evaluation_stages: ["pre_dispatch"],
+
   reference_roles: referenceRoles,
   number_roles: [{
     role: "residue_count", cardinality: "exactly_one", number_type: "integer", minimum: 0
@@ -291,8 +289,7 @@ function buildFailureSettlementCleanupFixture({
     residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const input = {
-    input_version: EVALUATION_INPUT_VERSION_V1, evaluation_stage: "pre_dispatch",
-    reference_bindings: Object.keys(roleTypes).map((role) => ({
+    input_version: EVALUATION_INPUT_VERSION_V1, reference_bindings: Object.keys(roleTypes).map((role) => ({
       role, reference_ids: [refId(role)]
     })),
     number_bindings: [{ role: "residue_count", value: residueCount }],

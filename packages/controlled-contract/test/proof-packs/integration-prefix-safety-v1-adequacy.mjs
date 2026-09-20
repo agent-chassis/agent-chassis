@@ -6,7 +6,7 @@ import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
 
 const GUARANTEE = "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.";
 const PROFILE_DIGEST =
-  "f0ccdd91e638d72aa09c7e3e46dc4d16ae295d602dde297899ea88017729b32c";
+  "d5f787bf5a3db86d478030f193cac6efd2b26e903b35c98ce670b89350e7e14a";
 const GUARANTEE_DIGEST =
   "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e";
 
@@ -267,8 +267,8 @@ function buildPrefixSafetyFixture({
       target_claim_id: `claim-${relation.target_claim_pattern_id}`
     });
   const input = {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "pre_dispatch",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...(roles[role] ?? [])]
     })),

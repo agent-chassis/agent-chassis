@@ -39,6 +39,7 @@ import {
   REQUIRED_STRING_TOP_LEVEL_FIELDS,
   OPTIONAL_STRING_TOP_LEVEL_FIELDS
 } from "./work-record-schema-constants.mjs";
+import { validateWorkRecordProofPostureInto } from "./work-record-proof-posture.mjs";
 
 export const WORK_RECORD_EXPECTED_ENVELOPE_FIELD = "expected";
 export const WORK_RECORD_LEGACY_EXPECTED_ENVELOPE_FIELD = "expected_envelope";
@@ -553,6 +554,14 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
       { path: "dispatchable" }
     );
   }
+  for (const field of ["controlled_acceptance_state", "controlled_acceptance_allocation"]) {
+    if (hasOwn(record, field)) {
+      addDiagnostic(diagnostics, "invalid_record", field === "controlled_acceptance_state"
+        ? "controlled_acceptance_state is derived and must not be stored in work-record.v1"
+        : "controlled_acceptance_allocation is a retired noncanonical field and must not be stored",
+        { path: field });
+    }
+  }
 
   for (const field of REQUIRED_TOP_LEVEL_FIELDS) {
     if (!hasOwn(record, field)) {
@@ -584,6 +593,7 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
   validateAcceptance(diagnostics, record.acceptance);
   validateSections(diagnostics, record.sections);
   validateMigration(diagnostics, record.migration);
+  validateWorkRecordProofPostureInto(diagnostics, record, addDiagnostic);
   validateExpectedEnvelopeFields(diagnostics, record);
   if (hasOwn(record, "expected_edit_targets")) {
     validateExpectedEditTargets(diagnostics, record.expected_edit_targets, "expected_edit_targets");

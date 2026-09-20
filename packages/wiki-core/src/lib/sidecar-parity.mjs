@@ -12,32 +12,32 @@ export const SIDECAR_PARITY_TRANSPORTS = Object.freeze([
 export const SIDECAR_PARITY_SURFACE_EXPECTATIONS = Object.freeze({
   status: Object.freeze({
     owner: "WK-0035",
-    cliCommand: "sidecar status --json",
-    mcpTool: "sidecar_status",
+    cliCommand: "code-index status --json",
+    mcpTool: "workspace_code_index_status",
     inputContract: "status accepts repository/cache selection inputs owned by WK-0035",
     outputContract: "CLI JSON and MCP structuredContent must be the same sidecar result envelope",
     parityTestOwner: "WK-0035"
   }),
   build: Object.freeze({
     owner: "WK-0042",
-    cliCommand: "sidecar build --json",
-    mcpTool: "sidecar_build",
+    cliCommand: "code-index build --json",
+    mcpTool: "workspace_code_index_build",
     inputContract: "build accepts explicit writer inputs owned by WK-0042",
     outputContract: "CLI JSON and MCP structuredContent must be the same sidecar result envelope",
     parityTestOwner: "WK-0042"
   }),
-  impact_paths: Object.freeze({
-    owner: "WK-0041",
-    cliCommand: "sidecar impact-paths --json",
-    mcpTool: "sidecar_impact_paths",
-    inputContract: "impact path inputs are owned by WK-0041 and path validation prerequisites",
-    outputContract: "CLI JSON and MCP structuredContent must be the same sidecar result envelope",
-    parityTestOwner: "WK-0041"
+  impact: Object.freeze({
+    owner: "WK-2535",
+    cliCommand: "code-index impact --json",
+    mcpTool: "workspace_code_index_impact",
+    inputContract: "impact accepts exactly one paths, patch, parsed diff or live Git subject",
+    outputContract: "CLI JSON and MCP verbose structuredContent must be the same sidecar result envelope",
+    parityTestOwner: "WK-2535"
   }),
   context_for_path: Object.freeze({
     owner: "WK-0041",
-    cliCommand: "sidecar context-for-path --json",
-    mcpTool: "sidecar_context_for_path",
+    cliCommand: "code-index context-for-path --json",
+    mcpTool: "workspace_code_index_context_for_path",
     inputContract: "context path inputs are owned by WK-0041 and path validation prerequisites",
     outputContract: "CLI JSON and MCP structuredContent must be the same sidecar result envelope",
     parityTestOwner: "WK-0041"

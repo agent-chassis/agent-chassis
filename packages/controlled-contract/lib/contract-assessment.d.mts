@@ -11,6 +11,15 @@ export type ResidueAssessment =
   | "review_and_resolution_required";
 export type AssessmentAuthority = "non_authoritative";
 
+export interface AssessmentStages {
+  authoring_state: "complete" | "incomplete" | "not_assessed";
+  execution_gap_count: number;
+  /** Witness counts are per evaluated pack input; they are not distinct proof counts. */
+  expected_witness_count: number;
+  supplied_witness_count: number;
+  missing_witness_count: number;
+}
+
 export interface SourceDigests {
   contract: string;
   evaluation_input: string | null;
@@ -19,9 +28,6 @@ export interface SourceDigests {
   guarantee: string | null;
   adequacy_declaration: string | null;
   adequacy_result: string | null;
-  exact_binding_sources?: string;
-  exact_binding_declaration?: string;
-  exact_binding_certification?: string;
   structural_schema: string;
   assessment_schema: string;
   assessment_format: string;
@@ -40,8 +46,8 @@ export interface ContractAssessment {
   schema_version: "controlled-contract-assessment.v1";
   assessment_identity: string;
   structure: StructureAssessment;
+  stage_assessment: AssessmentStages;
   profile_discrimination: ProfileDiscriminationAssessment;
-  exact_binding?: Exclude<ExactBindingAssessment, "not_applicable">;
   assessment_scope: "planning";
   residue_status: ResidueAssessment;
   authority: AssessmentAuthority;
@@ -51,7 +57,6 @@ export interface ContractAssessment {
     proof_plan_discrimination:
       | "assessed_by_admitted_profile"
       | "not_assessed";
-    exact_binding_capture?: "assessed_by_deterministic_capture";
   };
   categorical_limits: {
     omitted_obligations: string;
@@ -98,6 +103,7 @@ export interface ContractAssessment {
     adequacy_control_outcome: string | null;
   }>;
   diagnostics: Array<{
+    assessment_stage: "authoring" | "execution_pending" | "execution_evidence";
     source:
       | "structural_schema"
       | "structural_validation"
@@ -129,7 +135,6 @@ export interface ContractAssessment {
       structural: string;
       admitted_profile: string | null;
       proof_pack_admission: string | null;
-      exact_binding?: string;
     };
   };
   lossless_report: {
@@ -140,14 +145,6 @@ export interface ContractAssessment {
       "structural.full.json",
       "admitted-proof.full.json",
       "proof-pack-admission.full.json",
-      "manifest.json"
-    ] | [
-      "assessment.json",
-      "assessment.md",
-      "structural.full.json",
-      "admitted-proof.full.json",
-      "proof-pack-admission.full.json",
-      "exact-binding.full.json",
       "manifest.json"
     ];
   };
@@ -182,19 +179,16 @@ export interface ProjectedAssessment {
     structural: Record<string, unknown>;
     admittedProof: Record<string, unknown>;
     proofPackAdmission: Record<string, unknown>;
-    exactBinding: Record<string, unknown>;
   }>;
 }
 
 export interface AssessmentProjectionInput {
-  mode: "structural_only" | "admitted_profile" | "exact_bound_profile";
+  mode: "structural_only" | "admitted_profile";
   contract: Record<string, unknown>;
   structuralResult: Record<string, unknown>;
   structuralInputSource: string;
   evaluationInput?: Record<string, unknown> | null;
   proofPack?: Record<string, unknown> | null;
-  exactBindingResult?: Record<string, unknown> | null;
-  exactBindingSources?: Record<string, unknown> | null;
 }
 
 export class AssessmentArtifactError extends Error {
@@ -212,7 +206,6 @@ export const ASSESSMENT_MANIFEST_VERSION: string;
 export const ASSESSMENT_FORMAT: Readonly<Record<string, unknown>>;
 export const ARTIFACT_RELATIVE_ROOT: string;
 export const LOSSLESS_FILES: readonly string[];
-export const EXACT_BOUND_LOSSLESS_FILES: readonly string[];
 export const ASSESSMENT_SCHEMA: Readonly<Record<string, unknown>>;
 
 export function projectContractAssessment(
@@ -222,13 +215,6 @@ export function assessContractFiles(input: {
   inputPath: string;
   profileId: string;
   evaluationInputPath: string;
-}): Promise<ProjectedAssessment>;
-export function assessExactBoundContractFiles(input: {
-  captureRoot: string;
-  contractPath: string;
-  profileId: string;
-  evaluationInputPath: string;
-  exactBindingSources: Record<string, unknown>;
 }): Promise<ProjectedAssessment>;
 export function assessStructuralContractFile(input: {
   inputPath: string;

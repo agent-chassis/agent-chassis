@@ -2,9 +2,6 @@
 
 import path from "node:path";
 
-import { classifyStableTestProofRuntimeReadiness } from
-  "@agent-chassis/controlled-contract";
-
 import {
   resolveAssignedUnit,
   resolveLauncherRunCredential,
@@ -71,39 +68,23 @@ function createRefusal(decisionCode, reasons, extra = {}) {
   };
 }
 
-export function projectWorkerProofExecutionReadiness({
-  selection, verificationIds, wkId
-}) {
+export function projectWorkerProofBindingPopulation({ selection, verificationIds }) {
   const rows = verificationIds.map((verificationId) => {
     const matches = selection?.bindings?.filter(
       (binding) => binding?.verification_claim_id === verificationId
     ) ?? [];
     if (matches.length !== 1) return null;
-    const binding = matches[0];
-    const readiness = classifyStableTestProofRuntimeReadiness(binding);
-    const candidates = readiness.current_test_ids.slice(0, 16);
     return Object.freeze({
       verification_id: verificationId,
-      status: readiness.status,
-      reason: readiness.reason,
-      selected_test_id: readiness.selected_test_id,
-      candidate_test_ids: Object.freeze(candidates),
-      candidate_total: readiness.candidate_total,
-      candidate_test_ids_omitted: readiness.candidate_total - candidates.length,
-      complete_retrieval: Object.freeze({
-        tool: "workspace_controlled_test_proof_query",
-        arguments: Object.freeze({ wk_id: wkId, verification_ids: [verificationId] })
+      test_proof_id: matches[0].test_proof_id ?? null,
+      test_selector: Object.freeze({
+        name: matches[0].test_selector?.name ?? null,
+        nesting: matches[0].test_selector?.nesting ?? null
       })
     });
   });
   if (rows.some((row) => row === null)) return null;
-  const nonready = rows.filter(({ status }) => status !== "ready");
-  return Object.freeze({
-    status: nonready.length === 0 ? "ready" : "not_ready",
-    ...(nonready.length === 0 ? {} : { authority_limb: "mechanical_failure" }),
-    admissibility_effect: "none",
-    bindings: Object.freeze(rows)
-  });
+  return Object.freeze({ status: "complete", bindings: Object.freeze(rows) });
 }
 
 export function buildWorkerDeclaredTestSuccess({
@@ -111,23 +92,17 @@ export function buildWorkerDeclaredTestSuccess({
   assignedUnit,
   authorizedTargets,
   verificationIds,
-  proofExecutionReadiness = null,
   testProofRuntimeEvidence = null,
   result,
   target = null
 }) {
   const proofStarted = Array.isArray(testProofRuntimeEvidence);
-  if (proofExecutionReadiness?.status === "not_ready" && proofStarted) {
-    throw new TypeError("nonready pre-proof results cannot carry proof evidence");
-  }
   return Object.freeze({
     tool: WORKER_DECLARED_TEST_TOOL_NAME,
     workspaceRepo,
     assigned_unit: assignedUnit,
     authorized_targets: authorizedTargets,
     verification_ids: verificationIds,
-    ...(proofExecutionReadiness === null
-      ? {} : { proof_execution_readiness: proofExecutionReadiness }),
     ...(proofStarted ? { test_proof_runtime_evidence: testProofRuntimeEvidence } : {}),
     ...result,
     ...(target === null ? {} : { target })
@@ -163,7 +138,7 @@ export function registerWorkerDeclaredTestTool({
     WORKER_DECLARED_TEST_TOOL_NAME,
     {
       description:
-        "Worker-only launcher capability that runs one declared node test for the assigned unit and returns its output. Side effect: process_spawn. Input is exactly { target }. Unit and worktree come from the launcher-minted run binding; caller unit, repo, workspace, worktree, cwd, or target-set fields are refused. Only acceptance.validation[] entries with operation node_test authorize targets. The launcher runs the test in a network-denied bubblewrap process with a clean environment, read-only repository and dependency mounts, and ephemeral writable tmpfs. Unavailable or mismatched dependency mounts produce advisory degraded evidence. Node, argv, cwd, environment, timeout, and output bounds are launcher-owned. Results grant no admission, review, or closure authority and add no admission metric.",
+        "Run a declared node_test for the launcher-bound worker unit. Supply only target. Launcher owns execution and confined read-only mounts; network is denied. Dependency issues yield advisory degradation. Results grant no admission, review or closure.",
       inputSchema: z.object({ target: z.string() }).strict()
     },
     async (args) => {
@@ -245,7 +220,7 @@ export function registerWorkerDeclaredTestTool({
         if (authorizedTargets.length === 0) {
           return jsonContent(
             createRefusal(WORKER_DECLARED_TEST_REFUSAL_CODES.NO_DECLARED_TARGETS, [
-              `the launcher-bound unit declares no node_test targets; add one to acceptance.validation[] with operation node_test`
+              `the launcher-bound unit declares no node_test targets; the coordinator authors them as test cases through workspace_controlled_contract_obligation_coverage_upsert`
             ], { unit: authority.unit_address, authorized_targets: [] })
           );
         }
@@ -267,7 +242,6 @@ export function registerWorkerDeclaredTestTool({
           ? projection.validation_bindings[canonicalTarget] ?? Object.freeze([])
           : Object.freeze([]);
         let testProofRuntimeEvidence = [];
-        let proofExecutionReadiness = null;
         if (verificationIds.length > 0) {
           const proofAuthority = mintProofAuthority({ authority });
           let resolvedSelection;
@@ -285,27 +259,15 @@ export function registerWorkerDeclaredTestTool({
               { unit: authority.unit_address, refusal_code: error?.code ?? null }
             ));
           }
-          proofExecutionReadiness = projectWorkerProofExecutionReadiness({
+          const population = projectWorkerProofBindingPopulation({
             selection: resolvedSelection,
-            verificationIds,
-            wkId: authority.record_id
+            verificationIds
           });
-          if (proofExecutionReadiness === null) return jsonContent(createRefusal(
+          if (population === null) return jsonContent(createRefusal(
             WORKER_DECLARED_TEST_REFUSAL_CODES.TEST_PROOF_RECEIPT_INCOMPLETE,
             "the declared proof binding population is missing or ambiguous",
             { unit: authority.unit_address, verification_ids: verificationIds }
           ));
-          if (proofExecutionReadiness.status === "not_ready") return jsonContent(
-            buildWorkerDeclaredTestSuccess({
-              workspaceRepo: workspace.repo,
-              assignedUnit,
-              authorizedTargets,
-              verificationIds,
-              proofExecutionReadiness,
-              result,
-              target: targetAuthorization.ok === true ? canonicalTarget : null
-            })
-          );
           let executed;
           try {
             executed = await executeVerifyProofReceiptPopulation({
@@ -341,7 +303,6 @@ export function registerWorkerDeclaredTestTool({
           assignedUnit,
           authorizedTargets,
           verificationIds,
-          proofExecutionReadiness,
           testProofRuntimeEvidence: verificationIds.length > 0
             ? testProofRuntimeEvidence : null,
           result,

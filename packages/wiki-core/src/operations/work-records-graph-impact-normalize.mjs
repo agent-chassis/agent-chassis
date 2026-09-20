@@ -235,6 +235,9 @@ export function normalizePersistedGraphImpact(graphImpact) {
   const graphImpactRecordId = normalizeNonEmptyString(graphImpact.record_id);
   const graphImpactSliceId = normalizeNonEmptyString(graphImpact.slice_id);
   const graphImpactSourceDigest = normalizeNonEmptyString(graphImpact.source_record_digest);
+  const graphSnapshot = isObject(graphImpact.graph_snapshot)
+    ? cloneJson(graphImpact.graph_snapshot)
+    : null;
 
   return {
     issue: null,
@@ -248,7 +251,8 @@ export function normalizePersistedGraphImpact(graphImpact) {
       record_id: graphImpactRecordId,
       slice_id: graphImpactSliceId,
       unit: graphImpact.unit === undefined ? null : cloneJson(graphImpact.unit),
-      source_record_digest: graphImpactSourceDigest
+      source_record_digest: graphImpactSourceDigest,
+      graph_snapshot: graphSnapshot
     }
   };
 }

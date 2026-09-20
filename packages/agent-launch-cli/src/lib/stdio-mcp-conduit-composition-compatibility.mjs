@@ -25,8 +25,9 @@ export const STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE =
   "launcher_active_composition";
 export const STDIO_MCP_CONDUIT_COMPOSITION_REFUSAL_CAUSE =
   "stdio_mcp_lifecycle_protocol_incompatible";
+
 export const STDIO_MCP_CONDUIT_COMPOSITION_OUTER_BLOCKER =
-  "operator_recovery_needed";
+  "stdio_mcp_lifecycle_protocol_incompatible";
 export const STDIO_MCP_CONDUIT_COMPOSITION_RECOVERY =
   STDIO_MCP_LIFECYCLE_PROTOCOL_RECOVERY;
 

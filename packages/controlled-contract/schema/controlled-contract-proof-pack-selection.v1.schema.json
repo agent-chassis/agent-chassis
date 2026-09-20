@@ -81,7 +81,7 @@
       "required": [
         "profile_id", "profile_version", "requested_intents",
         "intent_definitions", "intent_distinctions", "guarantee",
-        "explicit_exclusions", "exact_binding_required", "required_inputs",
+        "explicit_exclusions", "required_inputs",
         "missing_compatible_reference_types", "authoring_projection", "source_digests"
       ],
       "additionalProperties": false,
@@ -100,7 +100,6 @@
         },
         "guarantee": { "type": "string", "minLength": 1 },
         "explicit_exclusions": { "$ref": "#/$defs/string_set" },
-        "exact_binding_required": { "type": "boolean" },
         "required_inputs": { "type": "array", "items": { "$ref": "#/$defs/required_input" } },
         "missing_compatible_reference_types": { "type": "array", "items": { "$ref": "#/$defs/required_input" } },
         "authoring_projection": { "$ref": "#/$defs/authoring_projection" },
@@ -113,9 +112,7 @@
             "admission": { "$ref": "#/$defs/sha256" },
             "guarantee": { "$ref": "#/$defs/sha256" },
             "adequacy_declaration": { "$ref": "#/$defs/sha256" },
-            "adequacy_result": { "$ref": "#/$defs/sha256" },
-            "exact_binding_declaration": { "$ref": "#/$defs/sha256" },
-            "exact_binding_certification": { "$ref": "#/$defs/sha256" }
+            "adequacy_result": { "$ref": "#/$defs/sha256" }
           }
         }
       }

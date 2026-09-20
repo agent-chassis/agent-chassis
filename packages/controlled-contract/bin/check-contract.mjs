@@ -22,6 +22,8 @@ import {
   loadAdmittedProofPack
 } from "../lib/admitted-proof-packs.mjs";
 
+import { loadStableContractSchemaV1 } from "../lib/stable-contract-schema-v1.mjs";
+
 const TOOL_VERSION = "controlled-contract-check.v1";
 const TOOL_VERSION_ADMITTED = "controlled-contract-check-proof-pack-admission.v1";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -41,8 +43,8 @@ Admitted proof-pack evaluation:
     --profile <proof-pack-id> \\
     --evaluation-input <profile-evaluation-input.json> [options]
 
-Author the input directly against:
-  packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json
+Author the input against the complete public schema API:
+  import { NATIVE_CONTRACT_SCHEMA_V1 } from "@agent-chassis/controlled-contract";
 
 Options:
   --profile <proof-pack-id> Require a release-certified built-in proof pack.
@@ -354,15 +356,12 @@ async function checkContractSource({ resolvedInputPath, inputText, contract }) {
     profileId: PROFILE_ID_V1,
     validateContract: validateAndResolveNativeContractV1
   };
-  const { text: schemaText, value: schema } = await readJson(
-    runtime.schemaPath,
-    "controlled-contract schema"
-  );
+  const schema = loadStableContractSchemaV1();
+  const schemaText = canonical(schema);
 
   if (canonical(schema) !== canonical(runtime.schema)) {
     throw new Error(
-      `tracked schema does not match the executable native schema; run ` +
-      "node packages/controlled-contract/bin/build-schema.mjs"
+      "composed schema does not match the executable native schema"
     );
   }
 
@@ -386,9 +385,11 @@ async function checkContractSource({ resolvedInputPath, inputText, contract }) {
     },
     schema: {
       path: path.relative(process.cwd(), runtime.schemaPath),
+      path_role: "composition_root_member",
       schema_version: runtime.schemaVersion,
       vocabulary_version: runtime.vocabularyVersion,
       profile_id: runtime.profileId,
+      sha256_scope: "composed_effective_schema",
       sha256: sha256(schemaText)
     },
     input: {

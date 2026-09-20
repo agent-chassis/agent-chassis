@@ -43,6 +43,9 @@ export const BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES = Object.freeze({
   WRITABLE_RUNTIME_ROOT_NOT_VISIBLE_IN_NAMESPACE: "agent_launch.isolation.writable_runtime_root_not_visible_in_namespace.v1",
   PRIVATE_REPOSITORY_PATH_CONFINEMENT_UNAVAILABLE:
     "agent_launch.private_repository_path_confinement_unavailable.v1",
+
+  GIT_STATUS_WRAPPER_ASSET_UNAVAILABLE:
+    "agent_launch.isolation.git_status_wrapper_asset_unavailable.v1",
   READ_ONLY_MOUNT: "read_only_mount",
   SANDBOX_WRITE_DENIAL: "sandbox_write_denial",
   PLAN_INVALID: "agent_launch.isolation.plan_invalid.v1"

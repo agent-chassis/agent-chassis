@@ -4,9 +4,10 @@ import test from "node:test";
 import { composeControlledContractCoverageAuthoringSkeleton } from
   "../../packages/wiki-core/src/lib/controlled-contract-coverage-authoring-skeleton.mjs";
 import {
-  describeControlledContractAcceptanceCoverageOperation,
-  describeControlledContractObligationCoverageOperation
+  describeControlledContractAcceptanceCoverageOperation
 } from "../../packages/wiki-core/src/operations/controlled-contract.mjs";
+import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA } from
+  "../../packages/wiki-core/src/lib/controlled-contract-tools.mjs";
 
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const referenceIds = Array.from({ length: 39 }, (_, index) =>
@@ -47,58 +48,8 @@ function selectedPacks() {
     selectors: [{
       kind: "claim",
       component_id: "component-1",
-      evaluation_stage: "verification"
     }]
   }];
-}
-
-function obligationResolved({ current = false, stale = false } = {}) {
-  const contentDigest = digest("e");
-  const present = current || stale;
-  return {
-    wkId: "WK-2439",
-    focus: null,
-    selectedUnit: "SLICE-004",
-    canonicalSet: {
-      generation: "generation-1",
-      manifest_content_digest: digest("f")
-    },
-    bindings: {
-      workRecordDigest: digest("1"),
-      selectedUnitDigest: digest("2"),
-      contractNodeDigest: digest("3"),
-      selectedPackDigest: digest("4")
-    },
-    criterionIdentities: {
-      digest: digest("5"),
-      identities: [{ identity: "criterion-1", position: 0 }]
-    },
-    contract: { content_digest: digest("6") },
-    contractNodes: largeContractNodes(),
-    plan: { content_digest: digest("7"), content: { packs: selectedPacks() } },
-    selectedPacks: selectedPacks(),
-    source: present ? {
-      content_digest: contentDigest,
-      content: { obligations: [] }
-    } : null,
-    sourceCurrent: !stale,
-    staleReasons: stale ? ["contract_content_digest"] : [],
-    sourceLocator: {
-      kind: "canonical_obligation_coverage",
-      repository_relative:
-        "wiki/contracts/WK-2439--unit-slice-004.obligation-coverage.json",
-      digest: digest("8")
-    },
-    prospectiveIdentity: {
-      source_kind: "obligation-coverage",
-      wk_id: "WK-2439",
-      controlled_focus: null,
-      selected_unit: "SLICE-004",
-      locator_digest: digest("8"),
-      content_digest: present ? contentDigest : null
-    },
-    authoringIdentity: digest("9")
-  };
 }
 
 function acceptanceResolved({ current = false, stale = false } = {}) {
@@ -130,6 +81,7 @@ function acceptanceResolved({ current = false, stale = false } = {}) {
     unit: { id: "SLICE-004", acceptance: { criteria: ["criterion one"] } },
     criteria: ["criterion one"],
     contractNodes: largeContractNodes(),
+    contractNodeSemantics: largeContractNodes(),
     selectedPackNodeIds: ["contract-node-0"],
     contract: { content_digest: digest("d") },
     plan: { content_digest: digest("e"), content: { packs: selectedPacks() } },
@@ -146,99 +98,29 @@ function acceptanceResolved({ current = false, stale = false } = {}) {
   };
 }
 
-test("obligation describe exposes an exact lossless absent-carrier skeleton", async () => {
-  const resolved = obligationResolved();
-  const described = await describeControlledContractObligationCoverageOperation({
-    repoRoot: null,
-    wkId: "WK-2439",
-    selectedUnit: "SLICE-004"
-  }, { resolveFacts: async () => structuredClone(resolved) });
+test('obligation guidance exposes the current upsert without contract or plan prerequisites', () => {
+  const result = composeControlledContractCoverageAuthoringSkeleton({ surface: 'obligation', unit: { address: 'WK-2439' } });
+  assert.equal(result.mutation.operation, 'workspace_controlled_contract_obligation_coverage_upsert');
+  assert.deepEqual(result.mutation.fixed_arguments, { unit: 'WK-2439' });
+  assert.ok(result.mutation.request_schema.required.includes('expected_content_digest'));
 
-  assert.equal(described.status, "source_absent");
-  assert.deepEqual(described.supported_next_calls, [
-    "workspace_controlled_contract_obligation_coverage_create",
-    "workspace_controlled_contract_obligation_coverage_describe"
-  ]);
-  assert.equal(described.next_calls[0].tool,
-    "workspace_controlled_contract_obligation_coverage_create");
-  assertCompleteBoundedSkeleton(described.authoring_skeleton);
-  assert.ok(described.authoring_skeleton.inline_projection.omitted > 0);
-  assert.equal(described.authoring_skeleton.complete_population.length, 39);
-  assert.deepEqual(described.authoring_skeleton.complete_population[33]
-    .allowed_alternatives, [{
-    kind: "pack_mapping",
-    pack_id: "pack-1",
-    requested_intent: "intent-1",
-    profile_id: "proof.example",
-    profile_version: "1.0.0",
-    selector: { kind: "claim", component_id: "component-1" },
-    evaluation_stage: "verification"
-  }]);
-  assert.deepEqual(described.authoring_skeleton.mutation_handoff, {
-    operation: "workspace_controlled_contract_obligation_coverage_create",
-    stable_arguments: described.next_calls[0].fixed_arguments,
-    authored_fields: ["obligation_id", "statement", "controlled_contract_node_ids",
-      "mechanism", "gap", "pack_component"],
-    call_shape: "complete_population",
-    receipt_fed_digest_state: null
-  });
-  assert.deepEqual(described.authoring_skeleton.execution_handoff, {
-    mode: "complete_population_create",
-    receipt_source: null,
-    final_verification_operations: [
-      "workspace_controlled_contract_obligation_coverage_query",
-      "workspace_controlled_contract_obligation_coverage_describe"
-    ]
-  });
+  assert.deepEqual(Object.keys(result.field_contracts),
+    ['expected_content_digest', 'obligations']);
+  assert.equal(Object.hasOwn(result.field_contracts, 'clear_parameters'), false);
+  const clearParameters =
+    result.field_contracts.obligations.items.properties.clear_parameters;
+  assert.deepEqual(clearParameters,
+    CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_INPUT_SCHEMA
+      .properties.obligations.items.properties.clear_parameters);
+
+  assert.deepEqual(
+    { type: clearParameters.type, uniqueItems: clearParameters.uniqueItems,
+      items: clearParameters.items },
+    { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } });
+  assert.deepEqual(result.next_calls, [{ tool: 'workspace_controlled_contract_obligation_coverage_query', arguments: { unit: 'WK-2439' } }]);
 });
 
-test("obligation describe models current multi-row mutation as sequential CAS", async () => {
-  const resolved = obligationResolved({ current: true });
-  const input = { repoRoot: null, wkId: "WK-2439", selectedUnit: "SLICE-004" };
-  const options = { resolveFacts: async () => structuredClone(resolved) };
-  const first = await describeControlledContractObligationCoverageOperation(input, options);
-  const second = await describeControlledContractObligationCoverageOperation(input, options);
-
-  assert.deepEqual(first, second);
-  assert.equal(first.status, "source_present_current");
-  assertCompleteBoundedSkeleton(first.authoring_skeleton);
-  assert.equal(first.authoring_skeleton.mutation_handoff.operation,
-    "workspace_controlled_contract_obligation_coverage_upsert");
-  assert.deepEqual(first.authoring_skeleton.mutation_handoff.stable_arguments, {
-    unit: "WK-2439#SLICE-004"
-  });
-  assert.deepEqual(first.authoring_skeleton.mutation_handoff.receipt_fed_digest_state, {
-    source: "immediately_prior_mutation_receipt",
-    fields: ["expected_content_digest"]
-  });
-  assert.equal(first.authoring_skeleton.execution_handoff.mode,
-    "sequential_single_row");
-});
-
-test("stale obligation describe preserves recovery without mutation handoff", async () => {
-  const resolved = obligationResolved({ stale: true });
-  const described = await describeControlledContractObligationCoverageOperation({
-    repoRoot: null,
-    wkId: "WK-2439",
-    selectedUnit: "SLICE-004"
-  }, { resolveFacts: async () => structuredClone(resolved) });
-
-  assert.equal(described.status, "source_present_stale");
-  assert.deepEqual(described.supported_next_calls, [
-    "workspace_controlled_contract_obligation_coverage_query",
-    "workspace_controlled_contract_obligation_coverage_rebase",
-    "workspace_controlled_contract_obligation_coverage_describe"
-  ]);
-  assert.deepEqual(described.next_calls.map(({ tool }) => tool), [
-    "workspace_controlled_contract_obligation_coverage_rebase",
-    "workspace_controlled_contract_obligation_coverage_describe"
-  ]);
-  assertCompleteBoundedSkeleton(described.authoring_skeleton);
-  assert.equal(Object.hasOwn(described.authoring_skeleton, "mutation_handoff"), false);
-  assert.equal(Object.hasOwn(described.authoring_skeleton, "execution_handoff"), false);
-});
-
-test("acceptance describe preserves stable identity and receipt-fed digest slots", async () => {
+test("retired acceptance describe preserves internal facts without public calls", async () => {
   const absentResolved = acceptanceResolved();
   const input = { repoRoot: null, wkId: "WK-2439", selectedUnit: "SLICE-004" };
   const absent = await describeControlledContractAcceptanceCoverageOperation(input, {
@@ -247,9 +129,11 @@ test("acceptance describe preserves stable identity and receipt-fed digest slots
   assert.equal(absent.status, "carrier_absent");
   assertCompleteBoundedSkeleton(absent.authoring_skeleton);
   assert.equal(absent.authoring_skeleton.mutation_handoff.operation,
-    "workspace_controlled_contract_acceptance_coverage_create");
+    "acceptance_coverage_authoring");
   assert.deepEqual(absent.authoring_skeleton.mutation_handoff.stable_arguments,
-    absent.next_calls[0].fixed_arguments);
+    { unit: "WK-2439#SLICE-004" });
+  assert.deepEqual(absent.supported_next_calls, []);
+  assert.deepEqual(absent.next_calls, []);
 
   const currentResolved = acceptanceResolved({ current: true });
   const options = { resolveFacts: async () => structuredClone(currentResolved) };
@@ -259,16 +143,9 @@ test("acceptance describe preserves stable identity and receipt-fed digest slots
   assert.equal(current.status, "carrier_present_current");
   assertCompleteBoundedSkeleton(current.authoring_skeleton);
   assert.equal(current.authoring_skeleton.mutation_handoff.operation,
-    "workspace_controlled_contract_acceptance_coverage_upsert");
+    "acceptance_coverage_authoring");
   assert.deepEqual(current.authoring_skeleton.mutation_handoff.stable_arguments, {
-    unit: "WK-2439#SLICE-004",
-    carrier_identity: {
-      carrier_kind: "controlled-acceptance",
-      wk_id: "WK-2439",
-      focus: null,
-      selected_unit: "SLICE-004"
-    },
-    source_identity: { source_kind: "obligation-coverage" }
+    unit: "WK-2439#SLICE-004"
   });
   assert.deepEqual(current.authoring_skeleton.mutation_handoff
     .receipt_fed_digest_state, {
@@ -276,14 +153,9 @@ test("acceptance describe preserves stable identity and receipt-fed digest slots
     fields: ["expected_content_digest", "carrier_identity.content_digest",
       "source_identity.content_digest"]
   });
-  assert.deepEqual(current.authoring_skeleton.execution_handoff, {
-    mode: "sequential_single_row",
-    receipt_source: "immediately_prior_mutation_receipt",
-    final_verification_operations: [
-      "workspace_controlled_contract_acceptance_coverage_query",
-      "workspace_controlled_contract_acceptance_coverage_describe"
-    ]
-  });
+  assert.equal(Object.hasOwn(current.authoring_skeleton, "execution_handoff"), false);
+  assert.deepEqual(current.supported_next_calls, []);
+  assert.deepEqual(current.next_calls, []);
 });
 
 test("stale acceptance describe preserves recovery without mutation handoff", async () => {
@@ -295,15 +167,8 @@ test("stale acceptance describe preserves recovery without mutation handoff", as
   }, { resolveFacts: async () => structuredClone(resolved) });
 
   assert.equal(described.status, "carrier_present_stale");
-  assert.deepEqual(described.supported_next_calls, [
-    "workspace_controlled_contract_acceptance_coverage_query",
-    "workspace_controlled_contract_acceptance_coverage_rebase",
-    "workspace_controlled_contract_acceptance_coverage_describe"
-  ]);
-  assert.deepEqual(described.next_calls.map(({ tool }) => tool), [
-    "workspace_controlled_contract_acceptance_coverage_rebase",
-    "workspace_controlled_contract_acceptance_coverage_describe"
-  ]);
+  assert.deepEqual(described.supported_next_calls, []);
+  assert.deepEqual(described.next_calls, []);
   assertCompleteBoundedSkeleton(described.authoring_skeleton);
   assert.equal(Object.hasOwn(described.authoring_skeleton, "mutation_handoff"), false);
   assert.equal(Object.hasOwn(described.authoring_skeleton, "execution_handoff"), false);

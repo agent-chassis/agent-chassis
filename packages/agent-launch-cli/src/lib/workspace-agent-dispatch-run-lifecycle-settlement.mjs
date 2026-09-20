@@ -21,6 +21,7 @@ import {
   attachFormalReviewAttestationSettlement
 } from "./workspace-agent-dispatch-final-result-evidence.mjs";
 import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-result.mjs";
+import { withSecondaryCleanupFailure } from "./launch-failure-cause.mjs";
 import { WRITE_SCOPE_VERIFICATION_SCHEMA_VERSION } from "./workspace-agent-write-scope-verification.mjs";
 import {
   buildWorkspaceAgentResultModeEnvelope,
@@ -72,9 +73,10 @@ async function settleRequestedFormalAttestation(
 
 export const ATTEMPT_LINEAGE_RESOLUTION_SCHEMA_VERSION =
   "workspace-agent-attempt-lineage-resolution.v1";
+
 export const ATTEMPT_LINEAGE_RESOLUTION_STATES = Object.freeze({
   SELECTED: "selected",
-  OPERATOR_RECOVERY_NEEDED: "operator_recovery_needed"
+  UNRESOLVED: "unresolved"
 });
 const ATTEMPT_LINEAGE_NEXT_ACTIONS = new Set([
   "poll_selected_attempt",
@@ -228,7 +230,8 @@ export async function discardPendingManagedRunIdentity({
   reservationHolder,
   releaseSubjectReservation,
   subject,
-  reason
+  reason,
+  retainReleaseFailure = false
 }) {
   if (pending === null || pending === undefined) return null;
   try {
@@ -248,8 +251,35 @@ export async function discardPendingManagedRunIdentity({
     );
   }
 
-  await releaseSubjectReservation(reservationHolder);
+  const releaseFailure = await releaseSubjectReservation(
+    reservationHolder,
+    retainReleaseFailure ? { retainFailure: true } : undefined
+  );
+  if (releaseFailure !== null && releaseFailure !== undefined) {
+    return dispatchRefusal(
+      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+      "managed_run_subject_reservation_release_failed",
+      {
+        subject,
+        cleanup_after: reason,
+        code: releaseFailure?.code ?? null,
+        message: releaseFailure?.message ?? String(releaseFailure)
+      }
+    );
+  }
   return null;
+}
+
+export function withManagedIdentityCleanupResidue(primary, cleanupRefusal, reservationHolder) {
+  if (cleanupRefusal?.accepted !== false || !cleanupRefusal.refusal) return primary;
+  return withSecondaryCleanupFailure(primary, "managed_identity_settlement_failure", Object.freeze({
+    reason: cleanupRefusal.refusal.reason ?? null,
+    detail: cleanupRefusal.refusal.detail ?? null,
+    pending_identity_retained:
+      cleanupRefusal.refusal.reason === "managed_run_identity_cleanup_failed",
+    reservation_retained: reservationHolder?.reservation !== null &&
+      reservationHolder?.reservation !== undefined
+  }));
 }
 
 export function buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdmissionDiagnostic) {
@@ -274,11 +304,51 @@ export function buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdm
     ...(record.attempt_lineage_resolution
       ? { attempt_lineage_resolution: record.attempt_lineage_resolution }
       : {}),
-    ...(record.validation_evidence ? { validation_evidence: record.validation_evidence } : {}),
     ...(startReviewResult ? { review_result: startReviewResult } : {}),
 
     ...(workerAdmissionDiagnostic ? { worker_admission: workerAdmissionDiagnostic } : {})
   };
+}
+
+function readObservedChildTermination(executorResult) {
+  if (typeof executorResult?.hasObservedChildTermination !== "function") return false;
+  try {
+    return executorResult.hasObservedChildTermination() === true;
+  } catch {
+
+    return false;
+  }
+}
+
+function attachManagedIdentitySettlementFailure(
+  record,
+  cleanupRefusal,
+  { pendingRetained, reservationHolder }
+) {
+  if (cleanupRefusal?.accepted !== false || !cleanupRefusal.refusal) return;
+  const residue = Object.freeze({
+    reason: cleanupRefusal.refusal.reason ?? null,
+    detail: cleanupRefusal.refusal.detail ?? null,
+    pending_identity_retained: pendingRetained === true,
+    reservation_retained: reservationHolder?.reservation !== null &&
+      reservationHolder?.reservation !== undefined
+  });
+  record.exit = {
+    ...(isPlainObject(record.exit) ? record.exit : { code: null, signal: null }),
+    managed_identity_settlement_failure: residue
+  };
+  if (record.final_result?.kind !== "missing_result") return;
+  const missing = record.final_result.missing_result ?? {};
+  record.final_result = Object.freeze({
+    ...record.final_result,
+    missing_result: Object.freeze({
+      ...missing,
+      detail: Object.freeze({
+        ...(isPlainObject(missing.detail) ? missing.detail : {}),
+        managed_identity_settlement_failure: residue
+      })
+    })
+  });
 }
 
 export async function finalizeLaunchOutcome(params) {
@@ -300,16 +370,20 @@ export async function finalizeLaunchOutcome(params) {
     workspace_alias,
     caller_session_id,
     startedAt,
-    reviewerValidationEvidence,
     reviewerLaunchIdentity,
     workerAdmissionDiagnostic,
     sessionContract = null,
     findingsLifecycle = false
   } = params;
+  const publishManagedRunResult = params.publishManagedRunResult ?? null;
 
   let pendingManagedRunIdentity = params.pendingManagedRunIdentity ?? null;
 
-  const discardPendingIdentity = async (reason) => {
+  const managedExecutionTuple = pendingManagedRunIdentity?.tuple ?? null;
+
+  const childTerminationObserved = readObservedChildTermination(executorResult);
+
+  const discardPendingIdentity = async (reason, retainReleaseFailure = false) => {
     const pending = pendingManagedRunIdentity;
     pendingManagedRunIdentity = null;
     return discardPendingManagedRunIdentity({
@@ -317,38 +391,55 @@ export async function finalizeLaunchOutcome(params) {
       reservationHolder,
       releaseSubjectReservation,
       subject,
-      reason
+      reason,
+      retainReleaseFailure
     });
   };
 
   if (!executorResult || typeof executorResult !== "object") {
-    return (await discardPendingIdentity("launch_executor_no_result")) ?? dispatchRefusal(
+    return withManagedIdentityCleanupResidue(dispatchRefusal(
       BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
       "launch_executor_no_result",
       null
-    );
+    ), await discardPendingIdentity("launch_executor_no_result"), reservationHolder);
   }
   if (executorResult.accepted === false) {
     const refusal = executorResult.refusal ?? {};
-    return (await discardPendingIdentity("launch_executor_refused")) ?? dispatchRefusal(
+    return withManagedIdentityCleanupResidue(dispatchRefusal(
       refusal.code ?? BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
       refusal.reason ?? "launch_executor_refused",
       refusal.detail ?? null
-    );
+    ), await discardPendingIdentity("launch_executor_refused"), reservationHolder);
   }
   const initialStatus = normalizeStatus(executorResult.status ?? "launching");
   if (!initialStatus) {
-    return (await discardPendingIdentity("launch_executor_invalid_status")) ?? dispatchRefusal(
+    return withManagedIdentityCleanupResidue(dispatchRefusal(
       BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
       "launch_executor_invalid_status",
       { status: executorResult.status ?? null }
-    );
+    ), await discardPendingIdentity("launch_executor_invalid_status"), reservationHolder);
   }
 
+  let startupObservation = executorResult;
+  let startupProbeError = null;
+  if (childTerminationObserved && typeof executorResult.probe === "function") {
+    try {
+      startupObservation = await executorResult.probe();
+    } catch (error) {
+      startupProbeError = error;
+    }
+  }
+
+  let identitySettlementRefusal = null;
+  let pendingIdentityRetained = false;
   if (pendingManagedRunIdentity !== null) {
-    if (TERMINAL_STATUSES.has(initialStatus)) {
-      const cleanupRefusal = await discardPendingIdentity("executor_terminal_at_start");
-      if (cleanupRefusal) return cleanupRefusal;
+    if (childTerminationObserved) {
+      identitySettlementRefusal = await discardPendingIdentity(
+        "observed_child_terminal_at_start",
+        true
+      );
+      pendingIdentityRetained = identitySettlementRefusal?.refusal?.reason ===
+        "managed_run_identity_cleanup_failed";
     } else {
       const pending = pendingManagedRunIdentity;
       pendingManagedRunIdentity = null;
@@ -405,17 +496,15 @@ export async function finalizeLaunchOutcome(params) {
     configurable: false,
     writable: false
   });
+  Object.defineProperty(record, "managed_execution_tuple", {
+    value: managedExecutionTuple === null ? null : Object.freeze({ ...managedExecutionTuple }),
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
   if (sessionContract !== null) {
     Object.defineProperty(record, "session_contract", {
       value: sessionContract,
-      enumerable: true,
-      configurable: false,
-      writable: false
-    });
-  }
-  if (reviewerValidationEvidence !== null) {
-    Object.defineProperty(record, "validation_evidence", {
-      value: reviewerValidationEvidence,
       enumerable: true,
       configurable: false,
       writable: false
@@ -430,24 +519,23 @@ export async function finalizeLaunchOutcome(params) {
       writable: false
     });
   }
+  if (childTerminationObserved) {
+    if (startupProbeError !== null) {
+      applyProbeThrow(record, startupProbeError, () => new Date(startedAt).getTime());
+    } else if (startupObservation !== null && startupObservation !== undefined) {
+      applyProbeObservation(record, startupObservation, () => new Date(startedAt).getTime());
+    } else {
+      applyProbeObservation(record, {}, () => new Date(startedAt).getTime());
+    }
+  } else {
 
-  if (record.terminal) {
-    const capturedFinalResult = normalizeFinalResultWithStructuredRoleResult(
-      executorResult.final_result,
-      record
-    );
-    record.final_result = capturedFinalResult
-      ? attachWriteScopeVerification(
-          attachDispatchProvenance(capturedFinalResult, executorResult.final_result, record),
-          executorResult.final_result
-        )
-      : buildMissingResultEnvelopeWithStructuredRoleResult(
-          BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_NOT_CAPTURED,
-          "executor_terminal_without_final_result",
-          { status: initialStatus },
-          record
-        );
+    captureTerminalObservation(record, executorResult);
   }
+  attachManagedIdentitySettlementFailure(record, identitySettlementRefusal, {
+    pendingRetained: pendingIdentityRetained,
+    reservationHolder
+  });
+  await publishCapturedManagedRunResult(record, publishManagedRunResult);
   const startReviewResult = deriveBackendReviewResult(record);
   if (record.terminal) {
     await settleRequestedFormalAttestation(
@@ -468,6 +556,78 @@ export async function finalizeLaunchOutcome(params) {
   }
 
   return buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdmissionDiagnostic);
+}
+
+function captureTerminalObservation(record, observed) {
+  if (!record.terminal || record.final_result) return;
+  const conduitFailure = readStdioMcpConduitTerminalFailure(observed);
+  if (conduitFailure !== null) {
+    record.launcher_conduit_terminal_failure = conduitFailure;
+  }
+  const captured = normalizeFinalResultWithStructuredRoleResult(
+    observed?.final_result,
+    record
+  );
+  if (captured && conduitFailure !== null) {
+    record.exit = {
+      ...(isPlainObject(record.exit) ? record.exit : { code: null, signal: null }),
+      conduit_failure: conduitFailure
+    };
+  }
+  record.final_result = captured
+    ? attachWriteScopeVerification(
+        attachDispatchProvenance(captured, observed.final_result, record),
+        observed.final_result
+      )
+    : buildMissingResultEnvelopeWithStructuredRoleResult(
+        BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_NOT_CAPTURED,
+        conduitFailure === null
+          ? "probe_terminal_without_final_result"
+          : conduitFailure.reason,
+        conduitFailure === null
+          ? { status: record.status }
+          : { status: record.status, ...(conduitFailure.detail ?? {}) },
+        record
+      );
+}
+
+async function publishCapturedManagedRunResult(record, publisher) {
+  if (record.role !== "worker" || !record.terminal || record.final_result === null ||
+      typeof publisher !== "function" || record.final_result_durability === "durable") return;
+  const dispatchTuple = record.managed_execution_tuple ?? null;
+  if (dispatchTuple === null || dispatchTuple.assigned_unit !== record.subject ||
+      dispatchTuple.launch_ref !== record.monitor_handle ||
+      dispatchTuple.run_id !== record.run_id) {
+    record.final_result_durability = "unavailable";
+    record.final_result_publication_failure = Object.freeze({
+      code: "managed_run_execution_identity_unavailable",
+      reason: null
+    });
+    return;
+  }
+  try {
+    const publication = await publisher({
+      subject: record.subject,
+      dispatchTuple,
+      result: record.final_result
+    });
+    if (publication?.ok !== true) {
+      record.final_result_durability = "unavailable";
+      record.final_result_publication_failure = Object.freeze({
+        code: publication?.code ?? publication?.refusal?.code ?? "managed_run_result_publication_failed",
+        reason: publication?.refusal?.reason ?? null
+      });
+      return;
+    }
+    record.final_result_durability = "durable";
+    delete record.final_result_publication_failure;
+  } catch (error) {
+    record.final_result_durability = "unavailable";
+    record.final_result_publication_failure = Object.freeze({
+      code: error?.code ?? "managed_run_result_publication_failed",
+      reason: error?.message ?? String(error)
+    });
+  }
 }
 
 function applyProbeObservation(record, probed, clock) {
@@ -504,41 +664,7 @@ function applyProbeObservation(record, probed, clock) {
   if (probed.exit !== undefined) {
     record.exit = probed.exit;
   }
-
-  if (record.terminal && !record.final_result) {
-
-    const conduitFailure = readStdioMcpConduitTerminalFailure(probed);
-    if (conduitFailure !== null) {
-      record.launcher_conduit_terminal_failure = conduitFailure;
-    }
-    const captured = normalizeFinalResultWithStructuredRoleResult(
-      probed.final_result,
-      record
-    );
-
-    if (captured && conduitFailure !== null) {
-      record.exit = {
-        ...(isPlainObject(record.exit) ? record.exit : { code: null, signal: null }),
-        conduit_failure: conduitFailure
-      };
-    }
-
-    record.final_result = captured
-      ? attachWriteScopeVerification(
-          attachDispatchProvenance(captured, probed.final_result, record),
-          probed.final_result
-        )
-      : buildMissingResultEnvelopeWithStructuredRoleResult(
-          BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_NOT_CAPTURED,
-          conduitFailure === null
-            ? "probe_terminal_without_final_result"
-            : conduitFailure.reason,
-          conduitFailure === null
-            ? { status: record.status }
-            : { status: record.status, ...(conduitFailure.detail ?? {}) },
-          record
-        );
-  }
+  captureTerminalObservation(record, probed);
   record.updated_at = new Date(clock()).toISOString();
 }
 
@@ -561,7 +687,12 @@ function applyProbeThrow(record, error, clock) {
 
 export async function settleAndProjectRunStatus(
   record,
-  { clock, captureSliceReviewTerminalResult, settleFormalReviewAttestation } = {}
+  {
+    clock,
+    captureSliceReviewTerminalResult,
+    settleFormalReviewAttestation,
+    publishManagedRunResult = null
+  } = {}
 ) {
   if (!record.terminal && typeof record.probe === "function") {
     try {
@@ -573,6 +704,8 @@ export async function settleAndProjectRunStatus(
       applyProbeThrow(record, error, clock);
     }
   }
+
+  await publishCapturedManagedRunResult(record, publishManagedRunResult);
 
   const reviewResult = deriveBackendReviewResult(record);
   if (record.terminal) {
@@ -596,7 +729,7 @@ export async function settleAndProjectRunStatus(
 }
 
 export function buildRunStatusEnvelope(record, reviewResult) {
-  return {
+  return attachAdvisoryReviewTarget(record, {
     schema_version: WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION,
     accepted: true,
     run_id: record.run_id,
@@ -612,13 +745,38 @@ export function buildRunStatusEnvelope(record, reviewResult) {
     updated_at: record.updated_at,
     exit: record.exit ?? null,
     final_result: record.final_result ?? null,
+    ...(record.final_result_durability === undefined
+      ? {}
+      : {
+          final_result_durability: record.final_result_durability,
+          ...(record.final_result_publication_failure
+            ? { final_result_publication_failure: record.final_result_publication_failure }
+            : {})
+        }),
     ...(record.session_contract === undefined
       ? {}
       : {
           session_contract_required: true,
           session_contract: record.session_contract
         }),
-    ...(record.validation_evidence ? { validation_evidence: record.validation_evidence } : {}),
     ...(reviewResult ? { review_result: reviewResult } : {})
-  };
+  });
+}
+
+export function attachAdvisoryReviewTarget(source, envelope) {
+  const input = source?.advisory_review_input ?? null;
+  const target = source?.advisory_review_target ?? (
+    input !== null && typeof input.reviewed_sha === "string" && typeof input.base_sha === "string"
+      ? Object.freeze({ base_sha: input.base_sha, reviewed_sha: input.reviewed_sha })
+      : null
+  );
+  if (target !== null) {
+    Object.defineProperty(envelope, "advisory_review_target", {
+      value: target,
+      enumerable: false,
+      writable: false,
+      configurable: false
+    });
+  }
+  return envelope;
 }

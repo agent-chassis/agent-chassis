@@ -16,8 +16,11 @@ const SUBMIT_SIGNAL =
 const MANAGED_NO_SUBMIT = "Do not call workspace_submit_for_review.";
 const MANAGED_CAPTURE =
   "Complete by returning your terminal structured findings result for trusted-runtime capture";
+
 const SNAPSHOT_ACCEPTANCE_SOURCE =
-  'Snapshot acceptance: workspace_read_page arguments {"path":"wiki/work-records/WK-1577.json","selected_slice":"SLICE-007"}';
+  'Snapshot acceptance: workspace_read_page arguments ' +
+  '{"path":"wiki/work-records/WK-1577.json","selected_slice":"SLICE-007","member":{"path":["acceptance"]}} and parent ' +
+  '{"path":"wiki/work-records/WK-1577.json","member":{"path":["acceptance"]}}.';
 
 test("reviewPrompt without canonicalRepo renders the unchanged non-managed submit signal", () => {
   const prompt = reviewPrompt(SUBJECT);

@@ -3,8 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -15,6 +14,9 @@ import {
   POST_WORKER_LIFECYCLE_CHECKPOINT,
   POST_WORKER_LIFECYCLE_PHASES
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
+import {
+  RETIRED_POST_WORKER_REVIEW_SEAMS
+} from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 
 const RECORD_ID = "WK-9955";
 const IMPL_SLICE = "SLICE-001";
@@ -23,16 +25,10 @@ const INITIATIVE = "IN-0021";
 const SUBJECT = `${RECORD_ID}#${IMPL_SLICE}`;
 const SLICE_REF = `refs/heads/slice/${INITIATIVE}/${RECORD_ID}/${IMPL_SLICE}`;
 const WK_REF = `refs/heads/wk/${INITIATIVE}/${RECORD_ID}`;
-const WK_FORK_REF = `refs/agent-launch/wk-forks/${INITIATIVE}/${RECORD_ID}`;
 const REVIEWED_SHA = "c".repeat(40);
 const DIFF_BASE_SHA = "d".repeat(40);
 const WORKER_RUN_ID = "slice_worker_run";
 const WORKER_MONITOR_HANDLE = "wkmh_slice_worker";
-
-const CANONICAL_ROLE_CONFIG =
-  '[roles.worker]\nmodel = "gpt-5.5"\n' +
-  '[roles.reviewer]\nmodel = "gpt-5.5"\n' +
-  '[roles.redteam]\nmodel = "gpt-5.5"\n';
 
 function sliceReviewRecord() {
   return {
@@ -66,7 +62,7 @@ function sliceReviewRecord() {
     },
     sections: {
       summary: "Slice-level review public-seam canary parent record.",
-      why_it_matters: "Exercises the A2a inversion through the registered public routes.",
+      why_it_matters: "Exercises the post-worker lifecycle through the registered public routes.",
       scope: { items: ["slice review canary"], out_of_scope: ["product promotion"] },
       tasks: [],
       references: ["docs/work-record-schema.md"],
@@ -133,7 +129,23 @@ const WORKER_STATUS = Object.freeze({
   terminal: true
 });
 
-async function createPublicSeamFixture(t, { overrideProvisioning = null } = {}) {
+const BACKEND_LIFECYCLE_DEPS = Object.freeze([
+  "authenticateTerminalCandidatePreparation",
+  "resolveCommittedSliceIntegrationContinuation",
+  "resolveDeclaredTerminalReviewUnit",
+  "resolveManagedRunBinding",
+  "resolveManagedWorkerProvenDeath",
+  "retireManagedWorkerIdentity"
+]);
+
+const RETIRED_BACKEND_REVIEW_DEPS = Object.freeze([
+  ...RETIRED_POST_WORKER_REVIEW_SEAMS,
+  "resolveSliceReviewAcceptanceBinding",
+  "terminalReviewEvidenceMode",
+  "reviewEnforcementMode"
+]);
+
+async function createPublicSeamFixture(t, { declareTerminalReview = true } = {}) {
   const mainRepo = await mkdtemp(path.join(os.tmpdir(), "slice-seam-main-"));
   const worktreeRoot = await mkdtemp(path.join(os.tmpdir(), "slice-seam-worktrees-"));
   const sliceWorktree = path.join(worktreeRoot, `slice-${INITIATIVE}-${RECORD_ID}-${IMPL_SLICE}`);
@@ -143,16 +155,17 @@ async function createPublicSeamFixture(t, { overrideProvisioning = null } = {}) 
   t.after(() => rm(worktreeRoot, { recursive: true, force: true }));
   t.after(() => rm(wkWorktree, { recursive: true, force: true }));
 
-  await mkdir(path.join(mainRepo, "wiki", "work-records"), { recursive: true });
+  const record = sliceReviewRecord();
+  if (!declareTerminalReview) {
+    record.slices = record.slices.filter((slice) => slice.work_kind !== "review");
+  }
+  const recordFile = path.join(mainRepo, "wiki", "work-records", `${RECORD_ID}.json`);
+  await mkdir(path.dirname(recordFile), { recursive: true });
   await mkdir(path.join(mainRepo, "docs"), { recursive: true });
-  await writeFile(path.join(mainRepo, "agent-launch.toml"), CANONICAL_ROLE_CONFIG, "utf8");
-  await writeFile(
-    path.join(mainRepo, "wiki", "work-records", `${RECORD_ID}.json`),
-    JSON.stringify(sliceReviewRecord(), null, 2),
-    "utf8"
-  );
+  const recordBytes = JSON.stringify(record, null, 2);
+  await writeFile(recordFile, recordBytes, "utf8");
 
-  const provisioning = overrideProvisioning ?? Object.freeze({
+  const provisioning = Object.freeze({
     record_id: RECORD_ID,
     slice_id: IMPL_SLICE,
     slice_binding: Object.freeze({
@@ -172,18 +185,8 @@ async function createPublicSeamFixture(t, { overrideProvisioning = null } = {}) 
   });
 
   const integrationCalls = [];
-  const statusWrites = [];
-  const executorInputs = [];
-
-  const exactSliceReviewReceiptStore = {
-    async electReplacement(receipt) {
-      return Object.freeze({ kind: "elected", receipt, prior_receipt: null });
-    },
-    async persist(receipt) {
-      return receipt;
-    }
-  };
-
+  const retiredSeamCalls = [];
+  const composedDeps = [];
   const checkpointByRun = new Map();
 
   const integrationResult = Object.freeze({
@@ -207,132 +210,42 @@ async function createPublicSeamFixture(t, { overrideProvisioning = null } = {}) 
     },
 
     reconcileIntegratedSliceRecord: () => null,
-    hostSliceReviewPreparationAdapter: async (input) => ({
-      accepted: true,
-      preparation: {
-        ...input,
-        worktree_path: provisioning.slice_binding.worktree_path,
-        slice_ref: SLICE_REF,
-        base_sha: DIFF_BASE_SHA,
-        reviewed_sha: REVIEWED_SHA,
-        reviewed_tree: REVIEWED_SHA
-      }
-    }),
     hostSliceIntegrationAdapter: async (input) => {
       integrationCalls.push(input);
       return { accepted: true, integration: { ...integrationResult, tuple: input } };
     },
-    setWorkRecordStatusByUnit: ({ unitAddress, status }) => {
-      statusWrites.push({ unitAddress, status });
-      return applyStatusToRecord(mainRepo, unitAddress, status);
-    }
+    ...Object.fromEntries(RETIRED_BACKEND_REVIEW_DEPS.map((name) => [name, (...args) => {
+      retiredSeamCalls.push({ name, args });
+      throw new Error(`retired review seam ${name} was called`);
+    }]))
   };
 
   const backend = createWorkspaceAgentDispatchBackend({
     __testHooks: true,
-    exactSliceReviewReceiptStore,
-
-    canonicalCommittedSliceIntegration: async ({ context }) => {
-      const tuple = {
-        assigned_unit: context.review_subject,
-        slice_ref: context.slice_ref,
-        reviewed_sha: context.reviewed_sha,
-        diff_base_sha: context.diff_base_sha
-      };
-      integrationCalls.push(tuple);
-      return { ...integrationResult, tuple };
-    },
-    launchExecutor: async (input) => {
-      executorInputs.push(input);
-      return { accepted: true, status: "running", probe: async () => ({ status: "running" }) };
-    },
+    launchExecutor: async () => ({
+      accepted: true, status: "running", probe: async () => ({ status: "running" })
+    }),
     worktreeProvisioning: { mainRepo, worktreeRoot },
-    reviewContextRunGit: ({ repo, args }) => {
-      if (args.includes("for-each-ref")) {
-        const ref = args.at(-1);
-        const oid = ref === WK_REF || ref === WK_FORK_REF ? DIFF_BASE_SHA : REVIEWED_SHA;
-        return {
-          ok: true,
-          stdout: `${ref}\0${oid}\0commit\0\n`
-        };
-      }
-      if (args.includes("cat-file") && args.includes("-t")) {
-        return { ok: true, stdout: "commit\n" };
-      }
-      if (args.includes("cat-file") && args.includes("commit")) {
-        const oid = args.at(-1);
-        const tree = oid === DIFF_BASE_SHA ? "e".repeat(40) : "f".repeat(40);
-        const parent = oid === REVIEWED_SHA ? `parent ${DIFF_BASE_SHA}\n` : "";
-        return {
-          ok: true,
-          stdout: `tree ${tree}\n${parent}author Test <test@example.com> 0 +0000\ncommitter Test <test@example.com> 0 +0000\n\nfixture\n`
-        };
-      }
-      if (args[0] === "rev-parse" && args.includes(`${SLICE_REF}^{commit}`)) {
-        return { ok: true, stdout: `${REVIEWED_SHA}\n` };
-      }
-      if (args[0] === "rev-parse" && args.includes(`${WK_REF}^{commit}`)) {
-        return { ok: true, stdout: `${DIFF_BASE_SHA}\n` };
-      }
-      if (args[0] === "rev-parse" && args.includes("HEAD^{commit}")) {
-        return { ok: true, stdout: `${REVIEWED_SHA}\n` };
-      }
-      if (args[0] === "rev-parse" && args.includes(`${REVIEWED_SHA}^{commit}`)) {
-        return { ok: true, stdout: `${REVIEWED_SHA}\n` };
-      }
-      if (args[0] === "rev-parse" && args.includes(`${DIFF_BASE_SHA}^{commit}`)) {
-        return { ok: true, stdout: `${DIFF_BASE_SHA}\n` };
-      }
-      if (args[0] === "rev-parse") return { ok: true, stdout: `${DIFF_BASE_SHA}\n` };
-      if (args[0] === "merge-base") return { ok: true, stdout: `${DIFF_BASE_SHA}\n` };
-      if (args[0] === "merge-tree") return { ok: true, stdout: `${REVIEWED_SHA}\n` };
-      if (args[0] === "diff") {
-        return { ok: true, stdout: "tests/fixtures/slice-review-canary.txt\0" };
-      }
-      if (args[0] === "rev-list") {
-        return { ok: true, stdout: `${REVIEWED_SHA} ${DIFF_BASE_SHA}\n` };
-      }
-      if (args[0] === "show") {
-        return { ok: true, stdout: `agent-launch worker delivery: ${SUBJECT} (base ${DIFF_BASE_SHA.slice(0, 12)})\n\nWk-Slice: ${SUBJECT}` };
-      }
-      if (args[0] === "worktree") {
-        return { ok: true, stdout: `worktree ${sliceWorktree}\0HEAD ${REVIEWED_SHA}\0branch ${SLICE_REF}\0\0` };
-      }
-      if (repo === sliceWorktree && args[0] === "symbolic-ref") {
-        return { ok: true, stdout: `${SLICE_REF}\n` };
-      }
-      if (args[0] === "config") return { ok: false, status: 1, stdout: "" };
-      return { ok: false, status: 128, stderr: `unexpected git call: ${args.join(" ")}` };
-    },
 
-    postWorkerSliceLifecycle: ({ workspace, status, deps }) => runPostWorkerSliceLifecycle({
-      workspace,
-      status,
-      deps: { ...environmentDeps, ...deps, resolveManagedRunBinding: () => provisioning }
-    })
+    postWorkerSliceLifecycle: ({ workspace, status, deps }) => {
+      composedDeps.push(deps);
+      return runPostWorkerSliceLifecycle({
+        workspace,
+        status,
+        deps: { ...environmentDeps, ...deps, resolveManagedRunBinding: () => provisioning }
+      });
+    }
   });
 
   return {
     backend,
     mainRepo,
-    sliceWorktree,
+    recordBytes,
     integrationCalls,
-    statusWrites,
-    executorInputs,
-    integrationResult,
-    readRecord: async () => JSON.parse(
-      await readFile(path.join(mainRepo, "wiki", "work-records", `${RECORD_ID}.json`), "utf8")
-    ),
-    runLifecycle: () => pollLifecycle(backend, mainRepo, checkpointByRun),
-    requestIntegration: () => backend.requestCommittedSliceIntegration({ subject: SUBJECT }),
-    launchSliceReviewer: () => backend.startLaunch({
-      caller_session_id: "slice_reviewer_session",
-      role: "reviewer",
-      subject: SUBJECT,
-      workspace_alias: "test",
-      workspace_dir: mainRepo,
-      app: "codex"
-    })
+    retiredSeamCalls,
+    composedDeps,
+    readRecordBytes: () => readFile(recordFile, "utf8"),
+    runLifecycle: () => pollLifecycle(backend, mainRepo, checkpointByRun)
   };
 }
 
@@ -349,137 +262,75 @@ async function pollLifecycle(backend, mainRepo, checkpointByRun) {
     value: checkpoint,
     enumerable: false
   });
-  const result = await backend.runPostWorkerSliceLifecycle({
+  return backend.runPostWorkerSliceLifecycle({
     workspace: { repo: "agent-chassis", dir: mainRepo },
     status: statusWithCheckpoint
   });
-  if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION) {
-    checkpoint.integration = result?.integration ?? null;
-    checkpoint.finalized = result;
-    checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.FINALIZED;
-  }
-  return result;
 }
 
-function applyStatusToRecord(mainRepo, unitAddress, status) {
-  const file = path.join(mainRepo, "wiki", "work-records", `${RECORD_ID}.json`);
-  const record = JSON.parse(readFileSync(file, "utf8"));
-  const [wkId, sliceId] = String(unitAddress).split("#");
-  if (wkId !== RECORD_ID) throw new Error(`unexpected status write target ${unitAddress}`);
-  if (sliceId === undefined) {
-    record.status = status;
-  } else {
-    const slice = record.slices.find((entry) => entry?.id === sliceId);
-    if (!slice) throw new Error(`unknown slice ${unitAddress}`);
-    slice.status = status;
-  }
-  writeFileSync(file, JSON.stringify(record, null, 2), "utf8");
-  return { valid: true, written: true };
-}
-
-test("A2a public seam: the PRODUCTION binder derives the slice worktree from slice_binding.worktree_path and parks with ZERO integration", async (t) => {
+test("public seam: the backend composes no review capability for the post-worker lifecycle", async (t) => {
   const fixture = await createPublicSeamFixture(t);
+  assert.equal(typeof fixture.backend.runPostWorkerSliceLifecycle, "function");
+  for (const retired of ["bindFrozenSliceReviewContext", "bindFrozenReviewContext",
+    "resolveCanonicalSliceReviewUnit"]) {
+    assert.equal(fixture.backend[retired], undefined, retired);
+  }
 
-  const parked = await fixture.runLifecycle();
-
-  assert.equal(parked.phase, "awaiting-slice-review");
-  assert.equal(parked.integrated, false);
-  assert.equal(parked.integration, null);
-  assert.equal(fixture.integrationCalls.length, 0, "ZERO integration through the public route");
-
-  assert.equal(parked.slice_review.slice_worktree_path, fixture.sliceWorktree);
-  assert.equal(parked.reviewer_dispatch.context.workspace_dir, fixture.sliceWorktree);
-  assert.equal(parked.reviewer_dispatch.context.slice_level_review, true);
-  assert.equal(
-    parked.reviewer_dispatch.context.review_context_schema_version,
-    "workspace-agent-frozen-slice-review-context.v1",
-    "the context came from the production binder, not a stub"
-  );
-  assert.equal(parked.reviewer_dispatch.args.subject, SUBJECT);
-
-  assert.deepEqual(fixture.statusWrites, [{ unitAddress: SUBJECT, status: "review" }]);
-  const record = await fixture.readRecord();
-  assert.equal(record.slices.find((slice) => slice.id === IMPL_SLICE).status, "review");
-  assert.equal(record.status, "active", "the parent WK is never transitioned by a slice-level review");
-  assert.equal(parked.wk_transitioned_to_review, false);
+  await fixture.runLifecycle();
+  assert.equal(fixture.composedDeps.length, 1);
+  assert.deepEqual(Object.keys(fixture.composedDeps[0]).sort(), BACKEND_LIFECYCLE_DEPS);
+  for (const retired of RETIRED_BACKEND_REVIEW_DEPS) {
+    assert.equal(Object.hasOwn(fixture.composedDeps[0], retired), false, retired);
+  }
 });
 
-test("A2a public seam: review admission stays non-authorizing and coordinator continuation uses the closed target", async (t) => {
+test("public seam: a committed delivery integrates directly with no review surface or status write", async (t) => {
   const fixture = await createPublicSeamFixture(t);
 
-  const parked = await fixture.runLifecycle();
-  assert.equal(parked.phase, "awaiting-slice-review");
-  assert.equal(fixture.integrationCalls.length, 0);
-
-  const launch = await fixture.launchSliceReviewer();
-  assert.equal(launch.accepted, true,
-    `slice reviewer must launch; got ${JSON.stringify(launch.refusal ?? null)}`);
-
-  assert.equal(fixture.executorInputs.length, 1);
-  assert.equal(fixture.executorInputs[0].workspace_dir, fixture.sliceWorktree);
-  assert.equal(fixture.executorInputs[0].config_root_dir, fixture.mainRepo);
-
-  const stillParked = await fixture.runLifecycle();
-  assert.equal(stillParked.phase, "awaiting-slice-review");
-  assert.equal(stillParked.integrated, false);
-  assert.equal(fixture.integrationCalls.length, 0);
-
-  const integration = await fixture.requestIntegration();
-  assert.equal(integration.integrated, true,
-    `coordinator integration must succeed; got ${JSON.stringify(integration)}`);
   const finalized = await fixture.runLifecycle();
-  assert.equal(finalized.integrated, true);
-  assert.equal(fixture.integrationCalls.length, 1, "exactly one integration");
 
-  assert.deepEqual(fixture.integrationCalls[0], {
+  assert.equal(finalized.phase, POST_WORKER_LIFECYCLE_PHASES.FINALIZED);
+  assert.equal(finalized.integrated, true);
+  assert.equal(finalized.wk_transitioned_to_review, false);
+  assert.equal(finalized.integration.slice_sha, REVIEWED_SHA);
+  assert.equal(finalized.delivery_state, "delivery_finalized");
+  for (const key of ["slice_review", "reviewer_dispatch", "terminal_review_materialization",
+    "empty_delivery", "terminal_candidate"]) {
+    assert.equal(Object.hasOwn(finalized, key), false, key);
+  }
+
+  assert.deepEqual(fixture.integrationCalls, [{
     assigned_unit: SUBJECT,
-    slice_ref: SLICE_REF,
-    reviewed_sha: REVIEWED_SHA,
-    diff_base_sha: DIFF_BASE_SHA
-  });
-  assert.equal(Object.hasOwn(fixture.integrationCalls[0], "sliceReviewAcceptance"), false);
-  assert.equal(Object.hasOwn(fixture.integrationCalls[0], "review_run_id"), false);
+    launch_ref: WORKER_MONITOR_HANDLE,
+    run_id: WORKER_RUN_ID,
+    retry_id: 0
+  }]);
+
+  assert.deepEqual(fixture.retiredSeamCalls, []);
+  assert.equal(await fixture.readRecordBytes(), fixture.recordBytes);
+
+  assert.equal(await fixture.runLifecycle(), finalized);
+  assert.equal(fixture.integrationCalls.length, 1);
 });
 
-test("A2a public seam: an explicit slice_worktree_path that disagrees with slice_binding.worktree_path fails the unchanged equality check", async (t) => {
-  const sliceWorktree = await mkdtemp(path.join(os.tmpdir(), "slice-seam-real-"));
-  const wkWorktree = await mkdtemp(path.join(os.tmpdir(), "slice-seam-wk-mismatch-"));
-  t.after(() => rm(sliceWorktree, { recursive: true, force: true }));
-  t.after(() => rm(wkWorktree, { recursive: true, force: true }));
-
-  const fixture = await createPublicSeamFixture(t, {
-    overrideProvisioning: Object.freeze({
-      record_id: RECORD_ID,
-      slice_id: IMPL_SLICE,
-      slice_worktree_path: "/tmp/some-other-slice-worktree",
-      slice_binding: Object.freeze({
-        unit_address: `${INITIATIVE}/${RECORD_ID}/${IMPL_SLICE}`,
-        output_branch: SLICE_REF,
-        worktree_path: sliceWorktree,
-        base_sha: DIFF_BASE_SHA,
-        retry_id: 0
-      }),
-      wk_binding: Object.freeze({
-        unit_address: `${INITIATIVE}/${RECORD_ID}`,
-        output_branch: WK_REF,
-        worktree_path: wkWorktree,
-        base_sha: DIFF_BASE_SHA
-      }),
-      validation_worktree_path: wkWorktree
-    })
+test("public seam: the declared terminal review unit resolves only what the record declares", async (t) => {
+  const declared = await createPublicSeamFixture(t);
+  await declared.runLifecycle();
+  const unit = declared.composedDeps[0].resolveDeclaredTerminalReviewUnit({
+    mainRepo: declared.mainRepo,
+    wkId: RECORD_ID
   });
+  assert.equal(unit.record_id, RECORD_ID);
+  assert.equal(unit.initiative, INITIATIVE);
+  assert.equal(unit.slice_id, REVIEW_SLICE);
+  assert.equal(unit.subject, `${RECORD_ID}#${REVIEW_SLICE}`);
 
-  await assert.rejects(
-    fixture.runLifecycle(),
-    /backend-owned frozen slice review context does not match managed provisioning and canonical slice-review identity/
-  );
-  assert.equal(fixture.integrationCalls.length, 0, "a mismatched worktree integrates ZERO times");
-
-  await fixture.launchSliceReviewer();
-  for (const input of fixture.executorInputs) {
-    assert.notEqual(input.workspace_dir, "/tmp/some-other-slice-worktree");
-    assert.notEqual(input.workspace_dir, fixture.sliceWorktree);
-  }
+  const undeclared = await createPublicSeamFixture(t, { declareTerminalReview: false });
+  await undeclared.runLifecycle();
+  assert.equal(undeclared.composedDeps[0].resolveDeclaredTerminalReviewUnit({
+    mainRepo: undeclared.mainRepo,
+    wkId: RECORD_ID
+  }), null);
 });
 
 test("public slice-review seam does not become a readiness authority", () => {

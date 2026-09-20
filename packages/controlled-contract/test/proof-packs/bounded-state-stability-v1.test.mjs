@@ -19,7 +19,7 @@ import { validateProfileSchemaV1, validateProfileSemanticsV1
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.lifecycle.bounded-state-stability/2.0.0");
+  "test/certification/profiles/proof.lifecycle.bounded-state-stability/3.0.0");
 const readJson = async (name) => JSON.parse(await readFile(
   path.join(packDirectory, name), "utf8"
 ));

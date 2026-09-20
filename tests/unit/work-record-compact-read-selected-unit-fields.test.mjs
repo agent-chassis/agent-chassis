@@ -336,7 +336,8 @@ function captureRegisteredTools({ workspaceDir }) {
     resolveWorkspaceRepo: () => ({
       repo: "agent-chassis/compact-read-selected-unit-fields",
       dir: workspaceDir
-    })
+    }),
+    isToolVisible: () => true
   };
   registerWikiCoreTools({
     ...registration,
@@ -351,34 +352,22 @@ function captureRegisteredTools({ workspaceDir }) {
   return tools;
 }
 
-async function invokeSummary(tools, unit) {
-  const tool = tools.get("workspace_work_record_summary");
-  assert.ok(tool, "workspace_work_record_summary must be registered");
-  const parsed = tool.definition.inputSchema.safeParse({
-    unit,
-    verbose: true,
-    include_full_summary: true,
-    accept_full_read: true
-  });
-  assert.equal(parsed.success, true, "selected-unit arguments must pass the registered schema");
+async function invokeTool(tools, toolName, args) {
+  const tool = tools.get(toolName);
+  assert.ok(tool, `${toolName} must be registered`);
+  const parsed = tool.definition.inputSchema.safeParse(args);
+  assert.equal(parsed.success, true, `${toolName} arguments must pass the registered schema`);
   return tool.handler(parsed.data);
 }
 
-async function invokeSelectedRead(tools, toolName, selector) {
-  const tool = tools.get(toolName);
-  assert.ok(tool, `${toolName} must be registered`);
-  const parsed = tool.definition.inputSchema.safeParse({
-    ...selector,
-    selected_slice: SELECTED_SLICE_ID,
-    verbose: true,
-    include_record: true,
-    include_body: true,
-    include_raw: true,
-    accept_full_read: true
-  });
-  assert.equal(parsed.success, true, `${toolName} selected arguments must pass schema`);
-  return tool.handler(parsed.data);
+async function invokeSelectedRead(tools, sliceId = SELECTED_SLICE_ID) {
+  return invokeTool(tools, "workspace_get_record", { id: RECORD_ID, selected_slice: sliceId });
 }
+
+const RETIRED_WIDENING_FLAGS = [
+  { verbose: true }, { include_record: true }, { include_raw: true },
+  { include_full_summary: true }, { accept_full_read: true }, { compact_read_token: "e30" }
+];
 
 function assertBoundedIdentityRefusal(result, label = "selected handler") {
   assert.ok(result instanceof Error, `${label} must return an Error`);
@@ -398,13 +387,7 @@ function assertBoundedIdentityRefusal(result, label = "selected handler") {
 }
 
 async function invokeAllSelectedHandlers(tools) {
-  return [
-    await invokeSelectedRead(tools, "workspace_get_record", { id: RECORD_ID }),
-    await invokeSelectedRead(tools, "workspace_read_page", {
-      path: `wiki/work-records/${RECORD_ID}.json`
-    }),
-    await invokeSummary(tools, `${RECORD_ID}#${SELECTED_SLICE_ID}`)
-  ];
+  return [await invokeSelectedRead(tools)];
 }
 
 async function withFixture(run) {
@@ -434,31 +417,29 @@ async function withFixture(run) {
   }
 }
 
-test("registered selected-unit summary returns the complete bounded field allowlist", async () => {
+test("registered selected-slice read returns the complete bounded field allowlist", async () => {
   await withFixture(async ({ record, writeRecord, tools }) => {
-    const result = await invokeSummary(tools, `${RECORD_ID}#${SELECTED_SLICE_ID}`);
+    const result = await invokeSelectedRead(tools);
 
     assert.equal(result.valid, true);
-    assert.deepEqual(result.selected_unit, {
-      kind: "slice",
-      address: `${RECORD_ID}#${SELECTED_SLICE_ID}`,
-      record_id: RECORD_ID,
-      slice_id: SELECTED_SLICE_ID
-    });
-    assert.deepEqual(result.summary.depends_on, ["WK-8999#SLICE-001"]);
-    assert.deepEqual(result.summary.read_scope, [
+    assert.equal(result.record_id, RECORD_ID);
+    assert.equal(result.selected_slice_id, SELECTED_SLICE_ID);
+    assert.equal(result.selected_slice_found, true);
+    const projected = result.selected_slice;
+    assert.deepEqual(projected.depends_on, ["WK-8999#SLICE-001"]);
+    assert.deepEqual(projected.read_scope, [
       "AGENTS.md",
       "docs/shared.md",
       "docs/legacy.md"
     ]);
-    assert.deepEqual(result.summary.expected_edit_targets, expectedEditTargets);
-    assert.equal(result.summary.expected_changed_line_budget, 80);
-    assert.deepEqual(result.summary.activity_artifact_targets, activityArtifactTargets);
-    assert.deepEqual(result.summary.scenarios, scenarios);
-    assert.deepEqual(result.summary.expected, expected);
-    assert.deepEqual(result.summary.closure, closure);
-    assert.deepEqual(result.summary.sections, { agent_notes: "Selected slice notes" });
-    assert.deepEqual(Object.keys(result.summary).sort(), [
+    assert.deepEqual(projected.expected_edit_targets, expectedEditTargets);
+    assert.equal(projected.expected_changed_line_budget, 80);
+    assert.deepEqual(projected.activity_artifact_targets, activityArtifactTargets);
+    assert.deepEqual(projected.scenarios, scenarios);
+    assert.deepEqual(projected.expected, expected);
+    assert.deepEqual(projected.closure, closure);
+    assert.deepEqual(projected.sections, {});
+    assert.deepEqual(Object.keys(projected).sort(), [
       "acceptance",
       "activity_artifact_targets",
       "agent_notes",
@@ -481,22 +462,36 @@ test("registered selected-unit summary returns the complete bounded field allowl
       "write_scope"
     ]);
 
-    const getRecordResult = await invokeSelectedRead(tools, "workspace_get_record", {
-      id: RECORD_ID
-    });
-    const readPageResult = await invokeSelectedRead(tools, "workspace_read_page", {
-      path: `wiki/work-records/${RECORD_ID}.json`
-    });
-    assert.deepEqual(
-      getRecordResult.selected_slice,
-      result.summary,
-      "workspace_get_record and workspace_work_record_summary must share one selected-unit contract"
-    );
-    assert.deepEqual(
-      readPageResult.selected_slice,
-      result.summary,
-      "workspace_read_page and workspace_work_record_summary must share one selected-unit contract"
-    );
+    const selectedSliceKeys = Object.keys(record.slices.find((slice) => slice.id === SELECTED_SLICE_ID));
+    const memberPages = [
+      await invokeTool(tools, "workspace_get_record",
+        { id: RECORD_ID, selected_slice: SELECTED_SLICE_ID, member: { path: [] } }),
+      await invokeTool(tools, "workspace_read_page",
+        { path: `wiki/work-records/${RECORD_ID}.json`, selected_slice: SELECTED_SLICE_ID, member: { path: [] } }),
+      await invokeTool(tools, "workspace_work_record_summary",
+        { unit: `${RECORD_ID}#${SELECTED_SLICE_ID}`, member: { path: [] } })
+    ];
+    for (const page of memberPages) {
+      assert.equal(page.ok, true, JSON.stringify(page));
+      assert.equal(page.record_id, RECORD_ID);
+      assert.equal(page.selected_slice, SELECTED_SLICE_ID);
+      assert.deepEqual(page.member.path, []);
+      assert.equal(page.member.total_count, selectedSliceKeys.length);
+      assert.deepEqual(page.member.members.map((row) => row.key),
+        selectedSliceKeys.slice(0, page.member.returned_count));
+      assert.deepEqual(page.member.members.map(({ next_call: _call, ...row }) => row),
+        memberPages[0].member.members.map(({ next_call: _call, ...row }) => row));
+      const pageText = JSON.stringify(page);
+      for (const forbidden of [PARENT_SENTINEL, SIBLING_SENTINEL, RAW_SENTINEL, SIDECAR_SENTINEL,
+        DIAGNOSTIC_SENTINEL, CONTINUATION_SENTINEL, UNKNOWN_ANNOTATION_SENTINEL]) {
+        assert.equal(pageText.includes(forbidden), false, `member page must exclude ${forbidden}`);
+      }
+    }
+    for (const flags of RETIRED_WIDENING_FLAGS) {
+      const schema = tools.get("workspace_get_record").definition.inputSchema;
+      assert.equal(schema.safeParse({ id: RECORD_ID, selected_slice: SELECTED_SLICE_ID, ...flags }).success, false,
+        `retired ${Object.keys(flags)[0]} is schema-invalid`);
+    }
 
     const text = JSON.stringify(result);
     for (const forbidden of [
@@ -520,18 +515,15 @@ test("registered selected-unit summary returns the complete bounded field allowl
       assert.equal(text.includes(forbidden), false, `selected summary must exclude ${forbidden}`);
     }
 
-    const legacyDocsResult = await invokeSummary(
-      tools,
-      `${RECORD_ID}#${LEGACY_DOCS_SLICE_ID}`
-    );
+    const legacyDocsResult = await invokeSelectedRead(tools, LEGACY_DOCS_SLICE_ID);
     assert.equal(legacyDocsResult.valid, true);
     assert.ok(
-      Object.hasOwn(legacyDocsResult.summary, "depends_on"),
+      Object.hasOwn(legacyDocsResult.selected_slice, "depends_on"),
       "an authored empty depends_on array must remain present"
     );
-    assert.deepEqual(legacyDocsResult.summary.depends_on, []);
-    assert.deepEqual(legacyDocsResult.summary.read_scope, ["docs/legacy-only.md"]);
-    assert.equal(Object.hasOwn(legacyDocsResult.summary, "docs"), false);
+    assert.deepEqual(legacyDocsResult.selected_slice.depends_on, []);
+    assert.deepEqual(legacyDocsResult.selected_slice.read_scope, ["docs/legacy-only.md"]);
+    assert.equal(Object.hasOwn(legacyDocsResult.selected_slice, "docs"), false);
 
     record.expected = {
       schema_version: "expected-envelope.v1",
@@ -539,17 +531,14 @@ test("registered selected-unit summary returns the complete bounded field allowl
       [DIAGNOSTIC_SENTINEL]: true
     };
     await writeRecord();
-    const invalidParentResult = await invokeSummary(
-      tools,
-      `${RECORD_ID}#${SELECTED_SLICE_ID}`
-    );
+    const invalidParentResult = await invokeSelectedRead(tools);
     assert.equal(invalidParentResult.valid, false, "the parent fixture must produce diagnostics");
     assert.equal(Object.hasOwn(invalidParentResult, "diagnostics"), false);
     assert.equal(JSON.stringify(invalidParentResult).includes(DIAGNOSTIC_SENTINEL), false);
   });
 });
 
-test("root summary recommends a WITHHELD slice and that call round-trips through the same gate", async () => {
+test("root summary names the enumeration that reaches withheld slices and they round-trip through the same gate", async () => {
   await withFixture(async ({ record, writeRecord, tools }) => {
     const visible = { ...selectedSlice(), status: "todo" };
     record.slices = [
@@ -578,49 +567,32 @@ test("root summary recommends a WITHHELD slice and that call round-trips through
     await writeRecord();
 
     const tool = tools.get("workspace_work_record_summary");
-    const rootResult = await tool.handler(tool.definition.inputSchema.parse({ id: RECORD_ID }));
+    const call = (args) => tool.handler(tool.definition.inputSchema.parse(args));
+    const rootResult = await call({ id: RECORD_ID });
 
-    const returnedSliceIds = rootResult.summary.slices.map((slice) => slice.id);
-    assert.deepEqual(returnedSliceIds, [SELECTED_SLICE_ID], "only the open slice is returned");
+    assert.equal(rootResult.ok, true);
+    assert.equal(Object.hasOwn(rootResult, "slices"), false, "the lean default lists no slice rows");
+    const enumeration = rootResult.next_calls.find(({ arguments: arguments_ }) =>
+      Object.hasOwn(arguments_, "slice_offset"));
+    assert.ok(enumeration, "a record with slices names the bounded enumeration");
+    assert.equal(enumeration.tool, "workspace_work_record_summary");
 
-    const perSliceCalls = rootResult.compact_read.next_calls.filter(
-      ({ tool: name, arguments: arguments_ }) =>
-        name === "workspace_work_record_summary" && typeof arguments_?.unit === "string"
-    );
-    assert.ok(perSliceCalls.length > 0, "a response withholding slices recommends reaching them");
-    const recommendedSliceIds = perSliceCalls.map(({ arguments: arguments_ }) =>
-      arguments_.unit.split("#")[1]);
+    const page = await call(enumeration.arguments);
+    const pageIds = page.slice_page.slices.map((slice) => slice.id);
+    assert.deepEqual(pageIds, record.slices.map((slice) => slice.id));
+    const withheldSliceId = pageIds[0];
+    assert.notEqual(withheldSliceId, SELECTED_SLICE_ID, "a completed slice is reachable too");
 
-    const noteBodyEntries = recommendedSliceIds.filter((id) => returnedSliceIds.includes(id));
-    assert.deepEqual(noteBodyEntries, [SELECTED_SLICE_ID]);
-    assert.equal(recommendedSliceIds.at(-1), SELECTED_SLICE_ID);
-    assert.equal(
-      rootResult.compact_read.omitted_detail_counts.included_slices_with_omitted_agent_notes,
-      1
-    );
-    const withheldSliceIds = recommendedSliceIds.slice(0, -1);
-    assert.ok(withheldSliceIds.length > 0, "the withheld slices are reached first");
-    for (const sliceId of withheldSliceIds) {
-      assert.equal(
-        returnedSliceIds.includes(sliceId),
-        false,
-        `${sliceId} was already returned; a recommendation must reach withheld content`
-      );
-    }
-
-    const nextCall = perSliceCalls[0];
-    const withheldSliceId = withheldSliceIds[0];
-    const selectedResult = await tool.handler(
-      tool.definition.inputSchema.parse(nextCall.arguments)
-    );
+    assert.throws(() => call({ unit: `${RECORD_ID}#${withheldSliceId}`, accept_full_read: true }));
+    const selectedResult = await invokeSelectedRead(tools, withheldSliceId);
     assert.equal(selectedResult.valid, true);
-    assert.deepEqual(selectedResult.selected_unit, {
-      kind: "slice",
-      address: `${RECORD_ID}#${withheldSliceId}`,
-      record_id: RECORD_ID,
-      slice_id: withheldSliceId
-    });
-    assert.equal(selectedResult.summary.id, withheldSliceId);
+    assert.equal(selectedResult.selected_slice_id, withheldSliceId);
+    assert.equal(selectedResult.selected_slice.id, withheldSliceId);
+    const members = await call({ unit: `${RECORD_ID}#${withheldSliceId}`, member: { path: ["id"] } });
+    assert.equal(members.ok, true);
+    assert.equal(members.selected_slice, withheldSliceId);
+    assert.deepEqual(members.member, { path: ["id"], kind: "string", offset: 0, length: withheldSliceId.length,
+      total: withheldSliceId.length, value: withheldSliceId });
   });
 });
 
@@ -767,7 +739,7 @@ test("core selected-unit projector preserves only authored sections.agent_notes"
         identity_like_extension: UNKNOWN_ANNOTATION_SENTINEL
       }
     });
-    assert.deepEqual(result.sections, { agent_notes: agentNotes });
+    assert.deepEqual(result.sections, {});
     assert.deepEqual(result.agent_notes, agentNotes);
   }
 });
@@ -790,7 +762,7 @@ test("core selected-unit projector enforces canonical scalar, budget, and note t
     });
     assert.notEqual(result, null);
     assert.deepEqual(result.agent_notes, agentNotes);
-    assert.deepEqual(result.sections.agent_notes, agentNotes);
+    assert.deepEqual(result.sections, {});
     assert.equal(result.expected_changed_line_budget, budget);
   }
 
@@ -901,7 +873,7 @@ test("core selected-unit projector rejects hostile Proxies without executing tra
   }
 });
 
-test("registered selected-unit summary refuses a conflicting nested identity carrier", async () => {
+test("registered selected-slice projection refuses a conflicting nested identity carrier", async () => {
   await withFixture(async ({ record, writeRecord, tools }) => {
     const selected = record.slices.find((slice) => slice.id === SELECTED_SLICE_ID);
     selected.sections.identity = {
@@ -913,17 +885,14 @@ test("registered selected-unit summary refuses a conflicting nested identity car
     };
     await writeRecord();
 
-    const result = await invokeSummary(tools, `${RECORD_ID}#${SELECTED_SLICE_ID}`);
+    const result = await invokeSelectedRead(tools);
 
-    assert.ok(result instanceof Error);
-    assert.equal(result.name, "WorkRecordSelectedIdentityError");
-    assert.equal(result.code, "selected_result_identity_mismatch");
-    assert.equal(
-      result.envelope.schema_version,
-      "work-record-selected-identity-refusal.v1"
-    );
-    assert.equal(result.envelope.accepted, false);
-    const refusalText = JSON.stringify(result.envelope);
+    assert.equal(result instanceof Error, false, JSON.stringify(result));
+    assert.equal(result.selected_slice_id, SELECTED_SLICE_ID);
+    assert.deepEqual(result.selected_slice.sections, {});
+    assert.equal(JSON.stringify(result).includes(`${RECORD_ID}#SLICE-001`), false,
+      "the conflicting identity carrier is not disclosed");
+    const refusalText = JSON.stringify(result);
     for (const forbidden of [
       PARENT_SENTINEL,
       SIBLING_SENTINEL,
@@ -996,13 +965,13 @@ test("all registered selected-unit handlers refuse nested note, budget, and scal
       await writeRecord();
 
       const results = await invokeAllSelectedHandlers(tools);
-      const projectedUnits = [results[0].selected_slice, results[1].selected_slice, results[2].summary];
+      const projectedUnits = results.map((result) => result.selected_slice);
       for (const projected of projectedUnits) {
         assert.equal(projected.title, "");
         assert.equal(projected.priority, "");
         assert.equal(projected.owner, "");
         assert.deepEqual(projected.agent_notes, agentNotes);
-        assert.deepEqual(projected.sections.agent_notes, agentNotes);
+        assert.deepEqual(projected.sections, {});
         assert.equal(projected.expected_changed_line_budget, budget);
       }
     }

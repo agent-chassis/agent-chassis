@@ -139,25 +139,6 @@ export function isPublicRedactionReason(reason) {
   return typeof reason === "string" && PUBLIC_REDACTION_REASON_SET.has(reason);
 }
 
-const LAUNCHER_PRIVATE_REDACTION_REASON_PROJECTION = Object.freeze({
-  secret_material: PUBLIC_REDACTION_REASONS.SECRET_MATERIAL,
-  launcher_private_state: PUBLIC_REDACTION_REASONS.LAUNCHER_PRIVATE_STATE,
-  internal_identifier: PUBLIC_REDACTION_REASONS.INTERNAL_IDENTIFIER,
-  personal_data: PUBLIC_REDACTION_REASONS.PERSONAL_DATA
-});
-
-export function projectLauncherRedactionReason(privateReason) {
-  const projected = typeof privateReason === "string"
-    ? LAUNCHER_PRIVATE_REDACTION_REASON_PROJECTION[privateReason]
-    : undefined;
-  if (projected === undefined) {
-    throw new TypeError(
-      `unknown launcher-private redaction reason ${JSON.stringify(privateReason)}; the public redaction vocabulary is closed`
-    );
-  }
-  return projected;
-}
-
 const CALLER_SELECTABLE_DEFINITION_KEYS = new Set(["code", "namespace"]);
 
 function taxonomyDerivedDefinition(code, namespace) {

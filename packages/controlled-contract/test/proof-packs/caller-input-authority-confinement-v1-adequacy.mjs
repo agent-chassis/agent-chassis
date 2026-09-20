@@ -2,8 +2,7 @@ import {
   buildStableTestProofPopulation,
   evaluateStableProofPackFixtureV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../../lib/stable-v1-migration.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import { sha256 } from "../../lib/exact-binding-common.mjs";
 import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
@@ -32,10 +31,11 @@ const GUARANTEE_DIGEST = sha256(Buffer.from(GUARANTEE, "utf8"));
 function evaluate(profile, options = {}, mutate = (contract, input) => ({ contract, input })) {
   const captured = buildCallerInputAuthorityConfinementSources(options);
   const sourceContract = structuredClone(captured.projection.contract);
-  const contract = migrateControlledAcceptanceContractV02ToV1({
-    contract: sourceContract,
-    testProofs: buildStableTestProofPopulation(sourceContract)
-  });
+  const contract = {
+    ...sourceContract,
+    test_proof_version: TEST_PROOF_VERSION_V1,
+    test_proofs: buildStableTestProofPopulation(sourceContract)
+  };
   const input = buildCallerInputAuthorityConfinementEvaluationInput(captured.projection);
   const changed = mutate(contract, input) ?? { contract, input };
   return evaluateStableProofPackFixtureV1({

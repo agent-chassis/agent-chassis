@@ -9,7 +9,7 @@ import {
 test("package API rejects symbol and non-enumerable own input keys", async () => {
   const symbolInput = {
     contract: {},
-    selectedPack: { profile_id: "proof.example", profile_version: "2.0.0" },
+    selectedPack: { profile_id: "proof.example", profile_version: "3.0.0" },
     requestedIntents: ["example"]
   };
   symbolInput[Symbol("caller_override")] = true;
@@ -37,7 +37,7 @@ test("ordinary authoring refuses caller-supplied catalog and path overrides", as
   for (const key of ["catalog", "path"]) {
     const input = {
       contract: {},
-      selectedPack: { profile_id: "proof.example", profile_version: "2.0.0" },
+      selectedPack: { profile_id: "proof.example", profile_version: "3.0.0" },
       requestedIntents: ["example"],
       [key]: {}
     };

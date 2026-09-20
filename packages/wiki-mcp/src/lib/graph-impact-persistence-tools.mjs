@@ -298,7 +298,7 @@ export function registerGraphImpactPersistenceTools({
     "workspace_record_graph_impact_evidence",
     {
       description:
-        "Persist structured graph-impact evidence for a WK or slice. Write-capable. Preferred unit-only mode lets the server derive paths and trusted impact; optional paths override the write_scope/repo_paths default. Courier mode accepts only raw or provenance-bound supported carriers, never caller roots or shell output as authority. Prospective evidence must validate. Compact by default; verbose:true adds graph state but never raw impact or weaker bindings.",
+        "Persist WK/slice graph-impact evidence. Unit-only mode derives trusted paths; courier mode requires supported provenance. Caller roots or shell output grant no authority. Prospective evidence must validate. verbose:true adds graph state.",
       inputSchema: {
         repo: z.string().optional(),
         unit: z.string(),

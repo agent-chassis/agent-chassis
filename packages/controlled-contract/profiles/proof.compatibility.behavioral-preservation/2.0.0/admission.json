@@ -22,39 +22,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "e9accd303de9d60819cf4262a3f1c2581ae8a410f1155c1caac39492a560164d",
-    "adequacy_result_digest": "d990e42a8df01a10d2b11c4bff69926bf0868a299dfcfee4b0e0c84889947977",
+    "adequacy_declaration_digest": "df864ac470195eead90386c542f2e5ba322e0b06d003b6184e3005a02a774a1d",
+    "adequacy_result_digest": "4c323d3b9a54dbd518523e524fe1caa0d5f60080f0a3befe2663ad7bc62da3db",
     "executable_control_count": 41,
     "negative_fixture_count": 87,
     "coverage_witness_count": 87
-  },
-  "exact_binding": {
-    "declaration_digest": "d4a012c9edd441476e39f5f45a64cef47ec93e16310d3b688f49be6ec3c9596d",
-    "certification_result_digest": "56460bc2b1d2feb7e1b0989658656047afbd10d7509d8f832d78395cbb0f31ab",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "distinct_source_descriptor",
-      "same_content_sha256"
-    ],
-    "corpus_id": "behavioral-preservation-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "20485aa72153fbceca23b70e52870ad17f694962ec24a3b44abccf88f5acec4b",
-    "passed_control_ids": [
-      "artifact-bytes-match",
-      "artifact-bytes-mismatch-rejected",
-      "contract-context-splice-rejected",
-      "declaration-digest-stale-rejected",
-      "deterministic-source-order",
-      "evaluation-context-splice-rejected",
-      "extra-source-invalid",
-      "missing-baseline-indeterminate",
-      "missing-candidate-indeterminate",
-      "noncanonical-declaration-rejected",
-      "role-coverage-swap-rejected",
-      "source-descriptors-distinct"
-    ]
   }
 }

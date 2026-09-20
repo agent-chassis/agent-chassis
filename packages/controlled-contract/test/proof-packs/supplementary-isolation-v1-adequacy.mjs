@@ -1,8 +1,7 @@
 import { sha256 } from "../../lib/exact-binding-common.mjs";
 import { buildStableTestProofPopulation, evaluateStableProofPackFixtureV1,
   validateProfileSemanticsV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../../lib/stable-v1-migration.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
 import { EXCLUSIONS, GUARANTEE } from "./supplementary-isolation-v1-constants.mjs";
 import { buildSupplementaryIsolationSources } from "./supplementary-isolation-v1-fixture.mjs";
@@ -20,10 +19,11 @@ function evaluate(profile, options = {}, mutate = ({ contract, evaluation_input 
     const sourceContract = JSON.parse(
       buildSupplementaryIsolationSources(options).projectionBytes
     );
-    const contract = migrateControlledAcceptanceContractV02ToV1({
-      contract: sourceContract,
-      testProofs: buildStableTestProofPopulation(sourceContract)
-    });
+    const contract = {
+      ...sourceContract,
+      test_proof_version: TEST_PROOF_VERSION_V1,
+      test_proofs: buildStableTestProofPopulation(sourceContract)
+    };
     const evaluation_input = buildSupplementaryIsolationEvaluationInput(contract);
     return evaluateStableProofPackFixtureV1({ profile,
       ...mutate({ contract, evaluation_input }) }).satisfaction;

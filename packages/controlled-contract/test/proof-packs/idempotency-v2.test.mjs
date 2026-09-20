@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { runProofPackAdequacy } from "../support/proof-pack-adequacy.mjs";
 
 const packDirectory = fileURLToPath(new URL(
-  "../certification/profiles/proof.idempotency.effect-nonduplication/3.0.0/",
+  "../certification/profiles/proof.idempotency.effect-nonduplication/4.0.0/",
   import.meta.url
 ));
 

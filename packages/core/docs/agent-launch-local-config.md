@@ -41,6 +41,57 @@ npm run agent-launch -- init-config --force
 
 or update `base_argv` manually to `["claude"]`.
 
+## The `base_argv` executable contract
+
+`agents.<family>.base_argv` is the **only** source of the executable a launch
+runs. There is no hardcoded fallback: the launcher does not assume `claude` on
+`PATH` and no longer derives `<host home>/.local/bin/claude`.
+
+- **`base_argv[0]` is the executable.** It may be a **bare basename**, resolved
+  against the launcher-trusted `PATH`, or an **absolute path**, used as given. A
+  relative path containing a separator is refused, because it would depend on the
+  process working directory.
+- **`base_argv[1..]` are leading arguments.** They are emitted immediately after
+  the executable and strictly before every launcher-generated argument — which is
+  what makes the shipped `codex` default `["codex", "exec"]` work. For Claude they
+  precede the generated options, the `--` terminator, and the positional prompt.
+
+Every supported Claude launch path reads this one declaration: managed
+worker/reviewer/redteam dispatch, the operator role CLI, the orchestrator, and
+resume. The registry is read once per launch and the resolved executable is
+threaded through, so the paths cannot drift from one another.
+
+### Safety boundaries still apply
+
+Resolution is unchanged apart from where the executable comes from. The resolved
+executable is checked **against** launcher-owned approved prefixes — the host
+home's `.local` tree plus the system runtime prefixes — which are derived from
+launcher-owned host-home facts and **never** from the configured value itself.
+Configuring an executable does not widen where executables may live. A path that
+resolves into a denied credential or config directory (`~/.claude`, `~/.config`,
+`~/gcp-credentials`) is refused even if it would otherwise sit under an approved
+prefix, because deny is evaluated first. Sandbox read-only binds and the
+pre-spawn executable-identity check bind the configured executable. The full
+resolver contract lives in
+`the project documentation`.
+
+### Refusals
+
+Configuration faults fail loudly **before** any process is spawned:
+
+| Condition | Reason | Operator recovery |
+| --- | --- | --- |
+| No registry file | `Launcher registry not found at <path>` | run `agent-launch init-config` |
+| No `agents.claude` entry | `Unknown agent in launcher registry` | add the agent entry |
+| `base_argv` missing, not an array, or empty | `Agent claude must declare base_argv` | set `agents.claude.base_argv` |
+| `base_argv[0]` not a non-blank string | `agent_executable_token_invalid` | set `agents.claude.base_argv[0]` |
+| Executable not found on the trusted `PATH` | `agent_launch.isolation.command_unresolvable.v1` | install it, or configure an absolute path |
+| Relative path with a separator | `agent_launch.isolation.command_invalid.v1` | use a bare basename or an absolute path |
+| Resolves outside the approved runtime prefixes | `agent_launch.isolation.executable_path_outside_runtime_prefixes.v1` | install under an approved prefix |
+| Resolves into a denied credential/config path | `agent_launch.isolation.executable_path_denied.v1` | move the executable out of the credential tree |
+
+None of these substitute a default executable.
+
 ## Policy profiles and dispatch-readiness thresholds (optional)
 
 Two optional launcher policy inputs — the Chassis Control Engine

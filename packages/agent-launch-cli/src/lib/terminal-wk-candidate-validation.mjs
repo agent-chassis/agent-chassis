@@ -30,6 +30,11 @@ import {
   assertBubblewrapAvailable,
   buildBubblewrapLaunchPlan
 } from "./launch-isolation.mjs";
+import {
+  assertFindingsRoleGitMetadataUnchanged,
+  assertGitMetadataProjectionComposed,
+  resolveAuthenticatedCheckoutGitMetadata
+} from "./launch-isolation-findings-git-metadata.mjs";
 import { FINDINGS_DEPENDENCY_PROJECTION_EVIDENCE_SCHEMA_VERSION } from
   "./workspace-agent-dispatch-run-receipt-schema.mjs";
 
@@ -843,10 +848,16 @@ function bounded(value) {
   };
 }
 
-function runStep({ spawn, nodePath, flag, target, checkoutPath, env, runtime, dependencies }) {
+function runStep({ spawn, nodePath, flag, target, checkoutPath, env, runtime, dependencies, binding }) {
   const bwrapPath = assertBubblewrapAvailable({ env: process.env });
 
   assertSelectedDependencyMountIntegrity(dependencies);
+
+  const gitMetadataProjection = resolveAuthenticatedCheckoutGitMetadata({
+    checkout: checkoutPath,
+    repository: binding.main_repo,
+    headCommit: binding.candidate
+  });
   const isolation = buildBubblewrapLaunchPlan({
     repo: checkoutPath,
     command: nodePath,
@@ -855,10 +866,13 @@ function runStep({ spawn, nodePath, flag, target, checkoutPath, env, runtime, de
     env,
     readOnlyRoots: dependencies.reviewer_read_only_binds,
     runtimeRoots: [runtime.runRoot],
-    findingsRole: "reviewer",
+    gitMetadataProjection,
     shareNet: false,
     bwrapPath
   });
+
+  assertGitMetadataProjectionComposed(isolation, { checkout: checkoutPath });
+  assertFindingsRoleGitMetadataUnchanged(isolation.findingsRoleGitMetadata);
   const result = spawn(bwrapPath, isolation.bwrapArgs, {
     shell: false,
     encoding: "utf8",
@@ -925,7 +939,8 @@ export async function runTerminalCandidateValidation({
           checkoutPath: materialization.checkout_path,
           env,
           runtime,
-          dependencies
+          dependencies,
+          binding
         });
       test = check.ok
         ? runStep({
@@ -936,7 +951,8 @@ export async function runTerminalCandidateValidation({
             checkoutPath: materialization.checkout_path,
             env,
             runtime,
-            dependencies
+            dependencies,
+            binding
           })
         : skippedStep("--test", resolvedTarget.relative, "node --check failed; node --test not run");
     }

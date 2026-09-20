@@ -37,7 +37,7 @@ const prepareCommand = path.join(packageRoot, "bin", "prepare-validator-cache.mj
 const CONTRACT_GROUP = "controlled-contract.native-contract-carrier-v1";
 
 const OBLIGATION_GROUP = "controlled-contract.obligation-coverage-carrier.v1";
-const OBLIGATION_SCHEMA_FILE = "controlled-contract-obligation-coverage.v1.schema.json";
+const OBLIGATION_SCHEMA_FILE = "resolved-obligation-coverage.v1.schema.json";
 
 const NO_SCHEMA_LIB_MODULE = "deterministic-lexicographic-ordering.mjs";
 function sha256(buffer) {
@@ -359,14 +359,14 @@ test("an exact hit resolves no Ajv compiler in the loading process", async (t) =
   await runPrepare(["--json", "--cache-root", cacheRoot]);
   const cacheModuleUrl = pathToFileURL(path.join(
     packageRoot, "lib", "compiled-validator-cache.mjs")).href;
-  const schemaPath = path.join(
-    packageRoot, "schema", "controlled-acceptance-contract.v1.schema.json");
+  const schemaModuleUrl = pathToFileURL(path.join(
+    packageRoot, "lib", "stable-contract-schema-v1.mjs")).href;
   const probe = `
     import { readFile } from "node:fs/promises";
     import { createRequire } from "node:module";
     import path from "node:path";
     import { createIsolatedCompiledValidatorCache } from ${JSON.stringify(cacheModuleUrl)};
-    const schema = JSON.parse(await readFile(${JSON.stringify(schemaPath)}, "utf8"));
+    const { default: schema } = await import(${JSON.stringify(schemaModuleUrl)});
     const cache = createIsolatedCompiledValidatorCache(${JSON.stringify(cacheRoot)}, {
       allowGeneration: false
     });
@@ -835,4 +835,50 @@ test("prepare rejects an unsupported mode", async () => {
   await assert.rejects(prepareCompiledValidatorCache({ mode: "rebuild" }),
     (error) => error instanceof CompiledValidatorCacheError &&
       error.code === "validator_cache_declaration_invalid");
+});
+
+test("test-proof fragment changes invalidate both stable validator groups", async (t) => {
+  const sandbox = await packageSandbox(t, "proof-fragment");
+  const cacheRoot = await temporaryRoot(t, "proof-fragment");
+  const warm = await runSandboxPrepare(sandbox, ["--cache-root", cacheRoot]);
+  const file = path.join(sandbox, "schema", "controlled-acceptance-test-proof-definitions.v1.schema.json");
+  const fragment = JSON.parse(await readFile(file, "utf8"));
+  fragment.$defs.test_selector.description = "Fragment identity witness";
+  await writeFile(file, `${JSON.stringify(fragment, null, 2)}\n`);
+  const changed = await runSandboxPrepare(sandbox, ["--cache-root", cacheRoot]);
+  for (const group of [CONTRACT_GROUP, "controlled-contract.native-contract-semantic-runtime.v1"]) {
+    assert.equal(groupStatus(changed, group).result, "miss");
+    assert.notEqual(groupStatus(changed, group).schema_digest, groupStatus(warm, group).schema_digest);
+  }
+  const hit = await runSandboxPrepare(sandbox, ["--cache-root", cacheRoot, "--verify"]);
+  assert.equal(hit.result, "hit");
+});
+
+test("packed stable composition loads and checkContract binds the complete schema", async (t) => {
+  const root = await temporaryRoot(t, "packed-composition");
+  const { stdout } = await execFileAsync("npm", ["pack", "--json", "--ignore-scripts",
+    "--pack-destination", root, "--cache", path.join(root, "npm-cache")], { cwd: packageRoot });
+  const [packed] = JSON.parse(stdout);
+  const files = new Set(packed.files.map(entry => entry.path));
+  for (const file of ["lib/stable-contract-schema-v1.mjs",
+    "schema/controlled-acceptance-test-proof-definitions.v1.schema.json"]) assert.ok(files.has(file), file);
+  await execFileAsync("tar", ["-xzf", path.join(root, packed.filename), "-C", root]);
+  await symlink(path.join(repositoryRoot, "node_modules"), path.join(root, "package/node_modules"));
+  const schemaUrl = pathToFileURL(path.join(root, "package/lib/stable-contract-schema-v1.mjs")).href;
+  const checkUrl = pathToFileURL(path.join(root, "package/bin/check-contract.mjs")).href;
+  const input = path.join(root, "input.json");
+  await writeFile(input, "{}\n");
+  const probe = `
+    import { createHash } from "node:crypto";
+    const { default: schema } = await import(${JSON.stringify(schemaUrl)});
+    const { checkContract } = await import(${JSON.stringify(checkUrl)});
+    const result = await checkContract(${JSON.stringify(input)});
+    const digest = createHash("sha256").update(JSON.stringify(schema, null, 2) + "\\n").digest("hex");
+    process.stdout.write(JSON.stringify({ result, digest, definitions: Object.keys(schema.$defs) }));
+  `;
+  const result = JSON.parse((await execFileAsync(process.execPath,
+    ["--input-type=module", "--eval", probe], { cwd: repositoryRoot })).stdout);
+  assert.equal(result.result.outcome, "schema_invalid");
+  assert.equal(result.result.schema.sha256, result.digest);
+  assert.deepEqual(result.definitions, Object.keys(NATIVE_CONTRACT_SCHEMA_V1.$defs));
 });

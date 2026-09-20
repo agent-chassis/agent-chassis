@@ -48,7 +48,7 @@ const u = () => ({ mode: "unconditional", operand_roles: [] });
 const at = (mode, ...roles) => ({ mode, operand_roles: roles });
 
 function pattern(id, kind, modality, subject, operator, context, operands, falsifier) {
-  const value = { pattern_id: id, required_by_stage: "pre_dispatch", claim_kind: kind,
+  const value = { pattern_id: id, claim_kind: kind,
     allowed_modalities: [modality], proposition_template: {
       subject_role: subject, operator, applicability_context: context, operands
     } };
@@ -165,7 +165,7 @@ const relations = [
   ["later-success-verifies-result", "later-success-verification",
     "later-valid-attempt-succeeds"]
 ].map(([pattern_id, source_claim_pattern_id, target_claim_pattern_id]) => ({
-  pattern_id, required_by_stage: "pre_dispatch", role: "verifies",
+  pattern_id, role: "verifies",
   source_claim_pattern_id, target_claim_pattern_id
 }));
 const sequenceMembers = ["authority-state-before-foreign-attempt",
@@ -177,23 +177,21 @@ const sequenceMembers = ["authority-state-before-foreign-attempt",
   "later-attempt-precedes-result", "later-result-accepts-attempt",
   "later-valid-attempt-succeeds"];
 const collections = [
-  { pattern_id: "proof-sequence", required_by_stage: "pre_dispatch",
-    collection_kind: "ordered_sequence", match_mode: "subsequence",
+  { pattern_id: "proof-sequence", collection_kind: "ordered_sequence", match_mode: "subsequence",
     candidate_quantifier: "all_covering",
     collection_purpose: "proof_exact_ownership_isolation_sequence",
     member_claim_pattern_ids: sequenceMembers },
-  { pattern_id: "proof-population", required_by_stage: "pre_dispatch",
-    collection_kind: "closed_set", match_mode: "exact", candidate_quantifier: "all_covering",
+  { pattern_id: "proof-population", collection_kind: "closed_set", match_mode: "exact", candidate_quantifier: "all_covering",
     collection_purpose: "proof_exact_ownership_isolation_population",
     member_claim_pattern_ids: patterns.map(({ pattern_id }) => pattern_id) }
 ];
 const profile = {
-  schema_version: "controlled-contract-verification-profile.v1",
-  profile_id: "proof.ownership.exact-isolation", profile_version: "2.0.0",
+  schema_version: "controlled-contract-verification-profile.v2",
+  profile_id: "proof.ownership.exact-isolation", profile_version: "3.0.0",
   contract_schema_version: SCHEMA_VERSION_V1, vocabulary_version: VOCABULARY_VERSION_V1,
   vocabulary_signature_digest: V.signature, vocabulary_algebra_digest: V.algebra,
   vocabulary_definitions_digest: V.definitions, vocabulary_complete_digest: V.complete,
-  evaluation_stages: ["pre_dispatch"],
+
   reference_roles: Object.entries(roleTypes).map(([role, allowed_type_terms]) => ({
     role, allowed_type_terms,
     ...(!abstractRoles.has(role) ? { allowed_identity_kinds: identityKinds } : {}),
@@ -290,7 +288,7 @@ function buildExactOwnershipIsolationFixture({
         member_claim_ids: patterns.map(({ pattern_id }) => `claim-${pattern_id}`) }
     ], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: [] };
   const input = { input_version: EVALUATION_INPUT_VERSION_V1,
-    evaluation_stage: "pre_dispatch",
+
     reference_bindings: Object.keys(roleTypes).map((role) => ({
       role, reference_ids: [refId(role)] })), number_bindings: [],
     claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {} };

@@ -25,17 +25,18 @@ const FORBIDDEN_PATH_FIELD_PATTERNS = [
 const ALLOWED_MODES = new Set(["redteam", "code_review", "implement"]);
 const GRAPH_IMPACT_CHECKPOINT_HEADING = "Graph Impact Checkpoint";
 const IMPLEMENTATION_SCOPE_HEADINGS = new Set(["Write Scope"]);
-const GRAPH_IMPACT_PATH_MARKERS = [
-  "graph-impact-paths",
-  "workspace_code_index_graph_impact_paths"
+
+const GRAPH_IMPACT_ROUTE_MARKERS = [
+  "code-index impact",
+  "workspace_code_index_impact"
 ];
-const GRAPH_IMPACT_DIFF_MARKERS = [
-  "graph-impact-diff",
-  "workspace_code_index_graph_impact_diff"
-];
-const GRAPH_IMPACT_MARKERS = [
-  ...GRAPH_IMPACT_PATH_MARKERS,
-  ...GRAPH_IMPACT_DIFF_MARKERS
+const GRAPH_IMPACT_DIFF_SUBJECT_MARKERS = [
+  "--live-git",
+  "--patch",
+  "--diff-records-json",
+  "liveGit",
+  "patchText",
+  "diffRecords"
 ];
 
 function parseScalar(rawValue) {
@@ -154,15 +155,14 @@ export function assessGraphImpactCheckpoint(handoff) {
   const required = implementationScopedSignals.length > 0;
   const checkpointText = extractExactSection(handoff.body, GRAPH_IMPACT_CHECKPOINT_HEADING);
   const sectionPresent = checkpointText !== null;
-  const acceptedMarkers = sectionPresent
-    ? GRAPH_IMPACT_MARKERS.filter((marker) => checkpointText.includes(marker))
+  const routeMarkers = sectionPresent
+    ? GRAPH_IMPACT_ROUTE_MARKERS.filter((marker) => checkpointText.includes(marker))
     : [];
-  const pathImpactMarkers = acceptedMarkers.filter((marker) =>
-    GRAPH_IMPACT_PATH_MARKERS.includes(marker)
-  );
-  const diffImpactMarkers = acceptedMarkers.filter((marker) =>
-    GRAPH_IMPACT_DIFF_MARKERS.includes(marker)
-  );
+  const diffImpactMarkers = routeMarkers.length > 0
+    ? GRAPH_IMPACT_DIFF_SUBJECT_MARKERS.filter((marker) => checkpointText.includes(marker))
+    : [];
+  const acceptedMarkers = [...routeMarkers, ...diffImpactMarkers];
+  const pathImpactMarkers = diffImpactMarkers.length === 0 ? routeMarkers : [];
   const notApplicableWithReason = sectionPresent ? hasNotApplicableReason(checkpointText) : false;
   const valid = !required || (sectionPresent && (acceptedMarkers.length > 0 || notApplicableWithReason));
 

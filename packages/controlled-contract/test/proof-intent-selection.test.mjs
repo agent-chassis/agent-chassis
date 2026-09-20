@@ -91,7 +91,7 @@ test("canonical v2 selection is requested-only, decision-first, and v1 is derive
   const v1 = selectProofPacks({ contract, requestedIntents });
   assert.equal(validateSelectionResultV2(v2), true);
   assert.equal(v2.schema_version,
-    "controlled-contract-proof-pack-selection.v2");
+    "controlled-contract-proof-pack-selection.v4");
   assert.deepEqual(v2.decision, {
     selection_scope: "requested_intents_only",
     selection_status: "compatible_candidates_require_bindings",
@@ -114,7 +114,7 @@ test("canonical v2 selection is requested-only, decision-first, and v1 is derive
     outcomes.length === 1 && outcomes[0].compatibility_state === "compatible"));
   assert.equal(validateSelectionResult(v1), true);
   assert.equal(v1.schema_version,
-    "controlled-contract-proof-pack-selection.v1");
+    "controlled-contract-proof-pack-selection.v3");
   assert.deepEqual(v1.requested_intents, v2.requested_intents);
   assert.deepEqual(v1.selected_packs, v2.compatible_candidates.map((candidate) => ({
     profile_id: candidate.profile_id,

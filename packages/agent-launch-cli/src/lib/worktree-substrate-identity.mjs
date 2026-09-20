@@ -2,7 +2,15 @@
 
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import { compileRepositoryScopePath } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
+
+import {
+  deriveCanonicalReadableScope,
+  deriveCanonicalUnitScope
+} from "./canonical-unit-scope.mjs";
 import {
   closeSync,
   constants as fsConstants,
@@ -70,30 +78,6 @@ export function defaultWriteBindingFile({ filePath, contents, onCreated }) {
     );
   }
   try { closeSync(fd); } catch {   }
-}
-
-function normalizeCanonicalScope(entries, label, recordPath, { required = false } = {}) {
-  if (entries === undefined && !required) return Object.freeze([]);
-  if (!Array.isArray(entries)) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.WRITE_SCOPE_UNRESOLVABLE,
-      `${label} for the selected unit is not an array in ${recordPath}`
-    );
-  }
-  const normalized = [];
-  for (const entry of entries) {
-    if (typeof entry !== "string" || entry.length === 0 || entry !== entry.trim() ||
-        path.posix.isAbsolute(entry) || entry.startsWith("-") || entry.includes("\\") ||
-        /[\x00-\x1f\x7f]/.test(entry) || path.posix.normalize(entry) !== entry ||
-        entry === "." || entry.split("/").some((part) => part === "" || part === "." || part === "..")) {
-      fail(
-        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.WRITE_SCOPE_UNRESOLVABLE,
-        `${label} contains a non-normalized repository-relative path in ${recordPath}: ${JSON.stringify(entry)}`
-      );
-    }
-    normalized.push(entry);
-  }
-  return Object.freeze([...new Set(normalized)].sort());
 }
 
 function selectedUnitIdentity(record, wkId, sliceId) {
@@ -166,14 +150,19 @@ export function canonicalUnitScopes(mainRepo, wkId, sliceId, { expectedInitiativ
     repoPaths = slice.repo_paths;
     source = `${source}#${sliceId}`;
   }
-  const normalizedReadScope = normalizeCanonicalScope(readScope, "read_scope", recordPath);
-  const normalizedRepoPaths = normalizeCanonicalScope(repoPaths, "repo_paths", recordPath);
-  const normalizedWriteScope = normalizeCanonicalScope(writeScope, "write_scope", recordPath, { required: true });
+  const scopeInvalid = (message) => fail(
+    WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.WRITE_SCOPE_UNRESOLVABLE, message);
+  const normalizedReadScope = deriveCanonicalUnitScope(
+    readScope, "read_scope", recordPath, { required: false, invalid: scopeInvalid });
+  const normalizedRepoPaths = deriveCanonicalUnitScope(
+    repoPaths, "repo_paths", recordPath, { required: false, invalid: scopeInvalid });
+  const normalizedWriteScope = deriveCanonicalUnitScope(
+    writeScope, "write_scope", recordPath, { invalid: scopeInvalid });
 
   return {
     readScope: normalizedReadScope,
     repoPaths: normalizedRepoPaths,
-    readableScope: Object.freeze([...new Set([...normalizedReadScope, ...normalizedRepoPaths])].sort()),
+    readableScope: deriveCanonicalReadableScope(normalizedReadScope, normalizedRepoPaths),
     writeScope: normalizedWriteScope,
     selectedUnit: selectedUnitIdentity(record, wkId, sliceId),
     source,
@@ -288,10 +277,7 @@ function classifySliceCheckoutMode(binding) {
 }
 
 function isNormalizedRepoPath(value) {
-  return typeof value === "string" && value.length > 0 && value === value.trim() &&
-    !path.posix.isAbsolute(value) && !value.startsWith("-") && !value.includes("\\") &&
-    !/[\x00-\x1f\x7f]/u.test(value) && path.posix.normalize(value) === value && value !== "." &&
-    value.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+  return compileRepositoryScopePath(value).ok;
 }
 
 function isCanonicalRepoPathArray(value, { nonEmpty = false } = {}) {

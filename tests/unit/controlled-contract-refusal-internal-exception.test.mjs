@@ -53,6 +53,31 @@ test("a typed refusal keeps its exact reason code and detail payload", () => {
   });
 
   assert.equal("internal_exception" in projected.details, false);
+  assert.equal(Object.hasOwn(createControlledContractRefusal(typedRefusal("controlled_contract_carrier_busy", {})),
+    "cause"), false, "a typed refusal already carries its identity and gains no new cause");
+});
+
+test("a reclassified exception keeps its authentic thrown value as the refusal cause", () => {
+  const attestation = Object.assign(new Error("launcher-applied mutation attestation"),
+    { code: "test_proof_fault_mutation.0123abcd" });
+  const fault = Object.assign(new Error("launcher-applied dependency failure"),
+    { code: "test_proof_fault.dependency_failure.v1", cause: attestation });
+  const refusal = createControlledContractRefusal(fault);
+
+  assert.equal(refusal.envelope.warning.payload.reason_code, "controlled_contract_operation_failed",
+    "the closed public classification is unchanged");
+  assert.equal(refusal.cause, fault, "the thrown value itself, not a reconstruction from its message");
+  assert.equal(Object.getOwnPropertyDescriptor(refusal, "cause").enumerable, false);
+  const codes = [];
+  for (let current = refusal; current; current = current.cause) codes.push(current.code);
+  assert.deepEqual(codes, ["controlled_contract_operation_failed", "test_proof_fault.dependency_failure.v1",
+    "test_proof_fault_mutation.0123abcd"], "a cause-walking consumer observes every authentic code");
+  assert.equal(createControlledContractRefusal(refusal).cause, fault,
+    "re-wrapping this boundary's refusal keeps the cause it preserved");
+  const result = errorContent(refusal);
+  assert.deepEqual(result.structuredContent, refusal.envelope);
+  assert.equal(result.content[0].text.includes("test_proof_fault"), false,
+    "the preserved cause is never projected into either channel");
 });
 
 test("the diagnostic preserves embedded paths and carries no stack", () => {

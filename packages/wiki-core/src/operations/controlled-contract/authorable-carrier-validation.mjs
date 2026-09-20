@@ -18,7 +18,7 @@ import {
 async function validateAuthorableCarrier(input, content, canonicalSet = null) {
   const pkg = await loadControlledContractPackage();
   if (input.carrierKind === "contract") {
-    const validation = pkg.validateStableTestProofContract(content);
+    const validation = pkg.validateNativeTestProofAuthoringContract(content);
     try {
       assertPackageValidContract(validation);
     } catch (error) {
@@ -35,6 +35,19 @@ async function validateAuthorableCarrier(input, content, canonicalSet = null) {
     return;
   }
   if (input.carrierKind === "evaluation_input") {
+
+    const authored = pkg.validateAuthoredEvaluationInput(content);
+    if (!authored.valid) throw new ControlledContractToolError(
+      pkg.AUTHORED_EXECUTION_OBSERVATION_REFUSAL_CODE,
+      "evaluation input carries test-validity execution observations; workspace_verify_proof produces them",
+      {
+        carrier_kind: "evaluation_input",
+        pointer: pkg.AUTHORED_EXECUTION_OBSERVATION_POINTER,
+        execution_owner: authored.execution_owner,
+        diagnostics: structuredClone(authored.diagnostics),
+        changed: false
+      }
+    );
     const pack = addressedEvaluationInputPack(input);
     if (pack !== null) {
       const contract = await readControlledContractCarrierFile({

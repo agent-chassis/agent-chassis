@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-
-import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
 import {
   normalizeContractForIdentity,
@@ -18,32 +15,10 @@ import {
   PROOF_INTENT_DIGESTS,
   describeProofPackAuthoring
 } from "./proof-intent-selection.mjs";
-import { evaluateTestValidity } from
-  "../profiles/proof.verification.test-validity/2.0.0/evaluator.mjs";
+import { evaluateAdmittedPack } from "./selected-pack-claim-participation.mjs";
 import { validateStableTestProofContract } from "./test-proof-contract-v1.mjs";
 
-const TEST_VALIDITY_INPUT_VERSION = "controlled-contract-test-validity-evaluation-input.v1";
-
-const packageRoot = new URL("../", import.meta.url);
-const [evaluationInputSchema, resultSchema] = await Promise.all([
-  readJson(new URL(
-    "schema/controlled-contract-verification-profile-input.v1.schema.json",
-    packageRoot
-  )),
-  readJson(new URL(
-    "schema/controlled-contract-proof-pack-binding-assistance.v1.schema.json",
-    packageRoot
-  ))
-]);
-const {
-  validateEvaluationInput,
-  validateProofPackBindingAssistance
-} = await compiledValidators("controlled-contract.proof-pack-binding-assistance.v1", {
-  validators: {
-    validateEvaluationInput: evaluationInputSchema,
-    validateProofPackBindingAssistance: resultSchema
-  }
-});
+import { validateEvaluationInput, validateProofPackBindingAssistance } from "./proof-authoring-schemas.mjs";
 const MAX_BINDING_ASSISTANCE_BYTES = 65_536;
 
 const OPTIONAL_CARDINALITIES = Object.freeze(["zero_or_one", "zero_or_more"]);
@@ -55,10 +30,6 @@ class ProofPackBindingAssistanceError extends Error {
     this.code = code;
     this.details = structuredClone(details);
   }
-}
-
-async function readJson(url) {
-  return JSON.parse(await readFile(url, "utf8"));
 }
 
 function sortedUnique(values) {
@@ -288,19 +259,6 @@ function bindingMaps(evaluationInput, profile, contract) {
   const referenceByRole = new Map();
   const numberByRole = new Map();
   if (evaluationInput === null) return { diagnostics, referenceByRole, numberByRole };
-
-  if (profile.profile_id === "proof.verification.test-validity" &&
-      evaluationInput.input_version === TEST_VALIDITY_INPUT_VERSION) {
-    const { evaluation_stage: _evaluationStage, ...testValidityInput } = evaluationInput;
-    return {
-      diagnostics: evaluateTestValidity({
-        contract,
-        evaluation_input: testValidityInput
-      }).diagnostics,
-      referenceByRole,
-      numberByRole
-    };
-  }
   if (!validateEvaluationInput(evaluationInput)) {
     throw new ProofPackBindingAssistanceError(
       "proof_pack_binding_evaluation_input_invalid",
@@ -520,8 +478,6 @@ function bindingSummary(roleDescriptors, diagnostics, evaluationInput) {
 
 function proofPackAuthoringFacts(context, input) {
   if (input.evaluationInput !== null) return null;
-  const stages = context.authoring.evaluation_input_skeleton.allowed_evaluation_stages;
-  if (!Array.isArray(stages) || stages.length !== 1) return null;
   const referenceBindings = [];
   const numberBindings = [];
   const authorSemantics = [];
@@ -561,7 +517,6 @@ function proofPackAuthoringFacts(context, input) {
     },
     requested_intents: context.authoring.requested_intents,
     bindings: {
-      evaluation_stage: stages[0],
       reference_bindings: referenceBindings,
       number_bindings: numberBindings
     },
@@ -770,6 +725,42 @@ async function validateSuppliedProofPackBindings(request, ...unexpectedArguments
   }));
 }
 
+const CLAIM_PATTERN_BINDING_ADMISSION_CODES = Object.freeze([
+  "duplicate_claim_pattern_binding",
+  "unknown_claim_pattern_binding",
+  "claim_pattern_binding_iterated_pattern_invalid",
+  "claim_pattern_binding_dangling",
+  "claim_pattern_binding_mismatch"
+]);
+
+async function validateSuppliedClaimPatternBindings(request, ...unexpectedArguments) {
+  const input = validateBindingInputRequest(request, unexpectedArguments);
+  const pack = await loadExactBindingPack(input);
+  const supplied = Array.isArray(input.evaluationInput?.claim_pattern_bindings)
+    ? input.evaluationInput.claim_pattern_bindings : [];
+  const evaluation = evaluateAdmittedPack({
+    contract: input.contract,
+    evaluationInput: input.evaluationInput,
+    proofPack: pack
+  });
+  const diagnostics = (evaluation.diagnostics ?? []).filter(({ code }) =>
+    CLAIM_PATTERN_BINDING_ADMISSION_CODES.includes(code));
+  return deepFreeze(canonicalValue({
+    profile_id: pack.profile.profile_id,
+    profile_version: pack.profile.profile_version,
+    supplied_binding_count: supplied.length,
+    admission_diagnostics: diagnostics,
+    summary: {
+      status: diagnostics.length === 0 ? "valid" : "invalid",
+      diagnostic_count: diagnostics.length
+    },
+    binding_selected: false,
+    binding_written: false,
+    semantic_truth_inferred: false,
+    authority: "non_authoritative"
+  }));
+}
+
 function canonicalProofPackBindingAssistanceJson(result) {
   if (!validateProofPackBindingAssistance(result)) {
     throw new ProofPackBindingAssistanceError(
@@ -855,11 +846,13 @@ async function inspectProofPackBindings(request, ...unexpectedArguments) {
 }
 
 export {
+  CLAIM_PATTERN_BINDING_ADMISSION_CODES,
   MAX_BINDING_ASSISTANCE_BYTES,
   ProofPackBindingAssistanceError,
   canonicalProofPackBindingAssistanceJson,
   inspectProofPackBindings,
   inspectProofPackBindingsPage,
+  validateSuppliedClaimPatternBindings,
   validateSuppliedProofPackBindings,
   validateProofPackBindingAssistance
 };

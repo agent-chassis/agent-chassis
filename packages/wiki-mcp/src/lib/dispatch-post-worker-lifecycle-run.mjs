@@ -5,15 +5,10 @@ import { AUTHENTICATED_INTEGRATION_CONTINUATION } from
   "../../../agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import { SLICE_INTEGRATION_DIAGNOSTIC_CODES } from
   "../../../agent-launch-cli/src/lib/slice-integration.mjs";
-import { createTerminalCandidateReviewTarget } from
-  "../../../agent-launch-cli/src/lib/backend-terminal-review-target-authority.mjs";
 
 import { INTEGRATED_SLICE_CLEANUP_STATES } from
   "../../../agent-launch-cli/src/lib/trusted-slice-integration.mjs";
-import {
-  resolveTerminalReviewEvidence,
-  verifyTerminalCandidateCycle
-} from "./dispatch-terminal-review-evidence.mjs";
+import { verifyTerminalCandidateCycle } from "./dispatch-terminal-review-evidence.mjs";
 import {
   checkpointFromStatus,
   delegateSliceIntegrationToHost,
@@ -23,23 +18,24 @@ import {
   resolveManagedLifecycleBindings,
   resolvedCommit,
   resolveRetainedManagedWorkerTuple,
+  transferLifecycleRetryFacts,
   WORKER_SLICE_SUBJECT_RE
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import {
-  assertCanonicalReviewIdentity,
   assertTerminalTargetOwnership,
-  reconstructPolicyReviewTarget,
   sameReviewTarget
 } from "./dispatch-post-worker-lifecycle-policy.mjs";
 import {
-  awaitingSliceReviewResult,
-  POST_WORKER_MISSING_DELIVERY_CODE,
-  prepareFreshTerminalSliceReviewSurface
-} from "./dispatch-post-worker-lifecycle-review.mjs";
-import {
+  captureLifecycleFailureEvidence,
   CLOSED_LIFECYCLE_FAILURE_SEAMS,
-  closeLifecycleSeamFailure
+  CLOSED_LIFECYCLE_REFUSAL_REASONS,
+  closeLifecycleSeamFailure,
+  closeLifecycleSeamRefusal
 } from "./dispatch-lifecycle-failure-projection.mjs";
+
+function lifecycleFactError(message, detail) {
+  return Object.assign(new Error(message), { detail });
+}
 
 async function resolveIntegrationContinuationSeam(deps, request) {
   if (typeof deps.resolveCommittedSliceIntegrationContinuation !== "function") return null;
@@ -53,123 +49,77 @@ async function resolveIntegrationContinuationSeam(deps, request) {
   }
 }
 
-const TERMINAL_CANDIDATE_VALIDATION_PROTOCOL_VIOLATION_CODE =
-  "agent_launch.terminal_candidate_validation.evidence_protocol_violation.v1";
+async function atLifecycleSeam(seam, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    throw closeLifecycleSeamFailure(seam, error);
+  }
+}
+
+function resolveLifecycleBindingSeam({ workspace, status, subject, deps }) {
+  let bindings;
+  try {
+    bindings = resolveManagedLifecycleBindings({ workspaceDir: workspace.dir, status }, deps);
+  } catch (error) {
+    throw closeLifecycleSeamFailure(CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION, error);
+  }
+  const binding = bindings.slice;
+  const [initiative, wkId, sliceId] = String(binding?.unit_address ?? "").split("/");
+  if (wkId !== subject[1] || sliceId !== subject[2]) {
+    throw closeLifecycleSeamRefusal(
+      CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION,
+      CLOSED_LIFECYCLE_REFUSAL_REASONS.WORKER_SUBJECT_BINDING_MISMATCH,
+      {
+        worker_subject: status.subject,
+        bound_unit_address: binding?.unit_address ?? null,
+        slice_binding: binding ?? null
+      }
+    );
+  }
+  const wkRef = `refs/heads/wk/${initiative}/${wkId}`;
+  const boundWkRef = bindings.wk?.output_branch?.startsWith("refs/heads/")
+    ? bindings.wk.output_branch
+    : `refs/heads/${bindings.wk?.output_branch ?? ""}`;
+  if (boundWkRef !== wkRef) {
+    throw closeLifecycleSeamRefusal(
+      CLOSED_LIFECYCLE_FAILURE_SEAMS.LIFECYCLE_BINDING_RESOLUTION,
+      CLOSED_LIFECYCLE_REFUSAL_REASONS.WK_BINDING_MISMATCH,
+      { expected_wk_ref: wkRef, bound_wk_ref: boundWkRef, wk_binding: bindings.wk ?? null }
+    );
+  }
+  return { bindings, binding, initiative, wkId, sliceId, wkRef };
+}
+
+function inspectSliceDelivery(runGit, repo, sliceRef, message) {
+  return atLifecycleSeam(CLOSED_LIFECYCLE_FAILURE_SEAMS.SLICE_DELIVERY_INSPECTION, () =>
+    resolvedCommit(runGit, repo, sliceRef, message, SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH));
+}
+
+function reconcileIntegratedSlice(input) {
+  return atLifecycleSeam(CLOSED_LIFECYCLE_FAILURE_SEAMS.INTEGRATED_SLICE_RECONCILIATION, () =>
+    recoverIntegratedSliceResult(input));
+}
+
+async function integrateThroughHost(input) {
+  try {
+    return await delegateSliceIntegrationToHost(input);
+  } catch (error) {
+    throw transferLifecycleRetryFacts(
+      error,
+      closeLifecycleSeamFailure(CLOSED_LIFECYCLE_FAILURE_SEAMS.COMMITTED_SLICE_INTEGRATION, error)
+    );
+  }
+}
+
+export const POST_WORKER_MISSING_DELIVERY_CODE =
+  "agent_launch.post_worker_slice_lifecycle.missing_closed_input_delivery.v1";
 
 const INTEGRATED_CLEANUP_ONLY_STATES = new Set(Object.values(INTEGRATED_SLICE_CLEANUP_STATES));
 const RECOVERED_INTEGRATION_REPLAYED_CODE =
   "agent_launch.slice_lifecycle.recovered_integration_replayed.v1";
 const INTEGRATION_CONTINUATION_MISMATCH_CODE =
   "agent_launch.slice_lifecycle.integration_continuation_mismatch.v1";
-
-export const REVIEWER_CLOSURE_TRANSPORTS = Object.freeze({
-  MANAGED_TERMINAL_RESULT: "managed_terminal_result",
-  STANDALONE_SUBMIT_FOR_REVIEW: "standalone_submit_for_review"
-});
-export const REVIEWER_CLOSURE_PLAN_SCHEMA_VERSION =
-  "workspace-agent-reviewer-closure-plan.v1";
-export const REVIEWER_CLOSURE_PLAN_INCOMPLETE_CODE =
-  "agent_launch.reviewer_closure_plan.incomplete.v1";
-
-const MANAGED_TERMINAL_RESULT_CLOSURE_FIELDS = Object.freeze([
-  "repository", "role", "purpose", "subject", "reviewed_sha", "diff_base_sha",
-  "controlled_generation"
-]);
-const STANDALONE_SUBMIT_CLOSURE_FIELDS = Object.freeze([
-  "repository", "role", "purpose", "subject"
-]);
-
-export function planReviewerClosure(facts = {}) {
-  const transport = facts.transport ?? null;
-  if (!Object.values(REVIEWER_CLOSURE_TRANSPORTS).includes(transport)) {
-    throw lifecycleError(
-      REVIEWER_CLOSURE_PLAN_INCOMPLETE_CODE,
-      "reviewer closure planning requires one supported completion transport",
-      { correctable_field: "transport" }
-    );
-  }
-  const managed = transport === REVIEWER_CLOSURE_TRANSPORTS.MANAGED_TERMINAL_RESULT;
-  const required = managed
-    ? MANAGED_TERMINAL_RESULT_CLOSURE_FIELDS
-    : STANDALONE_SUBMIT_CLOSURE_FIELDS;
-  const missing = required.find((field) =>
-    facts[field] === undefined || facts[field] === null || facts[field] === "");
-  if (missing !== undefined) {
-    throw lifecycleError(
-      REVIEWER_CLOSURE_PLAN_INCOMPLETE_CODE,
-      "reviewer closure plan is structurally impossible for its completion transport",
-      { transport, correctable_field: missing });
-  }
-  const unowned = managed
-    ? []
-    : ["controlled_generation"]
-        .filter((field) => facts[field] !== undefined && facts[field] !== null);
-  if (unowned.length > 0) {
-    throw lifecycleError(
-      REVIEWER_CLOSURE_PLAN_INCOMPLETE_CODE,
-      "reviewer closure plan mints a fact its completion transport does not own",
-      { transport, correctable_field: unowned[0] });
-  }
-  return Object.freeze({
-    schema_version: REVIEWER_CLOSURE_PLAN_SCHEMA_VERSION,
-    transport,
-    repository: facts.repository,
-    role: facts.role,
-    purpose: facts.purpose,
-    subject: facts.subject,
-    ...(managed
-      ? {
-          reviewed_sha: facts.reviewed_sha,
-          diff_base_sha: facts.diff_base_sha,
-          controlled_generation: facts.controlled_generation,
-          supported_continuation: "workspace_agent_run_status"
-        }
-      : {
-          supported_continuation: "workspace_submit_for_review"
-        })
-  });
-}
-
-function findingsOnlyClosureIdentity(reviewUnit) {
-  let redteam = false;
-  try {
-    redteam = JSON.parse(reviewUnit.review_unit_contract)?.work_kind === "redteam";
-  } catch {
-    redteam = false;
-  }
-  return redteam
-    ? { role: "redteam", purpose: "technical_redteam" }
-    : { role: "reviewer", purpose: "whole_wk_findings" };
-}
-
-export function planTerminalWholeWkClosure({
-  repository,
-  reviewUnit,
-  reviewTarget,
-  reviewContext,
-  terminalCandidate
-}) {
-  if (terminalCandidate === null || terminalCandidate === undefined) {
-    return planReviewerClosure({
-      transport: REVIEWER_CLOSURE_TRANSPORTS.STANDALONE_SUBMIT_FOR_REVIEW,
-      repository,
-
-      ...findingsOnlyClosureIdentity(reviewUnit),
-      subject: reviewUnit.subject
-    });
-  }
-  return planReviewerClosure({
-    transport: REVIEWER_CLOSURE_TRANSPORTS.MANAGED_TERMINAL_RESULT,
-    repository,
-    role: "reviewer",
-    purpose: "terminal_whole_wk_candidate",
-    subject: reviewUnit.subject,
-    reviewed_sha: reviewTarget.candidate_sha ?? reviewTarget.sha,
-    diff_base_sha: reviewTarget.diff_base_sha,
-    controlled_generation:
-      reviewContext?.terminal_candidate_version_decision?.controlled_generation ?? null
-  });
-}
 
 const RECOVERED_INTEGRATED_STATES = Object.freeze({
   FINAL: "final",
@@ -207,7 +157,10 @@ async function withDeliveryFinalization(result, { status, bindings, deps }) {
       managedIdentityRetirement = Object.freeze({
         state: "pending",
         retired: false,
-        code: typeof error?.code === "string" ? error.code : null
+        code: typeof error?.code === "string" ? error.code : null,
+        evidence: captureLifecycleFailureEvidence(error, {
+          operation: "delivery_finalization:managed_worker_identity_retirement"
+        })
       });
     }
   }
@@ -279,31 +232,45 @@ function authenticateRecoveredIntegratedState(integration, unit) {
   return state;
 }
 
-function consumeAuthenticatedIntegrationContinuation(continuation, {
+async function consumeAuthenticatedIntegrationContinuation(continuation, {
   wkId,
   sliceId,
   sliceRef,
   wkRef,
   reviewedSha,
-  recovered = null
+  recovered = null,
+  reconcile = null
 }) {
   if (continuation?.[AUTHENTICATED_INTEGRATION_CONTINUATION] !== true ||
       continuation.completed !== true || continuation.integration == null) {
     return null;
   }
   const integration = continuation.integration;
+  const state = integration.integrated_state;
+  const authenticated = recovered ?? (typeof reconcile === "function" ? await reconcile() : null);
   const mismatches = [
     ["integrated", integration.integrated, true],
     ["continuation_reviewed_sha", continuation.reviewed_sha, reviewedSha],
     ["delivery_sha", integration.delivery_sha, reviewedSha],
     ["slice_ref", integration.slice_ref, sliceRef],
     ["wk_ref", integration.wk_ref, wkRef],
+    ["integrated_state",
+      state === RECOVERED_INTEGRATED_STATES.FINAL || state === RECOVERED_INTEGRATED_STATES.NON_FINAL,
+      true],
+    ["final_without_current_wk_tip_ownership",
+      state === RECOVERED_INTEGRATED_STATES.FINAL && integration.slice_sha !== integration.wk_sha,
+      false],
+    ["non_final_with_whole_wk_review_target",
+      state === RECOVERED_INTEGRATED_STATES.NON_FINAL && integration.review_target != null,
+      false],
     ...(recovered === null ? [] : [
       ["recovered_delivery_sha", integration.delivery_sha, recovered.delivery_sha],
       ["recovered_slice_sha", integration.slice_sha, recovered.slice_sha],
-      ["recovered_wk_sha", integration.wk_sha, recovered.wk_sha],
-      ["recovered_integrated_state", integration.integrated_state, recovered.integrated_state]
-    ])
+      ["recovered_wk_sha", integration.wk_sha, recovered.wk_sha]
+    ]),
+    ...(authenticated === null
+      ? (integration.empty_delivery === true ? [] : [["recovered_integrated_state", state, null]])
+      : [["recovered_integrated_state", state, authenticated.integrated_state]])
   ].filter(([, actual, expected]) => actual !== expected);
   if (mismatches.length > 0) {
     throw lifecycleError(
@@ -314,20 +281,32 @@ function consumeAuthenticatedIntegrationContinuation(continuation, {
         expected_reviewed_sha: reviewedSha,
         continuation_reviewed_sha: continuation.reviewed_sha ?? null,
         integration_delivery_sha: integration?.delivery_sha ?? null,
-        mismatched_fields: mismatches.map(([field]) => field)
+        mismatched_fields: mismatches.map(([field]) => field),
+        mismatches: mismatches.map(([field, actual, expected]) => ({ field, actual, expected })),
+        continuation,
+        authenticated_reconciliation: authenticated
       }
     );
   }
   return integration;
 }
 
-async function retireNoCommitAttempt({ status, bindings, binding, sliceRef, sliceTipSha, deps }) {
+async function retireNoCommitAttempt({
+  status, bindings, binding, sliceRef, sliceTipSha, deps, onUnavailable = () => {}
+}) {
   const workerTuple = resolveRetainedManagedWorkerTuple({ status, bindings }) ?? null;
   const death = workerTuple !== null && typeof deps.resolveManagedWorkerProvenDeath === "function"
     ? deps.resolveManagedWorkerProvenDeath({ ...workerTuple })
     : null;
 
   if (death?.proven_dead !== true || typeof deps.retireManagedWorkerIdentity !== "function") {
+
+    onUnavailable({
+      worker_tuple: workerTuple,
+      death_resolver_composed: typeof deps.resolveManagedWorkerProvenDeath === "function",
+      death_verdict: death,
+      retirement_composed: typeof deps.retireManagedWorkerIdentity === "function"
+    });
     return null;
   }
 
@@ -368,7 +347,8 @@ async function retireNoCommitAttempt({ status, bindings, binding, sliceRef, slic
       run_id: workerTuple.run_id,
       retry_id: workerTuple.retry_id,
       retirement_code: retirement?.code ?? null,
-      retirement_reason: retirement?.reason ?? null
+      retirement_reason: retirement?.reason ?? null,
+      retirement_result: retirement ?? null
     }
   );
 }
@@ -378,36 +358,51 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
   if (status?.role !== "worker" || status?.terminal !== true || status?.status !== "succeeded" || !subject) {
     return null;
   }
-  const bindings = resolveManagedLifecycleBindings({ workspaceDir: workspace.dir, status }, deps);
-  const binding = bindings.slice;
-  const [initiative, wkId, sliceId] = String(binding?.unit_address ?? "").split("/");
-  if (wkId !== subject[1] || sliceId !== subject[2]) {
-    throw new Error("post-worker lifecycle binding does not match the terminal worker subject");
-  }
+  const { bindings, binding, initiative, wkId, sliceId, wkRef } =
+    resolveLifecycleBindingSeam({ workspace, status, subject, deps });
   const sliceBranch = binding.output_branch;
   const sliceRef = sliceBranch?.startsWith("refs/heads/") ? sliceBranch : `refs/heads/${sliceBranch}`;
-  const wkRef = `refs/heads/wk/${initiative}/${wkId}`;
-  const boundWkRef = bindings.wk?.output_branch?.startsWith("refs/heads/")
-    ? bindings.wk.output_branch
-    : `refs/heads/${bindings.wk?.output_branch ?? ""}`;
-  if (boundWkRef !== wkRef) {
-    throw new Error("post-worker lifecycle WK binding does not match the exact slice identity");
-  }
-  if (typeof deps.resolveCanonicalReviewUnit !== "function" ||
-      typeof deps.bindFrozenReviewContext !== "function") {
-    throw new Error("post-worker lifecycle requires backend-owned canonical review context composition");
-  }
-
-  let reviewUnit = null;
   const runGit = deps.runGit ?? defaultRunGitAsync;
   const checkpoint = checkpointFromStatus(status);
   if (!Object.values(POST_WORKER_LIFECYCLE_PHASES).includes(checkpoint.phase)) {
-    throw new Error("post-worker lifecycle checkpoint carries an invalid phase");
+    throw lifecycleFactError("post-worker lifecycle checkpoint carries an invalid phase",
+      { phase: checkpoint.phase });
+  }
+
+  if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION &&
+      checkpoint.failure_attempts > 0) {
+
+    const liveContinuation = await resolveIntegrationContinuationSeam(deps, {
+      subject: `${wkId}#${sliceId}`,
+      status,
+      live_completion_only: true
+    });
+    if (liveContinuation?.completed === true) {
+      const deliverySha = await inspectSliceDelivery(
+        runGit,
+        workspace.dir,
+        sliceRef,
+        "post-worker lifecycle could not resolve the completed slice delivery"
+      );
+      const continuedIntegration = await consumeAuthenticatedIntegrationContinuation(
+        liveContinuation,
+        {
+          wkId, sliceId, sliceRef, wkRef, reviewedSha: deliverySha,
+          reconcile: () => reconcileIntegratedSlice({
+            mainRepo: workspace.dir, binding, sliceRef, wkRef, runGit, deps
+          })
+        }
+      );
+      if (continuedIntegration !== null) {
+        checkpoint.integration = continuedIntegration;
+        checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
+      }
+    }
   }
 
   if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION) {
 
-    const recovered = await recoverIntegratedSliceResult({
+    const recovered = await reconcileIntegratedSlice({
       mainRepo: workspace.dir,
       binding,
       sliceRef,
@@ -420,7 +415,7 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
         subject: `${wkId}#${sliceId}`,
         status
       });
-      const continuedIntegration = consumeAuthenticatedIntegrationContinuation(continuation, {
+      const continuedIntegration = await consumeAuthenticatedIntegrationContinuation(continuation, {
         wkId,
         sliceId,
         sliceRef,
@@ -438,8 +433,9 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
         throw new Error("managed post-worker lifecycle requires the writable host slice integration adapter");
       }
       const trustedIntegration = assertIntegratedCleanupOnlyDelegation(
-        await delegateSliceIntegrationToHost({
+        await integrateThroughHost({
           status,
+          bindings,
           adapter: deps.hostSliceIntegrationAdapter
         }),
         { wkId, sliceId }
@@ -451,7 +447,10 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
           (recovered.slice_sha !== recovered.wk_sha && trustedIntegration.review_target !== null) ||
           (trustedIntegration.review_target !== null && recovered.review_target !== null &&
             !sameReviewTarget(trustedIntegration.review_target, recovered.review_target))) {
-        throw new Error("trusted runtime recovery result does not match the exact recovered integration marker");
+        throw lifecycleFactError(
+          "trusted runtime recovery result does not match the exact recovered integration marker",
+          { trusted_integration: trustedIntegration, recovered }
+        );
       }
       checkpoint.integration = Object.freeze({
         ...trustedIntegration,
@@ -462,12 +461,11 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
       }
     } else if (deps.recoveryOnly === true) {
 
-      const recoveryCommit = await resolvedCommit(
+      const recoveryCommit = await inspectSliceDelivery(
         runGit,
         workspace.dir,
         sliceRef,
-        "post-worker recovery could not resolve the retained slice tip",
-        SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH
+        "post-worker recovery could not resolve the retained slice tip"
       );
       if (recoveryCommit !== binding.base_sha) return null;
 
@@ -481,22 +479,23 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
       });
     } else {
 
-      const commit = await resolvedCommit(
+      const commit = await inspectSliceDelivery(
         runGit,
         workspace.dir,
         sliceRef,
-        "post-worker lifecycle could not resolve the committed slice tip",
-        SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH
+        "post-worker lifecycle could not resolve the committed slice tip"
       );
       if (commit === binding.base_sha) {
 
+        let retirementUnavailable = null;
         const retired = await retireNoCommitAttempt({
           status,
           bindings,
           binding,
           sliceRef,
           sliceTipSha: commit,
-          deps
+          deps,
+          onUnavailable: (facts) => { retirementUnavailable = facts; }
         });
         if (retired !== null) return retired;
 
@@ -507,67 +506,21 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
             subject: `${wkId}#${sliceId}`,
             slice_ref: sliceRef,
             base_sha: binding.base_sha,
-            slice_tip_sha: commit
+            slice_tip_sha: commit,
+            retirement_unavailable: retirementUnavailable
           }
         );
       }
 
-      checkpoint.slice_review = await prepareFreshTerminalSliceReviewSurface({
-        workspaceDir: workspace.dir,
+      if (typeof deps.hostSliceIntegrationAdapter !== "function") {
+        throw new Error("managed post-worker lifecycle requires the writable host slice integration adapter");
+      }
+      checkpoint.integration = await integrateThroughHost({
         status,
         bindings,
-        binding,
-        sliceRef,
-        wkId,
-        sliceId,
-        commit,
-        runGit,
-
-        planReviewerClosure,
-        deps
+        adapter: deps.hostSliceIntegrationAdapter
       });
-      checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.AWAITING_SLICE_REVIEW;
-    }
-  }
-
-  if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.AWAITING_SLICE_REVIEW) {
-    const sliceReview = checkpoint.slice_review;
-    const continuation = await resolveIntegrationContinuationSeam(deps, {
-      subject: sliceReview.review_subject,
-      status
-    });
-    if (continuation?.completed !== true) {
-      return awaitingSliceReviewResult(sliceReview, {
-        reason: "coordinator_integration_request_required"
-      });
-    }
-    if (continuation.reviewed_sha !== sliceReview.reviewed_sha) {
-      return awaitingSliceReviewResult(sliceReview, {
-        reason: "coordinator_integration_target_moved",
-        accepted_sha: continuation.reviewed_sha
-      });
-    }
-    const continuedIntegration = consumeAuthenticatedIntegrationContinuation(continuation, {
-      wkId,
-      sliceId,
-      sliceRef,
-      wkRef,
-      reviewedSha: sliceReview.reviewed_sha
-    });
-    if (continuedIntegration !== null) {
-      checkpoint.integration = continuedIntegration;
       checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
-    } else {
-
-    if (typeof deps.hostSliceIntegrationAdapter !== "function") {
-      throw new Error("managed post-worker lifecycle requires the writable host slice integration adapter");
-    }
-    const integration = await delegateSliceIntegrationToHost({
-      status,
-      adapter: deps.hostSliceIntegrationAdapter
-    });
-    checkpoint.integration = integration;
-    checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
     }
   }
 
@@ -588,55 +541,28 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
     ? authenticateRecoveredIntegratedState(integration, { wkId, sliceId })
     : null;
   if (integration?.recovered === true && integration.review_target == null &&
-      integration.slice_sha === integration.wk_sha) {
-
-    if (recoveredIntegratedState === null) {
-      refuseRecoveredIntegratedState(integration, { wkId, sliceId }, "absent_integrated_state");
-    }
-    if (recoveredIntegratedState === RECOVERED_INTEGRATED_STATES.FINAL) {
-      const recoveredReviewUnit = assertCanonicalReviewIdentity(
-        deps.resolveCanonicalReviewUnit({ mainRepo: workspace.dir, wkId }),
-        { wkId, initiative }
-      );
-      if (recoveredReviewUnit.parent_status === "done") {
-        const reviewTarget = await reconstructPolicyReviewTarget({
-          runGit,
-          workspaceDir: workspace.dir,
-          initiative,
-          wkId,
-          wkRef,
-          wkSha: integration.wk_sha
-        });
-        integration = Object.freeze({ ...integration, review_target: reviewTarget });
-        checkpoint.integration = integration;
-      }
-    }
+      integration.slice_sha === integration.wk_sha && recoveredIntegratedState === null) {
+    refuseRecoveredIntegratedState(integration, { wkId, sliceId }, "absent_integrated_state");
   }
 
-  if (integration && integration.review_target == null) {
-    const dispatchable = await withDeliveryFinalization({
-      invoked: true,
-      phase: POST_WORKER_LIFECYCLE_PHASES.FINALIZED,
-      integrated: true,
-      wk_transitioned_to_review: false,
-      integration,
-      reviewer_dispatch: null
-    }, { status, bindings, deps });
-    checkpoint.finalized = dispatchable;
-    checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.FINALIZED;
-    return dispatchable;
-  }
+  const finalIntegration = integration?.review_target != null ||
+    recoveredIntegratedState === RECOVERED_INTEGRATED_STATES.FINAL;
 
   assertTerminalTargetOwnership(integration);
 
-  reviewUnit = deps.resolveCanonicalReviewUnit({ mainRepo: workspace.dir, wkId });
-  if (reviewUnit?.record_id !== wkId ||
-      (reviewUnit?.initiative !== undefined && reviewUnit.initiative !== initiative)) {
-    throw new Error("canonical review unit does not match the exact launcher WK identity");
-  }
   let terminalCandidate = null;
-  let terminalCandidateValidations = null;
-  if (typeof deps.prepareTerminalCandidate === "function") {
+  const reviewUnit = finalIntegration && integration.review_target != null &&
+      typeof deps.prepareTerminalCandidate === "function" &&
+      typeof deps.resolveDeclaredTerminalReviewUnit === "function"
+    ? deps.resolveDeclaredTerminalReviewUnit({ mainRepo: workspace.dir, wkId })
+    : null;
+  if (reviewUnit !== null) {
+    if (reviewUnit?.record_id !== wkId || reviewUnit?.initiative !== initiative) {
+      throw lifecycleFactError(
+        "declared terminal review unit does not match the exact launcher WK identity",
+        { expected_record_id: wkId, expected_initiative: initiative, review_unit: reviewUnit }
+      );
+    }
 
     try {
       terminalCandidate = await deps.prepareTerminalCandidate({
@@ -646,7 +572,11 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
         wkId,
         wkRef,
         baseSha: bindings.wk?.base_sha,
-        baseRef: bindings.wk?.base_ref ?? "main"
+        baseRef: bindings.wk?.base_ref ?? "main",
+        authenticateAuthoredState: ({ historicalReviewUnit }) =>
+          deps.authenticateTerminalCandidatePreparation({
+            historicalReviewUnit
+          })
       });
     } catch (error) {
       throw closeLifecycleSeamFailure(
@@ -655,112 +585,15 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
       );
     }
     await verifyTerminalCandidateCycle({ terminalCandidate, runGit });
-
-    if (typeof deps.validateTerminalCandidate === "function") {
-      let validated;
-      try {
-        validated = await deps.validateTerminalCandidate({ terminalCandidate, reviewUnit });
-      } catch (error) {
-        throw closeLifecycleSeamFailure(
-          CLOSED_LIFECYCLE_FAILURE_SEAMS.TERMINAL_CANDIDATE_VALIDATION,
-          error
-        );
-      }
-      if (!Array.isArray(validated)) {
-        throw lifecycleError(
-          TERMINAL_CANDIDATE_VALIDATION_PROTOCOL_VIOLATION_CODE,
-          "composed terminal candidate validation returned a non-array advisory evidence result",
-          {
-            assigned_unit: `${wkId}#${sliceId}`,
-            candidate_sha: terminalCandidate?.binding?.candidate ?? null,
-            result_type: validated === null ? "null" : typeof validated
-          }
-        );
-      }
-      terminalCandidateValidations = validated;
-    } else {
-      terminalCandidateValidations = [];
-    }
-    await verifyTerminalCandidateCycle({ terminalCandidate, runGit });
-    integration = Object.freeze({
-      ...integration,
-      accumulated_wk_review_target: integration.review_target,
-      review_target: await createTerminalCandidateReviewTarget({
-        binding: terminalCandidate.binding,
-        materialization: terminalCandidate.materialization,
-        runGit
-      })
-    });
-    checkpoint.integration = integration;
   }
 
-  let materialization = terminalCandidate?.materialization ?? null;
-
-  if (terminalCandidate === null) {
-    materialization = await resolveTerminalReviewEvidence({
-      deps,
-      integration,
-      bindings,
-      status,
-      wkRef,
-      runGit,
-      workspaceDir: workspace.dir
-    });
-  }
-  if (terminalCandidate !== null) {
-    await verifyTerminalCandidateCycle({ terminalCandidate, runGit });
-  }
-
-  let reviewContext;
-  try {
-    reviewContext = await deps.bindFrozenReviewContext({
-      status,
-      provisioning: bindings.provisioning,
-      integration,
-      reviewUnit,
-      terminalCandidate,
-      terminalCandidateValidations,
-      runGit
-    });
-  } catch (error) {
-    throw closeLifecycleSeamFailure(
-      CLOSED_LIFECYCLE_FAILURE_SEAMS.FROZEN_REVIEW_CONTEXT_BINDING,
-      error
-    );
-  }
-  deps.markCommitAuthorityExercised?.();
-
-  const closurePlan = planTerminalWholeWkClosure({
-    repository: workspace.dir,
-    reviewUnit,
-    reviewTarget: integration.review_target,
-    reviewContext,
-    terminalCandidate
-  });
   const finalized = await withDeliveryFinalization({
     invoked: true,
     phase: POST_WORKER_LIFECYCLE_PHASES.FINALIZED,
     integrated: true,
-    wk_transitioned_to_review: true,
+    wk_transitioned_to_review: finalIntegration,
     integration,
-    terminal_review_materialization: materialization,
-    ...(terminalCandidate === null ? {} : {
-      terminal_candidate: terminalCandidate,
-      terminal_candidate_validations: terminalCandidateValidations
-    }),
-    reviewer_dispatch: Object.freeze({
-      tool: "workspace_agent_dispatch",
-      args: Object.freeze({ role: closurePlan.role, subject: reviewUnit.subject }),
-
-      closure_plan: closurePlan,
-      context: Object.freeze({
-        frozen_review_target: integration.review_target,
-        terminal_review_materialization: materialization,
-        complete_parent_wk_contract: true,
-        accumulated_wk_diff: true,
-        review_context_schema_version: reviewContext.schema_version
-      })
-    })
+    ...(terminalCandidate === null ? {} : { terminal_candidate: terminalCandidate })
   }, { status, bindings, deps });
   checkpoint.finalized = finalized;
   checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.FINALIZED;

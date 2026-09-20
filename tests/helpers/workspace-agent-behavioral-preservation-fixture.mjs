@@ -10,10 +10,10 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-behavioral-preservation-evidence.mjs";
 import {
   buildTestProofRuntimeEvidence,
-  compareTestProofInventories,
   digestTestProofEvidence,
   projectBoundaryTraversal,
   projectFalsifierExecution,
+  projectTestProofInventory,
   stableRuntimeTestId
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-evidence.mjs";
 import {
@@ -24,10 +24,21 @@ import { mintManagedWorkerTestRunAuthority } from
   "../../packages/agent-launch-cli/src/lib/managed-worker-test-run-authority.mjs";
 import { TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST } from
   "../../packages/controlled-contract/current.mjs";
+import { TEST_PROOF_PROVIDER_CATALOG } from
+  "../../packages/controlled-contract/lib/test-proof-provider-registry.mjs";
 
 const digestBytes = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
+
+const currentProvider = (providerId, capability) => {
+  const descriptor = TEST_PROOF_PROVIDER_CATALOG.providers.find(
+    ({ provider_id: id }) => id === providerId);
+  if (!descriptor?.capabilities.includes(capability)) {
+    throw new Error(`current provider registry has no ${providerId} ${capability} descriptor`);
+  }
+  return { provider_id: providerId, provider_version: descriptor.provider_version, capability };
+};
 const providerFacts = (providerId, capability, mechanism, artifactTypes) => ({
-  provider_id: providerId, provider_version: "1.0.0", capability,
+  ...currentProvider(providerId, capability),
   capability_snapshot_digest: TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
   observation_mechanism: mechanism, evidence_artifact_types: artifactTypes
 });
@@ -63,22 +74,19 @@ export async function mintBehavioralPreservationSide(root, {
       runtime_module_path: "pair-dependency.mjs", subject_reference_ids: ["ref-runtime"] },
     observable_result: { observable_id: "observable-test-result", kind: "return_value",
       proposition_id: "prop-runtime" },
-    candidate_execution_provider: { provider_id: "launcher.node-test",
-      provider_version: "1.0.0", capability: "candidate_execution" },
+    candidate_execution_provider: currentProvider("launcher.node-test", "candidate_execution"),
     falsifiers: [{ falsifier_id: "falsifier-pair", strategy: "dependency_failure",
       proposition_id: "prop-runtime-fails", expected_outcome: "verification_fails",
       mutation: { mutation_id: "mutation-pair", mechanism: "module_substitution",
         target_kind: "module", module_path: "pair-dependency.mjs" },
-      execution_provider: { provider_id: "launcher.node-test-module-fault",
-        provider_version: "1.0.0", capability: "falsifier_execution" } }],
-    traversal_provider: { mode: "provider", provider_id: "launcher.node-test-v8-coverage",
-      provider_version: "1.0.0", capability: "boundary_traversal", boundary_kind: "module",
+      execution_provider: currentProvider("launcher.node-test-module-fault", "falsifier_execution") }],
+    traversal_provider: { mode: "provider",
+      ...currentProvider("launcher.node-test-v8-coverage", "boundary_traversal"), boundary_kind: "module",
       observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace" },
-    coverage_disposition: { baseline_id: "coverage-baseline-pair",
-      baseline_state: "complete_executed_inventory",
-      items: [{ test_id: testId, disposition: "preserved" }] },
+
+    test_selector: { name: "pair target", nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
   const authority = mintManagedWorkerTestProofRuntimeAuthority({
@@ -128,27 +136,28 @@ export async function mintBehavioralPreservationSide(root, {
 }
 
 function buildAttempt(context, testId, target, verificationId, identityPatch = {}) {
-  const artifacts = [["c", "boundary_trace"], ["d", "falsifier_result"],
-    ["e", "structured_test_result"]].map(([character, kind]) => ({
-    artifact_id: `artifact-${digestTestProofEvidence({ fixture: character }).slice(7)}`,
-    kind, digest: digestTestProofEvidence({ fixture: character }), owner: "launcher",
-    payload: { fixture: character }
+
+  const structuredResult = { mechanism: "node_test_structured_events", exit_code: 0,
+    summary: { passed: 1, failed: 0, skipped: 0, cancelled: 0, todo: 0, tests: 1 },
+    pass_events: [{ type: "test:pass", name: "pair target", test_id: testId,
+      file: target, nesting: 0, status: "passed" }], fail_events: [] };
+  const artifacts = [["boundary_trace", { fixture: "c" }], ["falsifier_result", { fixture: "d" }],
+    ["structured_test_result", structuredResult]].map(([kind, payload]) => ({
+    artifact_id: `artifact-${digestTestProofEvidence(payload).slice(7)}`,
+    kind, digest: digestTestProofEvidence(payload), owner: "launcher",
+    payload: structuredClone(payload)
   }));
   return buildTestProofRuntimeEvidence({
     evidenceIdentity: { ...context.evidence_identity, ...identityPatch },
     contractBinding: context.contract_binding,
     executionResult: { status: "passed", exit_code: 0,
       attempt_id: `attempt-${"a".repeat(64)}`,
-      structured_result: { mechanism: "node_test_structured_events", exit_code: 0,
-        summary: { passed: 1, failed: 0, skipped: 0, cancelled: 0, todo: 0, tests: 1 },
-        pass_events: [{ type: "test:pass", name: "pair target", test_id: testId,
-          file: target, nesting: 0, status: "passed" }], fail_events: [] },
+      structured_result: structuredClone(structuredResult),
       evidence_artifact_ids: [artifacts[2].artifact_id],
       provider: providerFacts("launcher.node-test", "candidate_execution",
         "node_test_structured_events", ["structured_test_result"]) },
-    testInventory: compareTestProofInventories({
-      baselineId: "coverage-baseline-pair", declaredTestIds: [testId],
-      baselineExecutedTestIds: [testId], observedTestIds: [testId],
+    testInventory: projectTestProofInventory({
+      selectedTestId: testId, observedTestIds: [testId],
       executedTestIds: [testId], skippedTestIds: [] }),
     boundaryTraversals: [projectBoundaryTraversal({
       boundaryId: "sut-boundary-pair", observableId: "observable-test-result",

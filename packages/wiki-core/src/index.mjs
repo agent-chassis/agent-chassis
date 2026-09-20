@@ -15,16 +15,8 @@ export function getStaticIn0001AdoptionSeed() {
   return JSON.parse(JSON.stringify(_ADOPTION_SEED_SOURCE));
 }
 
-export function renderStaticIn0001AdoptionSeedMarkdown(
-  seed = getStaticIn0001AdoptionSeed()
-) {
-  return `# ${seed.title}\n\n${seed.summary}\n`;
-}
-
 export { getContractDir, loadManifest, readContractFile } from "./lib/contract.mjs";
 export {
-  SIDECAR_ARTIFACT_SCHEMA_FIELD,
-  SIDECAR_ARTIFACT_SCHEMA_VERSION,
   SIDECAR_CANONICALITY_VALUES,
   SIDECAR_DIRTY_DETAIL_FIELDS,
   SIDECAR_DIRTY_STATE_VALUES,
@@ -38,11 +30,9 @@ export {
   SIDECAR_STALENESS_VALUES,
   SIDECAR_TRUST_ENVELOPE_FIXTURES,
   assertValidSidecarResultEnvelope,
-  classifySidecarArtifactSchema,
   cloneSidecarTrustEnvelopeFixture,
   createSidecarDirtyDetails,
   createSidecarResultEnvelope,
-  isSupportedSidecarArtifactSchema,
   isSupportedSidecarSchemaVersion,
   validateSidecarResultEnvelope
 } from "./lib/sidecar-schema.mjs";
@@ -55,11 +45,9 @@ export {
   SIDECAR_GRAPH_NODE_REQUIRED_FIELDS,
   SIDECAR_GRAPH_SCHEMA_FIELD,
   SIDECAR_GRAPH_SCHEMA_VERSION,
-  SIDECAR_GRAPH_SECTION_FIELD,
   SIDECAR_GRAPH_STATE_REQUIRED_FIELDS,
   SIDECAR_MISSING_UPDATE_HINT_REQUIRED_FIELDS,
   SIDECAR_STRUCTURAL_IMPACT_REQUIRED_FIELDS,
-  classifySidecarGraphArtifactSchema,
   createSidecarGraphState,
   isSupportedSidecarGraphSchemaVersion,
   validateSidecarGraphSection,
@@ -120,7 +108,6 @@ export {
 export {
   SIDECAR_DEFAULT_ARTIFACT_FILE,
   SIDECAR_DEFAULT_CACHE_DIR,
-  createSidecarStatusArtifact,
   discoverSidecarGitState,
   getSidecarIndexStatus
 } from "./lib/sidecar-status.mjs";
@@ -129,11 +116,13 @@ export {
   buildSidecarIndex
 } from "./lib/sidecar-build.mjs";
 export {
-  SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS,
-  getSidecarGraphImpactDiff,
-  getSidecarContextForPath,
-  getSidecarImpactPaths
-} from "./lib/sidecar-impact.mjs";
+  SIDECAR_INDEX_ENSURE_MAX_PASSES,
+  SidecarIndexEnsureError,
+  ensureSidecarIndex
+} from "./lib/sidecar-ensure.mjs";
+export { SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS } from "./lib/sidecar-impact.mjs";
+export { getSidecarContextForPath } from "./lib/sidecar-query-context.mjs";
+export { getSidecarQueryImpact } from "./lib/sidecar-query-impact.mjs";
 export {
   SIDECAR_DIRTY_IGNORED_RUNTIME_PATTERNS,
   SIDECAR_FORBIDDEN_PATH_PATTERNS,
@@ -266,6 +255,7 @@ export {
   setWorkRecordTaskByUnit,
   writeValidatedWorkRecord
 } from "./operations/work-records.mjs";
+export { upsertWorkRecordEntry, readWorkRecordEntry } from "./operations/work-record-entries.mjs";
 export {
   acceptWorkRecordEscalation,
   authorWorkRecordEscalation,
@@ -348,41 +338,12 @@ export {
   parseControlledContractCarrierSetManifest
 } from "./lib/controlled-contract-carrier-set-manifest.mjs";
 export {
-  COMMON_PROOF_CAPTURE_CURRENTNESS_RESULTS,
-  COMMON_PROOF_CAPTURE_FAMILIES,
-  COMMON_PROOF_CAPTURE_FAMILY_IDS,
-  COMMON_PROOF_CAPTURE_LAUNCHER_FAMILY_IDS,
-  COMMON_PROOF_CAPTURE_LAUNCHER_READ_ONLY_REASON,
-  COMMON_PROOF_CAPTURE_LIFECYCLE_STATES,
-  COMMON_PROOF_CAPTURE_REPOSITORY_FAMILY_IDS,
-  COMMON_PROOF_CAPTURE_OBSERVATION_SCHEMA_VERSION,
-  COMMON_PROOF_CAPTURE_RECEIPT_IDENTITY_SCHEMA_VERSION,
-  COMMON_PROOF_CAPTURE_REFUSAL_CODES,
-  COMMON_PROOF_CAPTURE_SCHEMA_VERSION,
-  COMMON_PROOF_CAPTURE_SELECTION_SCHEMA_VERSION,
-  COMMON_PROOF_CAPTURE_STORES,
-  commonProofCaptureObservation
-} from "./lib/common-proof-capture-tools.mjs";
-export {
-  COMMON_PROOF_CAPTURE_REQUEST_KEYS,
-  commonProofCaptureOperation,
-  createCommonProofCaptureOperation
-} from "./operations/common-proof-capture.mjs";
-export {
-  assessControlledContractOperation,
-  buildProofPlanOperation,
   createControlledContractRefusal,
-  describeProofPackOperation,
+  discoverCompleteControlledProofIntentsOperation,
   discoverControlledProofIntentsOperation,
-  inspectProofPackBindingsOperation,
   projectProofPackSelectionTaskContext,
   projectProofPackSelectionSummary,
-  queryControlledVocabularyOperation,
-  rebaseControlledContractAcceptanceCoverageOperation,
-  rebaseControlledContractObligationCoverageOperation,
-  readControlledContractAssessmentArtifactOperation,
   readControlledContractCarrierOperation,
-  selectProofPacksOperation,
   writeControlledContractCarrierOperation
 } from "./operations/controlled-contract.mjs";
 export {
@@ -399,13 +360,7 @@ export { queryControlledContractPrivateScopeCensusOperation } from
 export {
   CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS,
   assertControlledContractSemanticProjectionBound,
-  consumeControlledContractAssessmentSnapshot,
-  consumeControlledContractIntegrationAssessmentSnapshot,
-  controlledContractPrettyJsonBytes,
-  projectControlledContractIntegrationAssessmentPage,
-  projectControlledContractIntegrationAssessmentSummary,
-  projectControlledContractProofAssessmentPage,
-  projectControlledContractProofAssessmentSummary
+  controlledContractPrettyJsonBytes
 } from "./operations/controlled-contract.mjs";
 export {
   AGENT_FAQ_SCHEMA_VERSION,

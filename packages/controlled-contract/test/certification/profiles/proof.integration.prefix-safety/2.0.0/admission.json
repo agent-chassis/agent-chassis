@@ -15,38 +15,10 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "2f64d49e61b321c8a3b9336d99866cfd45300fd2ab611a3a34a1b915cc30bcca",
-    "adequacy_result_digest": "405cb4f7f6509dc24d1d16f1f2493f258fa321cfd6267eb13bc838ae98f8d970",
+    "adequacy_declaration_digest": "bf19280f3f284c2fac404f763d4e40f6f15e42f26b6fc97be782ce44dd2629ea",
+    "adequacy_result_digest": "80f4c232dc5e5ce1b0e11c31aa74080970d689c037c65ada1246513a18b55df5",
     "executable_control_count": 18,
     "negative_fixture_count": 44,
     "coverage_witness_count": 44
-  },
-  "exact_binding": {
-    "declaration_digest": "8c4f564cdc15d70aa3755d46915daa425c5006ed798a9c99ba1d4e1e30b9fe19",
-    "certification_result_digest": "03a5faaeb5bf1fb73807122680391879cdd7b692fff67849f37202c3ade0850e",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection"
-    ],
-    "corpus_id": "integration-prefix-safety-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "b4483cf43cc1888e0f4fd1a46ca4d8466f22ed2bd377879a5d5dfbd839eb13c3",
-    "passed_control_ids": [
-      "atomic-codeployment-positive",
-      "case-population-duplicate-refused",
-      "case-population-omission-refused",
-      "case-population-substitution-refused",
-      "cross-domain-api-schema-positive",
-      "cross-domain-managed-repository-positive",
-      "cross-domain-message-codec-positive",
-      "missing-dag-source-refused",
-      "missing-path-source-refused",
-      "missing-unit-source-refused",
-      "projection-result-splice-refused",
-      "source-descriptor-splice-refused"
-    ]
   }
 }

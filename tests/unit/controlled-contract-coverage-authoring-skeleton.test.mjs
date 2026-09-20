@@ -5,8 +5,6 @@ import test from "node:test";
 import {
   composeCoverageAuthoringSkeleton
 } from "../../packages/controlled-contract/current.mjs";
-import { coverageAuthoringActionProjection } from
-  "../../packages/wiki-core/src/operations/controlled-contract/coverage-recovery-guidance.mjs";
 
 const sha = (character) => `sha256:${character.repeat(64)}`;
 const baseServer = () => ({
@@ -22,7 +20,7 @@ const baseServer = () => ({
   carrierStatus: "carrier_present_current",
   changedBindings: [],
   mutation: {
-    operation: "workspace_controlled_contract_obligation_coverage_upsert",
+    operation: "workspace_controlled_contract_acceptance_coverage_upsert",
     stableArguments: { unit: "WK-2439#SLICE-003", focus: null },
     receiptFedDigestFields: [
       "expected_content_digest", "carrier_identity.content_digest"
@@ -38,7 +36,7 @@ const baseServer = () => ({
 });
 
 test("composes the exact closed 39-entry vocabulary in controlled order", () => {
-  const input = { surface: "obligation", server: baseServer() };
+  const input = { surface: "acceptance", server: baseServer() };
   const first = composeCoverageAuthoringSkeleton(input);
   const second = composeCoverageAuthoringSkeleton(structuredClone(input));
   assert.equal(first.projection_visibility, "internal_only");
@@ -54,47 +52,78 @@ test("composes the exact closed 39-entry vocabulary in controlled order", () => 
 
 test("leaves semantic choices unresolved and never invents authored values", () => {
   const result = composeCoverageAuthoringSkeleton({
-    surface: "obligation", server: baseServer()
+    surface: "acceptance", server: baseServer()
   });
-  assert.deepEqual(result.complete_population[14].value.map(({ field }) => field), [
-    "obligation_id", "statement", "controlled_contract_node_ids", "mechanism",
-    "proof"
-  ]);
-  assert.equal(result.facts.unresolved_slot_count, 5);
-  for (const entry of result.complete_population.filter(({ authority }) =>
-    authority === "caller_authored")) assert.equal(Object.hasOwn(entry, "value"), false);
-  assert.deepEqual(result.complete_population[31].allowed_alternatives,
-    ["test", "inspection"]);
+  assert.deepEqual(result.complete_population[14].value.map(({ field }) => field), ['node_ids', 'axes']);
+  assert.equal(result.facts.unresolved_slot_count, 2);
+  for (const entry of result.complete_population.filter(entry => entry.status === 'unresolved')) {
+    assert.equal(Object.hasOwn(entry, 'value'), false);
+  }
+});
+
+test("preserves normalized node meaning and declared verification facts", () => {
+  const server = baseServer();
+  server.contractNodes = [{
+    id: "opaque-claim-a",
+    mandatory: true,
+    semantic: {
+      node_kind: "claim",
+      claim_kind: "behavior",
+      modality: "MUST",
+      proposition: {
+        proposition_id: "opaque-proposition-a",
+        operator: "boolean:exists",
+        subject_reference_id: "opaque-reference-a",
+        subject: {
+          reference_id: "opaque-reference-a",
+          type_term: "cc:runtime_component",
+          identity: { kind: "profile_term", term: "semantic-owner" }
+        },
+        operands: [{ kind: "boolean", value: true }],
+        applicability_context: {
+          mode: "unconditional", operand_reference_ids: [], operand_references: []
+        }
+      }
+    },
+    declared_verification: {
+      relationships: [{
+        edge_kind: "claim_verifies_claim",
+        relation_id: "opaque-relation-a",
+        role: "verifies",
+        source_claim_id: "opaque-verification-a",
+        target_claim_id: "opaque-claim-a",
+        evidence_status: "declared_not_executed"
+      }],
+      test_definitions: [],
+      executed_outcomes_included: false
+    }
+  }];
+  const result = composeCoverageAuthoringSkeleton({ surface: "acceptance", server });
+  assert.deepEqual(result.complete_population[6].value, server.contractNodes);
+  assert.equal(result.complete_population[6].value[0]
+    .declared_verification.executed_outcomes_included, false);
 });
 
 test("validates server-resolved authored decisions without echoing them", () => {
   const server = baseServer();
-  server.authoredDecisions = {
-    obligation_id: "O-1", statement: "Caller authored",
-    controlled_contract_node_ids: ["node-1"], mechanism: "test",
-    gap: { kind: "explicit_gap", gap_kind: "infeasible" }
-  };
-  const result = composeCoverageAuthoringSkeleton({ surface: "obligation", server });
-  assert.equal(result.complete_population[27].status, "authored");
-  assert.equal(Object.hasOwn(result.complete_population[27], "value"), false);
-  assert.equal(result.diagnostics.some(({ code }) =>
-    code === "invalid_authored_decision"), false);
-
-  server.authoredDecisions.mechanism = "invented";
-  const invalid = composeCoverageAuthoringSkeleton({ surface: "obligation", server });
-  assert.ok(invalid.diagnostics.some(({ code, field }) =>
-    code === "invalid_authored_decision" && field === "mechanism"));
+  server.authoredDecisions = { node_ids: ['node-1'] };
+  const result = composeCoverageAuthoringSkeleton({ surface: "acceptance", server });
+  assert.equal(result.complete_population[37].status, "authored");
+  assert.equal(Object.hasOwn(result.complete_population[37], "value"), false);
+  assert.equal(result.diagnostics.some(({ code }) => code === "invalid_authored_decision"), false);
+  server.authoredDecisions.node_ids = ['absent-node'];
+  const invalid = composeCoverageAuthoringSkeleton({ surface: "acceptance", server });
+  assert.ok(invalid.diagnostics.some(({ code, field }) => code === "invalid_authored_decision" && field === "node_ids"));
 });
 
 test("separates stable arguments from receipt-fed digest CAS state", () => {
   const result = composeCoverageAuthoringSkeleton({
-    surface: "obligation", server: baseServer()
+    surface: "acceptance", server: baseServer()
   });
   assert.deepEqual(result.mutation_handoff, {
-    operation: "workspace_controlled_contract_obligation_coverage_upsert",
+    operation: "workspace_controlled_contract_acceptance_coverage_upsert",
     stable_arguments: { unit: "WK-2439#SLICE-003", focus: null },
-    authored_fields: ["obligation_id", "statement", "controlled_contract_node_ids",
-      "mechanism", "gap", "pack_component"],
+    authored_fields: ["node_ids", "axes"],
     call_shape: "single_row",
     receipt_fed_digest_state: {
       source: "immediately_prior_mutation_receipt",
@@ -104,7 +133,7 @@ test("separates stable arguments from receipt-fed digest CAS state", () => {
   const server = baseServer();
   server.mutation.stableArguments.expected_content_digest = sha("e");
   assert.throws(() => composeCoverageAuthoringSkeleton({
-    surface: "obligation", server
+    surface: "acceptance", server
   }), (error) => error.name === "CoverageAuthoringSkeletonError" &&
     /receipt-fed digest state/.test(error.message));
 });
@@ -115,7 +144,7 @@ test("bounds the gap-first inline projection without discarding the population",
     id: `node-${index}-${"x".repeat(300)}`
   }));
   const result = composeCoverageAuthoringSkeleton({
-    surface: "obligation", server
+    surface: "acceptance", server
   });
   assert.ok(result.inline_projection.utf8_bytes <= 16_384);
   assert.equal(Buffer.byteLength(JSON.stringify(result.inline_projection)),
@@ -155,10 +184,10 @@ test("rejects non-plain or unsupported inputs locally", () => {
   const server = baseServer();
   server.selectedPacks = [new Map()];
   assert.throws(() => composeCoverageAuthoringSkeleton({
-    surface: "obligation", server
+    surface: "acceptance", server
   }), (error) => error.name === "CoverageAuthoringSkeletonError");
   assert.throws(() => composeCoverageAuthoringSkeleton({
-    surface: "obligation", server: baseServer(), path: "/tmp/carrier"
+    surface: "acceptance", server: baseServer(), path: "/tmp/carrier"
   }), (error) => error.name === "CoverageAuthoringSkeletonError");
 });
 
@@ -166,7 +195,7 @@ test("rejects sparse arrays before canonical byte accounting", () => {
   const sparseServer = baseServer();
   sparseServer.selectedPacks = Array(2_000);
   assert.throws(() => composeCoverageAuthoringSkeleton({
-    surface: "obligation", server: sparseServer
+    surface: "acceptance", server: sparseServer
   }), (error) => error.name === "CoverageAuthoringSkeletonError" &&
     error.code === "coverage_authoring_skeleton_input_invalid" &&
     error.message ===
@@ -174,7 +203,7 @@ test("rejects sparse arrays before canonical byte accounting", () => {
     error.details.name === "input.server.selectedPacks" &&
     error.details.index === 0);
 
-  const accepted = { surface: "obligation", server: baseServer() };
+  const accepted = { surface: "acceptance", server: baseServer() };
   const result = composeCoverageAuthoringSkeleton(accepted);
   assert.equal(result.facts.request_utf8_bytes,
     Buffer.byteLength(JSON.stringify(accepted), "utf8"));
@@ -185,76 +214,10 @@ test("rejects sparse arrays before canonical byte accounting", () => {
     Buffer.byteLength(JSON.stringify(result), "utf8"));
 });
 
-test("selects only exact state-appropriate coverage mutations and recovery", () => {
-  const call = (family, operation, requiredAuthoredFields = []) => ({
-    tool: `workspace_controlled_contract_${family}_coverage_${operation}`,
-    ...(operation === "query" || operation === "describe" || operation === "rebase"
-      ? { arguments: { unit: "WK-2474#SLICE-005" } }
-      : {
-          fixed_arguments: { unit: "WK-2474#SLICE-005" },
-          required_authored_fields: requiredAuthoredFields
-        })
+test('the package retires the complete-row obligation authoring skeleton', () => {
+  assert.throws(() => composeCoverageAuthoringSkeleton({ surface: 'obligation', server: baseServer() }), error => {
+    assert.equal(error.code, 'obligation_coverage_authoring_route_retired');
+    assert.ok(error.details.operations.includes('workspace_controlled_contract_obligation_coverage_upsert'));
+    return true;
   });
-  for (const family of ["obligation", "acceptance"]) {
-    const status = {
-      absent: family === "obligation" ? "source_absent" : "carrier_absent",
-      current: family === "obligation"
-        ? "source_present_current" : "carrier_present_current",
-      stale: family === "obligation"
-        ? "source_present_stale" : "carrier_present_stale"
-    };
-    const absent = coverageAuthoringActionProjection({
-      family,
-      status: status.absent,
-      nextCalls: [call(family, "describe"), call(family, "create", ["rows"])],
-      criterionCount: 12
-    });
-    assert.equal(absent.tool,
-      `workspace_controlled_contract_${family}_coverage_create`);
-    assert.equal(absent.kind, "atomic_initial_create");
-    assert.equal(absent.required_population.request_field, "authored_rows");
-
-    const current = coverageAuthoringActionProjection({
-      family,
-      status: status.current,
-      nextCalls: [call(family, "query"), call(family, "upsert", ["row"]),
-        call(family, "patch", ["operations"])],
-      criterionCount: 12
-    });
-    assert.equal(current.tool,
-      `workspace_controlled_contract_${family}_coverage_patch`);
-    assert.equal(current.kind, "atomic_patch");
-    assert.equal(current.required_population.request_field, "operations");
-
-    const upsert = coverageAuthoringActionProjection({
-      family,
-      status: status.current,
-      nextCalls: [call(family, "query"), call(family, "upsert", ["row"])],
-      criterionCount: 12
-    });
-    assert.equal(upsert.tool,
-      `workspace_controlled_contract_${family}_coverage_upsert`);
-    assert.equal(upsert.kind, "single_row_upsert");
-    assert.equal(upsert.required_population.request_field, "row");
-    assert.equal(upsert.required_population.selector_field,
-      family === "obligation" ? "obligation_selector" : "criterion_selector");
-
-    const stale = coverageAuthoringActionProjection({
-      family,
-      status: status.stale,
-      nextCalls: [call(family, "describe"), call(family, "rebase")],
-      criterionCount: 12
-    });
-    assert.equal(stale.tool,
-      `workspace_controlled_contract_${family}_coverage_rebase`);
-    assert.equal(stale.kind, "owner_selected_recovery");
-
-    for (const [readOnlyStatus, nextCalls] of [
-      [status.absent, [call(family, "describe")]],
-      [status.current, [call(family, "query"), call(family, "describe")]],
-      [status.stale, [call(family, "describe"), call(family, "query")]]
-    ]) assert.equal(coverageAuthoringActionProjection({
-      family, status: readOnlyStatus, nextCalls, criterionCount: 12
-    }), null);
-  }
 });

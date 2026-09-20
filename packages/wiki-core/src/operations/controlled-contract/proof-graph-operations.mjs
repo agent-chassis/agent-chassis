@@ -13,9 +13,13 @@ import {
   withCanonicalControlledContractSourceLease,
   writeControlledContractCarrierSet
 } from "../../lib/controlled-contract-tools.mjs";
-import { CONTROLLED_CONTRACT_AUTHORING_REASONS } from
+import {
+  CONTROLLED_CONTRACT_AUTHORING_REASONS,
+  CONTROLLED_CONTRACT_AUTHORING_TOOLS
+} from
   "../../lib/controlled-contract-authoring-state.mjs";
 import {
+  readControlledContractProofGraphPublication,
   reconcileControlledContractAuthoringProofGraphPublication
 } from "../../lib/controlled-contract-authoring-continuations.mjs";
 import { CARRIER_SET_SCHEMA_VERSION } from
@@ -25,14 +29,13 @@ import { throwAuthoringRefusal, throwProofGraphAuthoringFailure } from
   "./authoring-refusals.mjs";
 import { controlledContractOperation } from "./refusal.mjs";
 
-function proofGraphStateCall(input, continuation = input.continuation) {
+function proofGraphStateCall(input) {
   return Object.freeze({
-    tool: "workspace_controlled_contract_authoring_state",
+    tool: CONTROLLED_CONTRACT_AUTHORING_TOOLS.state,
     arguments: Object.freeze({
-      wk_id: input.wkId,
+      unit: input.wkId,
       ...(input.focus === undefined || input.focus === null
-        ? {} : { focus: input.focus }),
-      continuation
+        ? {} : { focus: input.focus })
     })
   });
 }
@@ -40,6 +43,7 @@ function proofGraphStateCall(input, continuation = input.continuation) {
 function proofGraphReceipt({ input, publication, proposalDigest, continuation }) {
   const receipt = {
     schema_version: "controlled-contract-proof-graph-publication.v1",
+    continuation,
     publication: Object.freeze({
       schema_version: publication.schema_version,
       profile: "canonical_authoring",
@@ -53,7 +57,7 @@ function proofGraphReceipt({ input, publication, proposalDigest, continuation })
       written: publication.written,
       no_op: publication.no_op === true
     }),
-    next_call: proofGraphStateCall(input, continuation)
+    next_call: proofGraphStateCall(input)
   };
   const byteLength = Buffer.byteLength(JSON.stringify(receipt), "utf8");
   if (byteLength > CONTROLLED_CONTRACT_PATCH_LIMITS.receipt_bytes) {
@@ -63,6 +67,179 @@ function proofGraphReceipt({ input, publication, proposalDigest, continuation })
       });
   }
   return Object.freeze(receipt);
+}
+
+export async function recoverControlledContractProofGraphReceipt(input) {
+  const record = await readControlledContractProofGraphPublication({
+    repoRoot: input.repoRoot, identity: input.continuation });
+  if (record === null) return null;
+  if (record.wk_id !== input.wkId || record.focus !== (input.focus ?? null)) {
+    throw new ControlledContractToolError("controlled_contract_authoring_continuation_tampered",
+      "published proof graph belongs to another subject");
+  }
+  return proofGraphReceipt({ input, publication: record.proof_graph.publication,
+    proposalDigest: record.proof_graph.proposal_digest, continuation: record.identity });
+}
+
+function publicationFailure(error, { input, publication, continuation, phase, attempted }) {
+
+  const { changed: _changed, replacement_call: _replacement, ...details } = error?.details ?? {};
+  return new ControlledContractToolError(error?.code ?? "controlled_contract_proof_graph_publication_failed",
+    error?.message ?? "proof-graph publication did not finish", {
+      ...details,
+      ...(attempted ? {} : { changed: false }),
+      proof_graph_outcome: {
+        state: publication ? "established" : attempted ? "indeterminate" : "not_published",
+        phase, publication: publication ?? null, continuation,
+        retry_safe: !attempted
+      },
+
+      supported_next_step: null
+    });
+}
+
+export const CONTROLLED_CONTRACT_PROOF_GRAPH_PREPARATION_SCHEMA =
+  "controlled-contract-proof-graph-preparation.v1";
+
+export function composeControlledContractProofGraphPreparation({
+  input, source, composed
+}) {
+  const canonicalMembers = structuredClone(source.canonical_members);
+  for (const carrier of composed.carriers) {
+    canonicalMembers[source.target_by_kind[carrier.carrier_kind]] = carrier.content;
+  }
+
+  if (composed.carriers.some(({ changed }) => changed)) {
+    delete canonicalMembers[controlledContractCarrierFilename({
+      wkId: input.wkId, focus: input.focus ?? null, carrierKind: "proof_plan"
+    })];
+  }
+  const memberDigests = Object.fromEntries(Object.entries(canonicalMembers)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([basename, content]) => [basename, controlledContractContentDigest(content)]));
+  return Object.freeze({
+    schema_version: CONTROLLED_CONTRACT_PROOF_GRAPH_PREPARATION_SCHEMA,
+    owner: "composeProofGraphCarrierSet",
+    wk_id: input.wkId,
+    focus: input.focus ?? null,
+    contract_basename: controlledContractCarrierFilename({
+      wkId: input.wkId, focus: input.focus ?? null, carrierKind: "contract"
+    }),
+    changed_carrier_kinds: Object.freeze(composed.carriers
+      .filter(({ changed }) => changed)
+      .map(({ carrier_kind: kind }) => kind).sort()),
+    canonical_members: canonicalMembers,
+    member_digests: memberDigests
+  });
+}
+
+export function validateControlledContractProofGraphPreparation(prepared) {
+  if (prepared === null || typeof prepared !== "object" ||
+      prepared.schema_version !== CONTROLLED_CONTRACT_PROOF_GRAPH_PREPARATION_SCHEMA ||
+      prepared.canonical_members === null ||
+      typeof prepared.canonical_members !== "object" ||
+      typeof prepared.member_digests !== "object" ||
+      typeof prepared.member_digests?.[prepared.contract_basename] !== "string") {
+    throw new ControlledContractToolError(
+      "controlled_contract_proof_graph_preparation_invalid",
+      "prospective proof-graph preparation is not one complete canonical member set",
+      { changed: false }
+    );
+  }
+  for (const [basename, content] of Object.entries(prepared.canonical_members)) {
+    if (prepared.member_digests[basename] !==
+        controlledContractContentDigest(content)) {
+      throw new ControlledContractToolError(
+        "controlled_contract_proof_graph_preparation_invalid",
+        "prospective proof-graph member digest does not match its content",
+        { changed: false, basename });
+    }
+  }
+  return prepared;
+}
+
+export async function commitControlledContractProofGraphPreparation({
+  input, source, prepared, continuationIdentity
+}) {
+  validateControlledContractProofGraphPreparation(prepared);
+  const memberDigests = prepared.member_digests;
+  const contractName = prepared.contract_basename;
+  let publication = null;
+  let attempted = false;
+  let phase = "publication_preparation";
+  let resultContinuation = continuationIdentity;
+  try {
+    const publishing = await updateControlledContractAuthoringProofGraphContinuation({
+      repoRoot: input.repoRoot,
+      wkId: input.wkId,
+      focus: input.focus ?? null,
+      identity: continuationIdentity,
+      changes: {
+        status: "publishing",
+        result_contract_content_digest: memberDigests[contractName],
+        result_member_digests: memberDigests,
+        publication_schema_version: CARRIER_SET_SCHEMA_VERSION
+      }
+    });
+    resultContinuation = publishing.identity;
+    phase = "publication";
+    attempted = true;
+    publication = await writeControlledContractCarrierSet({
+      repoRoot: input.repoRoot,
+      repository: source.record.repo,
+      wkId: input.wkId,
+      focus: input.focus ?? null,
+      profile: "canonical_authoring",
+      expected_manifest_digest: source.manifest_content_digest,
+      sourceLease: source.lease,
+      canonical_members: prepared.canonical_members
+    });
+    phase = "publication_verification";
+    const accepted = await validateControlledContractCarrierSetManifest({
+      repoRoot: input.repoRoot,
+      wkId: input.wkId,
+      focus: input.focus ?? null,
+      repository: source.record.repo,
+      profile: "canonical_authoring"
+    });
+    if (accepted.generation !== publication.generation ||
+        accepted.manifest_digest !== publication.manifest_digest) {
+      throwProofGraphAuthoringFailure({
+        input,
+        reasonCode: CONTROLLED_CONTRACT_AUTHORING_REASONS.continuationCarrierConflict,
+        details: { carrier_kind: "canonical_generation" }
+      });
+    }
+    phase = "publication_recording";
+    const published = await updateControlledContractAuthoringProofGraphContinuation({
+      repoRoot: input.repoRoot,
+      wkId: input.wkId,
+      focus: input.focus ?? null,
+      identity: publishing.identity,
+      changes: {
+        status: "published",
+        unresolved_pointers: [],
+        missing_graph_identities: [],
+        result_contract_content_digest: memberDigests[contractName],
+        result_manifest_content_digest: publication.manifest_content_digest,
+        result_member_digests: memberDigests,
+        publication
+      }
+    });
+    resultContinuation = published.identity;
+    phase = "authoring_projection";
+
+    await deriveCanonicalControlledContractAuthoringState({
+      repoRoot: input.repoRoot,
+      wkId: input.wkId,
+      focus: input.focus ?? null,
+      continuation: published.identity
+    });
+    return Object.freeze({ publication, continuation: published.identity });
+  } catch (error) {
+    throw publicationFailure(error, { input, publication,
+      continuation: resultContinuation, phase, attempted });
+  }
 }
 
 export async function continueControlledContractProofGraphOperation(input) {
@@ -110,6 +287,7 @@ export async function continueControlledContractProofGraphOperation(input) {
       });
     }
     const proposal = mutation.proposal;
+    let committed = null;
     try {
       return await withCanonicalControlledContractSourceLease({
         repoRoot: input.repoRoot,
@@ -147,7 +325,9 @@ export async function continueControlledContractProofGraphOperation(input) {
             reasonCode: allowed.has(error?.code)
               ? error.code
               : CONTROLLED_CONTRACT_AUTHORING_REASONS.continuationCarrierConflict,
-            details: { cause_code: error?.code ?? null, ...(error?.details ?? {}) }
+            details: { cause_code: error?.code ?? null, ...(error?.details ?? {}),
+              changed: false, proof_graph_outcome: { state: "not_published",
+                phase: "composition", publication: null, retry_safe: true } }
           });
         }
         if (composed.status !== "composed") {
@@ -169,96 +349,30 @@ export async function continueControlledContractProofGraphOperation(input) {
             reasonCode: CONTROLLED_CONTRACT_AUTHORING_REASONS.proofGraphProposalIncomplete,
             continuation: incomplete.identity,
             details: {
+              changed: false, proof_graph_outcome: { state: "not_published",
+                phase: "composition", publication: null, retry_safe: true },
               unresolved_pointer_count: pointers.length,
               unresolved_pointers: pointers
             }
           });
         }
-        const canonicalMembers = structuredClone(source.canonical_members);
-        for (const carrier of composed.carriers) {
-          canonicalMembers[source.target_by_kind[carrier.carrier_kind]] = carrier.content;
-        }
-        if (composed.carriers.some(({ changed }) => changed)) {
-          delete canonicalMembers[controlledContractCarrierFilename({
-            wkId: input.wkId,
-            focus: input.focus ?? null,
-            carrierKind: "proof_plan"
-          })];
-        }
-        const memberDigests = Object.fromEntries(Object.entries(canonicalMembers)
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([basename, content]) => [basename, controlledContractContentDigest(content)]));
-        const contractName = controlledContractCarrierFilename({
-          wkId: input.wkId,
-          focus: input.focus ?? null,
-          carrierKind: "contract"
-        });
-        const publishing = await updateControlledContractAuthoringProofGraphContinuation({
-          repoRoot: input.repoRoot,
-          wkId: input.wkId,
-          focus: input.focus ?? null,
-          identity: mutation.continuationRecord.identity,
-          changes: {
-            status: "publishing",
-            result_contract_content_digest: memberDigests[contractName],
-            result_member_digests: memberDigests,
-            publication_schema_version: CARRIER_SET_SCHEMA_VERSION
-          }
-        });
-        const publication = await writeControlledContractCarrierSet({
-          repoRoot: input.repoRoot,
-          repository: source.record.repo,
-          wkId: input.wkId,
-          focus: input.focus ?? null,
-          profile: "canonical_authoring",
-          expected_manifest_digest: source.manifest_content_digest,
-          sourceLease: source.lease,
-          canonical_members: canonicalMembers
-        });
-        const accepted = await validateControlledContractCarrierSetManifest({
-          repoRoot: input.repoRoot,
-          wkId: input.wkId,
-          focus: input.focus ?? null,
-          repository: source.record.repo,
-          profile: "canonical_authoring"
-        });
-        if (accepted.generation !== publication.generation ||
-            accepted.manifest_digest !== publication.manifest_digest) {
-          throwProofGraphAuthoringFailure({
-            input,
-            reasonCode: CONTROLLED_CONTRACT_AUTHORING_REASONS.continuationCarrierConflict,
-            details: { carrier_kind: "canonical_generation" }
+        const prepared = validateControlledContractProofGraphPreparation(
+          composeControlledContractProofGraphPreparation({ input, source, composed }));
+        const { publication, continuation: publishedIdentity } =
+          await commitControlledContractProofGraphPreparation({
+            input, source, prepared,
+            continuationIdentity: mutation.continuationRecord.identity
           });
-        }
-        const published = await updateControlledContractAuthoringProofGraphContinuation({
-          repoRoot: input.repoRoot,
-          wkId: input.wkId,
-          focus: input.focus ?? null,
-          identity: publishing.identity,
-          changes: {
-          status: "published",
-          unresolved_pointers: [],
-          missing_graph_identities: [],
-          result_contract_content_digest: memberDigests[contractName],
-          result_manifest_content_digest: publication.manifest_content_digest,
-          result_member_digests: memberDigests,
-          publication
-          }
-        });
-
-        await deriveCanonicalControlledContractAuthoringState({
-          repoRoot: input.repoRoot,
-          wkId: input.wkId,
-          focus: input.focus ?? null,
-          continuation: published.identity
-        });
+        committed = { publication, continuation: publishedIdentity };
         return proofGraphReceipt({
           input, publication, proposalDigest: mutation.proposalDigest,
-          continuation: published.identity
+          continuation: publishedIdentity
         });
       });
     } catch (error) {
-      if (error?.details?.replacement_call ||
+      if (committed !== null) throw publicationFailure(error, { input,
+        ...committed, phase: "receipt_or_lease_completion", attempted: true });
+      if (error?.details?.proof_graph_outcome || error?.details?.replacement_call ||
           error?.code === "controlled_contract_receipt_too_large") throw error;
       const stale = typeof error?.code === "string" &&
         error.code.startsWith("controlled_contract_source_lease_");
@@ -267,7 +381,9 @@ export async function continueControlledContractProofGraphOperation(input) {
         reasonCode: stale
           ? CONTROLLED_CONTRACT_AUTHORING_REASONS.continuationStale
           : CONTROLLED_CONTRACT_AUTHORING_REASONS.continuationCarrierConflict,
-        details: { cause_code: error?.code ?? null, ...(error?.details ?? {}) }
+        details: { cause_code: error?.code ?? null, ...(error?.details ?? {}),
+          changed: false, proof_graph_outcome: { state: "not_published",
+            phase: "preparation", publication: null, retry_safe: true } }
       });
     }
   });

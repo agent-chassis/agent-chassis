@@ -2,21 +2,29 @@
 
 import path from "node:path";
 import {
-  setWorkRecordStatusByUnit,
-  writeValidatedWorkRecord,
   computeWorkRecordSourceDigest
-} from "@agent-chassis/wiki-core";
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import {
+  setWorkRecordStatusByUnit
+} from "@agent-chassis/wiki-core/src/operations/work-records-edits.mjs";
+import {
+  writeValidatedWorkRecord
+} from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 import {
   integrateCommittedSlice,
   recoverZeroDeltaIntegratedSlice,
   SLICE_INTEGRATION_BOUNDARY_AUTHORIZATION_SCHEMA_VERSION,
+  SLICE_INTEGRATION_DIAGNOSTIC_CODES,
   SLICE_INTEGRATION_POLICY_POSTURES
 } from "./slice-integration.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
 import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import {
+  committedSliceScopeRefusalCorrection,
   COMMITTED_SLICE_REVIEW_ADMISSION_CODES,
-  resolveCommittedSliceReviewAdmission
+  resolveCommittedSliceReviewAdmission,
+  resolveCommittedSliceScopeDecisionInputs
 } from "./committed-slice-review-admission.mjs";
 import {
   resolveCanonicalSliceIntegrationUnit
@@ -30,14 +38,19 @@ import {
 import {
   AUTHENTICATED_INTEGRATION_CONTINUATION,
   brandedContinuation,
+  committedSliceIntegrationDeliveryKey,
+  COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH,
   continuationRefusal,
   createBackendIntegrationContinuation,
-  INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE
+  INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE,
+  projectCompletedIntegrationContinuationFailure
 } from "./workspace-agent-dispatch-backend-integration-continuation.mjs";
 
 export {
   AUTHENTICATED_INTEGRATION_CONTINUATION,
-  INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE
+  COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH,
+  INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE,
+  projectCompletedIntegrationContinuationFailure
 };
 
 export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
@@ -109,9 +122,12 @@ const ORCHESTRATOR_ADVISORY_DISPOSITIONS = new Set(["accept", "reject", "defer"]
 const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
 const CCE_POLICY_DECISION_MAX_BYTES = 64 * 1024;
 const CCE_POLICY_ID_MAX_CHARS = 256;
+
 const PUBLIC_BLOCKER_CODES = Object.freeze({
   BACKEND_UNAVAILABLE: "backend_unavailable",
-  OPERATOR_RECOVERY_NEEDED: "operator_recovery_needed",
+  CCE_POLICY_REFUSED: "agent_launch.slice_integration.cce_policy_refused.v1",
+  CLASSIFICATION_UNAVAILABLE:
+    "agent_launch.slice_integration.classification_unavailable.v1",
   VALIDATION_FAILURE: "validation_failure"
 });
 const CCE_POLICY_DECISION_REFUSAL_CODES = new Set([
@@ -172,12 +188,86 @@ function ccePolicyRefusal(code, reason, detail = null) {
   });
 }
 
+export const COMMITTED_SLICE_INTEGRATION_REFUSAL_DIAGNOSTIC_CODES = Object.freeze([...new Set([
+  ...Object.values(SLICE_INTEGRATION_DIAGNOSTIC_CODES),
+  ...Object.values(CCE_POLICY_REFUSAL_CODES),
+  ...Object.values(COMMITTED_SLICE_REVIEW_ADMISSION_CODES),
+  ...BACKEND_UNAVAILABLE_CODES,
+  "agent_launch.slice_integration.current_binding_stale.v1",
+  "agent_launch.slice_integration.current_binding_unavailable.v1"
+])]);
+export const COMMITTED_SLICE_INTEGRATION_REFUSAL_DIAGNOSTIC_KINDS = Object.freeze([
+  "returned_cce_policy_decision",
+  "configured_cce_evidence_failure"
+]);
+export const COMMITTED_SLICE_INTEGRATION_PUBLIC_BLOCKER_CODES = Object.freeze(
+  Object.values(PUBLIC_BLOCKER_CODES)
+);
+const APPROVED_REFUSAL_DIAGNOSTIC_CODES = new Set(COMMITTED_SLICE_INTEGRATION_REFUSAL_DIAGNOSTIC_CODES);
+const APPROVED_REFUSAL_DIAGNOSTIC_KINDS = new Set(COMMITTED_SLICE_INTEGRATION_REFUSAL_DIAGNOSTIC_KINDS);
+const COMMITTED_SLICE_INTEGRATION_REFUSALS = new WeakMap();
+
+export function projectCommittedSliceIntegrationRefusal(value) {
+  return COMMITTED_SLICE_INTEGRATION_REFUSALS.get(value) ?? null;
+}
+
+export const COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS = Object.freeze({
+  UNCHANGED: "relevant_inputs_unchanged",
+  CHANGED: "relevant_inputs_changed",
+  COMPLETED: "authenticated_completion_available",
+  UNKNOWN: "correction_unknown"
+});
+const COMMITTED_SLICE_INTEGRATION_RETRY_FACTS = new WeakMap();
+const RETRY_FACTS_BRAND = new WeakSet();
+
+export function resolveCommittedSliceIntegrationRetryFacts(value) {
+  return COMMITTED_SLICE_INTEGRATION_RETRY_FACTS.get(value) ?? null;
+}
+
+function registerRetryFacts(result, { subject, correction }) {
+  const facts = Object.freeze({
+    schema_version: "committed-slice-integration-retry-facts.v1",
+    subject,
+    reason: correction.reason,
+    correction_condition: correction.condition,
+    decision_inputs: correction.decision_inputs,
+
+    grants_authority: false
+  });
+  RETRY_FACTS_BRAND.add(facts);
+  COMMITTED_SLICE_INTEGRATION_RETRY_FACTS.set(result, facts);
+  return result;
+}
+
+function sameDecisionInputs(left, right) {
+  const changed = [];
+  for (const field of ["subject", "diff_base_sha", "base_tree_sha", "reviewed_sha"]) {
+    if (left[field] !== right[field]) changed.push(field);
+  }
+  if (left.write_scope.length !== right.write_scope.length ||
+      left.write_scope.some((entry, index) => entry !== right.write_scope[index])) {
+    changed.push("write_scope");
+  }
+  return Object.freeze(changed);
+}
+
+function nonIntegratedFromError(error, fallbackReason) {
+  const result = {
+    integrated: false,
+    reason: error?.detail?.reason ?? fallbackReason
+  };
+  if (typeof error?.code === "string") result.code = error.code;
+  if (error?.detail !== undefined) result.detail = error.detail;
+  result.evidence = captureDiagnosticEvidence(error);
+  return classifiedNonIntegratedResult(Object.freeze(result));
+}
+
 function classifiedNonIntegratedResult(result) {
   if (result?.integrated === true) return result;
   const refusalCode = result?.refusal?.code;
   const publicBlockerCode = result?.refusal?.diagnostic_kind ===
       "returned_cce_policy_decision" || CCE_POLICY_DECISION_REFUSAL_CODES.has(refusalCode)
-    ? PUBLIC_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED
+    ? PUBLIC_BLOCKER_CODES.CCE_POLICY_REFUSED
     : result?.refusal?.diagnostic_kind === "configured_cce_evidence_failure" ||
         CCE_EVIDENCE_FAILURE_REFUSAL_CODES.has(refusalCode)
       ? PUBLIC_BLOCKER_CODES.BACKEND_UNAVAILABLE
@@ -185,8 +275,24 @@ function classifiedNonIntegratedResult(result) {
         ? PUBLIC_BLOCKER_CODES.VALIDATION_FAILURE
         : BACKEND_UNAVAILABLE_CODES.has(result?.code)
           ? PUBLIC_BLOCKER_CODES.BACKEND_UNAVAILABLE
-          : PUBLIC_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
-  return Object.freeze({ ...result, public_blocker_code: publicBlockerCode });
+          : PUBLIC_BLOCKER_CODES.CLASSIFICATION_UNAVAILABLE;
+  const classified = Object.freeze({ ...result, public_blocker_code: publicBlockerCode });
+  const diagnosticCode = typeof refusalCode === "string" ? refusalCode : result?.code;
+  const reason = result?.refusal?.reason ?? result?.reason;
+  const projection = Object.freeze({
+    reason: typeof reason === "string" ? reason : null,
+    diagnostic_code: APPROVED_REFUSAL_DIAGNOSTIC_CODES.has(diagnosticCode) ? diagnosticCode : null,
+    diagnostic_kind: APPROVED_REFUSAL_DIAGNOSTIC_KINDS.has(result?.refusal?.diagnostic_kind)
+      ? result.refusal.diagnostic_kind
+      : null,
+    public_blocker_code: publicBlockerCode
+  });
+  COMMITTED_SLICE_INTEGRATION_REFUSALS.set(classified, projection);
+
+  if (typeof classified.refusal === "object" && classified.refusal !== null) {
+    COMMITTED_SLICE_INTEGRATION_REFUSALS.set(classified.refusal, projection);
+  }
+  return classified;
 }
 
 function exactBoundaryTarget(context) {
@@ -286,10 +392,10 @@ const INTEGRATION_CLOSEOUT_CONTINUATION = Object.freeze({
     Object.freeze({ order: 1, action: "resume_original_worker_monitor", state: "current" })
   ]),
   monitor_resumption: Object.freeze({
-    tools: Object.freeze(["workspace_agent_run_status", "workspace_agent_run_wait"]),
-    monitor_handle_source: "launcher_minted_original_worker_monitor_handle",
-    monitor_handle_included: false,
-    instruction: "Reuse the launcher-minted handle from the original worker monitor."
+    tools: Object.freeze(["workspace_agent_run_status"]),
+    subject_source: "canonical_integrated_slice",
+    subject_included: false,
+    instruction: "Observe the canonical slice subject; include attempt_id only when status reports ambiguity."
   })
 });
 
@@ -304,8 +410,13 @@ export function createBackendIntegration(ctx) {
     canonicalCommittedSliceIntegrationAttempts,
     committedSliceIntegrationTargetKey
   } = ctx;
-  const { resolveDurableIntegrationContinuation } =
-    createBackendIntegrationContinuation(ctx);
+  const canonicalCommittedSliceIntegrationsByDelivery =
+    ctx.canonicalCommittedSliceIntegrationsByDelivery ?? new Map();
+  const { resolveDurableIntegrationContinuation, resolveLiveCompletedIntegration } =
+    createBackendIntegrationContinuation({
+      ...ctx,
+      canonicalCommittedSliceIntegrationsByDelivery
+    });
 
   async function resolveCurrentIntegrationBinding({ context }) {
     const record = JSON.parse(context.canonical_parent_wk_contract);
@@ -357,7 +468,8 @@ export function createBackendIntegration(ctx) {
       schema_version: "slice-integration-binding-refusal.v1",
       code: error?.code ?? "agent_launch.slice_integration.current_binding_unavailable.v1",
       reason: error?.detail?.reason ?? error?.message ?? "current integration binding unavailable",
-      detail: error?.detail ?? null
+      detail: error?.detail ?? null,
+      evidence: captureDiagnosticEvidence(error)
     })
   }));
 
@@ -404,7 +516,10 @@ export function createBackendIntegration(ctx) {
         refusal: ccePolicyRefusal(
           CCE_POLICY_REFUSAL_CODES.UNAVAILABLE,
           "configured CCE policy authorization is unavailable",
-          { diagnostic_code: typeof error?.code === "string" ? error.code : null }
+          {
+            diagnostic_code: typeof error?.code === "string" ? error.code : null,
+            evidence: captureDiagnosticEvidence(error)
+          }
         )
       };
     }
@@ -418,10 +533,13 @@ export function createBackendIntegration(ctx) {
       };
     }
     let decisionBytes;
+    let serializationEvidence = null;
     try {
       decisionBytes = Buffer.byteLength(JSON.stringify(decision), "utf8");
-    } catch {
+    } catch (error) {
+
       decisionBytes = CCE_POLICY_DECISION_MAX_BYTES + 1;
+      serializationEvidence = captureDiagnosticEvidence(error);
     }
     if (decisionBytes > CCE_POLICY_DECISION_MAX_BYTES) {
       return {
@@ -429,7 +547,11 @@ export function createBackendIntegration(ctx) {
         refusal: ccePolicyRefusal(
           CCE_POLICY_REFUSAL_CODES.OVERSIZED,
           "configured CCE policy returned an oversized decision",
-          { observed_bytes: decisionBytes, max_bytes: CCE_POLICY_DECISION_MAX_BYTES }
+          {
+            observed_bytes: decisionBytes,
+            max_bytes: CCE_POLICY_DECISION_MAX_BYTES,
+            ...(serializationEvidence === null ? {} : { serialization_evidence: serializationEvidence })
+          }
         )
       };
     }
@@ -518,6 +640,15 @@ export function createBackendIntegration(ctx) {
     }
     const cceConfigured = isPlainObject(sliceIntegrationCcePolicy) &&
       sliceIntegrationCcePolicy.configured === true;
+    let retainedRecoveryEvidence = null;
+
+    const withRetainedRecoveryEvidence = (result) =>
+      retainedRecoveryEvidence === null || result?.integrated === true
+        ? result
+        : classifiedNonIntegratedResult(Object.freeze({
+          ...result,
+          retained_recovery_evidence: retainedRecoveryEvidence
+        }));
     let context;
     const retainedContext = frozenSliceReviewContexts.get(subject) ?? null;
     if (retainedContext !== null &&
@@ -568,6 +699,7 @@ export function createBackendIntegration(ctx) {
       } catch (error) {
         if (error?.refusal !== undefined) return error.refusal;
 
+        retainedRecoveryEvidence = captureDiagnosticEvidence(error);
       }
     }
     try {
@@ -604,12 +736,13 @@ export function createBackendIntegration(ctx) {
         worktree_identity: admission.identity
       });
     } catch (error) {
-      const result = {
-        integrated: false,
-        reason: error?.detail?.reason ?? "canonical_committed_slice_integration_unavailable"
-      };
-      if (typeof error?.code === "string") result.code = error.code;
-      return classifiedNonIntegratedResult(Object.freeze(result));
+      const result = withRetainedRecoveryEvidence(nonIntegratedFromError(
+        error,
+        "canonical_committed_slice_integration_unavailable"
+      ));
+
+      const correction = committedSliceScopeRefusalCorrection(error);
+      return correction === null ? result : registerRetryFacts(result, { subject, correction });
     }
 
     const evidence = emptySliceReviewAdvisoryEvidence(context);
@@ -618,15 +751,15 @@ export function createBackendIntegration(ctx) {
       ? normalizeAdvisoryDispositions(dispositions, evidence)
       : null;
     if (canonicalCommittedSliceIntegration === null) {
-      return classifiedNonIntegratedResult({
+      return withRetainedRecoveryEvidence(classifiedNonIntegratedResult({
         integrated: false,
         reason: "canonical committed-slice integration adapter is unavailable",
         code: "agent_launch.slice_integration.integration_backend_unavailable.v1"
-      });
+      }));
     }
     const key = committedSliceIntegrationTargetKey(context);
     if (canonicalCommittedSliceIntegrations.has(key)) {
-      return canonicalCommittedSliceIntegrations.get(key);
+      return withRetainedRecoveryEvidence(await canonicalCommittedSliceIntegrations.get(key));
     }
     if (!canonicalCommittedSliceIntegrationAttempts.has(key)) {
       const attempt = (async () => {
@@ -688,26 +821,35 @@ export function createBackendIntegration(ctx) {
             ? { closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION }
             : {})
         }));
-        canonicalCommittedSliceIntegrations.set(key, Promise.resolve(result));
+        const settled = Promise.resolve(result);
+        canonicalCommittedSliceIntegrations.set(key, settled);
+        if (result?.integrated === true) {
+          canonicalCommittedSliceIntegrationsByDelivery.set(
+            committedSliceIntegrationDeliveryKey(context),
+            settled
+          );
+        }
         return result;
       })();
       canonicalCommittedSliceIntegrationAttempts.set(key, attempt);
     }
     try {
-      return await canonicalCommittedSliceIntegrationAttempts.get(key);
+      return withRetainedRecoveryEvidence(await canonicalCommittedSliceIntegrationAttempts.get(key));
     } catch (error) {
-      const result = {
-        integrated: false,
-        reason: error?.detail?.reason ?? "canonical committed-slice integration failed"
-      };
-      if (typeof error?.code === "string") result.code = error.code;
-      return classifiedNonIntegratedResult(Object.freeze(result));
+      return withRetainedRecoveryEvidence(nonIntegratedFromError(
+        error,
+        "canonical committed-slice integration failed"
+      ));
     } finally {
       canonicalCommittedSliceIntegrationAttempts.delete(key);
     }
   }
 
-  async function resolveCommittedSliceIntegrationContinuation({ subject, status } = {}) {
+  async function resolveCommittedSliceIntegrationContinuation({
+    subject,
+    status,
+    live_completion_only: liveCompletionOnly = false
+  } = {}) {
     const context = frozenSliceReviewContexts.get(subject) ?? null;
     if (context !== null) {
       const completed = canonicalCommittedSliceIntegrations.get(
@@ -735,12 +877,72 @@ export function createBackendIntegration(ctx) {
         });
       }
     }
+    const liveCompletion = await resolveLiveCompletedIntegration({ subject, status });
+    if (liveCompletion !== null) return liveCompletion;
+    if (liveCompletionOnly === true) return null;
     return resolveDurableIntegrationContinuation({ subject, status });
+  }
+
+  async function assessCommittedSliceIntegrationRetry({ subject, status, facts } = {}) {
+    const unknown = (reason, evidence = null) => Object.freeze({
+      decision: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.UNKNOWN,
+      reason,
+      grants_authority: false,
+      ...(evidence === null ? {} : { evidence })
+    });
+    if (!RETRY_FACTS_BRAND.has(facts) || facts.subject !== subject ||
+        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "")) {
+      return unknown("retry_facts_unauthenticated");
+    }
+    if (worktreeProvisioningConfig === null || worktreeProvisioningConfig === undefined) {
+      return unknown("integration_backend_unavailable");
+    }
+
+    try {
+      const continuation = await resolveCommittedSliceIntegrationContinuation({
+        subject, status, live_completion_only: true
+      });
+      if (continuation?.completed === true) {
+        return Object.freeze({
+          decision: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.COMPLETED,
+          grants_authority: false
+        });
+      }
+    } catch (error) {
+      return unknown("completion_observation_failed", captureDiagnosticEvidence(error));
+    }
+    let current;
+    try {
+      const unit = resolveCanonicalSliceIntegrationUnit(worktreeProvisioningConfig.mainRepo, subject);
+      current = resolveCommittedSliceScopeDecisionInputs({
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        subject,
+        reviewUnit: unit,
+        runGit: reviewContextRunGit
+      }).decision_inputs;
+    } catch (error) {
+      return unknown("correction_assessment_failed", captureDiagnosticEvidence(error));
+    }
+    const changed = sameDecisionInputs(facts.decision_inputs, current);
+    return Object.freeze(changed.length === 0
+      ? {
+          decision: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.UNCHANGED,
+          correction_condition: facts.correction_condition,
+          reason: facts.reason,
+          grants_authority: false
+        }
+      : {
+          decision: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.CHANGED,
+          correction_condition: facts.correction_condition,
+          changed_inputs: changed,
+          grants_authority: false
+        });
   }
 
   return {
     resolveSliceIntegrationBoundaryAuthorization,
     requestCommittedSliceIntegration,
-    resolveCommittedSliceIntegrationContinuation
+    resolveCommittedSliceIntegrationContinuation,
+    assessCommittedSliceIntegrationRetry
   };
 }

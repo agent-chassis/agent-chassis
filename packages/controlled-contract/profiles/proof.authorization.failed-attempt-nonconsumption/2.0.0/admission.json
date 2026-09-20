@@ -16,8 +16,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "19914ae8aa4aae35cfde18b969034256736e586faeec02f4cad89dc0464256e5",
-    "adequacy_result_digest": "502a2c5af65ded4156c621a37c3c056c203af799f7edb2bd7a55e3f6deade60e",
+    "adequacy_declaration_digest": "2a13291a415ae7f8f53d1b61c16316598f3b456b1d93e650e937545a1b64c17f",
+    "adequacy_result_digest": "9c000e6c8bb48cb921de0b97d05c6f543878d2e745766b66c6dabcf7cdb433b0",
     "executable_control_count": 59,
     "negative_fixture_count": 87,
     "coverage_witness_count": 200

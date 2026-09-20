@@ -1,56 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  classifySidecarArtifactSchema,
-  isSupportedSidecarArtifactSchema,
-  isSupportedSidecarSchemaVersion,
-  SIDECAR_ARTIFACT_SCHEMA_FIELD,
-  SIDECAR_ARTIFACT_SCHEMA_VERSION,
-  SIDECAR_SCHEMA_VERSION
-} from "../../packages/wiki-core/src/index.mjs";
+import { isSupportedSidecarSchemaVersion, SIDECAR_SCHEMA_VERSION } from
+  "../../packages/wiki-core/src/index.mjs";
+import { SIDECAR_STORE_GRAPH_FILE, SIDECAR_STORE_SCHEMA_VERSION } from
+  "../../packages/wiki-core/src/lib/sidecar-store-schema.mjs";
+import { SIDECAR_DEFAULT_ARTIFACT_FILE } from
+  "../../packages/wiki-core/src/lib/sidecar-status.mjs";
 
-test("sidecar schema version constants are pinned", () => {
+test("public result and SQLite store schemas are independently pinned", () => {
   assert.equal(SIDECAR_SCHEMA_VERSION, "repo-code-index.v1");
-  assert.equal(SIDECAR_ARTIFACT_SCHEMA_VERSION, "repo-code-index.v1");
-});
-
-test("sidecar schema version helpers fail closed for incompatible artifacts", () => {
+  assert.equal(SIDECAR_STORE_SCHEMA_VERSION, "repo-code-store.v5");
+  assert.equal(SIDECAR_STORE_GRAPH_FILE, "graph.sqlite");
+  assert.equal(SIDECAR_DEFAULT_ARTIFACT_FILE, "graph.sqlite");
   assert.equal(isSupportedSidecarSchemaVersion(SIDECAR_SCHEMA_VERSION), true);
   assert.equal(isSupportedSidecarSchemaVersion("repo-code-index.v0"), false);
-  assert.equal(
-    isSupportedSidecarArtifactSchema({
-      [SIDECAR_ARTIFACT_SCHEMA_FIELD]: SIDECAR_ARTIFACT_SCHEMA_VERSION
-    }),
-    true
-  );
-  assert.equal(isSupportedSidecarArtifactSchema({}), false);
-
-  assert.deepEqual(classifySidecarArtifactSchema(null), {
-    compatible: false,
-    staleness: "missing",
-    reason: "artifact_missing"
-  });
-  assert.deepEqual(
-    classifySidecarArtifactSchema({
-      [SIDECAR_ARTIFACT_SCHEMA_FIELD]: SIDECAR_ARTIFACT_SCHEMA_VERSION
-    }),
-    {
-      compatible: true,
-      staleness: "unknown",
-      reason: "schema_compatible"
-    }
-  );
-  assert.deepEqual(classifySidecarArtifactSchema({}), {
-    compatible: false,
-    staleness: "rebuild_required",
-    reason: "schema_incompatible"
-  });
-  assert.notEqual(classifySidecarArtifactSchema({}).staleness, "fresh");
-  assert.notEqual(
-    classifySidecarArtifactSchema({
-      [SIDECAR_ARTIFACT_SCHEMA_FIELD]: "repo-code-index.v0"
-    }).staleness,
-    "fresh"
-  );
 });

@@ -1,0 +1,28 @@
+{
+  "schema_version": "wk2520-authoring-journeys.v1",
+  "evidence_kind": "synthetic_counter_unit_fixture_not_benchmark_evidence",
+  "token_measurement": {
+    "state": "unavailable",
+    "reason": "synthetic_step_lists_do_not_observe_a_client_model_projection"
+  },
+  "journeys": [
+    {
+      "id": "add",
+      "same_semantic_outcome": "one new requirement is accepted and the next semantic question is visible",
+      "before": ["prepare", "retrieve_question", "semantic_add", "advance_authoring", "retrieve_next_question"],
+      "after": ["prepare_with_question", "semantic_add_with_automatic_continuation_and_next_question"]
+    },
+    {
+      "id": "edit",
+      "same_semantic_outcome": "one selected existing meaning is changed and unrelated meaning is preserved",
+      "before": ["prepare", "retrieve_question", "semantic_edit", "advance_authoring", "retrieve_next_question"],
+      "after": ["prepare_with_question", "semantic_edit_with_automatic_continuation_and_next_question"]
+    },
+    {
+      "id": "recover",
+      "same_semantic_outcome": "an owner-certified effect-free failure is corrected once and publishes exactly once",
+      "before": ["prepare", "retrieve_question", "semantic_refused", "refresh", "retrieve_question_again", "semantic_correction", "advance_authoring", "retrieve_next_question"],
+      "after": ["prepare_with_question", "semantic_refused_with_safe_correction", "semantic_correction_with_automatic_continuation_and_next_question"]
+    }
+  ]
+}

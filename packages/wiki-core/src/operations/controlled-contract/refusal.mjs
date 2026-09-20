@@ -355,6 +355,14 @@ function controlledContractMechanicalRefusal(classification, operation, stage) {
   });
 }
 
+const PRESERVED_CAUSES = new WeakMap();
+
+function preservedCause(error, classification) {
+  if (classification.disposition !== "package_defined") return error;
+  const referable = error !== null && (typeof error === "object" || typeof error === "function");
+  return referable && PRESERVED_CAUSES.has(error) ? PRESERVED_CAUSES.get(error) : undefined;
+}
+
 export function createControlledContractRefusal(
   error,
   { operation = "controlled_contract_operation", stage = "operation" } = {}
@@ -368,6 +376,13 @@ export function createControlledContractRefusal(
     typeof rawMessage === "string" ? rawMessage : safeStringify(rawMessage),
     refusalDetails(error, classification, operation, stage)
   );
+  const cause = preservedCause(error, classification);
+  if (cause !== undefined) {
+    Object.defineProperty(refusal, "cause", {
+      value: cause, writable: true, configurable: true, enumerable: false
+    });
+    PRESERVED_CAUSES.set(refusal, cause);
+  }
   const mechanicalRefusal = controlledContractMechanicalRefusal(classification, operation, stage);
   refusal.envelope = Object.freeze({
     schema_version: "controlled-contract-mcp-refusal.v1",

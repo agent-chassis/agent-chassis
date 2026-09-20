@@ -2,37 +2,14 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 const PROOF_EVALUATOR_REGISTRY_ID = "controlled-contract-proof-evaluator-registry";
-const PROOF_EVALUATOR_REGISTRY_VERSION = "1.0.0";
+const PROOF_EVALUATOR_REGISTRY_VERSION = "2.0.0";
 const entries = Object.freeze({
-  "proof.verification.test-validity\u00002.0.0\u0000pre_dispatch": Object.freeze({
-    module_url: new URL(
-      "../profiles/proof.verification.test-validity/2.0.0/evaluator.mjs", import.meta.url
-    ),
-    export_name: "evaluateTestValidity",
-    implementation_id: "proof.verification.test-validity.pre-dispatch-evaluator",
-    implementation_version: "2.0.0",
-    implementation_digest:
-      "sha256:a3f43fc9bd60b2ed0a2e3faef4a6f007149f8919a7d69b485c3c8eb4581a70ac"
-  }),
-  "proof.verification.test-validity\u00003.0.0\u0000post_delivery": Object.freeze({
-    module_url: new URL(
-      "../profiles/proof.verification.test-validity/3.0.0/evaluator.mjs", import.meta.url
-    ),
-    export_name: "evaluatePostDeliveryTestValidity",
-    implementation_id: "proof.verification.test-validity.post-delivery-evaluator",
-    implementation_version: "3.0.0",
-    implementation_digest:
-      "sha256:c7920b44a165d830e8853c3e37be7a4ad7d76db64102d1e431e51c630403d606"
-  }),
-  "proof.verification.test-validity\u00004.0.0\u0000post_delivery": Object.freeze({
-    module_url: new URL(
-      "../profiles/proof.verification.test-validity/4.0.0/evaluator.mjs", import.meta.url
-    ),
-    export_name: "evaluatePostDeliveryTestValidity",
-    implementation_id: "proof.verification.test-validity.post-delivery-evaluator",
-    implementation_version: "4.0.0",
-    implementation_digest:
-      "sha256:a752973888681a204273f4d3537bfe38100371d74aa3d149ded946fb56ce483f"
+  "proof.verification.test-validity\u000010.0.0": Object.freeze({
+    module_path: "profiles/proof.verification.test-validity/10.0.0/evaluator.mjs",
+    export_name: "evaluateExecutionTestValidity",
+    implementation_id: "proof.verification.test-validity.execution-evaluator",
+    implementation_version: "8.0.0",
+    implementation_digest: "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f"
   })
 });
 
@@ -45,25 +22,27 @@ class ProofEvaluatorRegistryError extends Error {
   }
 }
 
-function registryKey(profileId, profileVersion, evaluationStage) {
-  return `${profileId}\u0000${profileVersion}\u0000${evaluationStage}`;
+function registryKey(profileId, profileVersion) {
+  return `${profileId}\u0000${profileVersion}`;
 }
 
-async function resolveExactProofEvaluator({
-  proofPack,
-  evaluationStage,
-  expectedImplementationDigest = null,
-  expectedImplementationId = null
-}) {
+async function resolveExactProofEvaluator(request) {
+  const allowed = new Set(["proofPack", "expectedImplementationDigest", "expectedImplementationId"]);
+  if (request === null || typeof request !== "object" || Array.isArray(request) ||
+      Object.keys(request).some((key) => !allowed.has(key))) {
+    throw new ProofEvaluatorRegistryError("verify_proof.evaluator_identity_invalid.v1",
+      "evaluator selection accepts only the exact pack and expected implementation identity");
+  }
+  const { proofPack, expectedImplementationDigest = null,
+    expectedImplementationId = null } = request;
   const profileId = proofPack?.profile?.profile_id;
   const profileVersion = proofPack?.profile?.profile_version;
-  const entry = entries[registryKey(profileId, profileVersion, evaluationStage)];
+  const entry = entries[registryKey(profileId, profileVersion)];
   if (entry === undefined) return Object.freeze({
     status: "not_executable",
     reason_code: "verify_proof.exact_evaluator_unavailable.v1",
     profile_id: profileId ?? null,
     profile_version: profileVersion ?? null,
-    evaluation_stage: evaluationStage
   });
   if (expectedImplementationId !== null &&
       expectedImplementationId !== entry.implementation_id) {
@@ -81,14 +60,15 @@ async function resolveExactProofEvaluator({
       { expected: expectedImplementationDigest, actual: entry.implementation_digest }
     );
   }
-  const bytes = await readFile(entry.module_url);
+  const moduleUrl = new URL(`../${entry.module_path}`, import.meta.url);
+  const bytes = await readFile(moduleUrl);
   const actualDigest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
   if (actualDigest !== entry.implementation_digest) throw new ProofEvaluatorRegistryError(
     "verify_proof.evaluator_digest_mismatch.v1",
     "resolved evaluator bytes do not reproduce the registry digest",
     { expected: entry.implementation_digest, actual: actualDigest }
   );
-  const module = await import(entry.module_url.href);
+  const module = await import(moduleUrl.href);
   const evaluate = module[entry.export_name];
   if (typeof evaluate !== "function") throw new ProofEvaluatorRegistryError(
     "verify_proof.evaluator_export_mismatch.v1",
@@ -101,7 +81,6 @@ async function resolveExactProofEvaluator({
     registry_version: PROOF_EVALUATOR_REGISTRY_VERSION,
     profile_id: profileId,
     profile_version: profileVersion,
-    evaluation_stage: evaluationStage,
     implementation_id: entry.implementation_id,
     implementation_version: entry.implementation_version,
     implementation_digest: entry.implementation_digest,
@@ -109,7 +88,30 @@ async function resolveExactProofEvaluator({
   });
 }
 
+function exactProofEvaluatorIdentities() {
+  return Object.freeze(exactProofEvaluatorDescriptors().map(
+    ({ profile_id, profile_version }) => Object.freeze({ profile_id, profile_version })
+  ));
+}
+
+function exactProofEvaluatorDescriptors() {
+  return Object.freeze(Object.entries(entries).map(([key, entry]) => {
+    const [profile_id, profile_version] = key.split("\u0000");
+    return Object.freeze({
+      profile_id,
+      profile_version,
+      module_path: entry.module_path,
+      export_name: entry.export_name,
+      implementation_id: entry.implementation_id,
+      implementation_version: entry.implementation_version,
+      implementation_digest: entry.implementation_digest
+    });
+  }));
+}
+
 export {
+  exactProofEvaluatorDescriptors,
+  exactProofEvaluatorIdentities,
   PROOF_EVALUATOR_REGISTRY_ID,
   PROOF_EVALUATOR_REGISTRY_VERSION,
   ProofEvaluatorRegistryError,

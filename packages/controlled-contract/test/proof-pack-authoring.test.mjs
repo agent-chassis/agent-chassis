@@ -22,7 +22,7 @@ const cli = path.join(packageRoot, "bin", "describe-proof-pack.mjs");
 const refusalIntent = "controlled-proof-intent.refusal-before-effects";
 const refusalPack = {
   profileId: "proof.authorization.refusal-before-effects",
-  profileVersion: "2.0.0",
+  profileVersion: "4.0.0",
   requestedIntents: [refusalIntent]
 };
 
@@ -58,7 +58,7 @@ test("every admitted pack has one bounded typed authoring projection", async () 
       /negative-fixtures|coverage_witness|adequacy\.json|executable_module/u);
     assert.equal(serialized.includes(`${packageRoot}/`), false);
   }
-  assert.equal(catalog.packs.length, 38);
+  assert.equal(catalog.packs.length, 37);
   assert(largest.bytes > 0);
 });
 

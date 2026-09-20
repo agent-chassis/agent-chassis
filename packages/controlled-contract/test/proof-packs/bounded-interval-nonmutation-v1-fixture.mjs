@@ -3,10 +3,10 @@ import { PROFILE_ID_V1, SCHEMA_VERSION_V1, VOCABULARY_VERSION_V1 }
   from "../../lib/native-contract-carrier-v1.mjs";
 
 const BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE = JSON.parse(await readFile(
-  new URL("../certification/profiles/proof.state.bounded-interval-nonmutation/2.0.0/profile.json",
+  new URL("../certification/profiles/proof.state.bounded-interval-nonmutation/3.0.0/profile.json",
     import.meta.url), "utf8"));
 const INPUT_TEMPLATE = JSON.parse(await readFile(
-  new URL("../certification/profiles/proof.state.bounded-interval-nonmutation/2.0.0/evaluation-input.template.json",
+  new URL("../certification/profiles/proof.state.bounded-interval-nonmutation/3.0.0/evaluation-input.template.json",
     import.meta.url), "utf8"));
 const DEFAULT_ROLE_IDS = Object.freeze(Object.fromEntries(INPUT_TEMPLATE.reference_bindings.map(
   ({ role, reference_ids }) => [role, Object.freeze([...reference_ids])])));
@@ -58,8 +58,7 @@ function buildBoundedIntervalNonmutationFixture({ profile: suppliedProfile = BOU
   role_type_overrides: roleTypeOverrides = {}, identity_overrides: identityOverrides = {},
   number_value_overrides: numberValueOverrides = {}, verification_method: verificationMethod = "test_execution",
   verification_method_overrides: verificationMethodOverrides = {},
-  modality_overrides: modalityOverrides = {}, evaluation_stage: evaluationStage = "pre_dispatch",
-  drop_pattern_ids: dropPatternIds = [], proposition_overrides: propositionOverrides = {},
+  modality_overrides: modalityOverrides = {}, drop_pattern_ids: dropPatternIds = [], proposition_overrides: propositionOverrides = {},
   mutate_contract: mutateContract, mutate_input: mutateInput } = {}) {
   const profile = structuredClone(suppliedProfile);
   const roleIds = Object.fromEntries(Object.entries(DEFAULT_ROLE_IDS).map(([role, ids]) =>
@@ -116,8 +115,7 @@ function buildBoundedIntervalNonmutationFixture({ profile: suppliedProfile = BOU
     return source_claim_id && target_claim_id ? [{ relation_id: `rel-${pattern.pattern_id}`,
       role: pattern.role, source_claim_id, target_claim_id }] : [];
   });
-  const input = { input_version: INPUT_TEMPLATE.input_version, evaluation_stage: evaluationStage,
-    reference_bindings: profile.reference_roles.map(({ role }) => ({ role, reference_ids: [...roleIds[role]] })),
+  const input = { input_version: INPUT_TEMPLATE.input_version, reference_bindings: profile.reference_roles.map(({ role }) => ({ role, reference_ids: [...roleIds[role]] })),
     number_bindings: profile.number_roles.map(({ role }) => ({ role, value: numberValues[role] })),
     claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {} };
   mutateContract?.(contract, { claimIdsByPattern, roleIds, numberValues });

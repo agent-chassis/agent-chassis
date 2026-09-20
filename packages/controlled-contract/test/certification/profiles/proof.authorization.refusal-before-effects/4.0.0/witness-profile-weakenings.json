@@ -1,0 +1,2100 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.2",
+  "profile_digest": "e5cfc6aec27a79ce6e0c165bbf29ea676b9a0a5a62093c0ed43e44116c968c0b",
+  "witnesses": [
+    {
+      "surface_id": "claim-attempt-performs-operation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-attempt-performs-operation",
+      "variant_id": "reject-weakened-modality-attempt-performs-operation",
+      "weakened_profile_digest": "874adf12783f8e5960653894b9b211d64b51afc9d20e070801ce4676cde2733e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d6174",
+      "weakened_profile_digest": "00e7f8875b06e7962f47e4988cdc2cfb97775852701d4f291f1586e3f61863d2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "attempt-performs-operation-operator-reference-accepts",
+      "weakened_profile_digest": "5f6b4a9ee5669169b5e7cd2a1e031260c7393bd42308b92bcbc221cb5ebd6589",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d6175",
+      "weakened_profile_digest": "821b2db1bac5619d1f012a3192192493d88556fff23d0e33eda4c87be1388b6f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-precedes-protected-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-attempt-precedes-protected-interval",
+      "variant_id": "reject-weakened-modality-attempt-precedes-protected-interval",
+      "weakened_profile_digest": "e89ea372a9a7b3d748436e59a18fd1fc132f5768df67d35be3107470185bede6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d6175",
+      "weakened_profile_digest": "17e0b7081ddf364c1f46d8349cb375fa3a9528a340e85402681993bd7a721fbb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-precedes-protected-interval-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "attempt-precedes-protected-interval-operator-reference-accepts",
+      "weakened_profile_digest": "7c46df53c6a9a3b8bf1b3a21abe27c3e75c8cf937d7697b73f7c7bf63ce1f3b9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-subject-value-5b227265662d6175",
+      "weakened_profile_digest": "352c431af460b7930cf086e0a487ba2c3f3777e9c3de59d478da7692669192d2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-uses-subject-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-attempt-uses-subject",
+      "variant_id": "reject-weakened-modality-attempt-uses-subject",
+      "weakened_profile_digest": "a8be888c49e5504a9ae402e9485bc574bf5ba54eff75d99fd339dbdbf484cc56",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d6174",
+      "weakened_profile_digest": "50f079d32e6405ff42cace3c1f21235486be3cf25d95c32eb9bbfe5f8bb5fc38",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-uses-subject-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "attempt-uses-subject-operator-reference-accepts",
+      "weakened_profile_digest": "0746638447d70ab1b93f6c2dfbcd9c717238ff8bb985db7afcd613acc7c2b605",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-attempt-uses-subject-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d6175",
+      "weakened_profile_digest": "26ef9dbb42586ef82fabb767ac6c357cd79bcb6876948d369aaa6c314437a1aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-mutation-prohibition-verification",
+      "variant_id": "reject-weakened-modality-mutation-prohibition-verification",
+      "weakened_profile_digest": "2889c51a92cad9666b383c2ee012905ebc3653a1c7aedf8a7a0f8591d99010ac",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d6174",
+      "weakened_profile_digest": "d1dd6d45fdc62fe50e9f3a76ad1f01078ea56f267d352fdaf6031aeb7278c546",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "mutation-prohibition-verification-operator-reference-accepts",
+      "weakened_profile_digest": "0d1eec0072b34e2b9294d9091dc300ed7ad475e32d81df20acdd0c83ca409279",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "5b7bcb0cf5645ed2c1958a219826a3247ddd49eaf8796b7279874178061c6079",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-mutation-prohibition-verification-verification-methods-value-5b22617564697422",
+      "weakened_profile_digest": "4b5ac9e14c19d67e57397f82fb454e81a8c4e7514ec53a42bad062735dc293d2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "audit"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-no-protected-mutation-before-refusal-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-no-protected-mutation-before-refusal",
+      "variant_id": "reject-weakened-modality-no-protected-mutation-before-refusal",
+      "weakened_profile_digest": "ca4f852f003f085acfa473a7f3cb32ed6fceab1f2d6ef9d00999c089283bbb5d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-mode",
+      "weakened_profile_digest": "70b7bbe079004ba285243190bcada29f426df681c5fc4eb4102e5bdcffc97864",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands-value-5b5b227265662d61",
+      "weakened_profile_digest": "b09b0c45761cdeacad14d21a63b844d22a7c84f80cdce03ea822a4f7f431dbb3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "attempt"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-no-protected-write-before-refusal-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-no-protected-write-before-refusal",
+      "variant_id": "reject-weakened-modality-no-protected-write-before-refusal",
+      "weakened_profile_digest": "8869497e9ac4333a86fa50311b46538843c4b5b6090306ae4d72f3864ac795f8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-mode",
+      "weakened_profile_digest": "02a42edb6742ea09aed7e64891520836f301471e7f1a435534e87a8b3272b494",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands-value-5b5b227265662d61",
+      "weakened_profile_digest": "d742ab126c75e7bd12f231acd5471d81131fee0e4c0252fbaff4f8422a1edbd7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "attempt"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-deleted-claim-attempt-performs-operation",
+      "variant_id": "reject-deleted-claim-attempt-performs-operation",
+      "weakened_profile_digest": "35136e2e463b9bc0a2a48c1cb8ccf7338c0d610e424fdc7818ce7bb2f0cf47d7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:uses",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "subject"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "authority",
+                "operator": "reference:authorizes",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "operation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "subject"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "refusal",
+                "operator": "reference:rejects",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_interval"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "protected_interval",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "refusal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "protected_effect_population",
+                "operator": "reference:contains",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "protected_effect_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "protected_effect_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "attempt"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "refusal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "no-protected-write-before-refusal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "refusal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "refusal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "attempt"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "refusal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effect_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "refusal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "attempt-uses-subject",
+            "subject-unauthorized-for-operation",
+            "refusal-rejects-attempt",
+            "attempt-precedes-protected-interval",
+            "protected-interval-precedes-refusal",
+            "verification-observes-exact-proof-subjects"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "attempt-uses-subject"
+            },
+            {
+              "pattern": "subject-unauthorized-for-operation"
+            },
+            {
+              "pattern": "refusal-rejects-attempt"
+            },
+            {
+              "pattern": "attempt-precedes-protected-interval"
+            },
+            {
+              "pattern": "protected-interval-precedes-refusal"
+            },
+            {
+              "pattern": "protected-effect-population-membership"
+            },
+            {
+              "pattern": "protected-effect-population-cardinality"
+            },
+            {
+              "pattern": "verification-observes-exact-proof-subjects"
+            },
+            {
+              "pattern": "no-protected-write-before-refusal"
+            },
+            {
+              "pattern": "no-protected-mutation-before-refusal"
+            },
+            {
+              "pattern": "write-prohibition-verification"
+            },
+            {
+              "pattern": "mutation-prohibition-verification"
+            },
+            {
+              "pattern": "write-verification-target"
+            },
+            {
+              "pattern": "mutation-verification-target"
+            },
+            {
+              "pattern": "proof-population"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-cardinality-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-protected-effect-population-cardinality",
+      "variant_id": "reject-weakened-modality-protected-effect-population-cardinality",
+      "weakened_profile_digest": "2834a5efd0664e084bf646451405ccc3a609c7a9613b87938665ecbf651cba5c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-cardinality-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "protected-effect-population-cardinality-operator-number-emits",
+      "weakened_profile_digest": "8c376af7dc1e072748fa4c6acc9b032d5b1ab71d2c7fc19c5c06548aff8eea3d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "number:emits"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "21ed877062d7b4549d5a1b381d4116b3d2668210d65b69377d649d83a3dcbb0d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-membership-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-protected-effect-population-membership",
+      "variant_id": "reject-weakened-modality-protected-effect-population-membership",
+      "weakened_profile_digest": "ec215d891804820c9f959fa690bc12cc1b80979d785a5bf399aeb88a00885944",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-membership-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "protected-effect-population-membership-operand-0-role-subject",
+      "weakened_profile_digest": "82f1aaf1d0731f37e83e5967aded30dbd768cc033be6c577487694d0838e0baf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "subject"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-membership-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "protected-effect-population-membership-operator-reference-accepts",
+      "weakened_profile_digest": "9d15c680fc2b164ff349b3afcee36e3c2a18501511285a6f2fd7061f960fa283",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "6d7facced18dc502c352c8668de996bf322efd8da4132d5a0e50093b2219d76d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-interval-precedes-refusal-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-protected-interval-precedes-refusal",
+      "variant_id": "reject-weakened-modality-protected-interval-precedes-refusal",
+      "weakened_profile_digest": "2f9fb48563a35a822c0300544240cf11be38a53bf4c696cbc9d6c3a5af6a9264",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role-value-5b227265662d6175",
+      "weakened_profile_digest": "c6a23d6a1a80f133dcbdc87f1dbe66d013736c3eea67e804f1f893a1f9cec4b0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-interval-precedes-refusal-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "protected-interval-precedes-refusal-operator-reference-accepts",
+      "weakened_profile_digest": "6147d7dcf9f3a8d0588c46caa56fabd08642a3d1c98ac6ade1ffa3ff25edd797",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "993292f5dc8f85d0cefaba6bc5d13f29ce81d9e3f8df213241782ecaaadd94f8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-refusal-rejects-attempt-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-refusal-rejects-attempt",
+      "variant_id": "reject-weakened-modality-refusal-rejects-attempt",
+      "weakened_profile_digest": "2a746d06de18489195a4178c6688c06f5f52773ae28889aa8ae7368c529513f7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d6175",
+      "weakened_profile_digest": "6771f9b296216ccb6d585fee3fe1fc87aa3168a87f67808d72ae69d028419e30",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-refusal-rejects-attempt-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "refusal-rejects-attempt-operator-reference-accepts",
+      "weakened_profile_digest": "f60e47fa19b11fe5414208adab0f0336fa547fe0036fa7683e0a3cf24c119601",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "8c705b25b89367da7820c3cf00a94bea3f0691d59f5ccc613bd5973f15d52cc2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-subject-unauthorized-for-operation",
+      "variant_id": "reject-weakened-modality-subject-unauthorized-for-operation",
+      "weakened_profile_digest": "9efef0dc3f980b58830929d0d6f740fd808053c5a13a9af4c2cf1673e18ffe0d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-mode",
+      "weakened_profile_digest": "ba1fd4857a68c8eaa346a1636b5912a56c1f15068669286a9fc2fda34a5b3a10",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands-value-5b5b227265662d61",
+      "weakened_profile_digest": "ac02a9a97bdbb39617ce01d11407b187a0212ed4660ad81923a434809bb68376",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "attempt"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d6174",
+      "weakened_profile_digest": "a2ef03e917b5dd0dc92e1a1c3b57402ad4fb36297d2ec57fb2c17458f3b449de",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operator",
+      "weakened_profile_digest": "625ac157325bd33ed9f80d2026c630877d869ab95cb1c76c2a1cafdafd95c29f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "110e5348dd9afbf7773e134c69f1cd95fbebe5a4527483472ac57e6ed5a9e117",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-verification-observes-exact-proof-subjects",
+      "variant_id": "reject-weakened-modality-verification-observes-exact-proof-subjects",
+      "weakened_profile_digest": "8c18a7155a1617fb6dfc9860eb03d604bee982f6c7d85c669df893b0c3ee136b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d6175",
+      "weakened_profile_digest": "7787b43a72e51ec0ce492fd18c47992ca4802bc4081ab97e75bcb6da607ad22d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d6174",
+      "weakened_profile_digest": "af942f1e639661a99e05399fbb0321303e08422d100aee0d0b236a4520a86898",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/1/role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d6174",
+      "weakened_profile_digest": "fc1e5f760fe5b83adea4802f6c380aef449bf40be8cbee2c016e7699081a4ffd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/2/role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "verification-observes-exact-proof-subjects-operand-3-role-subject",
+      "weakened_profile_digest": "e760f908fbd41b77c834aab94c9db8ca901a447328741fb650b3ef688f6e854d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/3/role",
+          "value": "subject"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "verification-observes-exact-proof-subjects-operator-reference-accepts",
+      "weakened_profile_digest": "99c7d76b60435a680be03839c08ddb40f967e0016206f1cf7cd488b599e0a309",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "4ed0b12f65b0d3daffdd8c609de53ac5a38c370e7db05a84b9f1694619e6c8c7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-write-prohibition-verification",
+      "variant_id": "reject-weakened-modality-write-prohibition-verification",
+      "weakened_profile_digest": "93c5cbbb597709dd0d0ca55f8e0e00f951e61d97a84f94bacf87a1029aa21e3c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d6175",
+      "weakened_profile_digest": "77dd371c8ea551111745fa8042a20f186d5f2fc24764e9b8226deeda6698e68f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "authority"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "write-prohibition-verification-operator-reference-accepts",
+      "weakened_profile_digest": "637a6e7557f3f5d637774ed0819dc67da47735e0afa6573a2889830b9bd913df",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d6174",
+      "weakened_profile_digest": "599664b0a725b4f107b1135bc82cac62d47518fd1a0af5cc127a701ccc9fa980",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "attempt"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-write-prohibition-verification-verification-methods-value-5b22617564697422",
+      "weakened_profile_digest": "ca884fb6df5960b89cfa39023fce56b1c7f5ebf7a5f0255a51ab0faa1e65ad8f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "audit"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-candidate-quantifier",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-any-proof-population",
+      "variant_id": "reject-any-proof-population",
+      "weakened_profile_digest": "c5392c20913382de92df078fd4bdf9f8cfe106a590b551b835983e91c1b0b4b7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/candidate_quantifier",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-collection-kind",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-kind-and-match",
+      "weakened_profile_digest": "20846bfaf10bdd488a3315daccc91cbc2486f1113cfb64e16cb51718d6d71309",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_kind",
+          "value": "ordered_sequence"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/match_mode",
+          "value": "subsequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-collection-purpose",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-purpose",
+      "weakened_profile_digest": "7c92bab1212d8cb7de004c18a571203495b1e7f5665043800a33d8ca62b0424b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_purpose",
+          "value": "weakened_profile_proof_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-match-mode",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-kind-and-match",
+      "weakened_profile_digest": "20846bfaf10bdd488a3315daccc91cbc2486f1113cfb64e16cb51718d6d71309",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/match_mode",
+          "value": "subsequence"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_kind",
+          "value": "ordered_sequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-member-claim-pattern-ids",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-members",
+      "weakened_profile_digest": "9a6ceb7d3d6cfcbdc90439f7f9e00010b3fd2d18470886e4c601bc116cb6b760",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "attempt-performs-operation",
+            "attempt-uses-subject",
+            "subject-unauthorized-for-operation",
+            "refusal-rejects-attempt",
+            "attempt-precedes-protected-interval",
+            "protected-interval-precedes-refusal"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-unscoped-falsifier-mutation-prohibition-verification",
+      "variant_id": "reject-unscoped-falsifier-mutation-prohibition-verification",
+      "weakened_profile_digest": "95fa7856b32398bb4296d3853aab3a28016da84380c6f33a752335eaa1aae43f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "write-verification-target",
+              "applicability_context": {
+                "mode": "before",
+                "operand_roles": [
+                  "refusal"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "mutation-verification-target",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-unscoped-falsifier-write-prohibition-verification",
+      "variant_id": "reject-unscoped-falsifier-write-prohibition-verification",
+      "weakened_profile_digest": "350b354356b8bdc190c32c635e88bcc2c5198cf6c9ebb5508df1c2a66390be5c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "write-verification-target",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "relation_pattern_id": "mutation-verification-target",
+              "applicability_context": {
+                "mode": "before",
+                "operand_roles": [
+                  "refusal"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "number-role-variation",
+      "variant_id": "number-role-variation",
+      "weakened_profile_digest": "07f87f1d41528b926c1c272dc9de2acb37d5b14882e09c11755117a6416d39da",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles",
+          "value": [
+            {
+              "role": "weakened_count",
+              "cardinality": "exactly_one",
+              "number_type": "integer",
+              "minimum": 1
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings/0/number_role",
+          "value": "weakened_count"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/value_role",
+          "value": "weakened_count"
+        }
+      ]
+    },
+    {
+      "surface_id": "proof-collections",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-removed-proof-collections",
+      "variant_id": "reject-removed-proof-collections",
+      "weakened_profile_digest": "d344125e395f139f0ead97aeb178e61c066e664991defeb723a50a5b1efabf74",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "attempt-performs-operation"
+            },
+            {
+              "pattern": "attempt-uses-subject"
+            },
+            {
+              "pattern": "subject-unauthorized-for-operation"
+            },
+            {
+              "pattern": "refusal-rejects-attempt"
+            },
+            {
+              "pattern": "attempt-precedes-protected-interval"
+            },
+            {
+              "pattern": "protected-interval-precedes-refusal"
+            },
+            {
+              "pattern": "protected-effect-population-membership"
+            },
+            {
+              "pattern": "protected-effect-population-cardinality"
+            },
+            {
+              "pattern": "verification-observes-exact-proof-subjects"
+            },
+            {
+              "pattern": "no-protected-write-before-refusal"
+            },
+            {
+              "pattern": "no-protected-mutation-before-refusal"
+            },
+            {
+              "pattern": "write-prohibition-verification"
+            },
+            {
+              "pattern": "mutation-prohibition-verification"
+            },
+            {
+              "pattern": "write-verification-target"
+            },
+            {
+              "pattern": "mutation-verification-target"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-unbound-reference-count",
+      "variant_id": "reject-unbound-reference-count",
+      "weakened_profile_digest": "facc7ccce3404f8bcf21f62d5b0c8cc4869d2dd0c898806490f8dcc567dba9aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "role-attempt-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-attempt",
+      "variant_id": "reject-broadened-type-attempt",
+      "weakened_profile_digest": "bc8235303f43992631743211096abb45753400811b8591dc7c8eca370d95e2b5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authority-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-authority",
+      "variant_id": "reject-broadened-type-authority",
+      "weakened_profile_digest": "24f775ee2e18495bd11788011f90b281eb33d742123639b7bb97b39fa7ba9127",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:authority",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-operation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-operation",
+      "variant_id": "reject-broadened-type-operation",
+      "weakened_profile_digest": "e9b211fbb1382028ac1998ba13c55bef7d82084efc6b0c77e9c728b2801048ab",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:operation",
+            "cc:capability",
+            "cc:command",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-effect-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-protected-effect-population",
+      "variant_id": "reject-broadened-type-protected-effect-population",
+      "weakened_profile_digest": "14cebcf62510921886231562ee3fa30b49bbfd35002019d56432dc2ebebfdf80",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:scope",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-effects-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-protected-effects",
+      "variant_id": "reject-broadened-type-protected-effects",
+      "weakened_profile_digest": "2066721beb3b62c3c54ce8cd29af5f85ed71a961aa84ba230ebe7dc901e7862e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:resource",
+            "cc:configuration",
+            "cc:state",
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-protected-interval-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-protected-interval",
+      "variant_id": "reject-broadened-type-protected-interval",
+      "weakened_profile_digest": "312ec20afba39279b06b5ecf9cef9ee4c32171f2fc2cc63a839c3d8e620907dc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-refusal-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-refusal",
+      "variant_id": "reject-broadened-type-refusal",
+      "weakened_profile_digest": "22e367ce1b25c0abe4d7c3bbdefc4bb3d3e8d8bba67819636562f8804601ea53",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-subject-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-subject",
+      "variant_id": "reject-broadened-type-subject",
+      "weakened_profile_digest": "3f6bf87775093e3e7f3bac3cf5b1178116e376a21782e2957559e08dd6d7b5c9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:actor",
+            "cc:entity",
+            "cc:runtime_component",
+            "cc:process"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-verification",
+      "variant_id": "reject-broadened-type-verification",
+      "weakened_profile_digest": "074452fd3aa7a2d3534c9765625b519382016629da3e8c6d3cba720f9a38752a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:test",
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-any-satisfaction-branch",
+      "variant_id": "reject-any-satisfaction-branch",
+      "weakened_profile_digest": "e94e24870b4189b7bb3171ff6133398a82ee3dfc1f73394d0d87f6d53da2a61f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "attempt-performs-operation"
+              },
+              {
+                "pattern": "attempt-uses-subject"
+              },
+              {
+                "pattern": "subject-unauthorized-for-operation"
+              },
+              {
+                "pattern": "refusal-rejects-attempt"
+              },
+              {
+                "pattern": "attempt-precedes-protected-interval"
+              },
+              {
+                "pattern": "protected-interval-precedes-refusal"
+              },
+              {
+                "pattern": "protected-effect-population-membership"
+              },
+              {
+                "pattern": "protected-effect-population-cardinality"
+              },
+              {
+                "pattern": "verification-observes-exact-proof-subjects"
+              },
+              {
+                "pattern": "no-protected-write-before-refusal"
+              },
+              {
+                "pattern": "no-protected-mutation-before-refusal"
+              },
+              {
+                "pattern": "write-prohibition-verification"
+              },
+              {
+                "pattern": "mutation-prohibition-verification"
+              },
+              {
+                "pattern": "write-verification-target"
+              },
+              {
+                "pattern": "mutation-verification-target"
+              },
+              {
+                "pattern": "proof-population"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "verification-relations",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-weakened-verification-relations",
+      "variant_id": "reject-weakened-verification-relations",
+      "weakened_profile_digest": "a453f6f8895c32f978eef7996bbb9c76e76217572893ab65c401adf6f6f4aee7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "mutation-verification-target",
+              "role": "verifies",
+              "source_claim_pattern_id": "mutation-prohibition-verification",
+              "target_claim_pattern_id": "no-protected-mutation-before-refusal"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:uses",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "subject"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "authority",
+                "operator": "reference:authorizes",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "operation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "subject"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "refusal",
+                "operator": "reference:rejects",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_interval"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "protected_interval",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "refusal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "protected_effect_population",
+                "operator": "reference:contains",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "protected_effect_population",
+                "operator": "number:has_cardinality",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "protected_effect_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "attempt"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "refusal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "refusal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effect_population"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "attempt",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "refusal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "protected_effects"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "mutation-verification-target",
+              "applicability_context": {
+                "mode": "before",
+                "operand_roles": [
+                  "refusal"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "attempt-performs-operation"
+            },
+            {
+              "pattern": "attempt-uses-subject"
+            },
+            {
+              "pattern": "subject-unauthorized-for-operation"
+            },
+            {
+              "pattern": "refusal-rejects-attempt"
+            },
+            {
+              "pattern": "attempt-precedes-protected-interval"
+            },
+            {
+              "pattern": "protected-interval-precedes-refusal"
+            },
+            {
+              "pattern": "protected-effect-population-membership"
+            },
+            {
+              "pattern": "protected-effect-population-cardinality"
+            },
+            {
+              "pattern": "verification-observes-exact-proof-subjects"
+            },
+            {
+              "pattern": "no-protected-mutation-before-refusal"
+            },
+            {
+              "pattern": "mutation-prohibition-verification"
+            },
+            {
+              "pattern": "mutation-verification-target"
+            },
+            {
+              "pattern": "proof-population"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

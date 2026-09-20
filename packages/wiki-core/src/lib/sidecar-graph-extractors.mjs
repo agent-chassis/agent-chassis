@@ -1,8 +1,4 @@
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
-
-import { Language, Parser } from "web-tree-sitter";
 
 import {
   SIDECAR_ENVELOPE_REQUIRED_FIELDS,
@@ -10,16 +6,30 @@ import {
 } from "./sidecar-schema.mjs";
 import {
   SIDECAR_DIRTY_GRAPH_MODE_VALUES,
-  SIDECAR_GRAPH_EDGE_KIND_VALUES,
   SIDECAR_GRAPH_EDGE_SOURCE_VALUES,
-  SIDECAR_GRAPH_NODE_KIND_VALUES,
   SIDECAR_GRAPH_SCHEMA_VERSION,
   SIDECAR_GRAPH_STATE_REQUIRED_FIELDS,
   SIDECAR_MISSING_UPDATE_HINT_REQUIRED_FIELDS,
   SIDECAR_STRUCTURAL_IMPACT_REQUIRED_FIELDS,
   createSidecarGraphState
 } from "./sidecar-graph-schema.mjs";
-import { filterSidecarSourcePaths } from "./sidecar-paths.mjs";
+import {
+  createGraphContributionCollector,
+  createGraphBuilder,
+  createSidecarGraphProvenance as provenance
+} from "./sidecar-graph-contributions.mjs";
+import {
+  coverageForLanguage,
+  loadTreeSitterProvider,
+  parseImportFacts,
+  providerDescriptorForLanguage
+} from "./sidecar-graph-import-facts.mjs";
+import {
+  importFactResolutionDependencies,
+  resolveImportFacts
+} from "./sidecar-graph-import-resolution.mjs";
+import { filterSidecarSourcePaths, isSidecarRepoPath, normalizeSidecarRepoPath } from
+  "./sidecar-paths.mjs";
 
 const CODE_EXTENSIONS = new Set([
   ".cjs",
@@ -33,53 +43,11 @@ const CODE_EXTENSIONS = new Set([
   ".tsx"
 ]);
 const TEXT_EXTENSIONS = new Set([...CODE_EXTENSIONS, ".json", ".md"]);
-const LOCAL_IMPORT_PREFIX = /^\.{1,2}\//;
-const PYTHON_RELATIVE_IMPORT_PREFIX = /^\.+/;
-const WASM_GRAMMAR_PACKAGE_NAME = "@vscode/tree-sitter-wasm";
 const WORK_ITEM_PATH_PATTERN = /^wiki\/(?:issues|initiatives)\/(?:WK|IN)-\d{4}\.md$/;
 const DOCS_CONTRACT_PATH_PATTERN = /^docs\/.+\.md$/;
 const TEST_PATH_PATTERN = /(^tests\/|(?:^|\/)[^/]+(?:\.test|\.spec)\.[^.]+$)/;
 const REPO_PATH_PATTERN = /\b(?:docs|packages|tests|wiki)\/[A-Za-z0-9._/-]+/g;
 const TRAILING_PATH_PUNCTUATION = /[),.;:\]"'`]+$/;
-const require = createRequire(import.meta.url);
-const WEB_TREE_SITTER_ROOT = path.dirname(require.resolve("web-tree-sitter"));
-const WASM_GRAMMAR_ROOT = path.dirname(require.resolve(`${WASM_GRAMMAR_PACKAGE_NAME}/package.json`));
-const WEB_TREE_SITTER_VERSION = readPackageVersion(path.join(WEB_TREE_SITTER_ROOT, "package.json"));
-const WASM_GRAMMAR_PACKAGE_VERSION = readPackageVersion(path.join(WASM_GRAMMAR_ROOT, "package.json"));
-
-const LANGUAGE_SPECS = Object.freeze({
-  javascript: {
-    language: "javascript",
-    grammar: "tree-sitter-javascript",
-    grammarVersion: "0.25.0",
-    wasmFile: "tree-sitter-javascript.wasm",
-    constructs: ["import", "require", "re_export_from", "dynamic_import"]
-  },
-  python: {
-    language: "python",
-    grammar: "tree-sitter-python",
-    grammarVersion: "0.25.0",
-    wasmFile: "tree-sitter-python.wasm",
-    constructs: ["import", "from_import"]
-  },
-  tsx: {
-    language: "tsx",
-    grammar: "tree-sitter-tsx",
-    grammarVersion: "0.23.2",
-    wasmFile: "tree-sitter-tsx.wasm",
-    constructs: ["import", "require", "re_export_from", "dynamic_import"]
-  },
-  typescript: {
-    language: "typescript",
-    grammar: "tree-sitter-typescript",
-    grammarVersion: "0.23.2",
-    wasmFile: "tree-sitter-typescript.wasm",
-    constructs: ["import", "require", "re_export_from", "dynamic_import"]
-  }
-});
-
-let treeSitterProviderPromise = null;
-
 const GRAPH_IMPACT_RESPONSE_FIELDS = Object.freeze([
   "query_kind",
   "input_paths",
@@ -115,16 +83,6 @@ const SCHEMA_FIELD_NAMES = Object.freeze([
   ])
 ]);
 
-function provenance({ evidenceBasis = "parser_extract", path: relativePath = null, line = null } = {}) {
-  return {
-    source_kind: "code_index",
-    canonicality: "derived",
-    evidence_basis: evidenceBasis,
-    ...(relativePath ? { path: relativePath } : {}),
-    ...(line ? { line } : {})
-  };
-}
-
 function parserSymbolProvenance({ path: relativePath, line = null }) {
   return {
     source_kind: "parser_symbol",
@@ -133,11 +91,6 @@ function parserSymbolProvenance({ path: relativePath, line = null }) {
     ...(relativePath ? { path: relativePath } : {}),
     ...(line ? { line } : {})
   };
-}
-
-function readPackageVersion(packageJsonPath) {
-  const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-  return parsed.version;
 }
 
 function uniqueStrings(values) {
@@ -150,6 +103,11 @@ function lineForOffset(text, offset) {
 
 function isTextGraphSource(relativePath) {
   return TEXT_EXTENSIONS.has(path.posix.extname(relativePath));
+}
+
+export function isSidecarGraphExtractionSourcePath(relativePath) {
+  const sourceFilter = filterSidecarSourcePaths([relativePath]);
+  return sourceFilter.included.length === 1 && isTextGraphSource(relativePath);
 }
 
 function isCodePath(relativePath) {
@@ -168,73 +126,8 @@ function isWorkItemPath(relativePath) {
   return WORK_ITEM_PATH_PATTERN.test(relativePath);
 }
 
-function nodeId(kind, key) {
-  return `${kind}:${key}`;
-}
-
-function edgeId(kind, fromNodeId, toNodeId, discriminator = "") {
-  return `edge:${kind}:${fromNodeId}->${toNodeId}${discriminator ? `:${discriminator}` : ""}`;
-}
-
-function sortById(left, right) {
-  return left.id.localeCompare(right.id);
-}
-
-function assertControlledKind(kind, values, label) {
-  if (!values.includes(kind)) {
-    throw new Error(`unsupported sidecar graph ${label} kind: ${kind}`);
-  }
-}
-
 function escapeRegexLiteral(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function createGraphBuilder() {
-  const nodes = new Map();
-  const edges = new Map();
-
-  function addNode(kind, key, attributes = {}) {
-    assertControlledKind(kind, SIDECAR_GRAPH_NODE_KIND_VALUES, "node");
-    const id = nodeId(kind, key);
-    const existing = nodes.get(id);
-    const next = {
-      id,
-      kind,
-      ...attributes,
-      provenance: attributes.provenance || provenance({ path: attributes.path ?? null })
-    };
-    nodes.set(id, existing ? { ...existing, ...next } : next);
-    return id;
-  }
-
-  function addEdge(kind, fromNodeId, toNodeId, attributes = {}) {
-    assertControlledKind(kind, SIDECAR_GRAPH_EDGE_KIND_VALUES, "edge");
-    const id = edgeId(kind, fromNodeId, toNodeId, attributes.discriminator);
-    const existing = edges.get(id);
-    const next = {
-      id,
-      kind,
-      from_node_id: fromNodeId,
-      to_node_id: toNodeId,
-      ...attributes,
-      provenance: attributes.provenance || provenance({ path: attributes.path ?? null })
-    };
-    delete next.discriminator;
-    edges.set(id, existing ? { ...existing, ...next } : next);
-    return id;
-  }
-
-  return {
-    addNode,
-    addEdge,
-    graphNodes() {
-      return [...nodes.values()].sort(sortById);
-    },
-    graphEdges() {
-      return [...edges.values()].sort(sortById);
-    }
-  };
 }
 
 function stripYamlScalar(value) {
@@ -325,72 +218,6 @@ function normalizeGraphSources(inputSources) {
     sources: sources.sort((left, right) => left.path.localeCompare(right.path)),
     rejected: sourceFilter.rejected,
     unsupported: uniqueStrings(unsupported).sort((left, right) => left.localeCompare(right))
-  };
-}
-
-function localImportCandidates(basePath, languageKey) {
-  if (path.posix.extname(basePath)) {
-    return [basePath];
-  }
-
-  if (languageKey === "python") {
-    return [
-      `${basePath}.py`,
-      path.posix.join(basePath, "__init__.py")
-    ];
-  }
-
-  return [
-    `${basePath}.mjs`,
-    `${basePath}.js`,
-    `${basePath}.ts`,
-    `${basePath}.cjs`,
-    `${basePath}.mts`,
-    `${basePath}.cts`,
-    `${basePath}.jsx`,
-    `${basePath}.tsx`,
-    `${basePath}.py`,
-    path.posix.join(basePath, "index.mjs"),
-    path.posix.join(basePath, "index.js"),
-    path.posix.join(basePath, "index.ts"),
-    path.posix.join(basePath, "__init__.py")
-  ];
-}
-
-function resolveLocalImport(fromPath, specifier, sourcePathSet, { languageKey = null } = {}) {
-  if (!LOCAL_IMPORT_PREFIX.test(specifier)) {
-    return {
-      targetPath: null,
-      moduleKey: null,
-      external: true,
-      resolved: false,
-      unresolvedReason: "external_or_unresolved"
-    };
-  }
-
-  const basePath = path.posix.normalize(path.posix.join(path.posix.dirname(fromPath), specifier));
-  const candidates = localImportCandidates(basePath, languageKey);
-  const matchedCandidates = candidates.filter((candidate) => sourcePathSet.has(candidate));
-  if (matchedCandidates.length > 1) {
-    return {
-      targetPath: null,
-      moduleKey: null,
-      external: false,
-      resolved: false,
-      unresolvedReason: "ambiguous_local_path",
-      candidatePaths: matchedCandidates
-    };
-  }
-  const targetPath = matchedCandidates[0] ?? null;
-  const resolutionBasis =
-    targetPath && targetPath === basePath ? "exact_path" : targetPath ? "extension_guess" : null;
-  return {
-    targetPath,
-    moduleKey: targetPath,
-    external: false,
-    resolved: Boolean(targetPath),
-    unresolvedReason: targetPath ? null : "local_path_unresolved",
-    resolutionBasis
   };
 }
 
@@ -502,77 +329,6 @@ function addExports(builder, { moduleNodeId, relativePath, text }) {
   }
 }
 
-function languageKeyForPath(relativePath) {
-  const extension = path.posix.extname(relativePath);
-  if (extension === ".py") {
-    return "python";
-  }
-  if (extension === ".tsx") {
-    return "tsx";
-  }
-  if ([".ts", ".mts", ".cts"].includes(extension)) {
-    return "typescript";
-  }
-  if ([".cjs", ".js", ".jsx", ".mjs"].includes(extension)) {
-    return "javascript";
-  }
-  return null;
-}
-
-function wasmGrammarPath(wasmFile) {
-  return path.join(WASM_GRAMMAR_ROOT, "wasm", wasmFile);
-}
-
-async function loadTreeSitterProvider() {
-  if (!treeSitterProviderPromise) {
-    treeSitterProviderPromise = loadTreeSitterProviderUncached();
-  }
-  return treeSitterProviderPromise;
-}
-
-async function loadTreeSitterProviderUncached() {
-  try {
-    await Parser.init({
-      locateFile(file) {
-        return path.join(WEB_TREE_SITTER_ROOT, file);
-      }
-    });
-
-    const languages = new Map();
-    for (const [key, spec] of Object.entries(LANGUAGE_SPECS)) {
-      languages.set(key, await Language.load(wasmGrammarPath(spec.wasmFile)));
-    }
-
-    return { available: true, languages };
-  } catch (error) {
-    return {
-      available: false,
-      reason: error instanceof Error ? error.message : String(error)
-    };
-  }
-}
-
-function providerDescriptorForLanguage(languageKey) {
-  const spec = LANGUAGE_SPECS[languageKey];
-  return {
-    name: "web-tree-sitter",
-    runtime: "wasm",
-    runtime_version: WEB_TREE_SITTER_VERSION,
-    grammar: spec.grammar,
-    grammar_version: spec.grammarVersion,
-    cache_key: `web-tree-sitter@${WEB_TREE_SITTER_VERSION}:${WASM_GRAMMAR_PACKAGE_NAME}@${WASM_GRAMMAR_PACKAGE_VERSION}:${spec.grammar}@${spec.grammarVersion}`
-  };
-}
-
-function coverageForLanguage(languageKey) {
-  const spec = LANGUAGE_SPECS[languageKey];
-  return {
-    language: spec.language,
-    status: "parsed",
-    constructs: spec.constructs
-  };
-}
-
 function confidenceForImportFact(fact) {
   if (fact.dynamic) {
     return { value: 0.5, basis: "non_literal_dynamic_boundary" };
@@ -621,236 +377,9 @@ function parserMetadata({ fact, relativePath, line }) {
   };
 }
 
-function textForNode(text, node) {
-  return text.slice(node.startIndex, node.endIndex);
-}
-
-function namedChildren(node) {
-  return Array.from({ length: node.namedChildCount }, (_, index) => node.namedChild(index));
-}
-
-function firstNamedChildOfType(node, type) {
-  return namedChildren(node).find((child) => child?.type === type) ?? null;
-}
-
-function firstArgumentNode(callNode) {
-  const argumentsNode = firstNamedChildOfType(callNode, "arguments");
-  return argumentsNode ? namedChildren(argumentsNode)[0] ?? null : null;
-}
-
-function stringLiteralValue(text, node) {
-  if (!node || node.type !== "string") {
-    return null;
-  }
-  const raw = textForNode(text, node);
-  if (raw.length < 2) {
-    return null;
-  }
-  const quote = raw[0];
-  if ((quote !== "\"" && quote !== "'") || raw.at(-1) !== quote) {
-    return null;
-  }
-  return raw.slice(1, -1);
-}
-
-function collectJavaScriptImportFacts({ rootNode, text, languageKey }) {
-  const facts = [];
-
-  function addLiteralFact({ node, sourceNode, construct }) {
-    const specifier = stringLiteralValue(text, sourceNode);
-    if (specifier == null) {
-      return;
-    }
-    facts.push({
-      construct,
-      dynamic: false,
-      index: node.startIndex,
-      languageKey,
-      specifier
-    });
-  }
-
-  function addDynamicFact({ node, argumentNode, construct }) {
-    const specifier = stringLiteralValue(text, argumentNode);
-    facts.push({
-      construct,
-      dynamic: specifier == null,
-      index: node.startIndex,
-      languageKey,
-      raw_specifier: argumentNode ? textForNode(text, argumentNode) : null,
-      specifier
-    });
-  }
-
-  function visit(node) {
-    if (node.type === "import_statement") {
-      const sourceNode = node.childForFieldName("source") || firstNamedChildOfType(node, "string");
-      addLiteralFact({ node, sourceNode, construct: "import" });
-    } else if (node.type === "export_statement") {
-      const sourceNode = firstNamedChildOfType(node, "string");
-      if (sourceNode) {
-        addLiteralFact({ node, sourceNode, construct: "re_export_from" });
-      }
-    } else if (node.type === "call_expression") {
-      const functionNode = node.childForFieldName("function") || namedChildren(node)[0];
-      const functionText = functionNode ? textForNode(text, functionNode) : "";
-      if (functionNode?.type === "import") {
-        addDynamicFact({
-          node,
-          argumentNode: firstArgumentNode(node),
-          construct: "dynamic_import"
-        });
-      } else if (functionText === "require") {
-        addDynamicFact({
-          node,
-          argumentNode: firstArgumentNode(node),
-          construct: "require"
-        });
-      }
-    }
-
-    for (const child of namedChildren(node)) {
-      visit(child);
-    }
-  }
-
-  visit(rootNode);
-  return facts.sort((left, right) => left.index - right.index);
-}
-
-function pythonRelativeImportToLocalSpecifier(value) {
-  const prefix = value.match(PYTHON_RELATIVE_IMPORT_PREFIX)?.[0] ?? "";
-  if (!prefix) {
-    return null;
-  }
-  const remainder = value.slice(prefix.length);
-  const directoryPrefix =
-    prefix.length === 1 ? "." : Array.from({ length: prefix.length - 1 }, () => "..").join("/");
-  return `${directoryPrefix}/${remainder.replaceAll(".", "/")}`.replace(/\/$/, "");
-}
-
-function firstPythonImportName(node, text) {
-  const named = namedChildren(node);
-  const aliased = named.find((child) => child.type === "aliased_import");
-  if (aliased) {
-    const dotted = firstNamedChildOfType(aliased, "dotted_name");
-    return dotted ? textForNode(text, dotted) : null;
-  }
-  const dotted = named.find((child) => child.type === "dotted_name");
-  return dotted ? textForNode(text, dotted) : null;
-}
-
-function collectPythonImportFacts({ rootNode, text, languageKey }) {
-  const facts = [];
-
-  function visit(node) {
-    if (node.type === "import_statement") {
-      for (const child of namedChildren(node)) {
-        const specifier = child.type === "aliased_import" ? firstPythonImportName(child, text) : textForNode(text, child);
-        if (specifier) {
-          facts.push({
-            construct: "import",
-            dynamic: false,
-            index: child.startIndex,
-            languageKey,
-            specifier
-          });
-        }
-      }
-    } else if (node.type === "import_from_statement") {
-      const importRoot = namedChildren(node).find((child) =>
-        ["relative_import", "dotted_name"].includes(child.type)
-      );
-      if (importRoot) {
-        const rawSpecifier = textForNode(text, importRoot);
-        facts.push({
-          construct: "from_import",
-          dynamic: false,
-          index: node.startIndex,
-          languageKey,
-          raw_specifier: rawSpecifier,
-          specifier:
-            importRoot.type === "relative_import"
-              ? pythonRelativeImportToLocalSpecifier(rawSpecifier)
-              : rawSpecifier
-        });
-      }
-    }
-
-    for (const child of namedChildren(node)) {
-      visit(child);
-    }
-  }
-
-  visit(rootNode);
-  return facts.sort((left, right) => left.index - right.index);
-}
-
-function parseImportFacts({ provider, relativePath, text }) {
-  const languageKey = languageKeyForPath(relativePath);
-  const language = provider.languages.get(languageKey);
-  if (!languageKey || !language) {
-    return { facts: [], unavailable: true, reason: "unsupported_language" };
-  }
-
-  const parser = new Parser();
-  let tree = null;
-  try {
-    parser.setLanguage(language);
-    tree = parser.parse(text);
-    const facts =
-      languageKey === "python"
-        ? collectPythonImportFacts({ rootNode: tree.rootNode, text, languageKey })
-        : collectJavaScriptImportFacts({ rootNode: tree.rootNode, text, languageKey });
-    return { facts, unavailable: false };
-  } catch (error) {
-    return {
-      facts: [],
-      unavailable: true,
-      reason: error instanceof Error ? error.message : String(error)
-    };
-  } finally {
-    tree?.delete();
-    parser.delete();
-  }
-}
-
-function resolveImportFacts({ facts, relativePath, sourcePathSet }) {
-  return facts.map((fact) => {
-    if (fact.dynamic || !fact.specifier) {
-      return {
-        ...fact,
-        resolutionState: "dynamic",
-        unresolvedReason: "non_literal_specifier"
-      };
-    }
-    const target = resolveLocalImport(relativePath, fact.specifier, sourcePathSet, {
-      languageKey: fact.languageKey
-    });
-    if (!target.resolved) {
-      return {
-        ...fact,
-        external: target.external,
-        resolutionState: "unresolved",
-        targetPath: null,
-        unresolvedReason: target.unresolvedReason,
-        candidatePaths: target.candidatePaths ?? []
-      };
-    }
-    return {
-      ...fact,
-      external: target.external,
-      resolutionState: "resolved",
-      targetPath: target.targetPath,
-      moduleKey: target.moduleKey,
-      resolutionBasis: target.resolutionBasis
-    };
-  });
-}
-
 function addImports(builder, { moduleNodeId, relativePath, text, importFacts }) {
   importFacts.forEach((fact, importIndex) => {
-    const line = lineForOffset(text, fact.index);
+    const line = fact.line ?? lineForOffset(text, fact.index);
     const metadata = parserMetadata({ fact, relativePath, line });
     const specifier = fact.specifier ?? fact.raw_specifier ?? "<dynamic>";
     const importNodeId = builder.addNode("import", `${relativePath}:${importIndex}:${specifier}`, {
@@ -933,22 +462,7 @@ function addMcpTools(builder, { moduleNodeId, relativePath, text }) {
 }
 
 function addCodeGraph(builder, source, sourcePathSet, parserProvider) {
-  const fileNodeId = addFileNode(builder, source.path, {
-    worktree_overlay: source.worktree_overlay,
-    dirty_state: source.dirty_state
-  });
-  const moduleNodeId = builder.addNode("module", source.path, {
-    path: source.path,
-    provenance: provenance({
-      evidenceBasis: source.worktree_overlay ? "git_tree" : "git_blob",
-      path: source.path
-    })
-  });
-  builder.addEdge("contains", fileNodeId, moduleNodeId, {
-    path: source.path,
-    provenance: provenance({ evidenceBasis: "path_match", path: source.path })
-  });
-
+  addCodeLocalGraph(builder, source);
   const parsedImports = parseImportFacts({
     provider: parserProvider,
     relativePath: source.path,
@@ -960,50 +474,16 @@ function addCodeGraph(builder, source, sourcePathSet, parserProvider) {
     sourcePathSet
   });
   addImports(builder, {
-    moduleNodeId,
+    moduleNodeId: `module:${source.path}`,
     relativePath: source.path,
     text: source.content,
     importFacts
   });
-  addExports(builder, { moduleNodeId, relativePath: source.path, text: source.content });
-  addFunctions(builder, { moduleNodeId, relativePath: source.path, text: source.content });
-  addCliCommands(builder, { moduleNodeId, relativePath: source.path, text: source.content });
-  addMcpTools(builder, { moduleNodeId, relativePath: source.path, text: source.content });
-  addSchemaFieldMentions(builder, {
-    sourceNodeId: moduleNodeId,
+  addResolvedTestCoverage(builder, {
     relativePath: source.path,
+    importFacts,
     text: source.content
   });
-
-  if (isTestPath(source.path)) {
-    const testNodeId = builder.addNode("test", source.path, {
-      path: source.path,
-      provenance: provenance({ evidenceBasis: "path_match", path: source.path })
-    });
-    builder.addEdge("contains", fileNodeId, testNodeId, {
-      path: source.path,
-      provenance: provenance({ evidenceBasis: "path_match", path: source.path })
-    });
-    for (const fact of importFacts) {
-      if (fact.resolutionState !== "resolved" || !fact.targetPath || !sourcePathSet.has(fact.targetPath)) {
-        continue;
-      }
-      const line = lineForOffset(source.content, fact.index);
-      const metadata = parserMetadata({ fact, relativePath: source.path, line });
-      const targetModuleNodeId = builder.addNode("module", fact.targetPath, {
-        path: fact.targetPath,
-        ...metadata
-      });
-      builder.addEdge("covers_test", testNodeId, targetModuleNodeId, {
-        path: source.path,
-        target_path: fact.targetPath,
-        specifier: fact.specifier,
-        line,
-        discriminator: `${fact.specifier}:${fact.index}`,
-        ...metadata
-      });
-    }
-  }
 
   return parsedImports.unavailable ? source.path : null;
 }
@@ -1014,31 +494,14 @@ function cleanMentionedRepoPath(value) {
 }
 
 function addDocsContractGraph(builder, source, sourcePathSet) {
-  const fileNodeId = addFileNode(builder, source.path, {
-    worktree_overlay: source.worktree_overlay,
-    dirty_state: source.dirty_state
-  });
-  const docsNodeId = builder.addNode("docs_contract", source.path, {
-    path: source.path,
-    provenance: provenance({ evidenceBasis: "docs_backlink", path: source.path })
-  });
-  builder.addEdge("contains", fileNodeId, docsNodeId, {
-    path: source.path,
-    provenance: provenance({ evidenceBasis: "path_match", path: source.path })
-  });
-  addSchemaFieldMentions(builder, {
-    sourceNodeId: docsNodeId,
-    relativePath: source.path,
-    text: source.content
-  });
-
+  addDocsLocalGraph(builder, source);
   for (const match of source.content.matchAll(REPO_PATH_PATTERN)) {
     const mentionedPath = cleanMentionedRepoPath(match[0]);
     if (!mentionedPath || !sourcePathSet.has(mentionedPath)) {
       continue;
     }
     const targetFileNodeId = addFileNode(builder, mentionedPath);
-    builder.addEdge("documents_contract", docsNodeId, targetFileNodeId, {
+    builder.addEdge("documents_contract", `docs_contract:${source.path}`, targetFileNodeId, {
       path: source.path,
       target_path: mentionedPath,
       line: lineForOffset(source.content, match.index ?? 0),
@@ -1101,6 +564,231 @@ function addWorkItemGraph(builder, source) {
       provenance: provenance({ evidenceBasis: "explicit_metadata", path: source.path })
     });
   }
+}
+
+function addCodeLocalGraph(builder, source) {
+  const fileNodeId = addFileNode(builder, source.path, {
+    worktree_overlay: source.worktree_overlay,
+    dirty_state: source.dirty_state
+  });
+  const moduleNodeId = builder.addNode("module", source.path, {
+    path: source.path,
+    provenance: provenance({
+      evidenceBasis: source.worktree_overlay ? "git_tree" : "git_blob",
+      path: source.path
+    })
+  });
+  builder.addEdge("contains", fileNodeId, moduleNodeId, {
+    path: source.path,
+    provenance: provenance({ evidenceBasis: "path_match", path: source.path })
+  });
+  addExports(builder, { moduleNodeId, relativePath: source.path, text: source.content });
+  addFunctions(builder, { moduleNodeId, relativePath: source.path, text: source.content });
+  addCliCommands(builder, { moduleNodeId, relativePath: source.path, text: source.content });
+  addMcpTools(builder, { moduleNodeId, relativePath: source.path, text: source.content });
+  addSchemaFieldMentions(builder, {
+    sourceNodeId: moduleNodeId,
+    relativePath: source.path,
+    text: source.content
+  });
+  if (isTestPath(source.path)) {
+    const testNodeId = builder.addNode("test", source.path, {
+      path: source.path,
+      provenance: provenance({ evidenceBasis: "path_match", path: source.path })
+    });
+    builder.addEdge("contains", fileNodeId, testNodeId, {
+      path: source.path,
+      provenance: provenance({ evidenceBasis: "path_match", path: source.path })
+    });
+  }
+}
+
+function addDocsLocalGraph(builder, source) {
+  const fileNodeId = addFileNode(builder, source.path, {
+    worktree_overlay: source.worktree_overlay,
+    dirty_state: source.dirty_state
+  });
+  const docsNodeId = builder.addNode("docs_contract", source.path, {
+    path: source.path,
+    provenance: provenance({ evidenceBasis: "docs_backlink", path: source.path })
+  });
+  builder.addEdge("contains", fileNodeId, docsNodeId, {
+    path: source.path,
+    provenance: provenance({ evidenceBasis: "path_match", path: source.path })
+  });
+  addSchemaFieldMentions(builder, {
+    sourceNodeId: docsNodeId,
+    relativePath: source.path,
+    text: source.content
+  });
+}
+
+function replayContributions(builder, facts) {
+  for (const contribution of facts.base_node_contributions ?? []) {
+    builder.addNode(contribution.kind, contribution.key, contribution.attributes);
+  }
+  for (const contribution of facts.base_edge_contributions ?? []) {
+    builder.addEdge(
+      contribution.kind,
+      contribution.from_node_id,
+      contribution.to_node_id,
+      { ...contribution.attributes, discriminator: contribution.discriminator }
+    );
+  }
+}
+
+function addResolvedTestCoverage(builder, { relativePath, importFacts, text = "" }) {
+  if (!isTestPath(relativePath)) return;
+  const testNodeId = `test:${relativePath}`;
+  for (const fact of importFacts) {
+    if (fact.resolutionState !== "resolved" || !fact.targetPath) continue;
+    const line = fact.line ?? lineForOffset(text, fact.index);
+    const metadata = parserMetadata({ fact, relativePath, line });
+    const targetModuleNodeId = builder.addNode("module", fact.targetPath, {
+      path: fact.targetPath,
+      ...metadata
+    });
+    builder.addEdge("covers_test", testNodeId, targetModuleNodeId, {
+      path: relativePath,
+      target_path: fact.targetPath,
+      specifier: fact.specifier,
+      line,
+      discriminator: `${fact.specifier}:${fact.index}`,
+      ...metadata
+    });
+  }
+}
+
+export async function collectSidecarGraphFileFacts({ source, parserProvider = null } = {}) {
+  const normalized = normalizeGraphSources([source]);
+  if (normalized.sources.length !== 1) {
+    throw new Error("incremental graph source must be one supported repository path");
+  }
+  const normalizedSource = normalized.sources[0];
+  const builder = createGraphContributionCollector();
+  let sourceKind = "file";
+  let importFacts = [];
+  let docsMentions = [];
+  let parseCount = 0;
+  if (isCodePath(normalizedSource.path)) {
+    const provider = parserProvider || (await loadTreeSitterProvider());
+    if (!provider.available) {
+      throw new Error(`parser provider unavailable: ${provider.reason}`);
+    }
+    const parsed = parseImportFacts({
+      provider,
+      relativePath: normalizedSource.path,
+      text: normalizedSource.content
+    });
+    if (parsed.unavailable) throw new Error(`parser unavailable for ${normalizedSource.path}`);
+    parseCount = 1;
+    importFacts = parsed.facts.map((fact) => ({
+      ...fact,
+      line: lineForOffset(normalizedSource.content, fact.index)
+    }));
+    sourceKind = "code";
+    addCodeLocalGraph(builder, normalizedSource);
+  } else if (isDocsContractPath(normalizedSource.path)) {
+    sourceKind = "docs_contract";
+    addDocsLocalGraph(builder, normalizedSource);
+    docsMentions = [...normalizedSource.content.matchAll(REPO_PATH_PATTERN)]
+      .map((match) => ({
+        candidate_path: cleanMentionedRepoPath(match[0]),
+        line: lineForOffset(normalizedSource.content, match.index ?? 0)
+      }))
+
+      .filter((mention) => mention.candidate_path !== null &&
+        isSidecarRepoPath(mention.candidate_path));
+  } else if (isWorkItemPath(normalizedSource.path)) {
+    sourceKind = "work_item";
+    addWorkItemGraph(builder, normalizedSource);
+  } else {
+    addFileNode(builder, normalizedSource.path);
+  }
+  const base = builder.contributions();
+  return {
+    source_kind: sourceKind,
+    source_path: normalizedSource.path,
+    import_facts: importFacts,
+    docs_mentions: docsMentions,
+    base_node_contributions: base.node_contributions,
+    base_edge_contributions: base.edge_contributions,
+    parse_count: parseCount
+  };
+}
+
+export function materializeSidecarGraphUnit({ facts, sourcePaths }) {
+  if (!facts || typeof facts !== "object" || Array.isArray(facts)) {
+    throw new TypeError("stored graph facts must be an object");
+  }
+  normalizeSidecarRepoPath(facts.source_path);
+  const sourcePathSet = sourcePaths instanceof Set ? sourcePaths : new Set(sourcePaths ?? []);
+  const builder = createGraphContributionCollector();
+  replayContributions(builder, facts);
+  const dependencies = [];
+  if (facts.source_kind === "code") {
+    const resolved = resolveImportFacts({
+      facts: facts.import_facts ?? [],
+      relativePath: facts.source_path,
+      sourcePathSet
+    });
+    const moduleNodeId = `module:${facts.source_path}`;
+    addImports(builder, {
+      moduleNodeId,
+      relativePath: facts.source_path,
+      text: "",
+      importFacts: resolved
+    });
+    addResolvedTestCoverage(builder, {
+      relativePath: facts.source_path,
+      importFacts: resolved
+    });
+    dependencies.push(...importFactResolutionDependencies({
+      facts: facts.import_facts ?? [],
+      relativePath: facts.source_path,
+      sourcePathSet
+    }));
+  } else if (facts.source_kind === "docs_contract") {
+    const docsNodeId = `docs_contract:${facts.source_path}`;
+    for (const mention of facts.docs_mentions ?? []) {
+      if (!Number.isSafeInteger(mention.line) || mention.line < 1) {
+        throw new Error("stored docs mention is invalid");
+      }
+      try {
+        normalizeSidecarRepoPath(mention.candidate_path);
+      } catch (cause) {
+        const error = new Error(`stored docs mention in ${facts.source_path} is not a repository path: ${
+          JSON.stringify(String(mention.candidate_path).slice(0, 200))}`, { cause });
+        error.code = cause?.code ?? "sidecar_stored_docs_mention_invalid";
+        throw error;
+      }
+      const present = sourcePathSet.has(mention.candidate_path);
+      dependencies.push({
+        candidate_path: mention.candidate_path,
+        candidate_ordinal: dependencies.length,
+        resolution_state: present ? "present" : "absent"
+      });
+      if (!present) continue;
+      const target = addFileNode(builder, mention.candidate_path);
+      builder.addEdge("documents_contract", docsNodeId, target, {
+        path: facts.source_path,
+        target_path: mention.candidate_path,
+        line: mention.line,
+        discriminator: mention.candidate_path,
+        provenance: provenance({
+          evidenceBasis: "docs_backlink",
+          path: facts.source_path,
+          line: mention.line
+        })
+      });
+    }
+  }
+  const contributions = builder.contributions();
+  return {
+    node_contributions: contributions.node_contributions,
+    edge_contributions: contributions.edge_contributions,
+    resolution_dependencies: dependencies
+  };
 }
 
 export async function extractSidecarGraph({

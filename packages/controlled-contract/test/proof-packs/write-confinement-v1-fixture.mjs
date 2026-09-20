@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const WRITE_CONFINEMENT_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.scope.write-confinement/2.0.0/profile.json",
+  "../certification/profiles/proof.scope.write-confinement/3.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -101,7 +101,6 @@ function buildWriteConfinementFixture({
   proposition_overrides: propositionOverrides = {},
   modality_overrides: modalityOverrides = {},
   verification_method: verificationMethod = "test_execution",
-  evaluation_stage: evaluationStage = "pre_dispatch",
   drop_pattern_ids: dropPatternIds = [],
   mutate_contract: mutateContract,
   mutate_input: mutateInput
@@ -199,7 +198,6 @@ function buildWriteConfinementFixture({
   }
   const input = {
     input_version: EVALUATION_INPUT_VERSION_V1,
-    evaluation_stage: evaluationStage,
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role,
       reference_ids: [...roleIds[role]]

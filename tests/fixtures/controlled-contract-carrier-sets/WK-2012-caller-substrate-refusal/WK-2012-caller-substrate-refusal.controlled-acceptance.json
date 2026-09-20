@@ -1,0 +1,675 @@
+{
+  "schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "profile_id": "acceptance-contract.standard.v1",
+  "references": [
+    {
+      "reference_id": "ref-operation",
+      "type_term": "cc:capability",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis",
+        "path": "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "symbol": "assessControlledContractOperation"
+      }
+    },
+    {
+      "reference_id": "ref-attempt",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012-exact-selector:attempt"
+      }
+    },
+    {
+      "reference_id": "ref-subject",
+      "type_term": "cc:actor",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012-exact-selector:subject"
+      }
+    },
+    {
+      "reference_id": "ref-authority",
+      "type_term": "cc:authority",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012-exact-selector:authority"
+      }
+    },
+    {
+      "reference_id": "ref-refusal",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012-exact-selector:refusal"
+      }
+    },
+    {
+      "reference_id": "ref-protected-interval",
+      "type_term": "cc:event",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012-exact-selector:protected_interval"
+      }
+    },
+    {
+      "reference_id": "ref-protected-effect-population",
+      "type_term": "cc:scope",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012-exact-selector:protected_effect_population"
+      }
+    },
+    {
+      "reference_id": "ref-verification",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "repository_path",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "tests/controlled-contract-mcp-tools.test.mjs"
+      }
+    },
+    {
+      "reference_id": "ref-protected-assessment-execution",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012:assessment-execution"
+      }
+    },
+    {
+      "reference_id": "ref-protected-assessment-bundle",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2012:assessment-bundle"
+      }
+    },
+    {
+      "reference_id": "ref-protected-pack-invocation",
+      "type_term": "cc:resource",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "proof-pack-invocation"
+      }
+    },
+    {
+      "reference_id": "ref-protected-exact-capture",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "agent-chassis:WK-2012",
+        "value": "exact-input-capture"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-attempt-performs-operation",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:performs",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-attempt-uses-subject",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:uses",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-subject"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-subject-unauthorized-for-operation",
+      "subject_reference_id": "ref-authority",
+      "operator": "reference:authorizes",
+      "applicability_context": {
+        "mode": "where",
+        "operand_reference_ids": [
+          "ref-operation"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-subject"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-refusal-rejects-attempt",
+      "subject_reference_id": "ref-refusal",
+      "operator": "reference:rejects",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-attempt"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-attempt-precedes-protected-interval",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:precedes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-interval"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-protected-interval-precedes-refusal",
+      "subject_reference_id": "ref-protected-interval",
+      "operator": "reference:precedes",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-refusal"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-protected-effect-population-membership",
+      "subject_reference_id": "ref-protected-effect-population",
+      "operator": "reference:contains",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-pack-invocation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-execution"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-exact-capture"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-bundle"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-protected-effect-population-cardinality",
+      "subject_reference_id": "ref-protected-effect-population",
+      "operator": "number:has_cardinality",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verification-observes-exact-proof-subjects",
+      "subject_reference_id": "ref-verification",
+      "operator": "reference:reads",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-attempt"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-refusal"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-operation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-pack-invocation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-execution"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-exact-capture"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-bundle"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-no-protected-write-before-refusal",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:writes",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-pack-invocation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-execution"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-exact-capture"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-bundle"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-no-protected-mutation-before-refusal",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:mutates",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-pack-invocation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-execution"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-exact-capture"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-bundle"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-write-prohibition-verification",
+      "subject_reference_id": "ref-verification",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-attempt"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-write-prohibition-verification",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:writes",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-pack-invocation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-execution"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-exact-capture"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-bundle"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-mutation-prohibition-verification",
+      "subject_reference_id": "ref-verification",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-effect-population"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-falsifier-mutation-prohibition-verification",
+      "subject_reference_id": "ref-attempt",
+      "operator": "reference:mutates",
+      "applicability_context": {
+        "mode": "before",
+        "operand_reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-pack-invocation"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-execution"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-exact-capture"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-protected-assessment-bundle"
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-attempt-performs-operation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-attempt-performs-operation"
+    },
+    {
+      "claim_id": "claim-attempt-uses-subject",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-attempt-uses-subject"
+    },
+    {
+      "claim_id": "claim-subject-unauthorized-for-operation",
+      "kind": "evidence",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-subject-unauthorized-for-operation"
+    },
+    {
+      "claim_id": "claim-refusal-rejects-attempt",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-refusal-rejects-attempt"
+    },
+    {
+      "claim_id": "claim-attempt-precedes-protected-interval",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-attempt-precedes-protected-interval"
+    },
+    {
+      "claim_id": "claim-protected-interval-precedes-refusal",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-protected-interval-precedes-refusal"
+    },
+    {
+      "claim_id": "claim-protected-effect-population-membership",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-protected-effect-population-membership"
+    },
+    {
+      "claim_id": "claim-protected-effect-population-cardinality",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-protected-effect-population-cardinality"
+    },
+    {
+      "claim_id": "claim-verification-observes-exact-proof-subjects",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-verification-observes-exact-proof-subjects"
+    },
+    {
+      "claim_id": "claim-no-protected-write-before-refusal",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-no-protected-write-before-refusal"
+    },
+    {
+      "claim_id": "claim-no-protected-mutation-before-refusal",
+      "kind": "behavior",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-no-protected-mutation-before-refusal"
+    },
+    {
+      "claim_id": "claim-write-prohibition-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-write-prohibition-verification",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsifier-write-prohibition-verification"
+    },
+    {
+      "claim_id": "claim-mutation-prohibition-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-mutation-prohibition-verification",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-falsifier-mutation-prohibition-verification"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-write-verification-target",
+      "role": "verifies",
+      "source_claim_id": "claim-write-prohibition-verification",
+      "target_claim_id": "claim-no-protected-write-before-refusal"
+    },
+    {
+      "relation_id": "rel-mutation-verification-target",
+      "role": "verifies",
+      "source_claim_id": "claim-mutation-prohibition-verification",
+      "target_claim_id": "claim-no-protected-mutation-before-refusal"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-proof-population",
+      "collection_kind": "closed_set",
+      "purpose": "profile_proof_population",
+      "member_claim_ids": [
+        "claim-attempt-performs-operation",
+        "claim-attempt-uses-subject",
+        "claim-subject-unauthorized-for-operation",
+        "claim-refusal-rejects-attempt",
+        "claim-attempt-precedes-protected-interval",
+        "claim-protected-interval-precedes-refusal",
+        "claim-verification-observes-exact-proof-subjects"
+      ]
+    }
+  ],
+  "residue": [
+    {
+      "residue_id": "res-caller-substrate-population",
+      "reason": "review_only",
+      "text": "The profile proves refusal-before-effects for the declared caller-controlled substrate attempt and protected-effect population. It does not prove that every caller-supplied path, root, catalog, profile, module, executable, output directory, or environment override is included in delivered MCP tests."
+    },
+    {
+      "residue_id": "res-runtime-unavailable",
+      "reason": "review_only",
+      "text": "This pre-dispatch graph supplies no runtime evidence that assessment execution and bundle publication are actually untouched before refusal."
+    }
+  ],
+  "annotations": [],
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "test_proof_id": "test-proof-mutation-prohibition-verification",
+      "verification_claim_id": "claim-mutation-prohibition-verification",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-mutation-prohibition-verification",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-operation"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-mutation-prohibition-verification",
+        "kind": "return_value",
+        "proposition_id": "prop-mutation-prohibition-verification"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-mutation-prohibition-verification",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsifier-mutation-prohibition-verification",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-mutation-prohibition-verification",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "mutation prohibition verification",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    },
+    {
+      "test_proof_id": "test-proof-write-prohibition-verification",
+      "verification_claim_id": "claim-write-prohibition-verification",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-write-prohibition-verification",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/current.mjs",
+        "subject_reference_ids": [
+          "ref-operation"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-write-prohibition-verification",
+        "kind": "return_value",
+        "proposition_id": "prop-write-prohibition-verification"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-write-prohibition-verification",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-falsifier-write-prohibition-verification",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-write-prohibition-verification",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/controlled-contract/current.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "test_selector": {
+        "name": "write prohibition verification",
+        "nesting": 0
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ]
+    }
+  ]
+}

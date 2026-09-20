@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { runWorkRecordReadWithCompactGate } from "../../packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs";
 const WORKSPACE_REPO = "agent-chassis/agent-chassis";
 const WORKSPACE_DIR = "/repo";
+const SOURCE_DIGEST = `sha256:${"b".repeat(64)}`;
 function initiativeRecord() {
   return {
     id: "IN-9001",
@@ -55,18 +56,28 @@ function kindReadResult(record, sourceDigest) {
     record
   };
 }
+
+function kindLoaders(loaded) {
+  const loadCalls = [];
+  return {
+    loadCalls,
+    loadKindRecordById: async (args) => { loadCalls.push({ by: "id", ...args }); return structuredClone(loaded); },
+    loadKindRecordByPath: async (args) => { loadCalls.push({ by: "path", ...args }); return structuredClone(loaded); }
+  };
+}
 function gateHarness({ record, toolFamily }) {
-  let sourceDigest = "sha256:kind-source-a";
   const compactCalls = [];
   const expensiveCalls = [];
+  const loaders = kindLoaders({ valid: true, record_id: record.id, record_kind: record.record_kind,
+    source_digest: SOURCE_DIGEST, record, diagnostics: [] });
   const primary = toolFamily === "workspace_read_page"
     ? { path: canonicalPath(record) }
     : { id: record.id };
   return {
     primary,
-    setSourceDigest(value) { sourceDigest = value; },
     compactCalls,
     expensiveCalls,
+    loadCalls: loaders.loadCalls,
     run(args) {
       return runWorkRecordReadWithCompactGate({
         workspaceRepo: WORKSPACE_REPO,
@@ -75,16 +86,47 @@ function gateHarness({ record, toolFamily }) {
         toolFamily,
         readCompact: async (readArgs) => {
           compactCalls.push(readArgs);
-          return kindReadResult(record, sourceDigest);
+          return kindReadResult(record, SOURCE_DIGEST);
         },
         readExpensive: async (readArgs) => {
           expensiveCalls.push(readArgs);
-          return kindReadResult(record, sourceDigest);
+          return kindReadResult(record, SOURCE_DIGEST);
         },
-        readWorkRecordById: async () => { throw new Error("kind reads must not use the WK loader"); }
+        readWorkRecordById: async () => { throw new Error("kind reads must not use the WK loader"); },
+        loadKindRecordById: loaders.loadKindRecordById,
+        loadKindRecordByPath: loaders.loadKindRecordByPath
       });
     }
   };
+}
+
+async function reassemble(run, callArguments) {
+  let args = callArguments;
+  let container = null;
+  let text = null;
+  let scalar;
+  while (args) {
+    const page = await run(args);
+    assert.equal(page.ok, true, JSON.stringify(page));
+    assert.equal(page.source_digest, SOURCE_DIGEST);
+    const { member } = page;
+    if (member.kind === "object" || member.kind === "array") {
+      container ??= member.kind === "array" ? [] : {};
+      for (const row of member.members) {
+        assert.equal(Object.hasOwn(row, "value"), false, "a container page carries no descendant values");
+        container[member.kind === "array" ? row.index : row.key] = await reassemble(run, row.next_call.arguments);
+      }
+    } else if (member.kind === "string") {
+      text = (text ?? "") + member.value;
+    } else {
+      scalar = member.value;
+    }
+    for (const call of page.next_calls) {
+      assert.equal(call.arguments.member.expected_source_digest, SOURCE_DIGEST, "every continuation pins the digest");
+    }
+    args = page.next_calls[0]?.arguments ?? null;
+  }
+  return container ?? text ?? scalar;
 }
 function completeRecordMembers(record) {
   const topLevelMembers = Object.keys(record);
@@ -158,7 +200,7 @@ function disclosureViolations({ source, compact, ledger, recovered }) {
   return violations;
 }
 for (const record of [initiativeRecord(), decisionRecord()]) {
-  test(`${record.record_kind} compact disclosure accounts for and losslessly recovers every member`, async () => {
+  test(`${record.record_kind} compact disclosure accounts for every member and recovers it through member reads`, async () => {
     for (const toolFamily of ["workspace_get_record", "workspace_read_page"]) {
       const harness = gateHarness({ record, toolFamily });
       const compact = await harness.run(harness.primary);
@@ -177,7 +219,7 @@ for (const record of [initiativeRecord(), decisionRecord()]) {
       assert.equal(compact.record_id, record.id);
       assert.equal(compact.record_kind, record.record_kind);
       assert.equal(compact.source_classification, "canonical");
-      assert.equal(compact.source_digest, "sha256:kind-source-a");
+      assert.equal(compact.source_digest, SOURCE_DIGEST);
       assert.equal(compact.valid, true);
       assert.deepEqual(compact.diagnostics, []);
       assert.deepEqual(ledger.source_members, sourceMembers);
@@ -203,54 +245,41 @@ for (const record of [initiativeRecord(), decisionRecord()]) {
       assert.equal(ledger.disclosed_member_count, disclosedMembers.length);
       assert.equal(ledger.recovered_member_count, sourceMembers.length);
       assert.equal(compact.compact_read.omitted_detail_counts.record_members, ledger.omitted_member_count);
-      assert.deepEqual(compact.compact_read.detail_available_via, ["accept_full_read"]);
+      assert.deepEqual(compact.compact_read.detail_available_via, ["member"]);
+      assert.equal(Object.hasOwn(compact.compact_read, "compact_read_token"), false);
       assert.equal(compact.compact_read.next_calls.length, 1);
-      assert.equal(compact.compact_read.next_calls[0].tool, toolFamily);
-      assert.deepEqual(compact.compact_read.next_calls[0].arguments,
-        { ...harness.primary, include_record: true, accept_full_read: true });
-      const recovered = await harness.run({
-        ...harness.primary,
-        include_record: true,
-        accept_full_read: true
+      assert.deepEqual(compact.compact_read.next_calls[0], {
+        tool: toolFamily,
+        arguments: { repo: WORKSPACE_REPO, ...harness.primary, member: { path: [] } },
+        recommended: true
       });
-      assert.deepEqual(recovered.record, record);
-      assert.deepEqual(recovered.record.sections, record.sections);
-      assert.deepEqual(
-        completeRecordMembers(recovered.record),
-        sourceMembers,
-        "recovery must return every source member"
-      );
-      assert.deepEqual(
-        disclosureViolations({ source: record, compact, ledger, recovered: recovered.record }),
-        []
-      );
+      assert.equal(compact.compact_read.next_calls_coverage.complete, true);
+
+      const recovered = await reassemble((args) => harness.run(args), compact.compact_read.next_calls[0].arguments);
+      assert.deepEqual(recovered, record);
+      assert.deepEqual(completeRecordMembers(recovered), sourceMembers, "recovery must return every source member");
+      assert.deepEqual(disclosureViolations({ source: record, compact, ledger, recovered }), []);
+      assert.equal(harness.expensiveCalls.length, 0, "member recovery never invokes a whole-record reader");
+      assert.equal(harness.compactCalls.length, 1, "member reads do not re-run the compact reader");
+      assert.ok(harness.loadCalls.every((call) => call.by === (toolFamily === "workspace_read_page" ? "path" : "id")));
     }
   });
 }
-test("kind-record continuations reject tampered and stale acknowledgments on both read routes", async () => {
+test("retired whole-record inputs refuse on both kind-record routes before any reader", async () => {
   for (const toolFamily of ["workspace_get_record", "workspace_read_page"]) {
     const harness = gateHarness({ record: initiativeRecord(), toolFamily });
-    const compact = await harness.run(harness.primary);
-    const token = compact.compact_read.compact_read_token;
-    const tampered = await harness.run({
-      ...harness.primary,
-      include_record: true,
-      compact_read_token: `${token.slice(0, -1)}!`
-    });
-    assert.equal(tampered.accepted, false);
-    assert.equal(tampered.reason_code, "compact_read_token_malformed");
-    harness.setSourceDigest("sha256:kind-source-b");
-    const stale = await harness.run({
-      ...harness.primary,
-      include_record: true,
-      compact_read_token: token
-    });
-    assert.equal(stale.accepted, false);
-    assert.equal(stale.reason_code, "compact_read_token_stale_source_digest");
+    for (const retired of [{ include_record: true }, { accept_full_read: true }, { include_raw: true },
+      { verbose: true }, { compact_read_token: "e30" }, { include_record: true, accept_full_read: true }]) {
+      await assert.rejects(harness.run({ ...harness.primary, ...retired }),
+        (error) => error.code === "selector_unknown_argument", `${toolFamily} ${JSON.stringify(retired)}`);
+    }
+    await assert.rejects(harness.run({ ...harness.primary, include_body: true }),
+      (error) => error.code === "selector_path_unsupported", `${toolFamily} include_body`);
     assert.equal(harness.expensiveCalls.length, 0);
+    assert.equal(harness.loadCalls.length, 0);
   }
 });
-test("mismatched kind-record compact routes bind disclosure and recovery to the requested identity", async () => {
+test("mismatched kind-record compact routes bind disclosure and member recovery to the requested identity", async () => {
   for (const fixture of [
     { record: initiativeRecord(), requestedId: "IN-9001", embeddedId: "IN-9002" },
     { record: decisionRecord(), requestedId: "DEC-9001", embeddedId: "DEC-9002" }
@@ -259,6 +288,8 @@ test("mismatched kind-record compact routes bind disclosure and recovery to the 
     const requestedPath = fixture.record.record_kind === "initiative"
       ? `wiki/initiatives/${fixture.requestedId}.json`
       : `wiki/decisions/${fixture.requestedId}.json`;
+    const identityMismatch = [{ code: "record_identity_mismatch", severity: "error", path: "id",
+      message: "Loaded canonical record identity or kind does not match the requested identity" }];
     const readResult = {
       ...kindReadResult(fixture.record, "sha256:mismatched-kind-source"),
       relativePath: requestedPath,
@@ -267,8 +298,10 @@ test("mismatched kind-record compact routes bind disclosure and recovery to the 
       canonical_record_path: requestedPath,
       valid: false,
       classification: "invalid_record",
-      diagnostics: [{ code: "record_identity_mismatch", severity: "error", path: "id" }]
+      diagnostics: identityMismatch
     };
+    const loaders = kindLoaders({ valid: false, record_id: fixture.requestedId, source_digest: "sha256:mismatched-kind-source",
+      record: fixture.record, diagnostics: identityMismatch });
     for (const toolFamily of ["workspace_get_record", "workspace_read_page"]) {
       const primary = toolFamily === "workspace_read_page"
         ? { path: requestedPath }
@@ -280,7 +313,9 @@ test("mismatched kind-record compact routes bind disclosure and recovery to the 
         toolFamily,
         readCompact: async () => structuredClone(readResult),
         readExpensive: async () => structuredClone(readResult),
-        readWorkRecordById: async () => { throw new Error("kind reads must not use the WK loader"); }
+        readWorkRecordById: async () => { throw new Error("kind reads must not use the WK loader"); },
+        loadKindRecordById: loaders.loadKindRecordById,
+        loadKindRecordByPath: loaders.loadKindRecordByPath
       });
       const compact = await run(primary);
       assert.equal(compact.id, fixture.requestedId);
@@ -293,20 +328,18 @@ test("mismatched kind-record compact routes bind disclosure and recovery to the 
       assert.equal(compact.source_classification, "canonical");
       assert.equal(compact.source_digest, "sha256:mismatched-kind-source");
       assert.equal(compact.compact_read.selected_resources.id, fixture.requestedId);
-      const token = JSON.parse(Buffer.from(
-        compact.compact_read.compact_read_token,
-        "base64url"
-      ).toString("utf8"));
-      assert.equal(token.record_id, fixture.requestedId);
-      assert.equal(token.tool_family, toolFamily);
       assert.deepEqual(compact.compact_read.next_calls[0].arguments,
-        { ...primary, include_record: true, accept_full_read: true });
+        { repo: WORKSPACE_REPO, ...primary, member: { path: [] } });
       assert.equal(JSON.stringify(compact.compact_read.selected_resources).includes(fixture.embeddedId), false);
       assert.equal(JSON.stringify(compact.compact_read.next_calls).includes(fixture.embeddedId), false);
-      const recovered = await run({ ...primary, include_record: true, accept_full_read: true });
-      assert.equal(recovered.id, fixture.requestedId);
-      assert.equal(recovered.record_id, fixture.requestedId);
-      assert.equal(recovered.record.id, fixture.embeddedId);
+
+      const refused = await run(compact.compact_read.next_calls[0].arguments);
+      assert.equal(refused.ok, false);
+      assert.equal(refused.record_id, fixture.requestedId);
+      assert.equal(refused.diagnostics[0].code, "record_identity_mismatch");
+      assert.equal(Object.hasOwn(refused, "member"), false);
+      assert.equal(JSON.stringify(refused).includes(fixture.embeddedId), false);
+      assert.equal(JSON.stringify(refused).includes("body"), false);
     }
   }
 });
@@ -314,8 +347,9 @@ test("disclosure oracle kills the six existing and every section-member falsifie
   const record = decisionRecord();
   const harness = gateHarness({ record, toolFamily: "workspace_get_record" });
   const compact = await harness.run(harness.primary);
-  const recovered = await harness.run({ ...harness.primary, include_record: true, accept_full_read: true });
+  const recovered = await reassemble((args) => harness.run(args), compact.compact_read.next_calls[0].arguments);
   const baseline = compact.compact_read.member_ledger;
+  assert.deepEqual(disclosureViolations({ source: record, compact, ledger: baseline, recovered }), []);
   const clone = () => structuredClone(baseline);
   const mutants = new Map();
   const silent = clone();
@@ -343,13 +377,13 @@ test("disclosure oracle kills the six existing and every section-member falsifie
   for (const [label, ledger] of mutants) {
     await t.test(label, () => {
       assert.notDeepEqual(
-        disclosureViolations({ source: record, compact, ledger, recovered: recovered.record }),
+        disclosureViolations({ source: record, compact, ledger, recovered }),
         [],
         label
       );
     });
   }
-  const unrecoverable = structuredClone(recovered.record);
+  const unrecoverable = structuredClone(recovered);
   delete unrecoverable.sections;
   await t.test("unrecoverable loss", () => {
     assert.notDeepEqual(
@@ -404,14 +438,14 @@ test("disclosure oracle kills the six existing and every section-member falsifie
   for (const [label, ledger] of sectionMutants) {
     await t.test(label, () => {
       assert.notDeepEqual(
-        disclosureViolations({ source: record, compact, ledger, recovered: recovered.record }),
+        disclosureViolations({ source: record, compact, ledger, recovered }),
         [],
         label
       );
     });
   }
 
-  const unrecoverableSection = structuredClone(recovered.record);
+  const unrecoverableSection = structuredClone(recovered);
   delete unrecoverableSection.sections[sectionMember.slice("sections.".length)];
   await t.test("unrecoverable section member", () => {
     assert.notDeepEqual(

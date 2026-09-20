@@ -1,10 +1,13 @@
 
 
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 
 import { runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import { buildWkSliceMarkerTrailer } from "./commit-tool-exposure-guard.mjs";
+import { parseLiteralCommitObject } from "./literal-commit-object.mjs";
 
 import {
   SLICE_INTEGRATION_DIAGNOSTIC_CODES,
@@ -284,42 +287,12 @@ async function fixedRawObjectDelta(runGit, repo, parent, commit) {
 
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
-function parseLiteralCommitObject(raw, oid) {
-  if (typeof raw !== "string" || !OID_RE.test(oid) || raw.includes("\u0000") || raw.includes("\r") || raw.includes("\uFFFD")) return null;
-  const separator = raw.indexOf("\n\n");
-  if (separator < 0) return null;
-  const headers = raw.slice(0, separator).split("\n");
-  if (headers.length === 0 || headers.some((line) => line.length === 0)) return null;
-  const parsed = [];
-  let continuedKey = null;
-  for (const line of headers) {
-    if (line.startsWith(" ")) {
-      if (continuedKey === null || continuedKey === "tree" || continuedKey === "parent" || /[\x00-\x1f\x7f]/u.test(line.slice(1))) return null;
-      continue;
-    }
-    const space = line.indexOf(" ");
-    if (space <= 0 || space === line.length - 1) return null;
-    const key = line.slice(0, space);
-    const value = line.slice(space + 1);
-    if (!/^[\x21-\x7e]+$/u.test(key) || value.startsWith(" ") || /[\x00-\x1f\x7f]/u.test(value)) return null;
-    parsed.push({ key, value });
-    continuedKey = key;
-  }
-  const treeHeaders = parsed.filter(({ key }) => key === "tree");
-  const parentHeaders = parsed.filter(({ key }) => key === "parent");
-  if (treeHeaders.length !== 1 || !OID_RE.test(treeHeaders[0].value) || treeHeaders[0].value.length !== oid.length ||
-      parentHeaders.some(({ value }) => !OID_RE.test(value) || value.length !== oid.length)) return null;
-  return Object.freeze({
-    tree: treeHeaders[0].value,
-    parents: Object.freeze(parentHeaders.map(({ value }) => value)),
-    message: raw.slice(separator + 2)
-  });
-}
-
 async function readLiteralCommitObject(runGit, repo, oid) {
+  if (!OID_RE.test(oid)) return null;
   const result = await runGit({ repo, args: ["--no-replace-objects", "cat-file", "commit", oid] });
   if (!result || result.ok !== true || typeof result.stdout !== "string") return null;
-  return parseLiteralCommitObject(result.stdout, oid);
+  const parsed = parseLiteralCommitObject(result.stdout, oid);
+  return parsed.ok ? parsed.commit : null;
 }
 
 async function exactCurrentMarkerMatch(runGit, repo, markerCommit, deliveryCommit) {

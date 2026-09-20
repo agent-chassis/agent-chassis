@@ -33,22 +33,25 @@ family:
   launcher, runtime diagnostic, dispatch-readiness, and validation-run tools.
 - `packages/wiki-core/data/tool-discovery/mcp-coordination-tools.json` — MCP
   initiative and integration status coordination tools.
-- `packages/wiki-core/data/tool-discovery/tool-usage-audit-tools.json` —
-  tool-use audit observability tools.
 - `packages/wiki-core/data/tool-discovery/work-record-core-mcp-tools.json` —
-  MCP work-record create, validate, status, task, closure, and summary routes.
+  MCP work-record inbox allocation, entry save/read, validate, staleness-check,
+  status, closure, and summary routes.
 - `packages/wiki-core/data/tool-discovery/work-record-core-cli-tools.json` —
   operator-shell wiki CLI fallbacks for work-record summary, issue creation,
   validate, status, task, closure, and Markdown-to-JSON migration.
 - `packages/wiki-core/data/tool-discovery/work-record-edit-mcp-tools.json` —
-  MCP work-record derived-evidence refresh/cleanup and structured slice,
-  list-field, acceptance, and review-unit editing tools.
+  MCP work-record derived-evidence refresh/cleanup, bounded authored-field,
+  structured slice, acceptance, and review-unit editing tools.
 - `packages/wiki-core/data/tool-discovery/work-record-edit-cli-tools.json` —
   operator-shell wiki CLI fallbacks for work-record derived-evidence
   refresh/cleanup and structured slice, list-field, acceptance, and review-unit
   editing.
 - `packages/wiki-core/data/tool-discovery/code-index-tools.json` — code-index
-  and graph-impact tools across MCP and CLI.
+  status and optional build/rebuild controls.
+- `packages/wiki-core/data/tool-discovery/code-index-query-tools.json` —
+  committed file-context and consolidated impact queries across MCP and CLI.
+- `packages/wiki-core/data/tool-discovery/code-index-navigation-tools.json` —
+  SCIP definition, reference, caller, and callee queries across MCP and CLI.
 - `packages/wiki-core/data/tool-discovery/launcher-tools.json` — dispatch,
   run-status, coordination preflight, and runtime-blocker-taxonomy tools.
 - `packages/wiki-core/data/tool-discovery/cli-commands.json` — wiki and
@@ -76,16 +79,17 @@ directory listing order, or glob expansion. The canonical order is:
 3. `mcp-work-record-tools.json`
 4. `mcp-launcher-tools.json`
 5. `mcp-coordination-tools.json`
-6. `tool-usage-audit-tools.json`
-7. `work-record-core-mcp-tools.json`
-8. `work-record-core-cli-tools.json`
-9. `work-record-edit-mcp-tools.json`
-10. `work-record-edit-cli-tools.json`
-11. `code-index-tools.json`
-12. `launcher-tools.json`
-13. `cli-commands.json`
-14. `integration-tools.json` when listed by the manifest
-15. `wrapper-commands.json`
+6. `work-record-core-mcp-tools.json`
+7. `work-record-core-cli-tools.json`
+8. `work-record-edit-mcp-tools.json`
+9. `work-record-edit-cli-tools.json`
+10. `code-index-tools.json`
+11. `code-index-query-tools.json`
+12. `code-index-navigation-tools.json`
+13. `launcher-tools.json`
+14. `cli-commands.json`
+15. `integration-tools.json` when listed by the manifest
+16. `wrapper-commands.json`
 
 The four `work-record-*` fragments occupy, in that order, the single manifest
 position the former `work-record-tools.json` held. They were split apart along

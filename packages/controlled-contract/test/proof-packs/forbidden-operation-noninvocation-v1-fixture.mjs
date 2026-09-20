@@ -7,11 +7,11 @@ import {
 } from "../../lib/native-contract-carrier-v1.mjs";
 
 const PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.operation.forbidden-noninvocation/2.0.0/profile.json",
+  "../certification/profiles/proof.operation.forbidden-noninvocation/3.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 const INPUT_TEMPLATE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.operation.forbidden-noninvocation/2.0.0/evaluation-input.template.json",
+  "../certification/profiles/proof.operation.forbidden-noninvocation/3.0.0/evaluation-input.template.json",
   import.meta.url
 ), "utf8"));
 const DEFAULT_ROLE_IDS = Object.freeze(Object.fromEntries(INPUT_TEMPLATE.reference_bindings.map(
@@ -171,7 +171,7 @@ function buildForbiddenOperationNoninvocationFixture({
   });
   const input = {
     input_version: INPUT_TEMPLATE.input_version,
-    evaluation_stage: "pre_dispatch",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...roleIds[role]]
     })),

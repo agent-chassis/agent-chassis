@@ -3,51 +3,31 @@ import test from "node:test";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { z } from "zod";
 
 import { registerDispatchTools } from "./dispatch-tools.mjs";
 import { createWorkspaceAgentDispatchBackend } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 
-import {
-  assessManagedRunProcessIdentity,
-  bindManagedRunSandboxProcessIdentity,
-  deriveOuterSandboxKillShape,
-  publishPendingManagedRunProcessIdentity
-} from "@agent-chassis/agent-launch-cli/src/lib/managed-run-process-identity.mjs";
-
-import {
-  RUNTIME_BLOCKER_CODES
-} from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-
-import {
-  SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES,
-  SLICE_REVIEW_POSTCHECK_STATE_BUDGET
-} from "@agent-chassis/agent-launch-cli/src/lib/slice-review-materialization.mjs";
-import {
-  buildDispatchToolExceptionDetail,
-  SAFE_POSTCHECK_MISMATCH_FIELDS,
-  SLICE_REVIEW_POSTCHECK_FAILED_CODE
-} from "./dispatch-tool-helpers.mjs";
-
-import {
-  LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
-  runPostWorkerSliceLifecycle,
-  TERMINAL_REVIEW_EVIDENCE_MODES
-} from "./dispatch-run-monitor-routes.mjs";
-import * as lifecycleExports from "./dispatch-post-worker-lifecycle.mjs";
-import * as monitorRouteExports from "./dispatch-run-monitor-routes.mjs";
-import {
-  composePostWorkerSliceLifecycle,
-  resolveLauncherOwnedLifecycleDeps
-} from "./dispatch-launch-runtime.mjs";
+import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
   parseStructuredTextResponse,
-  terminalReviewAttestation
+  RETIRED_POST_WORKER_REVIEW_SEAMS
 } from "./dispatch-tools-test-helpers.mjs";
+import {
+  CLOSED_LIFECYCLE_FAILURE_CODES,
+  isClosedLifecycleFailure
+} from "./dispatch-lifecycle-failure-projection.mjs";
 
-import { withSliceReviewPreparation } from "./dispatch-tools-slice-lifecycle-test-support.mjs";
+const WORKSPACE = Object.freeze({ repo: "agent-chassis", dir: "/home/user/agent-chassis" });
+const DECLARED_TERMINAL_UNIT = Object.freeze({
+  record_id: "WK-1537",
+  initiative: "IN-0021",
+  slice_id: "SLICE-099",
+  subject: "WK-1537#SLICE-099"
+});
 
 test("review findings remain evidence only and cause no automatic slice lifecycle mutation", async () => {
   let lifecycleCalls = 0;
@@ -75,7 +55,6 @@ test("review findings remain evidence only and cause no automatic slice lifecycl
   });
 
   const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: "wkmh_reviewer",
     subject: "WK-1537#SLICE-003"
   }));
   assert.equal(result.review_result.review_outcome, "changes_requested");
@@ -85,9 +64,7 @@ test("review findings remain evidence only and cause no automatic slice lifecycl
 
 test("WK-1555#SLICE-033 the post-worker lifecycle delegates integration to the host adapter and consumes its result", async () => {
   const harness = createResumableLifecycleHarness();
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
   const adapterCalls = [];
-
   const delegatedIntegration = { ...harness.integrationResult, tuple: {
     assigned_unit: harness.status.subject,
     launch_ref: harness.status.monitor_handle,
@@ -99,58 +76,75 @@ test("WK-1555#SLICE-033 the post-worker lifecycle delegates integration to the h
     return { accepted: true, integration: delegatedIntegration };
   };
   const finalized = await runPostWorkerSliceLifecycle({
-    workspace,
+    workspace: WORKSPACE,
     status: { ...harness.status },
-    deps: { ...withSliceReviewPreparation(harness.deps), hostSliceIntegrationAdapter }
+    deps: { ...harness.deps, hostSliceIntegrationAdapter }
   });
 
   assert.equal(harness.counts().integrationCalls, 0);
 
-  assert.equal(adapterCalls.length, 1);
-  assert.deepEqual(adapterCalls[0], {
+  assert.deepEqual(adapterCalls, [{
     assigned_unit: harness.status.subject,
     launch_ref: harness.status.monitor_handle,
     run_id: harness.status.run_id,
     retry_id: 0
-  });
-
+  }]);
   assert.equal(finalized.phase, "finalized");
   assert.equal(finalized.integrated, true);
-  assert.deepEqual(finalized.reviewer_dispatch.context.frozen_review_target, harness.integrationResult.review_target);
+  assert.equal(finalized.wk_transitioned_to_review, true);
+  assert.deepEqual(finalized.integration, delegatedIntegration);
+  assert.equal(Object.hasOwn(finalized, "reviewer_dispatch"), false);
+  assert.equal(Object.hasOwn(finalized, "slice_review"), false);
+  assert.equal(harness.counts().reviewSeamCalls, 0);
 });
 
 test("WK-1555#SLICE-033 a host-delegated integration refusal fails the lifecycle closed", async () => {
   const harness = createResumableLifecycleHarness();
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
   const hostSliceIntegrationAdapter = async () => ({
     accepted: false,
     refusal: { code: "operator_recovery_needed", reason: "trusted_operation_refused", detail: null }
   });
   await assert.rejects(
     runPostWorkerSliceLifecycle({
-      workspace,
+      workspace: WORKSPACE,
       status: { ...harness.status },
-      deps: { ...withSliceReviewPreparation(harness.deps), hostSliceIntegrationAdapter }
+      deps: { ...harness.deps, hostSliceIntegrationAdapter }
     }),
-    /host-delegated slice-to-WK integration failed/
+    (error) => {
+
+      assert.equal(isClosedLifecycleFailure(error), true);
+      assert.equal(error.code, CLOSED_LIFECYCLE_FAILURE_CODES.COMMITTED_SLICE_INTEGRATION_FAILED);
+      assert.equal(error.message, "post-worker committed slice integration failed");
+      assert.deepEqual({ ...error.failure_cause }, {
+        kind: "integration_refusal", reason: null,
+        diagnostic_code: null, diagnostic_kind: null, public_blocker_code: null
+      });
+      const thrown = error.evidence.thrown.value;
+      assert.equal(thrown.message,
+        "workspace-agent post-worker lifecycle: host-delegated slice-to-WK integration failed");
+      assert.equal(thrown.properties.code, "agent_launch.slice_integration.git_failed.v1");
+      assert.deepEqual(thrown.properties.detail.integration_refusal,
+        { code: "operator_recovery_needed", reason: "trusted_operation_refused", detail: null });
+      assert.equal(error.detail.evidence, error.evidence);
+      assert.match(error.stack, /Caused by: SliceIntegrationError: workspace-agent post-worker lifecycle/u);
+      return true;
+    }
   );
-  assert.equal(harness.counts().integrationCalls, 0);
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
-test("WK-1587 a non-final slice integration leaves the WK dispatchable and dispatches no reviewer", async () => {
-  const harness = createResumableLifecycleHarness();
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
+test("WK-1587 a non-final slice integration leaves the WK dispatchable and consults no terminal review unit", async () => {
+  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
 
-  const nonFinalIntegration = {
-    ...harness.integrationResult,
-    review_target: null
-  };
+  const nonFinalIntegration = { ...harness.integrationResult, review_target: null };
   let integrationCalls = 0;
+  let prepareCalls = 0;
   const finalized = await runPostWorkerSliceLifecycle({
-    workspace,
+    workspace: WORKSPACE,
     status: { ...harness.status, run_id: "run-worker-nonfinal" },
     deps: {
-      ...withSliceReviewPreparation(harness.deps),
+      ...harness.deps,
+      prepareTerminalCandidate: async () => { prepareCalls += 1; },
       hostSliceIntegrationAdapter: async () => {
         integrationCalls += 1;
         return { accepted: true, integration: nonFinalIntegration };
@@ -161,43 +155,123 @@ test("WK-1587 a non-final slice integration leaves the WK dispatchable and dispa
   assert.equal(finalized.phase, "finalized");
   assert.equal(finalized.integrated, true);
   assert.equal(finalized.wk_transitioned_to_review, false);
-
-  assert.equal(finalized.reviewer_dispatch, null, "a non-final slice dispatches no whole-WK reviewer");
   assert.deepEqual(finalized.integration, nonFinalIntegration);
-
-  assert.equal(harness.counts().bindCalls, 0);
-
-  assert.equal(harness.sliceBindCalls(), 1, "the per-slice reviewer context is bound before integration");
-  assert.equal(harness.sliceStatus(), "review");
-  assert.deepEqual(
-    harness.statusWrites.filter((write) => write.unitAddress === "WK-1537"),
-    [],
-    "the parent WK is never transitioned by the slice-level review"
-  );
+  assert.equal(Object.hasOwn(finalized, "terminal_candidate"), false);
+  assert.equal(Object.hasOwn(finalized, "reviewer_dispatch"), false);
+  assert.equal(prepareCalls, 0);
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
-test("managed lifecycle refuses before review freeze when the preparation adapter is absent", async () => {
+test("managed lifecycle refuses a committed delivery when the writable host integration adapter is absent", async () => {
   const harness = createResumableLifecycleHarness();
   await assert.rejects(
     runPostWorkerSliceLifecycle({
-      workspace: { repo: "agent-chassis", dir: "/home/user/agent-chassis" },
+      workspace: WORKSPACE,
       status: { ...harness.status },
-      deps: { ...harness.deps, hostSliceReviewPreparationAdapter: undefined }
+      deps: { ...harness.deps, hostSliceIntegrationAdapter: undefined }
     }),
-    /requires the trusted slice-review preparation adapter/u
+    /requires the writable host slice integration adapter/u
   );
-  assert.equal(harness.counts().integrationCalls, 0);
-  assert.equal(harness.sliceStatus(), "in_progress");
-  assert.equal(harness.sliceBindCalls(), 0);
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
-function restartReplayLifecycleArgs({ enforcementMode, withMaterializer }) {
+test("a final integration whose record declares no terminal review unit prepares no candidate", async () => {
+  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: null });
+  const resolverInputs = [];
+  let prepareCalls = 0;
+  const finalized = await runPostWorkerSliceLifecycle({
+    workspace: WORKSPACE,
+    status: { ...harness.status },
+    deps: {
+      ...harness.deps,
+      resolveDeclaredTerminalReviewUnit: (input) => {
+        resolverInputs.push(input);
+        return harness.deps.resolveDeclaredTerminalReviewUnit(input);
+      },
+      prepareTerminalCandidate: async () => { prepareCalls += 1; }
+    }
+  });
+  assert.deepEqual(resolverInputs, [{ mainRepo: WORKSPACE.dir, wkId: "WK-1537" }]);
+  assert.equal(prepareCalls, 0);
+  assert.equal(finalized.phase, "finalized");
+  assert.equal(finalized.wk_transitioned_to_review, true);
+  assert.equal(Object.hasOwn(finalized, "terminal_candidate"), false);
+  assert.equal(Object.hasOwn(finalized, "terminal_candidate_validations"), false);
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
+});
+
+test("a final integration without a candidate capability never resolves the declared unit", async () => {
+  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
+  const finalized = await harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } });
+  assert.equal(finalized.phase, "finalized");
+  assert.equal(finalized.wk_transitioned_to_review, true);
+  assert.equal(Object.hasOwn(finalized, "terminal_candidate"), false);
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+});
+
+test("a declared terminal review unit for another WK identity refuses before candidate preparation", async () => {
+  for (const unit of [
+    { ...DECLARED_TERMINAL_UNIT, record_id: "WK-9999" },
+    { ...DECLARED_TERMINAL_UNIT, initiative: "IN-9999" }
+  ]) {
+    const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: unit });
+    let prepareCalls = 0;
+    harness.deps.prepareTerminalCandidate = async () => { prepareCalls += 1; };
+    await assert.rejects(
+      harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
+      /declared terminal review unit does not match the exact launcher WK identity/u
+    );
+    assert.equal(prepareCalls, 0);
+    assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
+  }
+});
+
+test("a declared terminal review unit prepares the candidate from the exact integration and fails closed under its own seam", async () => {
+  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
+  const prepared = [];
+  harness.deps.prepareTerminalCandidate = async (input) => {
+    prepared.push(input);
+    throw new Error("injected candidate preparation failure");
+  };
+  await assert.rejects(
+    harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
+    (error) => {
+      assert.equal(isClosedLifecycleFailure(error), true);
+      assert.equal(error.code, CLOSED_LIFECYCLE_FAILURE_CODES.TERMINAL_CANDIDATE_PREPARATION_FAILED);
+      assert.equal(error.message.includes("injected candidate preparation failure"), false);
+      return true;
+    }
+  );
+  assert.equal(prepared.length, 1);
+  assert.deepEqual(prepared[0].integration, harness.integrationResult);
+  assert.equal(prepared[0].reviewUnit, DECLARED_TERMINAL_UNIT);
+  assert.equal(prepared[0].initiative, "IN-0021");
+  assert.equal(prepared[0].wkId, "WK-1537");
+  assert.equal(prepared[0].wkRef, harness.wkRef);
+  assert.equal(prepared[0].baseSha, "a".repeat(40));
+  assert.equal(prepared[0].baseRef, "main");
+  assert.equal(typeof prepared[0].authenticateAuthoredState, "function");
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
+});
+
+test("a prepared terminal candidate without a binding refuses with missing_binding", async () => {
+  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
+  harness.deps.prepareTerminalCandidate = async () => ({ binding: null });
+  await assert.rejects(
+    harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
+    { code: "agent_launch.terminal_candidate.missing_binding.v1" }
+  );
+});
+
+function restartReplayLifecycleArgs(markerOverrides = {}) {
   const commit = "b".repeat(40);
   const base = "a".repeat(40);
-  const mainSha = "e".repeat(40);
   const wkRef = "refs/heads/wk/IN-0021/WK-1537";
   const sliceRef = "refs/heads/slice/IN-0021/WK-1537/SLICE-001";
+
   const sliceBinding = {
+    launch_ref: "wkmh_worker",
+    run_id: "run-worker.slice",
     unit_address: "IN-0021/WK-1537/SLICE-001",
     output_branch: "slice/IN-0021/WK-1537/SLICE-001",
     worktree_path: "/tmp/slice-IN-0021-WK-1537-SLICE-001",
@@ -205,12 +279,14 @@ function restartReplayLifecycleArgs({ enforcementMode, withMaterializer }) {
     retry_id: 0
   };
   const wkBinding = {
+    launch_ref: "wkmh_worker",
+    run_id: "run-worker.wk",
+    retry_id: 0,
     unit_address: "IN-0021/WK-1537",
     output_branch: "wk/IN-0021/WK-1537",
     worktree_path: "/tmp/wk-IN-0021-WK-1537",
     base_sha: base
   };
-
   const recoveredMarker = {
     integrated: true,
     slice_ref: sliceRef,
@@ -218,10 +294,15 @@ function restartReplayLifecycleArgs({ enforcementMode, withMaterializer }) {
     wk_ref: wkRef,
     wk_sha: commit,
     review_target: null,
-    integrated_state: "final"
+    integrated_state: "final",
+    ...markerOverrides
   };
+  const counters = { adapter: 0, declared: 0, prepare: 0, reviewSeams: 0 };
   const deps = {
-    reviewEnforcementMode: enforcementMode,
+    ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, () => {
+      counters.reviewSeams += 1;
+      throw new Error(`retired seam ${name} called`);
+    }])),
     resolveManagedRunBinding: () => ({
       record_id: "WK-1537",
       slice_id: "SLICE-001",
@@ -230,182 +311,275 @@ function restartReplayLifecycleArgs({ enforcementMode, withMaterializer }) {
       validation_worktree_path: wkBinding.worktree_path
     }),
     reconcileIntegratedSliceRecord: () => ({ ...recoveredMarker }),
-    hostSliceIntegrationAdapter: async () => ({
-      accepted: true,
-      integration: { ...recoveredMarker }
-    }),
-    resolveCanonicalReviewUnit: () => ({
-      record_id: "WK-1537",
-      initiative: "IN-0021",
-      slice_id: "SLICE-001",
-      subject: "WK-1537#SLICE-001",
-      parent_status: "done",
-      canonical_parent_wk_contract: JSON.stringify({
-        id: "WK-1537",
-        initiative: "IN-0021",
-        status: "done"
-      })
-    }),
-    bindFrozenReviewContext: () => ({
-      schema_version: "workspace-agent-frozen-wk-review-context.v1"
-    }),
-    runGit: ({ args }) => {
-      if (args[0] === "merge-base") return { ok: true, stdout: `${base}\n` };
-      if (args[0] === "rev-parse" && args.includes("refs/heads/main")) {
-        return { ok: true, stdout: `${mainSha}\n` };
-      }
-      return { ok: true, stdout: `${commit}\n` };
+    resolveCommittedSliceIntegrationContinuation: () => null,
+    hostSliceIntegrationAdapter: async () => {
+      counters.adapter += 1;
+      return { accepted: true, integration: { ...recoveredMarker } };
     },
-
-    ...(withMaterializer
-      ? {
-          terminalReviewEvidenceMode: TERMINAL_REVIEW_EVIDENCE_MODES.LIVE_MATERIALIZER,
-          materializeTerminalReviewWorktree: terminalReviewAttestation
-        }
-      : {})
+    resolveDeclaredTerminalReviewUnit: () => {
+      counters.declared += 1;
+      return DECLARED_TERMINAL_UNIT;
+    },
+    prepareTerminalCandidate: async () => {
+      counters.prepare += 1;
+      throw new Error("a recovered replay reconstructs no candidate");
+    },
+    runGit: () => ({ ok: true, stdout: `${commit}\n` })
   };
   return {
-    workspace: { repo: "agent-chassis", dir: "/home/user/agent-chassis" },
-    status: {
-      run_id: "run-worker",
-      monitor_handle: "wkmh_worker",
-      role: "worker",
-      subject: "WK-1537#SLICE-001",
-      status: "succeeded",
-      terminal: true
-    },
-    deps
+    counters,
+    args: {
+      workspace: WORKSPACE,
+      status: {
+        run_id: "run-worker",
+        monitor_handle: "wkmh_worker",
+        role: "worker",
+        subject: "WK-1537#SLICE-001",
+        status: "succeeded",
+        terminal: true
+      },
+      deps
+    }
   };
 }
 
-test("WK-1678: an enforced-CCE already-done restart replay fails closed on missing terminal-review evidence", async () => {
-  await assert.rejects(
-    () => runPostWorkerSliceLifecycle(restartReplayLifecycleArgs({
-      enforcementMode: "configured_policy",
-      withMaterializer: false
-    })),
-    (error) => {
-
-      assert.equal(
-        error.code,
-        "agent_launch.terminal_review_materialization.evidence_mode_unavailable.v1"
-      );
-      return true;
-    },
-    "enforced CCE must refuse a replay whose terminal-review evidence cannot be produced"
-  );
-});
-
-test("WK-1678: the enforced tier never completes an already-done replay through the policy-only finalizer", async () => {
-
-  const transitions = [];
-  const args = restartReplayLifecycleArgs({
-    enforcementMode: "configured_policy",
-    withMaterializer: false
-  });
-  args.deps.setWorkRecordStatusByUnit = async (input) => {
-    transitions.push(input);
-    return { valid: true, written: true };
-  };
-  args.deps.markCommitAuthorityExercised = () => {
-    throw new Error("enforced CCE must not exercise commit authority without verified evidence");
-  };
-
-  await assert.rejects(
-    () => runPostWorkerSliceLifecycle(args),
-    (error) => {
-      assert.equal(
-        error.code,
-        "agent_launch.terminal_review_materialization.evidence_mode_unavailable.v1",
-        "the enforced refusal must be the evidence gate, not a policy-only finalizer failure"
-      );
-      return true;
-    }
-  );
-  assert.deepEqual(
-    transitions,
-    [],
-    "a refused enforced replay must write no canonical status transition"
-  );
-});
-
-test("WK-1678: an enforced-CCE already-done replay WITH live materialization proceeds to a reviewer", async () => {
-
-  const result = await runPostWorkerSliceLifecycle(restartReplayLifecycleArgs({
-    enforcementMode: "configured_policy",
-    withMaterializer: true
-  }));
-
+test("an authenticated final restart replay finalizes as the WK handoff without constructing a candidate", async () => {
+  const { args, counters } = restartReplayLifecycleArgs();
+  const result = await runPostWorkerSliceLifecycle(args);
+  assert.equal(result.phase, "finalized");
   assert.equal(result.integrated, true);
   assert.equal(result.wk_transitioned_to_review, true);
-  assert.equal(result.terminal_review_policy, undefined,
-    "an enforced completion carries no policy-only disposition");
-  assert.ok(result.terminal_review_materialization,
-    "an enforced completion carries the verified seven-part attestation");
-  assert.deepEqual(result.reviewer_dispatch.args, {
-    role: "reviewer",
-    subject: "WK-1537#SLICE-001"
-  });
-
-  assert.equal(result.integration.review_target.ref, "refs/heads/wk/IN-0021/WK-1537");
-  assert.equal(result.integration.review_target.complete_parent_wk_contract, true);
-  assert.equal(result.integration.review_target.accumulated_wk_diff, true);
+  assert.equal(result.integration.recovered, true);
+  assert.equal(result.integration.integrated_state, "final");
+  assert.equal(result.integration.review_target, null);
+  assert.equal(Object.hasOwn(result, "terminal_candidate"), false);
+  assert.equal(Object.hasOwn(result, "reviewer_dispatch"), false);
+  assert.deepEqual(counters, { adapter: 1, declared: 0, prepare: 0, reviewSeams: 0 });
 });
 
-test("WK-1678: the policy-only tier keeps its explicit no-reviewer completion for the same replay", async () => {
-
-  const result = await runPostWorkerSliceLifecycle(restartReplayLifecycleArgs({
-    enforcementMode: "policy_only",
-    withMaterializer: false
-  }));
-
+test("an authenticated non-final exact-tip restart replay finalizes without a WK review handoff", async () => {
+  const { args, counters } = restartReplayLifecycleArgs({ integrated_state: "non_final" });
+  const result = await runPostWorkerSliceLifecycle(args);
+  assert.equal(result.phase, "finalized");
   assert.equal(result.integrated, true);
-  assert.equal(result.reviewer_dispatch, null);
-  assert.equal(result.terminal_review_policy.enforcement_mode, "policy_only");
-  assert.equal(result.terminal_review_policy.reviewer_launched, false);
-  assert.equal(result.terminal_review_policy.evidence_enforced, false);
-  assert.equal(result.terminal_review_policy.audit_disposition, "non_audit");
-  assert.equal(
-    result.terminal_review_policy.cause.code,
-    "agent_launch.terminal_review_materialization.evidence_mode_unavailable.v1"
-  );
+  assert.equal(result.wk_transitioned_to_review, false);
+  assert.equal(result.integration.integrated_state, "non_final");
+  assert.deepEqual(counters, { adapter: 1, declared: 0, prepare: 0, reviewSeams: 0 });
 });
 
-test("committed-slice recovery is disjoint from worker liveness and performs no review transition", async () => {
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
+test("a restart replay whose integrated_state cannot be authenticated refuses rather than guessing", async () => {
+  const reviewTarget = {
+    ref: "refs/heads/wk/IN-0021/WK-1537",
+    sha: "b".repeat(40),
+    diff_base_sha: "a".repeat(40),
+    diff_head_sha: "b".repeat(40),
+    complete_parent_wk_contract: true,
+    accumulated_wk_diff: true
+  };
+  for (const [overrides, reason] of [
+    [{ integrated_state: undefined }, "absent_integrated_state"],
+    [{ integrated_state: "finalish" }, "unrecognized_integrated_state"],
+    [{ integrated_state: "final", wk_sha: "c".repeat(40) }, "final_without_current_wk_tip_ownership"],
+    [{ integrated_state: "non_final", review_target: reviewTarget }, "non_final_with_whole_wk_review_target"]
+  ]) {
+
+    const { args, counters } = restartReplayLifecycleArgs(overrides);
+    await assert.rejects(
+      runPostWorkerSliceLifecycle(args),
+      (error) => {
+        assert.equal(error.code, "agent_launch.slice_lifecycle.recovered_integrated_state_invalid.v1", reason);
+        assert.equal(error.detail.reason, reason);
+        return true;
+      },
+      reason
+    );
+    assert.deepEqual(counters, { adapter: 1, declared: 0, prepare: 0, reviewSeams: 0 }, reason);
+  }
+});
+
+test("committed-slice recovery is disjoint from worker liveness and performs no transition", async () => {
   const harness = createResumableLifecycleHarness();
   let livenessConsults = 0;
 
-  const recovered = await runPostWorkerSliceLifecycle({
-    workspace,
-    status: { ...harness.status },
-    deps: {
-      ...withSliceReviewPreparation(harness.deps),
+  for (const deps of [
+    {
+      ...harness.deps,
       recoveryOnly: true,
       resolveManagedWorkerProvenDeath: () => {
         livenessConsults += 1;
-        throw new Error("committed review must not consult worker liveness");
+        throw new Error("committed recovery must not consult worker liveness");
       }
-    }
-  });
-  assert.equal(recovered, null);
+    },
+    { ...harness.deps, recoveryOnly: true }
+  ]) {
+    const recovered = await runPostWorkerSliceLifecycle({
+      workspace: WORKSPACE,
+      status: { ...harness.status },
+      deps
+    });
+    assert.equal(recovered, null);
+  }
   assert.equal(livenessConsults, 0);
-  assert.equal(harness.sliceStatus(), "in_progress");
-  assert.deepEqual(harness.counts(), { integrationCalls: 0, bindCalls: 0 });
-  assert.deepEqual(harness.statusWrites, []);
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
-test("committed-slice recovery does not branch on any worker-liveness verdict", async () => {
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
-  const harness = createResumableLifecycleHarness();
-  const result = await runPostWorkerSliceLifecycle({
-    workspace,
-    status: { ...harness.status },
-    deps: { ...withSliceReviewPreparation(harness.deps), recoveryOnly: true }
+function registerStandaloneRedteamDispatchFixture(t, { slice, slices, recordId = "WK-9733", subjectSliceId = "SLICE-001" } = {}) {
+  const repo = mkdtempSync(path.join(tmpdir(), "wk1725-registered-"));
+  const worktrees = mkdtempSync(path.join(tmpdir(), "wk1725-registered-wt-"));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  t.after(() => rmSync(worktrees, { recursive: true, force: true }));
+  mkdirSync(path.join(repo, "wiki", "work-records"), { recursive: true });
+  const subject = `${recordId}#${subjectSliceId}`;
+  writeFileSync(path.join(repo, "wiki", "work-records", `${recordId}.json`), JSON.stringify({
+    id: recordId,
+    initiative: "IN-0030",
+    status: "todo",
+    acceptance: {
+      criteria: ["Adversarially review the standalone unit."],
+      validation: ["node --test packages/wiki-mcp/src/lib/dispatch-tools-slice-lifecycle.test.mjs"]
+    },
+    slices: slices ?? [slice ?? {
+      id: "SLICE-001",
+      title: "Standalone findings-only redteam",
+      work_kind: "redteam",
+      status: "todo",
+      write_scope: [],
+      dispatch_intent: { intended_agent_role: "redteam", target_unit: "slice" },
+      acceptance: { criteria: ["Report adversarial findings; modify nothing."] }
+    }]
+  }));
+
+  writeFileSync(path.join(repo, "agent-launch.toml"), '[roles.redteam]\nmodel = "gpt-5.6-terra"\n');
+
+  for (const args of [
+    ["init", "-q", "-b", "main"],
+    ["-c", "user.email=test@example.com", "-c", "user.name=Test", "add", "."],
+    ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-q", "-m", "fixture"]
+  ]) {
+    const result = spawnSync("git", ["-C", repo, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  }
+
+  const executorInputs = [];
+  let recoveryCalls = 0;
+  const backend = createWorkspaceAgentDispatchBackend({
+    launchExecutor: async (input) => {
+      executorInputs.push({ role: input.role, subject: input.subject, workspace_dir: input.workspace_dir });
+      return { accepted: true, status: "launching" };
+    },
+    worktreeProvisioning: { mainRepo: repo, worktreeRoot: worktrees },
+
+    recoverTerminalCandidate: async () => { recoveryCalls += 1; return null; }
   });
-  assert.equal(result, null);
-  assert.deepEqual(harness.counts(), { integrationCalls: 0, bindCalls: 0 });
-  assert.equal(harness.sliceStatus(), "in_progress");
-  assert.deepEqual(harness.statusWrites, []);
-  assert.deepEqual(harness.frozenSliceTargets, []);
+
+  const tools = new Map();
+  registerDispatchTools({
+    registerTool: (name, config, handler) => tools.set(name, { config, handler }),
+    registeredToolNames: new Set(["workspace_agent_dispatch"]),
+    workspaceRepos: [{ repo: "agent-chassis", dir: repo }],
+    z,
+    jsonContent: (value) => value,
+    errorContent: (value) => value,
+    resolveWorkspaceRepo: () => ({ repo: "agent-chassis", dir: repo }),
+    validateDispatch: async () => ({
+      schema_version: "dispatch-readiness.v1",
+      record_id: recordId,
+      unit: { kind: "slice", address: subject, record_id: recordId, slice_id: "SLICE-001" },
+      dispatch_role: "read_only",
+      dispatchable: true,
+      decision_code: "dispatchable",
+      reasons: [],
+      recovery: { graph_impact: "not_required", admission_metrics: "fresh", target_resolution: "fresh" },
+      state: { graph_state: {}, graph_auto_recoverable: false },
+      validation_hints: []
+    }),
+    dispatchBackend: backend,
+    dispatchSessionIdentity: "session-wk1725-registered"
+  });
+
+  return {
+    repo,
+    subject,
+    executorInputs,
+
+    assertPrivateReviewWorkspace(workspaceDir) {
+      assert.notEqual(workspaceDir, repo);
+      assert.ok(
+        workspaceDir.startsWith(path.join(worktrees, ".immutable-candidates") + path.sep),
+        workspaceDir
+      );
+    },
+    recoveryCalls: () => recoveryCalls,
+    dispatch: (role = "redteam") =>
+      tools.get("workspace_agent_dispatch").handler({ role, subject, app: "codex" })
+  };
+}
+
+test("WK-1725#SLICE-001 the registered dispatch handler launches a standalone redteam through the generic route with zero terminal recovery", async (t) => {
+  const fixture = registerStandaloneRedteamDispatchFixture(t);
+  const result = await fixture.dispatch("redteam");
+  assert.equal(result.accepted, true, JSON.stringify(result));
+  assert.equal(result.role, "redteam");
+  assert.equal(result.subject, fixture.subject);
+  assert.equal(fixture.executorInputs.length, 1, "the registered handler reaches the family executor exactly once");
+  assert.equal(fixture.executorInputs[0].role, "redteam");
+  fixture.assertPrivateReviewWorkspace(fixture.executorInputs[0].workspace_dir);
+  assert.equal(fixture.recoveryCalls(), 0, "a registered standalone redteam must never invoke terminal-candidate recovery");
+});
+
+test("WK-1725#SLICE-001 registered dispatch readiness and backend admission agree: repeated standalone redteam attempts are never singleton-blocked", async (t) => {
+  const fixture = registerStandaloneRedteamDispatchFixture(t);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = await fixture.dispatch("redteam");
+    assert.equal(result.accepted, true, `attempt ${attempt}: ${JSON.stringify(result)}`);
+  }
+  assert.equal(fixture.executorInputs.length, 3, "every registered standalone redteam attempt reaches the executor");
+  assert.equal(fixture.recoveryCalls(), 0);
+});
+
+test("WK-1725#SLICE-001 the registered seam routes a standalone redteam generically even when a terminal unit exists elsewhere", async (t) => {
+
+  const fixture = registerStandaloneRedteamDispatchFixture(t, {
+    recordId: "WK-9744",
+    subjectSliceId: "SLICE-001",
+    slices: [
+      {
+        id: "SLICE-001",
+        title: "Standalone findings-only redteam",
+        work_kind: "redteam",
+        status: "todo",
+        write_scope: [],
+        dispatch_intent: { intended_agent_role: "redteam", target_unit: "slice" },
+        acceptance: { criteria: ["Report adversarial findings; modify nothing."] }
+      },
+      {
+        id: "SLICE-050",
+        title: "implementation",
+        work_kind: "implementation",
+        status: "review",
+        write_scope: ["feature.txt"]
+      },
+      {
+        id: "SLICE-099",
+        title: "Terminal whole-WK review",
+        work_kind: "review",
+        review_purpose: "terminal_whole_wk",
+        status: "todo",
+        write_scope: [],
+        dispatch_intent: { intended_agent_role: "reviewer", target_unit: "slice" },
+        acceptance: { criteria: ["Findings-only review of C against L."] }
+      }
+    ]
+  });
+  const result = await fixture.dispatch("redteam");
+  assert.equal(result.accepted, true, JSON.stringify(result));
+  assert.equal(result.role, "redteam");
+  assert.equal(result.subject, fixture.subject);
+  assert.equal(fixture.executorInputs.length, 1, "the standalone redteam reaches the family executor exactly once");
+  fixture.assertPrivateReviewWorkspace(fixture.executorInputs[0].workspace_dir);
+  assert.equal(
+    fixture.recoveryCalls(),
+    0,
+    "a terminal unit elsewhere must not drag the registered standalone redteam into terminal recovery"
+  );
 });

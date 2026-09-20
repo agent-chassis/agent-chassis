@@ -1,0 +1,3494 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.2",
+  "profile_digest": "22656092499b6718a5265191d7ca6fbfc7e5b3755ecbdeeb1a212d36e33ae36a",
+  "witnesses": [
+    {
+      "surface_id": "claim-canonical-value-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-canonical-value-verification-modalities",
+      "variant_id": "reject-claim-canonical-value-verification-modalities",
+      "weakened_profile_digest": "ee0d1d5e16a71e56a8339bb4c4b7126be192170e691287eb35ab3350d413cb6a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-canonical-value-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-canonical-value-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-canonical-value-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "fdab7a230ca2a8869e020ba62bb752901c6651ed75219ed306b148efa6b84f5e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-canonical-value-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-canonical-value-verification-proposition-operand-1-role",
+      "variant_id": "reject-claim-canonical-value-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "2cc8254f94d9eb0b7ba98d1184ab5e7f29475518f6d20ec5a0ea257ff0932f31",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-canonical-value-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-canonical-value-verification-proposition-operator",
+      "variant_id": "reject-claim-canonical-value-verification-proposition-operator",
+      "weakened_profile_digest": "34597575002b359bbb05e236c73d78272c7a1d237d9cc462ce3f325c959337a1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-canonical-value-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-canonical-value-verification-proposition-subject",
+      "variant_id": "reject-claim-canonical-value-verification-proposition-subject",
+      "weakened_profile_digest": "fa192e8f522aaa7b18d40d4efa9be7779ae08241530aec359366dc80e14bcb04",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-canonical-value-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-canonical-value-verification-verification-methods",
+      "variant_id": "reject-claim-canonical-value-verification-verification-methods",
+      "weakened_profile_digest": "238aa30ea54c80d025b68eaf6eacac04183dc6499f089d5ae0cda174f3fe0ccf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-count-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-left-count-exact-modalities",
+      "variant_id": "reject-claim-left-count-exact-modalities",
+      "weakened_profile_digest": "9b4e1f6d38f821585ea01e87e372f51e37b360786ce1f0ff3b736fd701fe0bf5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-count-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-left-count-verification-modalities",
+      "variant_id": "reject-claim-left-count-verification-modalities",
+      "weakened_profile_digest": "a627d26067b4373550da7f518d73ad72e139cd971d6df049db7b343b442720ae",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-count-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-count-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-left-count-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "1aea2d4b6dfdd5426a9c8fba6487f1f02aff4c2e72790cba3c106a29073e65a7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-count-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-count-verification-proposition-operator",
+      "variant_id": "reject-claim-left-count-verification-proposition-operator",
+      "weakened_profile_digest": "5ed9cd73f054f7da3cee8a5239d97d4dce0e8c20a423da171a782c77b7381bc3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-count-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-count-verification-proposition-subject",
+      "variant_id": "reject-claim-left-count-verification-proposition-subject",
+      "weakened_profile_digest": "3a71fd84e013fb02c1e9a76138a43026ee3aa5b6336df95aaa7ad8bf3a05bc19",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-count-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-left-count-verification-verification-methods",
+      "variant_id": "reject-claim-left-count-verification-verification-methods",
+      "weakened_profile_digest": "592bcdd254196f3ef1e9b4b6b3b570d8f4d54ea8887799c112220d453c19ffc5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-parity-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-left-population-parity-verification-modalities",
+      "variant_id": "reject-claim-left-population-parity-verification-modalities",
+      "weakened_profile_digest": "f4b123e3fd7fc844891bee66b445271c126f237716b01c3b35c23b6fb90e74cc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-parity-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-population-parity-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-left-population-parity-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "d0f6f4de48d49aa306d82835168b8578b037cd3bb5886f271c2cf96b52f673df",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-parity-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-population-parity-verification-proposition-operand-1-role",
+      "variant_id": "reject-claim-left-population-parity-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "4d4ffb0a8c587001f09b05a95797076c17da0b5f6ee993ac374cd34a0b685c46",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-parity-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-population-parity-verification-proposition-operator",
+      "variant_id": "reject-claim-left-population-parity-verification-proposition-operator",
+      "weakened_profile_digest": "6ccf1f3a0be1fc07bc628ac782444949a88de49e9eeb8bd982d2cde1b3ddd20c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-parity-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-population-parity-verification-proposition-subject",
+      "variant_id": "reject-claim-left-population-parity-verification-proposition-subject",
+      "weakened_profile_digest": "5cc6b005cd5a0bf186f2f0195ebd0d2971f580c3334de1946ed4170af7685e0c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-parity-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-left-population-parity-verification-verification-methods",
+      "variant_id": "reject-claim-left-population-parity-verification-verification-methods",
+      "weakened_profile_digest": "fb7a9a67b86f34d4732b489877a410fa986d6da7fe57a619a09deccdc2869243",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-population-within-right-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-left-population-within-right-modalities",
+      "variant_id": "reject-claim-left-population-within-right-modalities",
+      "weakened_profile_digest": "5083fa4b80b4a2e1bc9403f60529b5ffd50859dfcda894c9cb07b166af949ce2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-result-exposes-parity-inputs-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-left-result-exposes-parity-inputs-modalities",
+      "variant_id": "reject-claim-left-result-exposes-parity-inputs-modalities",
+      "weakened_profile_digest": "33be41f8df645af13002b4fb8bd24eeefb210117ca5c31b74c8a025a5c9cc251",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-result-exposes-parity-inputs-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operand-0-role",
+      "variant_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operand-0-role",
+      "weakened_profile_digest": "42f9b12d197dad2cd25214da8cff7e311a27ed78e91bb5f667411d63ef3d6736",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-result-exposes-parity-inputs-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operand-1-role",
+      "variant_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operand-1-role",
+      "weakened_profile_digest": "2e631152e7ba9b056c34a71aa104123d229cd511b373cf9fdc59f10454414504",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-result-exposes-parity-inputs-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operand-2-role",
+      "variant_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operand-2-role",
+      "weakened_profile_digest": "2bc0ca4acfc35a9568df1345e273e5d04a3a5a3d771a5985a691a26fd2660055",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/2/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-result-exposes-parity-inputs-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operator",
+      "variant_id": "reject-claim-left-result-exposes-parity-inputs-proposition-operator",
+      "weakened_profile_digest": "6027baaae2cb35dad2981e101a76779d0f1871084caa66b7f549daf91b964f81",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-left-result-exposes-parity-inputs-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-left-result-exposes-parity-inputs-proposition-subject",
+      "variant_id": "reject-claim-left-result-exposes-parity-inputs-proposition-subject",
+      "weakened_profile_digest": "93b8fbddbfc229cd89b7f9264b21b6a5633c5caac2d3776dde3c6e9cf2d67611",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-claim-patterns",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "b010dddf226d3b768e99e6c6ae5ce555ddbf020d2b19a43febebf091a9b7f690",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "left-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-population-within-right",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-population-within-left",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "selected-canonical-values-equal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-both-representations",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "logical_source"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-population-parity-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "left_population_not_subset_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-population-parity-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "right_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "right_population_not_subset_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "left_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "right_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "canonical-value-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "canonical_value_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-left-member-population"
+            },
+            {
+              "pattern": "complete-right-member-population"
+            },
+            {
+              "pattern": "left-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "right-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "left-population-within-right"
+            },
+            {
+              "pattern": "right-population-within-left"
+            },
+            {
+              "pattern": "left-count-exact"
+            },
+            {
+              "pattern": "right-count-exact"
+            },
+            {
+              "pattern": "selected-canonical-values-equal"
+            },
+            {
+              "pattern": "verification-reads-both-representations"
+            },
+            {
+              "pattern": "left-population-parity-verification"
+            },
+            {
+              "pattern": "right-population-parity-verification"
+            },
+            {
+              "pattern": "left-count-verification"
+            },
+            {
+              "pattern": "right-count-verification"
+            },
+            {
+              "pattern": "canonical-value-verification"
+            },
+            {
+              "pattern": "verification-targets-left-population-parity"
+            },
+            {
+              "pattern": "verification-targets-right-population-parity"
+            },
+            {
+              "pattern": "verification-targets-left-count"
+            },
+            {
+              "pattern": "verification-targets-right-count"
+            },
+            {
+              "pattern": "verification-targets-canonical-value"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-count-exact-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-right-count-exact-modalities",
+      "variant_id": "reject-claim-right-count-exact-modalities",
+      "weakened_profile_digest": "dfa86e9e68f162ad5d9fdd9b0137a93be09e2f4394de853fb37f7e58e4e7dc49",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-count-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-right-count-verification-modalities",
+      "variant_id": "reject-claim-right-count-verification-modalities",
+      "weakened_profile_digest": "6a7ffc6a500aeab21cf684532256e43d7ac3acb98f01117bf25ef88e35101b5f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-count-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-count-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-right-count-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "534344cbfd64d33fd36baaff2b3c140754b1813beadf9bc3625ec583d0766df8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-count-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-count-verification-proposition-operator",
+      "variant_id": "reject-claim-right-count-verification-proposition-operator",
+      "weakened_profile_digest": "8746bd09d5d468eeadfdd106d4c0cd50f5d1045e9dc5eaf640c0bc90ab99bb82",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-count-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-count-verification-proposition-subject",
+      "variant_id": "reject-claim-right-count-verification-proposition-subject",
+      "weakened_profile_digest": "49437f1b4f0fc6d862e6f08e25578de977d23a3b0bf8899bfa6db4a5148c4e29",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-count-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-right-count-verification-verification-methods",
+      "variant_id": "reject-claim-right-count-verification-verification-methods",
+      "weakened_profile_digest": "b169258f16d6466be6b5c46a29d413fb0f17fda4126f2a31bb87ac8fb49f448f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-parity-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-right-population-parity-verification-modalities",
+      "variant_id": "reject-claim-right-population-parity-verification-modalities",
+      "weakened_profile_digest": "c74ba0fe7ac14f16531eb807b03ad0544b1209bfcaba72e1154587ece71af91a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-parity-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-population-parity-verification-proposition-operand-0-role",
+      "variant_id": "reject-claim-right-population-parity-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "800ed3714137741d0460938913b8aac11db934be3d57a4cbdebc37cd4d93a5ba",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-parity-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-population-parity-verification-proposition-operand-1-role",
+      "variant_id": "reject-claim-right-population-parity-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "c2b0fc5959fef878ffde809056e96950862e3d855838c7c21655b3c8e980921e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-parity-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-population-parity-verification-proposition-operator",
+      "variant_id": "reject-claim-right-population-parity-verification-proposition-operator",
+      "weakened_profile_digest": "1064973051dac2045dc6e2453de9bf250989f666fa5b887278a120410b774557",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-parity-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-population-parity-verification-proposition-subject",
+      "variant_id": "reject-claim-right-population-parity-verification-proposition-subject",
+      "weakened_profile_digest": "3afa6283d5f6e08c331adb5f958e125c82b36a2c8bae07dc1c3ff5dc69bce24e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-parity-verification-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-right-population-parity-verification-verification-methods",
+      "variant_id": "reject-claim-right-population-parity-verification-verification-methods",
+      "weakened_profile_digest": "3c4286aae058601e0f2041bb74218400b93f0e92905b7b63b553cb8da3290a21",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-population-within-left-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-right-population-within-left-modalities",
+      "variant_id": "reject-claim-right-population-within-left-modalities",
+      "weakened_profile_digest": "5d1ffdd2e05c607cdf1c52148e5fcf9e0a72b53445c272344d227e503d3d1878",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-result-exposes-parity-inputs-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-right-result-exposes-parity-inputs-modalities",
+      "variant_id": "reject-claim-right-result-exposes-parity-inputs-modalities",
+      "weakened_profile_digest": "6eb15b5523b1058955361a851e7797ec65a2c3218ec693a6f6b5b0e980c26bb2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-result-exposes-parity-inputs-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operand-0-role",
+      "variant_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operand-0-role",
+      "weakened_profile_digest": "34840f754b91f642052c3a61b88b30cd5e1e68756f5d9eb2b4e9e6ee88125eea",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-result-exposes-parity-inputs-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operand-1-role",
+      "variant_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operand-1-role",
+      "weakened_profile_digest": "cb6131df7505fd4b0eef08971d90464d7e5a2ef3510178326c1c8c829624dbb7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-result-exposes-parity-inputs-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operand-2-role",
+      "variant_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operand-2-role",
+      "weakened_profile_digest": "8879a2df3c00167d5e606156742aa8fdd0460de6a4efbb36eda5f310ae4c4698",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/2/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-result-exposes-parity-inputs-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operator",
+      "variant_id": "reject-claim-right-result-exposes-parity-inputs-proposition-operator",
+      "weakened_profile_digest": "db5f2a219e523fba3001b020f512d4e294bdb406fc4f0fee8264afeebe9a0dbd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-right-result-exposes-parity-inputs-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-right-result-exposes-parity-inputs-proposition-subject",
+      "variant_id": "reject-claim-right-result-exposes-parity-inputs-proposition-subject",
+      "weakened_profile_digest": "d7509ead1b108f79e3789be626f3f5b10cbae67b893ff848c9758f39b42509e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-selected-canonical-values-equal-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-selected-canonical-values-equal-modalities",
+      "variant_id": "reject-claim-selected-canonical-values-equal-modalities",
+      "weakened_profile_digest": "ff763c6ee0b87631cee20799226c8429fa873b99ff817a9c996ff8ef40074a00",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-source-emits-both-results-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-source-emits-both-results-modalities",
+      "variant_id": "reject-claim-source-emits-both-results-modalities",
+      "weakened_profile_digest": "2d5d411ddee87a4f3c720579fec36d19ec32500ae23f3e27842c4d1b90a9ca4c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-source-emits-both-results-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-source-emits-both-results-proposition-operand-0-role",
+      "variant_id": "reject-claim-source-emits-both-results-proposition-operand-0-role",
+      "weakened_profile_digest": "23f0215477330ccee9f8182f05352f0307f3e14df636c3ecc258d11988e5922a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-source-emits-both-results-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-source-emits-both-results-proposition-operand-1-role",
+      "variant_id": "reject-claim-source-emits-both-results-proposition-operand-1-role",
+      "weakened_profile_digest": "d7e77178631021d9b94d64997fd835ddd45cc16f2c3646d076e29027df1e7379",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-source-emits-both-results-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-source-emits-both-results-proposition-operator",
+      "variant_id": "reject-claim-source-emits-both-results-proposition-operator",
+      "weakened_profile_digest": "7acd9ccb6bf07e55394fdbcdf76583be6b13774a4873add46e8a3a46d1873447",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-source-emits-both-results-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-source-emits-both-results-proposition-subject",
+      "variant_id": "reject-claim-source-emits-both-results-proposition-subject",
+      "weakened_profile_digest": "a4a882cf552d4484c6b7368e6d6ac394f14f908a0e75560f7f60ffec0b32616c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "left_result"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-modalities",
+      "variant_id": "reject-claim-verification-reads-both-representations-modalities",
+      "weakened_profile_digest": "2db8ca7d3ef8be8c80b438b7c95c5e86e4e5ae50f6bf3829a012ce1bc05e7337",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-0-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-0-role",
+      "weakened_profile_digest": "2533dcf136da63c0c23bb0c4478cc88f22263a4a155726e3abd3728aa96267eb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "left_result"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-1-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-1-role",
+      "weakened_profile_digest": "3b9869ae9a3854956e07af05a43128b1fb334c26575f3e379534c465012eb4ae",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/1/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-2-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-2-role",
+      "weakened_profile_digest": "851a6644c2d83d209e4d57ad2a7093f70ca3c0860e2f6df0c4257b080b1b5faf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/2/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-3-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-3-role",
+      "weakened_profile_digest": "b839c1e2acdf79b4502cf9625ccf5f1f290fe42b47b73aefd9a42123b3e53698",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/3/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-4-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-4-role",
+      "weakened_profile_digest": "e1946d31061e454d01a71e93c150264b37f97017520a4bf40212ae46e88b47d1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/4/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-5-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-5-role",
+      "weakened_profile_digest": "ed91da5b79e26308c5b62f2e823eafbc7ec1b0bccb3979b99f60fe7bebe72628",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/5/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-6-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-6-role",
+      "weakened_profile_digest": "da2dd10f5ba4f25b1092004748347130e0aebcebaeb4dbf7d1568736f2bb477b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/6/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-7-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-7-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-7-role",
+      "weakened_profile_digest": "b1ac87dc572bfb6ccc0121740bff845e44ba4d4f6804e306b9646694a63a2f21",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/7/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operand-8-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operand-8-role",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operand-8-role",
+      "weakened_profile_digest": "973b33162de6a5b2ec347e9cf95d14898569b6e0b50ee3a0875e7b6503c57252",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/8/role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-operator",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-operator",
+      "weakened_profile_digest": "10fb84cf569390cd95352cbd36abeefdeded3cd1f9852226b61cfddb86117c4d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-both-representations-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-both-representations-proposition-subject",
+      "variant_id": "reject-claim-verification-reads-both-representations-proposition-subject",
+      "weakened_profile_digest": "d3298a20dff1979cf7db275e5e1b990e4bb51e832198b325d808ad300effdfeb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "logical_source"
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-distinct-reference-role-sets",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "8a3e4dddc38094625d89c57774631fb7e13136348b2cec36c893157a12edbd6f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": [
+            {
+              "roles": [
+                "left_population",
+                "right_population"
+              ]
+            },
+            {
+              "roles": [
+                "left_count_signal",
+                "right_count_signal"
+              ]
+            },
+            {
+              "roles": [
+                "left_population_not_subset_condition",
+                "right_population_not_subset_condition",
+                "left_count_mismatch_condition",
+                "right_count_mismatch_condition",
+                "canonical_value_mismatch_condition"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-falsifier-condition-bindings",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "35894c2e364d7b008a90ada32ca47630d164efafdcfcd1405873ed7f1a6a3b8d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-number-roles",
+      "variant_id": "reject-number-roles",
+      "weakened_profile_digest": "0e242e28da0c5fac8af350b606c7864f66c20e6e1b98c9bced11c0f695335ae9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/0/number_type",
+          "value": "number"
+        },
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-binding-patterns",
+      "variant_id": "reject-reference-binding-patterns",
+      "weakened_profile_digest": "81448973ba7af93527c52c004ba8f9575f01ae57b6e8a2734822b5daaeccf91e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "source-emits-both-results",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "logical_source",
+                "operator": "reference:emits",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "selected-canonical-values-equal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-both-representations",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "logical_source"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "left_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "right_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "canonical-value-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "canonical_value_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-left-count",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "left_count_mismatch_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-right-count",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "right_count_mismatch_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-canonical-value",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "canonical_value_mismatch_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-right-member-population",
+              "comparison": "complete_population",
+              "roles": [
+                "right_population",
+                "right_members"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-left-count",
+              "role": "verifies",
+              "source_claim_pattern_id": "left-count-verification",
+              "target_claim_pattern_id": "left-count-exact"
+            },
+            {
+              "pattern_id": "verification-targets-right-count",
+              "role": "verifies",
+              "source_claim_pattern_id": "right-count-verification",
+              "target_claim_pattern_id": "right-count-exact"
+            },
+            {
+              "pattern_id": "verification-targets-canonical-value",
+              "role": "verifies",
+              "source_claim_pattern_id": "canonical-value-verification",
+              "target_claim_pattern_id": "selected-canonical-values-equal"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-right-member-population"
+            },
+            {
+              "pattern": "source-emits-both-results"
+            },
+            {
+              "pattern": "left-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "right-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "left-count-exact"
+            },
+            {
+              "pattern": "right-count-exact"
+            },
+            {
+              "pattern": "selected-canonical-values-equal"
+            },
+            {
+              "pattern": "verification-reads-both-representations"
+            },
+            {
+              "pattern": "left-count-verification"
+            },
+            {
+              "pattern": "right-count-verification"
+            },
+            {
+              "pattern": "canonical-value-verification"
+            },
+            {
+              "pattern": "verification-targets-left-count"
+            },
+            {
+              "pattern": "verification-targets-right-count"
+            },
+            {
+              "pattern": "verification-targets-canonical-value"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-role-count-bindings",
+      "variant_id": "reject-reference-role-count-bindings",
+      "weakened_profile_digest": "2e8de80aedbfff87b9b735dd9184cf264fb415d126520fc376d598778721f219",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "source-emits-both-results",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "logical_source",
+                "operator": "reference:emits",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "selected-canonical-values-equal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-both-representations",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "logical_source"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "left_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "right_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "canonical-value-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "canonical_value_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-left-count",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "left_count_mismatch_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-right-count",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "right_count_mismatch_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-canonical-value",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "canonical_value_mismatch_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": [
+            {
+              "reference_role": "right_members",
+              "number_role": "member_count"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-left-count",
+              "role": "verifies",
+              "source_claim_pattern_id": "left-count-verification",
+              "target_claim_pattern_id": "left-count-exact"
+            },
+            {
+              "pattern_id": "verification-targets-right-count",
+              "role": "verifies",
+              "source_claim_pattern_id": "right-count-verification",
+              "target_claim_pattern_id": "right-count-exact"
+            },
+            {
+              "pattern_id": "verification-targets-canonical-value",
+              "role": "verifies",
+              "source_claim_pattern_id": "canonical-value-verification",
+              "target_claim_pattern_id": "selected-canonical-values-equal"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-left-member-population"
+            },
+            {
+              "pattern": "complete-right-member-population"
+            },
+            {
+              "pattern": "source-emits-both-results"
+            },
+            {
+              "pattern": "left-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "right-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "left-count-exact"
+            },
+            {
+              "pattern": "right-count-exact"
+            },
+            {
+              "pattern": "selected-canonical-values-equal"
+            },
+            {
+              "pattern": "verification-reads-both-representations"
+            },
+            {
+              "pattern": "left-count-verification"
+            },
+            {
+              "pattern": "right-count-verification"
+            },
+            {
+              "pattern": "canonical-value-verification"
+            },
+            {
+              "pattern": "verification-targets-left-count"
+            },
+            {
+              "pattern": "verification-targets-right-count"
+            },
+            {
+              "pattern": "verification-targets-canonical-value"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-relation-patterns",
+      "variant_id": "reject-relation-patterns",
+      "weakened_profile_digest": "f4f9d611f6e48c7aeb2b75ad29aef3d921dc6b77070b3568f7925df18ca85420",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "source-emits-both-results",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "logical_source",
+                "operator": "reference:emits",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-result-exposes-parity-inputs",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_result",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-population-within-left",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-exact",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "selected-canonical-values-equal",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-both-representations",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "logical_source"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-population-parity-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "right_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "right_population_not_subset_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "left-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "left_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "right-count-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "right_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "right_count_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "member_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "canonical-value-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "left_selected_canonical_value"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "left_selected_canonical_value",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "canonical_value_mismatch_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "right_selected_canonical_value"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-right-population-parity",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "right_population_not_subset_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-left-count",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "left_count_mismatch_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-right-count",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "right_count_mismatch_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-canonical-value",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "canonical_value_mismatch_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-right-population-parity",
+              "role": "verifies",
+              "source_claim_pattern_id": "right-population-parity-verification",
+              "target_claim_pattern_id": "right-population-within-left"
+            },
+            {
+              "pattern_id": "verification-targets-left-count",
+              "role": "verifies",
+              "source_claim_pattern_id": "left-count-verification",
+              "target_claim_pattern_id": "left-count-exact"
+            },
+            {
+              "pattern_id": "verification-targets-right-count",
+              "role": "verifies",
+              "source_claim_pattern_id": "right-count-verification",
+              "target_claim_pattern_id": "right-count-exact"
+            },
+            {
+              "pattern_id": "verification-targets-canonical-value",
+              "role": "verifies",
+              "source_claim_pattern_id": "canonical-value-verification",
+              "target_claim_pattern_id": "selected-canonical-values-equal"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "complete-left-member-population"
+            },
+            {
+              "pattern": "complete-right-member-population"
+            },
+            {
+              "pattern": "source-emits-both-results"
+            },
+            {
+              "pattern": "left-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "right-result-exposes-parity-inputs"
+            },
+            {
+              "pattern": "right-population-within-left"
+            },
+            {
+              "pattern": "left-count-exact"
+            },
+            {
+              "pattern": "right-count-exact"
+            },
+            {
+              "pattern": "selected-canonical-values-equal"
+            },
+            {
+              "pattern": "verification-reads-both-representations"
+            },
+            {
+              "pattern": "right-population-parity-verification"
+            },
+            {
+              "pattern": "left-count-verification"
+            },
+            {
+              "pattern": "right-count-verification"
+            },
+            {
+              "pattern": "canonical-value-verification"
+            },
+            {
+              "pattern": "verification-targets-right-population-parity"
+            },
+            {
+              "pattern": "verification-targets-left-count"
+            },
+            {
+              "pattern": "verification-targets-right-count"
+            },
+            {
+              "pattern": "verification-targets-canonical-value"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-canonical-value-mismatch-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-canonical-value-mismatch-condition-types",
+      "variant_id": "reject-role-canonical-value-mismatch-condition-types",
+      "weakened_profile_digest": "22a464caa5ac056b0ef62a58cea4f929b6da93aaff1148843ceb84beecbdfb66",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-count-mismatch-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-count-mismatch-condition-types",
+      "variant_id": "reject-role-left-count-mismatch-condition-types",
+      "weakened_profile_digest": "58df71666ca840460833dc9be1709377f7825fc0ef5231473d1cfd4b984c5dfd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-count-signal-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-count-signal-types",
+      "variant_id": "reject-role-left-count-signal-types",
+      "weakened_profile_digest": "5c698eac4b67352e31cd368a72ee1bbcc3f826053e0e6471bfd82580432ea1e0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-members-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-members-types",
+      "variant_id": "reject-role-left-members-types",
+      "weakened_profile_digest": "4a83be557cac5ad33c77a5db67e69219996e2f313fb6b2cea4f89ce7fd0ee835",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-population-not-subset-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-population-not-subset-condition-types",
+      "variant_id": "reject-role-left-population-not-subset-condition-types",
+      "weakened_profile_digest": "cc2d710b106d93bf61bb1fd30653d2edfd48b8dc0eb0fcf2ee7a6aa2a890a7b0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-population-types",
+      "variant_id": "reject-role-left-population-types",
+      "weakened_profile_digest": "1e88ce9d6d2617e4d1726e0ecd538d82d36e59c7f3d0939365c27d2189f99e60",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-result-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-result-types",
+      "variant_id": "reject-role-left-result-types",
+      "weakened_profile_digest": "57a39bf18bf5b8faa1a08a9246babc1aad84156f250f15cbdeb348ccbc21d28c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-left-selected-canonical-value-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-left-selected-canonical-value-types",
+      "variant_id": "reject-role-left-selected-canonical-value-types",
+      "weakened_profile_digest": "22a0cb4e969f5e36a62009fc345896e8536ceab529e81e38803937bf4c996871",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-logical-source-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-logical-source-types",
+      "variant_id": "reject-role-logical-source-types",
+      "weakened_profile_digest": "bf4d2a0fef782e12a4b8624670e60543b7bb6dcaeed605b9ec67cbe651926f0f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-count-mismatch-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-count-mismatch-condition-types",
+      "variant_id": "reject-role-right-count-mismatch-condition-types",
+      "weakened_profile_digest": "6353dc2d119f1af3674fc2860e06add4d846d48cb2265d36bada4b58803af4f8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-count-signal-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-count-signal-types",
+      "variant_id": "reject-role-right-count-signal-types",
+      "weakened_profile_digest": "26f36d5e7a8aa8ab01ced9d6f6507757964c16a4c396b9069592c466b4bf203b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-members-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-members-types",
+      "variant_id": "reject-role-right-members-types",
+      "weakened_profile_digest": "4a83be557cac5ad33c77a5db67e69219996e2f313fb6b2cea4f89ce7fd0ee835",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-population-not-subset-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-population-not-subset-condition-types",
+      "variant_id": "reject-role-right-population-not-subset-condition-types",
+      "weakened_profile_digest": "8efad03cda4b5ee7c58f4f6e2dafa0f0a8560bbea10507ce082025c801b69239",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-population-types",
+      "variant_id": "reject-role-right-population-types",
+      "weakened_profile_digest": "9bd737cc4fb89588be9426c877d9272715a96388298b9ef464a80661fe457d34",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-result-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-result-types",
+      "variant_id": "reject-role-right-result-types",
+      "weakened_profile_digest": "019e375860ea40eb6a947c5d4b11d8ba917bbcf148cd828cf29e587161e007f3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-right-selected-canonical-value-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-right-selected-canonical-value-types",
+      "variant_id": "reject-role-right-selected-canonical-value-types",
+      "weakened_profile_digest": "c30519de3bb61888e1b0db67682bf66fe4e7d313bf7cf05e1aaf2ba22fcabb71",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-verification-types",
+      "variant_id": "reject-role-verification-types",
+      "weakened_profile_digest": "7ab84c0a25628cc82c8d341c3993c73fd265ba8d98ff7ed385c8c209b41f6d6e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-satisfaction-expression",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "598020273ddbee7393672f2e572bb795c21b594e8fa1bbf4e3c4cdb0719948af",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-left-member-population"
+              },
+              {
+                "all_of": [
+                  {
+                    "pattern": "complete-right-member-population"
+                  },
+                  {
+                    "pattern": "source-emits-both-results"
+                  },
+                  {
+                    "pattern": "left-result-exposes-parity-inputs"
+                  },
+                  {
+                    "pattern": "right-result-exposes-parity-inputs"
+                  },
+                  {
+                    "pattern": "left-population-within-right"
+                  },
+                  {
+                    "pattern": "right-population-within-left"
+                  },
+                  {
+                    "pattern": "left-count-exact"
+                  },
+                  {
+                    "pattern": "right-count-exact"
+                  },
+                  {
+                    "pattern": "selected-canonical-values-equal"
+                  },
+                  {
+                    "pattern": "verification-reads-both-representations"
+                  },
+                  {
+                    "pattern": "left-population-parity-verification"
+                  },
+                  {
+                    "pattern": "right-population-parity-verification"
+                  },
+                  {
+                    "pattern": "left-count-verification"
+                  },
+                  {
+                    "pattern": "right-count-verification"
+                  },
+                  {
+                    "pattern": "canonical-value-verification"
+                  },
+                  {
+                    "pattern": "verification-targets-left-population-parity"
+                  },
+                  {
+                    "pattern": "verification-targets-right-population-parity"
+                  },
+                  {
+                    "pattern": "verification-targets-left-count"
+                  },
+                  {
+                    "pattern": "verification-targets-right-count"
+                  },
+                  {
+                    "pattern": "verification-targets-canonical-value"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

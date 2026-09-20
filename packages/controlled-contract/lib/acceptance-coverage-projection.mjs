@@ -382,48 +382,27 @@ function pageSizeOf(value) {
 
 function obligationSelector(value) {
   if (value === undefined || value === null) return null;
-  const keys = ["obligationId", "sourceLocator", "controlledContractNodeId",
-    "mechanism", "packId", "guaranteeSelector", "outcome"];
-  closedKeys(value, keys, "selector");
-  const supplied = keys.filter((key) => Object.hasOwn(value, key));
-  if (supplied.length !== 1) fail("acceptance_coverage_projection_selector_invalid",
-    "obligation selector must contain exactly one targeted field");
-  const key = supplied[0];
-  if (key === "mechanism") {
-    closedKeys(value[key], ["owner", "kind", "selector"], "selector.mechanism");
-    return { mechanism: Object.fromEntries(["owner", "kind", "selector"].map(
-      (field) => [field, requiredString(value[key][field], `selector.mechanism.${field}`)]
-    )) };
+  const names = { obligationId: 'obligation_id', controlledContractNodeId: 'controlled_contract_node_id',
+    proofName: 'proof_name', outcome: 'outcome' };
+  closedKeys(value, [...Object.keys(names), 'mechanism'], 'selector');
+  const supplied = Object.keys(value);
+  if (supplied.length !== 1) fail('acceptance_coverage_projection_selector_invalid',
+    'Obligation selector must contain exactly one targeted field');
+  const [key] = supplied;
+  if (key === 'mechanism') {
+    closedKeys(value.mechanism, ['owner', 'kind', 'selector'], 'selector.mechanism');
+    return { mechanism: Object.fromEntries(['owner', 'kind', 'selector'].map(field =>
+      [field, requiredString(value.mechanism[field], `selector.mechanism.${field}`)])) };
   }
-  if (key === "guaranteeSelector") {
-    closedKeys(value[key], ["kind", "componentId"], "selector.guaranteeSelector");
-    return { guarantee_selector: {
-      kind: requiredString(value[key].kind, "selector.guaranteeSelector.kind"),
-      component_id: requiredString(value[key].componentId,
-        "selector.guaranteeSelector.componentId")
-    } };
-  }
-  const names = { obligationId: "obligation_id", sourceLocator: "source_locator",
-    controlledContractNodeId: "controlled_contract_node_id", packId: "pack_id",
-    outcome: "outcome" };
   return { [names[key]]: requiredString(value[key], `selector.${key}`) };
 }
-
 function matchesObligation(row, selector) {
-  if (selector === null) return row.outcome !== "mechanically_proven";
+  if (selector === null) return true;
   if (selector.obligation_id) return row.obligation_id === selector.obligation_id;
-  if (selector.source_locator) return row.source_locator === selector.source_locator;
-  if (selector.controlled_contract_node_id) return row.controlled_contract_node_ids
-    .includes(selector.controlled_contract_node_id);
-  if (selector.pack_id) return row.proof.kind === "pack_mapping" &&
-    row.proof.pack_id === selector.pack_id;
-  if (selector.outcome) return row.outcome === selector.outcome;
-  if (selector.mechanism) return ["owner", "kind", "selector"].every(
-    (key) => row.mechanism[key] === selector.mechanism[key]
-  );
-  return row.proof.kind === "pack_mapping" &&
-    row.proof.selector.kind === selector.guarantee_selector.kind &&
-    row.proof.selector.component_id === selector.guarantee_selector.component_id;
+  if (selector.controlled_contract_node_id) return row.controlled_contract_node_ids.includes(selector.controlled_contract_node_id);
+  if (selector.mechanism) return ['owner', 'kind', 'selector'].every(key => row.mechanism?.[key] === selector.mechanism[key]);
+  if (selector.proof_name) return row.selection.proof_name === selector.proof_name;
+  return row.outcome === selector.outcome;
 }
 
 function projectObligationCoverage(input) {
@@ -438,7 +417,7 @@ function projectObligationCoverage(input) {
   const rows = evaluation.obligation_outcomes.map((row, index) => {
     if (!row || typeof row.obligation_id !== "string" || ids.has(row.obligation_id) ||
         !OBLIGATION_COVERAGE_OUTCOMES.includes(row.outcome) ||
-        !Array.isArray(row.controlled_contract_node_ids) || !row.mechanism || !row.proof) {
+        !Array.isArray(row.controlled_contract_node_ids) || !row.selection) {
       fail("acceptance_coverage_projection_input_invalid",
         "obligation outcomes must be an exact unique admitted-row population", { index });
     }
@@ -466,7 +445,7 @@ function projectObligationCoverage(input) {
     totals: {
       total: rows.length,
       outcomes: outcomeCounts,
-      invalid_mapping: outcomeCounts.guarantee_incompatible
+      invalid_design: outcomeCounts.design_invalid
     },
     items
   });

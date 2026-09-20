@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -7,17 +8,20 @@ import test from "node:test";
 import { promisify } from "node:util";
 
 import {
+  CLAIM_PATTERN_BINDING_ADMISSION_CODES,
   MAX_BINDING_ASSISTANCE_BYTES,
   ProofPackBindingAssistanceError,
   canonicalProofPackBindingAssistanceJson,
   inspectProofPackBindings,
   inspectProofPackBindingsPage,
+  validateSuppliedClaimPatternBindings,
   validateSuppliedProofPackBindings,
   validateProofPackBindingAssistance
 } from "../lib/proof-pack-binding-assistance.mjs";
-import {
-  migrateControlledAcceptanceContractV02ToV1
-} from "../lib/stable-v1-migration.mjs";
+import { buildRefusalBeforeEffectsFixture } from
+  "./proof-packs/refusal-before-effects-fixture.mjs";
+import { loadAdmittedProofPack } from "../lib/admitted-proof-packs.mjs";
+import { evaluateVerificationProfileV1 } from "../lib/verification-profile-v1.mjs";
 import { buildResultShapeConformanceFixture } from
   "./proof-packs/result-shape-conformance-v1-fixture.mjs";
 import { parseArgs } from "../bin/inspect-proof-pack-bindings.mjs";
@@ -32,7 +36,7 @@ const childEnvironment = () => {
 };
 const packageRoot = new URL("../", import.meta.url);
 const profileId = "proof.state.bounded-interval-nonmutation";
-const profileVersion = "2.0.0";
+const profileVersion = "3.0.0";
 const intentId = "controlled-proof-intent.bounded-interval-nonmutation";
 
 function reference(referenceId, typeTerm, kind = "durable_id") {
@@ -44,7 +48,7 @@ function reference(referenceId, typeTerm, kind = "durable_id") {
 
 async function contractFixture() {
   const contract = JSON.parse(await readFile(new URL(
-    "examples/minimal-controlled-acceptance-contract-v034.json", packageRoot
+    "examples/minimal-controlled-acceptance-contract.v1.json", packageRoot
   ), "utf8"));
   contract.references.push(
     reference("ref-actor-alpha", "cc:actor"),
@@ -72,16 +76,13 @@ async function contractFixture() {
       operands: [{ kind: "number", value: 2 }]
     }
   );
-  return migrateControlledAcceptanceContractV02ToV1({
-    contract,
-    testProofs: buildStableTestProofPopulation(contract)
-  });
+  return { ...contract, test_proofs: buildStableTestProofPopulation(contract) };
 }
 
 function evaluationInput(referenceBindings = [], numberBindings = []) {
   return {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "pre_dispatch",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: referenceBindings,
     number_bindings: numberBindings,
     claim_pattern_bindings: [],
@@ -92,16 +93,17 @@ function evaluationInput(referenceBindings = [], numberBindings = []) {
 }
 
 async function testValidityFixture() {
-  const [base, input] = await Promise.all([
-    readFile(new URL("examples/minimal-controlled-acceptance-contract-v034.json", packageRoot),
+  const [base, template] = await Promise.all([
+    readFile(new URL("examples/minimal-controlled-acceptance-contract.v1.json", packageRoot),
       "utf8").then(JSON.parse),
     readFile(new URL(
-      "profiles/proof.verification.test-validity/1.0.0/evaluation-input.template.json",
+      "profiles/proof.verification.test-validity/5.0.0/evaluation-input.template.json",
       packageRoot), "utf8").then(JSON.parse)
   ]);
+
+  const input = { ...template.stable_evaluation.test_validity[0] };
   input.verification_id = "claim-suite-covers-component";
   input.test_proof_id = "test-proof-suite-covers-component";
-  input.evaluation_stage = "pre_dispatch";
   input.falsifier_executions[0].failure_proposition_id = "prop-component-absent";
   input.falsifier_executions[0].mutation.target_verification_id =
     "claim-suite-covers-component";
@@ -110,7 +112,7 @@ async function testValidityFixture() {
     verification_claim_id: input.verification_id,
     system_under_test_boundary: {
       boundary_id: input.candidate_execution.observed_boundary_id, kind: "module",
-      runtime_module_path: "packages/controlled-contract/lib/test-proof-contract.mjs",
+      runtime_module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
       subject_reference_ids: ["ref-component"]
     },
     observable_result: {
@@ -128,10 +130,10 @@ async function testValidityFixture() {
       mutation: {
         mutation_id: input.falsifier_executions[0].mutation.mutation_id,
         mechanism: "module_substitution", target_kind: "module",
-        module_path: "packages/controlled-contract/lib/test-proof-contract.mjs"
+        module_path: "packages/controlled-contract/lib/test-proof-contract-v1.mjs"
       },
       execution_provider: {
-        provider_id: "launcher.node-test-module-fault", provider_version: "1.0.0",
+        provider_id: "launcher.node-test-module-fault", provider_version: "2.0.0",
         capability: "falsifier_execution"
       }
     }],
@@ -142,23 +144,15 @@ async function testValidityFixture() {
       observation_seam: "node_test_structured_assertion",
       evidence_artifact_type: "boundary_trace"
     },
-    coverage_disposition: {
-      baseline_id: "coverage-baseline-package-suite",
-      baseline_state: "complete_executed_inventory",
-      items: input.test_inventory.declared_test_ids.map((test_id) => ({
-        test_id, disposition: "preserved"
-      }))
-    },
+    test_selector: { name: "package result is returned for the covered component",
+      nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
-  const { input_version: _inputVersion, evaluation_stage, ...testValidity } = input;
+  const testValidity = input;
   return {
-    contract: migrateControlledAcceptanceContractV02ToV1({
-      contract: base, testProofs: [proof]
-    }),
+    contract: { ...base, test_proofs: [proof] },
     input: {
-      input_version: "controlled-contract-verification-profile-input.v1",
-      evaluation_stage,
+      input_version: "controlled-contract-verification-profile-input.v2",
       reference_bindings: [
         { role: "component", reference_ids: ["ref-component"] },
         { role: "suite", reference_ids: ["ref-suite"] }
@@ -313,13 +307,13 @@ test("stable test-validity bindings pass while invalid and mixed families fail c
     const result = await inspectProofPackBindings({
       contract: fixture.contract,
       profileId: "proof.verification.test-validity",
-      profileVersion: "2.0.0",
+      profileVersion: "5.0.0",
       requestedIntents: ["controlled-proof-intent.test-verification-validity"],
       evaluationInput: fixture.input
     });
     assert.equal(result.summary.status, "valid");
     assert.deepEqual(result.evaluation_input_diagnostics, []);
-    assert.equal(fixture.input.evaluation_stage, "pre_dispatch");
+
     const crossPack = await inspectProofPackBindings({
       contract: fixture.contract, profileId, profileVersion
     });
@@ -348,7 +342,7 @@ test("stable test-validity bindings pass while invalid and mixed families fail c
       await assert.rejects(inspectProofPackBindings({
         contract,
         profileId: "proof.verification.test-validity",
-        profileVersion: "2.0.0"
+        profileVersion: "5.0.0"
       }), (error) => error.code === "proof_pack_binding_contract_invalid" &&
         error.details.diagnostics.diagnostics.length > 0 &&
         error.details.diagnostics.diagnostics.every((diagnostic) =>
@@ -358,7 +352,7 @@ test("stable test-validity bindings pass while invalid and mixed families fail c
 
 const TEST_VALIDITY_PACK = Object.freeze({
   profileId: "proof.verification.test-validity",
-  profileVersion: "2.0.0"
+  profileVersion: "5.0.0"
 });
 
 test("the WK-2392-shaped two-role population is valid once component and suite are bound",
@@ -416,11 +410,6 @@ test("an invalid summary always names a failing role or diagnostic", async () =>
   const cases = [
     ["no bindings at all", { contract: fixture.contract, ...TEST_VALIDITY_PACK,
       evaluationInput: { ...structuredClone(fixture.input), reference_bindings: [] } }],
-    ["a superseded evaluation-input version", { contract: fixture.contract,
-      ...TEST_VALIDITY_PACK, evaluationInput: {
-        ...structuredClone(fixture.input),
-        input_version: "controlled-contract-test-validity-evaluation-input.v1"
-      } }],
     ["a dangling reference", { contract, profileId, profileVersion,
       evaluationInput: evaluationInput([
         { role: "actor", reference_ids: ["ref-actor-alpha"] },
@@ -457,12 +446,12 @@ test("an unsupplied optional role is satisfied by absence, not reported invalid"
     });
     fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
     fixture.input.input_version =
-      "controlled-contract-verification-profile-input.v1";
+      "controlled-contract-verification-profile-input.v2";
     fixture.input.stable_evaluation = {};
     const request = {
       contract: fixture.contract,
       profileId: "proof.result-shape.conformance",
-      profileVersion: "2.0.0"
+      profileVersion: "3.0.0"
     };
     const result = await validateSuppliedProofPackBindings({
       ...request, evaluationInput: fixture.input
@@ -586,7 +575,7 @@ test("the bounded CLI emits canonical output and rejects invalid supplied bindin
     const args = [
       cli.pathname, "--input", contractPath,
       "--profile-id", "proof.scope.write-confinement",
-      "--profile-version", "2.0.0"
+      "--profile-version", "3.0.0"
     ];
     const { stdout } = await execFileAsync(process.execPath, args, {
       env: childEnvironment(), maxBuffer: MAX_BINDING_ASSISTANCE_BYTES + 1024
@@ -596,4 +585,171 @@ test("the bounded CLI emits canonical output and rejects invalid supplied bindin
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+const REFUSAL_PACK = Object.freeze({
+  profileId: "proof.authorization.refusal-before-effects",
+  profileVersion: "3.0.0"
+});
+
+function claimBindingRequest(claimPatternBindings, pack = REFUSAL_PACK) {
+  const { contract, input } = buildRefusalBeforeEffectsFixture({
+    verification_method: "analysis"
+  });
+  input.claim_pattern_bindings = claimPatternBindings;
+  return { contract, ...pack, evaluationInput: input };
+}
+
+test("the admission code set is the evaluator's explicit-binding rules", () => {
+  assert.deepEqual([...CLAIM_PATTERN_BINDING_ADMISSION_CODES], [
+    "duplicate_claim_pattern_binding",
+    "unknown_claim_pattern_binding",
+    "claim_pattern_binding_iterated_pattern_invalid",
+    "claim_pattern_binding_dangling",
+    "claim_pattern_binding_mismatch"
+  ]);
+
+  const source = readFileSync(new URL(
+    "../lib/verification-profile-runtime.mjs", import.meta.url), "utf8");
+  for (const code of CLAIM_PATTERN_BINDING_ADMISSION_CODES) {
+    assert.equal(source.includes(`code: "${code}"`), true, code);
+  }
+});
+
+test("an admissible explicit claim-pattern binding validates", async () => {
+  const result = await validateSuppliedClaimPatternBindings(claimBindingRequest([{
+    pattern_id: "attempt-performs-operation",
+    claim_id: "claim-attempt-performs-operation"
+  }]));
+  assert.equal(result.summary.status, "valid");
+  assert.equal(result.summary.diagnostic_count, 0);
+  assert.deepEqual(result.admission_diagnostics, []);
+  assert.equal(result.supplied_binding_count, 1);
+  assert.equal(result.profile_id, REFUSAL_PACK.profileId);
+  assert.equal(result.profile_version, REFUSAL_PACK.profileVersion);
+
+  assert.equal(result.binding_selected, false);
+  assert.equal(result.binding_written, false);
+  assert.equal(result.semantic_truth_inferred, false);
+  assert.equal(result.authority, "non_authoritative");
+
+  const implicit = await validateSuppliedClaimPatternBindings(claimBindingRequest([]));
+  assert.equal(implicit.summary.status, "valid");
+  assert.equal(implicit.supplied_binding_count, 0);
+});
+
+test("a mismatched explicit binding is inadmissible", async () => {
+
+  const result = await validateSuppliedClaimPatternBindings(claimBindingRequest([{
+    pattern_id: "attempt-performs-operation",
+    claim_id: "claim-refusal-rejects-attempt"
+  }]));
+  assert.equal(result.summary.status, "invalid");
+  assert.deepEqual(result.admission_diagnostics.map(({ code }) => code),
+    ["claim_pattern_binding_mismatch"]);
+  const [diagnostic] = result.admission_diagnostics;
+  assert.equal(diagnostic.claim_id, "claim-refusal-rejects-attempt");
+});
+
+function unsatisfiedFixture(claimPatternBindings = []) {
+  const { contract, input } = buildRefusalBeforeEffectsFixture({
+    verification_method: "analysis"
+  });
+
+  contract.propositions.find(
+    ({ proposition_id: id }) => id === "prop-refusal-rejects-attempt"
+  ).operands = [{ kind: "reference", reference_id: "ref-operation" }];
+  input.claim_pattern_bindings = structuredClone(claimPatternBindings);
+  return { contract, ...REFUSAL_PACK, evaluationInput: input };
+}
+
+test("an unsatisfied graph carrying no explicit binding stays admissible", async () => {
+  const request = unsatisfiedFixture();
+  const pack = await loadAdmittedProofPack(REFUSAL_PACK.profileId);
+  const evaluation = evaluateVerificationProfileV1({
+    contract: request.contract, profile: pack.profile,
+    evaluation_input: request.evaluationInput
+  });
+
+  assert.equal(evaluation.satisfaction, "unsatisfied");
+  assert.ok(evaluation.pattern_results.some(({ pattern_kind: kind, status }) =>
+    kind === "claim" && status === "unsatisfied"));
+
+  const result = await validateSuppliedClaimPatternBindings(request);
+  assert.equal(result.supplied_binding_count, 0);
+  assert.equal(result.summary.status, "valid");
+  assert.deepEqual(result.admission_diagnostics, []);
+});
+
+test("an unsatisfied graph with a correct explicit binding stays admissible",
+  async () => {
+
+    const result = await validateSuppliedClaimPatternBindings(unsatisfiedFixture([{
+      pattern_id: "attempt-performs-operation",
+      claim_id: "claim-attempt-performs-operation"
+    }]));
+    assert.equal(result.supplied_binding_count, 1);
+    assert.equal(result.summary.status, "valid");
+    assert.deepEqual(result.admission_diagnostics, []);
+  });
+
+test("every inadmissible explicit binding family is refused by the evaluator",
+  async () => {
+    for (const [expected, bindings] of [
+      ["unknown_claim_pattern_binding", [{
+        pattern_id: "pattern-this-pack-does-not-declare",
+        claim_id: "claim-attempt-performs-operation"
+      }]],
+      ["duplicate_claim_pattern_binding", [
+        { pattern_id: "attempt-performs-operation",
+          claim_id: "claim-attempt-performs-operation" },
+        { pattern_id: "attempt-performs-operation",
+          claim_id: "claim-attempt-uses-subject" }
+      ]],
+      ["claim_pattern_binding_dangling", [{
+        pattern_id: "attempt-performs-operation",
+        claim_id: "claim-absent-from-contract"
+      }]],
+      ["claim_pattern_binding_mismatch", [{
+        pattern_id: "attempt-performs-operation",
+        claim_id: "claim-refusal-rejects-attempt"
+      }]]
+    ]) {
+      const result = await validateSuppliedClaimPatternBindings(
+        claimBindingRequest(bindings));
+      assert.equal(result.summary.status, "invalid", expected);
+      assert.deepEqual(result.admission_diagnostics.map(({ code }) => code),
+        [expected]);
+    }
+  });
+
+test("a pack that declares no claim pattern admits no explicit binding", async () => {
+
+  const result = await validateSuppliedClaimPatternBindings(claimBindingRequest(
+    [{ pattern_id: "attempt-performs-operation",
+      claim_id: "claim-attempt-performs-operation" }],
+    { profileId: "proof.verification.test-validity", profileVersion: "5.0.0" }
+  ));
+  assert.equal(result.summary.status, "invalid");
+  assert.deepEqual(result.admission_diagnostics.map(({ code }) => code),
+    ["unknown_claim_pattern_binding"]);
+});
+
+test("an iterated claim pattern permits no explicit binding", async () => {
+
+  const pack = { profileId: "proof.integration.prefix-safety",
+    profileVersion: "3.0.0" };
+  const result = await validateSuppliedClaimPatternBindings(claimBindingRequest(
+    [{ pattern_id: "each-prefix-case-preserved",
+      claim_id: "claim-attempt-performs-operation" }], pack));
+  assert.equal(result.summary.status, "invalid");
+  assert.deepEqual(result.admission_diagnostics.map(({ code }) => code),
+    ["claim_pattern_binding_iterated_pattern_invalid"]);
+});
+
+test("the claim-pattern validator refuses a stale pack identity", async () => {
+  const error = await validateSuppliedClaimPatternBindings(claimBindingRequest([], {
+    profileId: REFUSAL_PACK.profileId, profileVersion: "0.0.1"
+  })).catch((cause) => cause);
+  assert.equal(error.code, "proof_pack_binding_identity_stale");
 });

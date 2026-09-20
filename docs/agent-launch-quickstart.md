@@ -94,28 +94,28 @@ context envelopes, not from inherited shell state.
 `workspace_agent_dispatch` enforces the subject-role matrix
 (`worker` / `reviewer` -> `WK-####` or `WK-####slice`; `redteam` -> `WK-####`,
 `WK-####slice`, or `IN-####`) and returns a server-minted opaque
-`monitor_handle` plus `run_id`. Status queries go through
-`workspace_agent_run_status`; fabricated, cross-subject, replayed, or
-unauthorized-caller handles refuse with the `monitor_handle_*` code
-family. Reviewer dispatch enforces findings-only mutation authority. A canonical
-implementation slice already in `review` with a launcher-verified exact committed
-slice target is admitted against that same subject: the launcher freezes the
-target and full required read visibility, then launches the reviewer with
-`write_scope: []` without changing the slice's declared delivery scope. Every
-other reviewer subject with non-empty scope refuses with `role_policy_violation`
-plus diagnostic context `reason: reviewer_write_scope_nonempty`. There is no
-`fixup` role on `workspace_agent_dispatch`; post-review fixes use normal worker
-slices or follow-up WKs.
+`monitor_handle` plus `run_id`. Observe the canonical subject through
+`workspace_agent_run_status`, optionally selecting that `run_id` as
+`attempt_id`; the attempt id is only an authenticated selector and grants no
+authority. Cross-repository, cross-subject, retained-binding, and caller-
+visibility mismatches refuse. Reviewer and redteam dispatch are findings-only
+and select the advisory review pipeline before worker admission, so worker
+dispatch readiness never evaluates them. For each dispatch the launcher selects
+and authenticates immutable material: canonical design for a WK or design
+subject, an implementation slice's retained delivery, the published terminal
+candidate for the designated terminal review unit, or an explicit full-commit
+`diff_base_sha`/`reviewed_sha` pair. A missing, unpublished, moved, or otherwise
+invalid subject or material refuses as
+`agent_launch.advisory_review.material_invalid.v1` before any execution. The
+reviewer always launches with empty mutation authority (`write_scope: []`); a
+selected slice's declared delivery scope never grants the reviewer write access.
+There is no `fixup` role on `workspace_agent_dispatch`; post-review fixes use
+normal worker slices or follow-up WKs.
 
-For `reviewer_write_scope_nonempty`, do not retry as a worker, switch roles,
-refresh graph impact, broaden filesystem access, or use an operator wrapper.
-If the selected implementation slice has successfully committed and is
-canonically in `review`, dispatch the reviewer directly against that slice; run
-identity authenticated delivery, while canonical committed-target state now
-authenticates reviewer admission. Otherwise create or select a separate
-findings-only review unit with `work_kind: review`, `write_scope: []`,
-`repo_paths` listing the implementation files to inspect, `depends_on` pointing
-at the implementation unit, and findings-only acceptance criteria.
+For a material refusal, do not retry as a worker, switch roles, refresh graph
+impact, broaden filesystem access, or use an operator wrapper. Correct the
+subject or supply an exact existing commit range, or wait until the implementation
+delivery or terminal candidate the review needs has been published.
 
 Orchestrator launch and resume (`agent-launch orchestrator` and
 `agent-launch resume`) remain human/operator-only entrypoints; agent dispatch
@@ -251,14 +251,20 @@ orchestrator role policy already restricts writes to docs/ and wiki/, a
 failed write to one of those permitted surfaces is still a filesystem fact
 and is reported with the filesystem code so the operator can investigate the
 mount or sandbox profile rather than rewriting WK acceptance to absorb the
-runtime failure. Graph-impact degraded outcomes are deterministic and
-documented in the taxonomy's `graph_impact_state_map`: unavailable/errors
-map to the blocking `graph_impact_unavailable`; stale or rebuild-required
-without a usable dirty overlay map to the blocking
-`graph_impact_rebuild_required` (operator refresh — no rebuild in a dirty
-worktree); and a dirty worktree with a usable overlay maps to the
-non-blocking `graph_impact_degraded_overlay` so the overlay evidence is
-recorded alongside canonical authority.
+runtime failure. Graph impact used by dispatch, SCIP symbol queries, and
+authoring-ergonomics ownership reporting first ensure the shared committed
+index. A compatible artifact for captured HEAD is reused; missing, stale,
+corrupt, or incompatible state is rebuilt from committed objects and the
+requesting operation continues. Standalone index status, path context, and the
+legacy path-only impact query remain read-only observations and do not prepare
+the index. Dirty, staged, deleted, and untracked worktree bytes do not enter or
+block the committed semantic graph. A dirty+fresh result means only that the
+committed artifact's HEAD anchor is current; it is valid and does not itself
+require rebuilding. Only an actual rebuild or verification failure, or a HEAD
+that cannot stabilize, reaches the blocking `graph_impact_unavailable`, with
+its cause and correction-before-retry guidance. A usable dirty overlay remains
+separately reported as non-canonical path-context evidence; its source count is
+the eligible source population, not a modified-file total.
 
 `workspace_coordination_preflight` composes the preflight envelope a
 coordinator should consult before dispatching. It reports the role,
@@ -292,9 +298,11 @@ The fact is frozen and has exactly `schema_version`, `backend_generation_id`,
 as `dispatch_route_registered` and under `capabilities.route_registration`.
 An incompatible, unknown, missing, malformed, stale, or wrong-generation fact
 leaves the route registered but makes effective dispatch unavailable. Every
-surface reports `operator_recovery_needed`, cause
-`stdio_mcp_lifecycle_protocol_incompatible`, and recovery to deploy one coherent
-build and restart the long-lived backend. The other eight capability planes do
+surface reports the registered identity
+`stdio_mcp_lifecycle_protocol_incompatible` and recovery to deploy one coherent
+build and restart the long-lived backend. This is a modeled compatibility
+failure the launcher detected itself, so it is never published as
+`operator_recovery_needed`. The other eight capability planes do
 not inherit that gate and retain their own sources and blockers.
 
 In the current release, structured dispatch, native edit, coordinator-owned
@@ -308,6 +316,19 @@ refusals use `managed_lifecycle_required`; provisioning refusals use
 facts through `workspace_coordination_preflight`. Free/local and paid/CCE
 responses keep the same plane meanings and differ only in their enforcement
 metadata.
+
+The unavailable `automatic_main_promotion` plane is not a
+`managed_lifecycle_required` diagnosis and does not recover by retrying that
+preflight. It reports `automatic_main_promotion_unavailable`. Explicit
+publication through `workspace_wk_forge_handoff` is a separate operation. When
+that route is registered, the plane directs the caller to the read-only
+`workspace_tools_describe({tool_name:"workspace_wk_forge_handoff",verbose:true})`
+discovery call for its current contract and prerequisites. Registration proves
+only that the route is present: it does not prove candidate readiness, forge
+configuration or permission, successful publication, or merge. When the route
+is absent, the plane reports that absence and supplies no ineffective discovery
+or self-retry. Unknown and stale automatic-promotion authority facts remain
+unknown and stale rather than being rewritten as known unavailability.
 
 The current initial flow is: commit the slice, freeze and review its exact SHA,
 retain every reviewer/redteam result as independent advisory evidence, then let the
@@ -432,8 +453,8 @@ graph-impact persistence as a launch side channel.
 
 ### Host wiki-MCP conduit contract
 
-The launcher-owned host wiki-MCP server, exact two-FIFO transparent stdio
-conduit, role-derived tool surface, and shared Claude/Codex lifecycle are
+The launcher-owned per-connection host wiki-MCP server, private Unix-domain socket
+stdio adapter, role-derived tool surface, and shared Claude/Codex lifecycle are
 documented in [mcp-integration.md](mcp-integration.md).
 
 Managed structured dispatch binds the resolved host-server entrypoint, selected
@@ -488,9 +509,23 @@ population from canonical WK JSON, keeps supplied dependency facts non-
 authoritative, and surfaces missing or unknown canonical `target_work_kind` as
 the existing mechanical `blocked_dependency` evidence.
 
-For managed implementation dispatch, the subject must still be the exact
-canonical implementation slice. Canonical review and redteam dependencies need
-no ref or initiative-derived Git identity. Only canonical implementation
+For managed implementation dispatch, the subject must be an explicit existing
+canonical implementation slice, even when the WK contains only one slice.
+`workspace_validate_dispatch` reports structural readiness; a
+`dispatchable:true` result for a bare WK does not establish managed-launch
+capability, select a slice, or create one automatically.
+
+When the implementation slice already exists, select its exact
+`WK-#####SLICE-###` address. When it does not exist, complete slice authoring
+through `workspace_work_record_ready_slice` with the required scope, acceptance,
+and proof inputs, then use the exact allocated address it returns. Run
+`workspace_validate_dispatch` for that address before
+`workspace_agent_dispatch`. Until the coordinator supplies the selection or
+complete authoring inputs, no complete callable continuation exists; retrying
+the unchanged bare WK repeats the refusal.
+
+Canonical review and redteam dependencies need no ref or initiative-derived Git
+identity. Only canonical implementation
 dependencies enter the launcher's Git-integrity checks; replay equivalence is
 conjunctive with exact canonical identity and address, initiative,
 `canonical_wk_json` provenance, one authenticated marker match, captured WK tip,
@@ -515,7 +550,7 @@ This quickstart only documents the operator-facing dispatch address form.
 
 ### Confined source access and host wiki-MCP
 
-The launcher-owned repository namespace, shared host wiki-MCP FIFO conduit, and
+The launcher-owned repository namespace, shared host wiki-MCP socket conduit, and
 unsupported Agy posture are documented in
 [agent-launch-confinement-mcp-conduit.md](agent-launch-confinement-mcp-conduit.md).
 
@@ -533,6 +568,19 @@ the explicit unsupported Agy posture,
 the four runtime-state classes, and the state-class summary table are
 documented in
 [agent-launch-family-runtime-state.md](agent-launch-family-runtime-state.md).
+
+### Local test runtimes
+
+Launcher-owned native proof attempts (`workspace_verify_proof`) consume only
+the runtimes an operator prepared, recorded in
+`.agent-launch/test-runtimes/readiness.v1.json` of the repository that owns the
+worktrees. Ordinary `agent-chassis setup` prepares them as its last step,
+finding the test project and its toolchain and saving both in
+`agent-chassis-runtime.json`; `agent-chassis setup --test-runtimes [--runner
+<runner>[@<project>]]` reruns that step for an already-configured repository.
+Nothing is installed at dispatch or test time; a missing or stale record is
+reported as an environment failure naming that command. See
+[local-test-runtime-setup.md](local-test-runtime-setup.md).
 
 ### Agent run provenance and inspection
 
@@ -562,12 +610,18 @@ What this changes for an operator:
 - A dispatch for a unit that still has a recorded prior attempt refuses. The
   refusal names the verdict — live, partial, ambiguous, unreadable, mismatched,
   unresolved, or proven dead. **The response is never to relaunch the worker.**
-  Poll the same `monitor_handle` with `workspace_agent_run_status` for an
-  undelivered attempt when it is available.
+  Observe the same canonical `subject` with `workspace_agent_run_status`, using
+  the returned `run_id` as `attempt_id` when selection would otherwise be
+  ambiguous.
 - A successful closed-input exact-slice commit is submit-for-review: it advances
   only the slice ref and durably moves that slice to `review`. After delivery,
   worker monitor handles, process liveness, and historical binding-pair
   uniqueness are irrelevant to reviewer admission.
+- If the launcher-bound commit tool cannot resolve its exact binding, its MCP
+  error preserves the outer refusal and the nested resolver diagnostic,
+  including codes, messages, detail, and cause, and labels that diagnostic
+  stage `binding_resolution`. This is diagnostic output only; it does not grant
+  commit, retry, or lifecycle authority.
 - Continue a committed slice with
   `workspace_agent_dispatch(role="reviewer", subject="work record")`.
   The launcher resolves and freezes the exact committed slice ref/tip from
@@ -576,11 +630,13 @@ What this changes for an operator:
 - Reviewer and redteam results form immutable advisory history. Clean output,
   findings, reviewer count, and reviewer agreement neither authorize nor veto a
   corrective dispatch.
-- A recovered run reports `final_result: null`. That means no agent report was
-  captured across the restart — it is not a success, not a completion, and not a
-  reason to skip the review.
+- A recovered run exposes `final_result` only when `include_final_result: true`
+  and the complete report was durably recorded before process loss. A missing
+  durable report remains unavailable; it is not fabricated from receipts and is
+  not a reason to skip the review.
 - A `reserved` verdict means another dispatch for the same unit is already in
-  flight. Nothing is wrong: wait for that run and poll its `monitor_handle`.
+  flight. Nothing is wrong: observe that subject; a bounded observation may set
+  `timeout_ms`, while an omitted timeout performs one immediate read.
 - A unit is not locked by the attempt that succeeded on it. Once the slice is
   integrated and the lifecycle is finalized, the launcher retires that attempt
   itself and the unit is dispatchable again. For corrective work, a proven-dead

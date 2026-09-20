@@ -1,0 +1,172 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "verification-reads-complete-proof",
+      "claim_id": "claim-receipts-record-continuation"
+    },
+    {
+      "pattern_id": "visibility-order-verification",
+      "claim_id": "claim-verify-routing-receipts"
+    },
+    {
+      "pattern_id": "post-visibility-state-current",
+      "claim_id": "claim-fresh-session-restarts"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "effect_count",
+      "value": 2
+    },
+    {
+      "role": "zero_visibility_count",
+      "value": 0
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-allowed-settled-state-population"
+      ],
+      "role": "allowed_settled_state_population"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-disallowed-settled-state-condition"
+      ],
+      "role": "disallowed_settled_state_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-durable-effect-population"
+      ],
+      "role": "durable_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-durable-not-settled-condition"
+      ],
+      "role": "durable_not_settled_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-expected-durable-state"
+      ],
+      "role": "expected_durable_state"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-failure-event"
+      ],
+      "role": "failure_event"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-failure-visibility-condition"
+      ],
+      "role": "failure_visibility_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-failure-visibility-count-signal"
+      ],
+      "role": "failure_visibility_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-failure-visibility-population"
+      ],
+      "role": "failure_visibility_population"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-post-visibility-observation"
+      ],
+      "role": "post_visibility_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-premature-observation-condition"
+      ],
+      "role": "premature_observation_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-premature-visibility-condition"
+      ],
+      "role": "premature_visibility_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-settled-effect-population"
+      ],
+      "role": "settled_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-settled-not-durable-condition"
+      ],
+      "role": "settled_not_durable_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-settlement-event"
+      ],
+      "role": "settlement_event"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-stale-observation-condition"
+      ],
+      "role": "stale_observation_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-visibility-event"
+      ],
+      "role": "visibility_event"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-expected-durable-state"
+      ],
+      "role": "allowed_settled_states"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-durable-effects-1",
+        "ref-ordering-visibility-after-durable-settlement-durable-effects-2"
+      ],
+      "role": "durable_effects"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-expected-durable-state"
+      ],
+      "role": "observed_durable_state"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-expected-durable-state"
+      ],
+      "role": "selected_settled_state"
+    },
+    {
+      "reference_ids": [
+        "ref-ordering-visibility-after-durable-settlement-durable-effects-1",
+        "ref-ordering-visibility-after-durable-settlement-durable-effects-2"
+      ],
+      "role": "settled_effects"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

@@ -1,0 +1,327 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.scope.write-confinement",
+  "profile_version": "4.0.0",
+  "profile_digest": "5eaea9dd397823f7cf906060d658f3ce858fde930c98e730d448c8a8e6f3cd92",
+  "description": "For one declared execution, every member of the caller-declared observed mutation population belongs to the caller-declared authorized target population; both populations are bound as complete with respect to those caller declarations, the execution is linked to the observed population, and one verification reads the execution and both populations, verifies the subset behavior, and carries the controlled not-subset falsifier.",
+  "parameters": [
+    {
+      "name": "execution",
+      "purpose": "Declare execution for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "execution"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "observed_population",
+      "purpose": "Declare observed population for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "observed_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "observed_mutations",
+      "purpose": "Declare observed mutations for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "observed_mutations"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authorized_scope",
+      "purpose": "Declare authorized scope for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "authorized_scope"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authorized_targets",
+      "purpose": "Declare authorized targets for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "authorized_targets"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/5"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "unauthorized_mutation_condition",
+      "purpose": "Declare unauthorized mutation condition for proof.scope.write-confinement. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "unauthorized_mutation_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_condition_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "execution",
+      "kind": "semantic_parameter",
+      "parameter": "execution",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/2",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "observed_population",
+      "kind": "semantic_parameter",
+      "parameter": "observed_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "observed_mutations",
+      "kind": "semantic_parameter",
+      "parameter": "observed_mutations",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authorized_scope",
+      "kind": "semantic_parameter",
+      "parameter": "authorized_scope",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authorized_targets",
+      "kind": "semantic_parameter",
+      "parameter": "authorized_targets",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "unauthorized_mutation_condition",
+      "kind": "semantic_parameter",
+      "parameter": "unauthorized_mutation_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/3",
+        "/distinct_reference_role_sets/0",
+        "/falsifier_condition_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "execution",
+      "observed_population",
+      "observed_mutations",
+      "authorized_scope",
+      "authorized_targets",
+      "verification",
+      "unauthorized_mutation_condition"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.scope.write-confinement.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.scope.write-confinement constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.scope.write-confinement.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

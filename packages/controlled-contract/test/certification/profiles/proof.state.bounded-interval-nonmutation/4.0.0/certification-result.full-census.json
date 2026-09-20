@@ -1,0 +1,1057 @@
+{
+  "tool_version": "controlled-contract-proof-pack-adequacy-check.experimental.v0.2",
+  "authority": {
+    "kind": "experimental_local",
+    "authoritative": false
+  },
+  "pack": {
+    "profile_id": "proof.state.bounded-interval-nonmutation",
+    "profile_version": "4.0.0",
+    "profile_digest": "937e729ac57add4eb1db4d3f459be576d261a329825589ca7bc6e212d21e55c7",
+    "guarantee_digest": "939c6810e54a1ca2b6174e13bdd12bebec13f923159f57cd7ee6c752b4e42fee",
+    "adequacy_digest": "a8ef12cb5528a4c2873ad7d599093abc13e4cc1c3d6e6be9bf48f6f7a1710061"
+  },
+  "passed": true,
+  "control_count": 29,
+  "negative_fixture_count": 3,
+  "coverage_witness_count": 58,
+  "diagnostics": [],
+  "observations": {
+    "schema_version": "controlled-contract-proof-pack-adequacy-run.experimental.v0.1",
+    "profile_id": "proof.state.bounded-interval-nonmutation",
+    "profile_version": "4.0.0",
+    "profile_digest": "937e729ac57add4eb1db4d3f459be576d261a329825589ca7bc6e212d21e55c7",
+    "guarantee_digest": "939c6810e54a1ca2b6174e13bdd12bebec13f923159f57cd7ee6c752b4e42fee",
+    "controls": [
+      {
+        "control_id": "database-snapshot",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "credential-audit",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "artifact-publication",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "during-interval-write",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "during-interval-mutation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "mutate-then-restore",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "wrong-actor-observation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "partial-protected-population",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "collapsed-boundaries",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "reversed-boundaries",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-population-count",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-start-boundary",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-end-boundary",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-boundary-order",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-write-prohibition",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-mutation-prohibition",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-verification-spine",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-write-verification",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-mutation-verification",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-verifies-relation",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "wrong-mutation-falsifier",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-protected-resource-binding",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "indeterminate"
+      },
+      {
+        "control_id": "collapsed-interval-boundaries",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "actions-outside-the-declared-interval",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "delete-or-create-unless-represented-as-write-or-mutation",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "dishonest-identities-populations-intervals-or-grounding",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "real-time-clock-trace-or-evidence-truth",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "trace-omissions-or-unreported-transient-activity",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "undiscovered-actors-or-protected-resources",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      }
+    ]
+  },
+  "negative_fixture_results": [
+    {
+      "fixture_id": "aggregate-constraint-variations",
+      "outcome": "rejected",
+      "variation_assessment": {
+        "index_version": "controlled-contract-proof-pack-variation-index.experimental.v0.2",
+        "mode": "full_census",
+        "total_expanded_variants": 8,
+        "structurally_discharged_count": 0,
+        "evaluated_count": 8
+      },
+      "variant_results": [
+        {
+          "variant_id": "claim-patterns",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "7673e5a1f71f539bfeb4b94cff3e1667637387dc07bfb69e3e5405633e3b1315"
+        },
+        {
+          "variant_id": "distinct-reference-role-sets",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "925f77ff3b93216eb75b23f00c15d4e20406af361fcae5cc47a76d4f612470ca"
+        },
+        {
+          "variant_id": "falsifier-condition-bindings",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "38ce2363831cc10d8052d96437ddd0faaabf789ffde8d97c2e981e9cbe8f3e56"
+        },
+        {
+          "variant_id": "number-roles",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "3590841418e4600cbe62bdc347c2c4995630f176ccec059766b0d3442eb28a76"
+        },
+        {
+          "variant_id": "reference-binding-patterns",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "8d2c30dfc08e45fc487d0ce04ff9199c8bd94908f7d3111d92768541c05f81d4"
+        },
+        {
+          "variant_id": "reference-role-count-bindings",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "9e05c7cb2c45522b3574138211228ece132c3af8cd9daa423b34b820618f8d83"
+        },
+        {
+          "variant_id": "relation-patterns",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4d4cb8057ced2c9b5ff4266b3433a6169f2a814b3e002b2530ceb546d7f5e91d"
+        },
+        {
+          "variant_id": "satisfaction-expression",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "9002b417383bba6a5364a8a3fa30752c7aa7740e573c6b839026e5356c25a6fb"
+        }
+      ]
+    },
+    {
+      "fixture_id": "reference-role-surface-variations",
+      "outcome": "rejected",
+      "variation_assessment": {
+        "index_version": "controlled-contract-proof-pack-variation-index.experimental.v0.2",
+        "mode": "full_census",
+        "total_expanded_variants": 14,
+        "structurally_discharged_count": 0,
+        "evaluated_count": 14
+      },
+      "variant_results": [
+        {
+          "variant_id": "role-actor-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "120c8a912be870dc51367dfa6c56e954ef9dc93a5e6cea9c6f52c8fc9dff1e73"
+        },
+        {
+          "variant_id": "role-actor-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "fa91dc99c91d956772d1985607ebbaaab755899b57b9e6332115864fdec7e5d2"
+        },
+        {
+          "variant_id": "role-end-event-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "735fe995d3be481aa1bdeab9263474c39de7e3cd6c4a012bd0ab62a048e2a4ef"
+        },
+        {
+          "variant_id": "role-end-event-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "4bb2440ffc2d715f9615328d3fdaf204f81b2f63984fb1e0bfd8158669c79bea"
+        },
+        {
+          "variant_id": "role-interval-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "a1138b0d3210d7de059e2cbbee1ee432838b0daf5642fbee4dfe45b205f4d265"
+        },
+        {
+          "variant_id": "role-interval-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "8fbfae3f51a729680decb7dcbb885ca84da1d0db0949f9a8507c3d58de54a671"
+        },
+        {
+          "variant_id": "role-protected-resource-population-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "12eb85c629f0b0eeab724e25f4af198e6d22f6ba6702d2e1c4fe5145b5885a5b"
+        },
+        {
+          "variant_id": "role-protected-resource-population-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "33fad1e9dd67b789eb287d4efaddf4f22e6a157db933e46c3cc4a1da7e63b285"
+        },
+        {
+          "variant_id": "role-protected-resources-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "7eb68b1549b83cd0d9a1fda9e766e7286d5edb2a473bc445a4591711a957895a"
+        },
+        {
+          "variant_id": "role-protected-resources-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "5d3d5192c7e602d7afa848ad74d7f5d00790c50b73c43b5e1ddfe931d1ef3458"
+        },
+        {
+          "variant_id": "role-start-event-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "4bd81962c2522721f42ce31e880d259a203847b432c9455348e3e14b4d29cc94"
+        },
+        {
+          "variant_id": "role-start-event-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "d91b3930329dccdf9bb423091d297c9ba441cafa28fc4677bed4034316a35cb7"
+        },
+        {
+          "variant_id": "role-verification-identity-kinds",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "abcf868cf04cb7143f30faa874b5e54845885c4a5d6937e12ba29382cb7a4b0b"
+        },
+        {
+          "variant_id": "role-verification-types",
+          "outcome": "rejected",
+          "profile_satisfaction": "invalid",
+          "expanded_digest": "e8f698bdb27d09d957b6044c5696578e82eb82856fc18dcddcf31988e4985bff"
+        }
+      ]
+    },
+    {
+      "fixture_id": "semantic-surface-variations",
+      "outcome": "rejected",
+      "variation_assessment": {
+        "index_version": "controlled-contract-proof-pack-variation-index.experimental.v0.2",
+        "mode": "full_census",
+        "total_expanded_variants": 36,
+        "structurally_discharged_count": 0,
+        "evaluated_count": 36
+      },
+      "variant_results": [
+        {
+          "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "e3c870e9a7323ceaddc7ea775bbc5792e415aa07898cf3bed21fa86d4c6e4000"
+        },
+        {
+          "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-mode",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "31aeea31b624f4c7e06a6165a29e2ac31580cda63f7c673781d6db499afe60e7"
+        },
+        {
+          "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-operands",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "bb09c1c881e81d1584e910818271d9f5ab180d95405e6ec63f988354f4200304"
+        },
+        {
+          "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "3c1e5da64a46db085f6f316b5f055d01ad726bbb5bb7a6cfbd1c1180c75756ac"
+        },
+        {
+          "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-mode",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "e2191ca5c6c44ef1f6fd6f2eb3d5370591ebd5600d264bf94d28133330d6e2c0"
+        },
+        {
+          "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-operands",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "76080255c247bb4a82c0674bc45995ab6d147f2222edd1613ad7b65e6469b9c8"
+        },
+        {
+          "variant_id": "claim-end-event-completes-interval-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "2ba7adda93f2e7ff9bfafbcbe05e6dbbe5c0baf77df824e46cbd4ac49c3f97cd"
+        },
+        {
+          "variant_id": "claim-end-event-completes-interval-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "74479c3ededa3f6d1ff632776c3410dca514c2f4a224351963d149b80e4b7dab"
+        },
+        {
+          "variant_id": "claim-end-event-completes-interval-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "619955dd653ff79630ac8ad8940cc57cc47dbbd812119413301d99792193910b"
+        },
+        {
+          "variant_id": "claim-end-event-completes-interval-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "a5076ab210b9f4dd3b70ae18f531a2e509a05eb0ec3b92a628f64695d1e3b76c"
+        },
+        {
+          "variant_id": "claim-start-event-precedes-end-event-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "adf68a5ee7145d01c260b17e4c4633966f7813b5e1e42d268cf7e8caa037350e"
+        },
+        {
+          "variant_id": "claim-start-event-precedes-end-event-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "f6282e09bd887e19663beb6e6bc1d88395e396a4c8834d494921ac8f770d8bdc"
+        },
+        {
+          "variant_id": "claim-start-event-precedes-end-event-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "88488279c850aef6347e1e64b7125baf54aad5696b8677e435bba1e1c4ff4950"
+        },
+        {
+          "variant_id": "claim-start-event-precedes-end-event-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "5593dbfac1c2750a304bb05c120ed59cc6c604665b5d8753fd2590288cd7361a"
+        },
+        {
+          "variant_id": "claim-start-event-starts-interval-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "96506654ea1cd7ee21c801b65669d0e7920217ec2fb0e91bb7e82fc897498c5f"
+        },
+        {
+          "variant_id": "claim-start-event-starts-interval-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "2f9f0cb5feabeb50680bdff33be480ed7b581998d040ca968e2987502c937e02"
+        },
+        {
+          "variant_id": "claim-start-event-starts-interval-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "9002b417383bba6a5364a8a3fa30752c7aa7740e573c6b839026e5356c25a6fb"
+        },
+        {
+          "variant_id": "claim-start-event-starts-interval-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "1d1e60ad7ead1ed39d2fd4c13273b85deb48cd6d0128e66c70397fb5b542221a"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "da99c61bf549e95100fc2053c831fcd0b7b41e36130063cceb7a92d1c598769b"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "4783e02f6a87cf3e70063563936623c56ad8075fffad6ec60b9b17d755289899"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-1-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "1875a0f44ab456e0bd4263760c389c830fb218b5d2df5a9938c3d39197b9cdf9"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-2-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "399d08fb4558dc67c6ae061ee68b7b4b3b9a81d58754489b7373881ec96bd76e"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-3-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "70b1bc18fbf55a15e43bdd5f4fc09b8213bd78b990a9d3bf2def48812cda64ee"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-4-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "cf489974ff97d9148268951d6bb9fa4796343730b11f6d79984a18ad2e71790f"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "e9dda3dc0fed86a0b8c9e0241bab3e38dc90f29aa71275022c61434f7287d2bb"
+        },
+        {
+          "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "f9c9f48c1034eced69036adff9fdc1eaeb4530ac739e07eda43621adfaafe655"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-mutation-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "7a20e4ced5efc5d7ac59be5227874482a0177bb47c805b7df5b001edce44482a"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-mutation-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "163797e3257fbecef7d3f841219e1597ce7b1f9936a003213ddb53cf579a08b9"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-mutation-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "78ef8b290578fd845b580e8052aa0e59eaefb5fcc6d29939c4e2abff5f533e76"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-mutation-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "7422023503d949cbd104c06b0b8b876c124006071bb450905b85731be29e730e"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-mutation-verification-methods",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "c8b5964546e5b6a1a9cb5d626c219b594eeaaf1149f5b0b3c23571e62d3f6d1c"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-write-modalities",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "60eaec6085d4f8c5ddb79aa95232453999351f15b3723665b2c8c7b9ee6e451e"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-write-proposition-operand-0-role",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "ddb3b04b1084702964528310d7ba1642bdf4887201d144e14ed591e07e1b345c"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-write-proposition-operator",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "9033d3999a3221e6a418d0d89db16c30577b96cfe3c40d3fa661a1c3a6fa5ec3"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-write-proposition-subject",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "3b8f84a677cfc646fb050f559eb858168d1338f5b0c3c39ca72f477dcf763a70"
+        },
+        {
+          "variant_id": "claim-verify-no-during-interval-write-verification-methods",
+          "outcome": "rejected",
+          "profile_satisfaction": "unsatisfied",
+          "expanded_digest": "571fc4c6c682c455dc9b2a0c9ea68ee29995186ad8745370a554a8cd0d9926e3"
+        }
+      ]
+    }
+  ],
+  "coverage_witness_results": [
+    {
+      "surface_id": "claim-actor-does-not-mutate-protected-resources-during-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-modalities",
+      "weakened_profile_digest": "c4a72f1760ca19facc5222968450f74a2093ca32718cf3345005896441006cd1",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-mode",
+      "weakened_profile_digest": "5cc74348e37dbf4a369c6596cfcd32681d31b017566ca213bc24e5b2f609e43c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-mutate-protected-resources-during-interval-proposition-applicability-operands",
+      "weakened_profile_digest": "dff7bb592f7072547c928343bad6a979570a95c93d7114af81f981e609af961f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-actor-does-not-write-protected-resources-during-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-modalities",
+      "weakened_profile_digest": "77c6ab21e23ea6fff00caf8ec60e488ceff0c2ed6cde8420b4c79633fbc79235",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-mode",
+      "weakened_profile_digest": "01621b735b9619ce6ebd8a7f55fc282deea8b76990a26d7a48d9d5397da46d42",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-actor-does-not-write-protected-resources-during-interval-proposition-applicability-operands",
+      "weakened_profile_digest": "4e0d0e12f9ceee8f468dec62d3f2b5bf7e3377be72545d40c2ad44f5021e5d80",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-modalities",
+      "weakened_profile_digest": "7d3958e51b3f4f003766b80fa82af2b35ff3015e62b2233e4bde3e684cfd4cdd",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-proposition-operand-0-role",
+      "weakened_profile_digest": "64bb2731c63ec826a882754f316a2e24013dd346a5c8160522fb1972196deed8",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-proposition-operator",
+      "weakened_profile_digest": "4782c8e7bce8e3425ef1ca0fd8a0d2509a0eeaa0475ae2cdd56cdd0aff1f046c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-end-event-completes-interval-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-end-event-completes-interval-proposition-subject",
+      "weakened_profile_digest": "65d4ba43606611d7d9fe8a857aef9bee644dc0ac10fd7bedb52a7ca49ff5f67e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "claim-patterns",
+      "weakened_profile_digest": "371c730840e48326bd178f16a0304f44c13830e5247a3a481428fa69f0980f4b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-modalities",
+      "weakened_profile_digest": "8700c9e7771a3d38e4767fa72ab5dae298f1da0fe8ef35cadde96b399eb0f305",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-proposition-operand-0-role",
+      "weakened_profile_digest": "017c52c7500cbeaa23e83bebd5988363ba8ec4350e936bf5dcba194cc98d7e8c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-proposition-operator",
+      "weakened_profile_digest": "fa5e5e4f46adac8777dbc4fb29637ef89d40f4149a3ad0ea4391d9f269d27d13",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-precedes-end-event-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-precedes-end-event-proposition-subject",
+      "weakened_profile_digest": "e7ce0b1c563ed2cc3ba24d97f753b164a841aa8234d8adfbeb3b1a6591ce8ad5",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-modalities",
+      "weakened_profile_digest": "4b81d63047089861f638cb6a99e7b00621f2d9b405f870915177ff48df165542",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-proposition-operand-0-role",
+      "weakened_profile_digest": "d9be302c63369f99689d4092576e67955890c020425c8fadb972ee8b006a005f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-proposition-operator",
+      "weakened_profile_digest": "aa1aa708a6cf882b5a385c3e9659664dc2fc81dac9bc162a5ba811f6d2b34212",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-start-event-starts-interval-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-start-event-starts-interval-proposition-subject",
+      "weakened_profile_digest": "c0627d195f8a27cb3beae2e0156e701d06a9d0849e7eb2de5ebc7b3bf2d594c1",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-modalities",
+      "weakened_profile_digest": "10ab82d982773bd62535665156c085596576a7dcff7606e6d44da07cd447d1ae",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-0-role",
+      "weakened_profile_digest": "eee8073314a6879aff858bed4241a2659b6d791bafb4c56c88b99af8017db7e9",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-1-role",
+      "weakened_profile_digest": "74fcc29254c4faabb15befcf9a0cf9ffda5efca11822282e76e5072a1faa8862",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-2-role",
+      "weakened_profile_digest": "dbb7042a7c5f01abc747d2ab2c058a8a52ea8b9c720e0a5f73907aec789d65ec",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-3-role",
+      "weakened_profile_digest": "6b7fd27608571e5381cbc5157bf74bdb10700ce6b387153df7aaae24dfe910c9",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operand-4-role",
+      "weakened_profile_digest": "ab539b313cdc0a68981377da79cc0996644f16822f8a27a8e62bf54e9801c23b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-operator",
+      "weakened_profile_digest": "33eb788169f59b76f2c134ca455a02ab8bc8ca1973669b443e9033c49ff3f694",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-observes-exact-bounded-proof-subjects-proposition-subject",
+      "weakened_profile_digest": "6a6b686a19bafb2af0117e185ad3ec4b2bf42ae3f852d952b9f4c8c5b4ba1da2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-modalities",
+      "weakened_profile_digest": "da551a3d42431b8468f688e49c46131b21bfb1801b929d9e5b68148665d4f478",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-proposition-operand-0-role",
+      "weakened_profile_digest": "25247ece2670ad48e248e852c2d4aa174c2a86a289e1840519703c30c6e746da",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-proposition-operator",
+      "weakened_profile_digest": "69d64d37fe5737c5db645bc4dd372529841dc6d8ac9e64ac4c85347c55121697",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-proposition-subject",
+      "weakened_profile_digest": "fb36c9e3e352734cd31469ba8c860e4eb1d114b6782677114c29ccde50affefb",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-mutation-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-mutation-verification-methods",
+      "weakened_profile_digest": "6e1d66e25ba7742a81e8cd2253f12c5764d00742e7742918cdd7fd7fbf2f4f0f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-modalities",
+      "weakened_profile_digest": "7208ca0a022c35681962c2f6b23e50bc6ad691ae2d9b816bf64fd8e47c84b3c5",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-proposition-operand-0-role",
+      "weakened_profile_digest": "41d5f73ddaa74586d0debacf9c92170d2dff78e09cc302b8f5df0d32ed1b5e39",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-proposition-operator",
+      "weakened_profile_digest": "4d041b321306ed3e394936d5179fe1332f575b28dafa1a7ea1e7434f0088333c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-proposition-subject",
+      "weakened_profile_digest": "b9ef2674baaa15b4fdea2b583b47d2ea52ed9de8b61661387797049f2035ac28",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-during-interval-write-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verify-no-during-interval-write-verification-methods",
+      "weakened_profile_digest": "808165a96f14c2bbf31b3dab2510521bca65a005e221c0f7c6360e6ef2b867b6",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "distinct-reference-role-sets",
+      "weakened_profile_digest": "c046b0cb34d43e1a72878da4c524738dac47f023317b99072c11dd0e9c78aa68",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "falsifier-condition-bindings",
+      "weakened_profile_digest": "df81661bb112db79aaf8e445a836c35c7bef5909da68a6caf015ace6de16cd67",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "number-roles",
+      "weakened_profile_digest": "37e3470821f01f9670610d97ef1a982ece2c21bbad3eb97067299d8614397b29",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-binding-patterns",
+      "weakened_profile_digest": "03de454b0adfb5a57cfbfe2d2c3f7820c1418baa3a2e481a1dd365ab919621b2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-role-count-bindings",
+      "weakened_profile_digest": "e36d6d9c89f5694a459bac7490c7eeb3366160d83fc21ab9909381fb63de4432",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "relation-patterns",
+      "weakened_profile_digest": "d1008851f565577bd558f125eacb26ad87327c72e7f7a122df0847e322573d21",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-actor-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-actor-identity-kinds",
+      "weakened_profile_digest": "cc4d1d8977949d4b6dd1ece9822454bc9df6d976d49a13323c0968bebe961aeb",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-actor-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-actor-types",
+      "weakened_profile_digest": "218ec3405bc712c4a6bad25e4235e4cf08fb155d2653ac97e3b8353e0a06edee",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-end-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-end-event-identity-kinds",
+      "weakened_profile_digest": "257d30a444cf08008c65f96c58d7d3a76cf9f26b249741257913cf1ed8e232de",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-end-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-end-event-types",
+      "weakened_profile_digest": "e23f8123866feb14542e896a406861db69cf37df0dca057bdb2d2a02168a369c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-interval-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-interval-identity-kinds",
+      "weakened_profile_digest": "e3dfae16bb0ddce08e1b8ed338084c4497f98b7a30be074b7098dfa8afc798a4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-interval-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-interval-types",
+      "weakened_profile_digest": "f97089acd002c27f3fa1117713d2782cfa5597dca6dd4b13f1dca166f74882ff",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-protected-resource-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resource-population-identity-kinds",
+      "weakened_profile_digest": "7b473ae5d20cf2aac6464595571e568782a1b44684bfc1db4fc2a8011c48ece6",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-protected-resource-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resource-population-types",
+      "weakened_profile_digest": "2fb9c252b7bd0c91f9a06a999972bba1703a8305f8eadf657371b5ca4bf10109",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-protected-resources-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resources-identity-kinds",
+      "weakened_profile_digest": "512dde36b971eb9d299f3de3f77278cb67f2b3e74852507bf462f0b2324c37f4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-protected-resources-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-protected-resources-types",
+      "weakened_profile_digest": "a23b29a8d5ef91302a0c8860830c0fc0179600d65b3016ef57bc2f228ddb2a85",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-start-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-start-event-identity-kinds",
+      "weakened_profile_digest": "35ade8c06c331c955b2d27d105795374ff254747fbc1f8e0a3359f4f0a4a72d3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-start-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-start-event-types",
+      "weakened_profile_digest": "b289d5c333f4af362e9bbe15be7a91ac768fc2fb1e5dc2b808461b2393276ae2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-identity-kinds",
+      "weakened_profile_digest": "4444e587eff125dd7b6a892c7796fb82ff8bd93dc4dd58989eb8a5dfc36d73c4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-types",
+      "weakened_profile_digest": "b83791aba3c0a6082cc3a7dc9574dfbcedc5abfb3285caa5bdc66334a710b205",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "satisfaction-expression",
+      "weakened_profile_digest": "3ddcb599a455b1476c2f646e83632310919de29ee33cec7f516ab743285c7ca3",
+      "outcome": "survived"
+    }
+  ]
+}

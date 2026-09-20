@@ -3,16 +3,63 @@
 
 Part of the [MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md),
 which remains the canonical entry page. This page carries the canonical text for
-the authenticated per-attempt terminal review contract, active managed
-composition, spawned-server lifecycle, post-spawn conduit failure, cleanup-only
-terminal failure, canonical `acceptance.validation` admission across the
-findings-only surfaces, plural exact-slice review evidence, the exact-slice
-review-surface state budget, and bounded postcheck diagnostics.
+terminal-candidate material selection and advisory review execution, the
+authenticated controlled-generation envelope for terminal candidates, active
+managed composition, spawned-server lifecycle, post-spawn conduit failure,
+cleanup-only terminal failure, canonical `acceptance.validation` admission across
+the findings-only surfaces, independent findings actions, the exact-slice
+review-surface state budget, bounded postcheck diagnostics, and terminal-review
+audit evidence.
 
 Sibling pages: [launch and admission](mcp-dispatch-launch-and-admission.md),
 [managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md),
 [slice integration](mcp-dispatch-slice-integration.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
+
+## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+
+Every forge publication publishes the same thing, whichever delivery workflow the
+repository selected.
+
+- **One candidate.** For the selected integrated WK tip `W` and the fixed
+  authenticated fork `B`, the existing trusted constructor builds the squash
+  candidate `C` with `tree(C) = tree(W)` and sole parent `B`, and handoff
+  publishes `C` unchanged. The current base tip is not a construction input.
+  There is no direct-`W` alternative, no second constructor and no additional
+  candidate store or ref family.
+- **Terminal review is conditional; candidate authentication is not.** Terminal
+  review belongs to the repository's selected workflow, not to construction. A
+  workflow that selects it hands publication a reviewer materialization, and that
+  checkout is authenticated. A workflow that does not select it hands publication
+  no materialization: no terminal-review unit is invented, no review evidence is
+  fabricated and no reviewer checkout is required. The candidate object binding,
+  its tree and sole-parent topology, its version selection and the controlled
+  generation authority are authenticated on every publication alike, and the
+  published result names which workflow it ran under.
+- **A selected candidate is publishable on its own terms.** When no terminal
+  review target exists, publication state is recovered from the candidate already
+  selected on its durable current ref: its base, tree and sole parent come from
+  the candidate object itself, and the WK ref is named by the canonical record
+  that candidate carries. Recovery consults no current landing state.
+- **The fence holds before any external effect.** Repository, WK, fork, tip,
+  candidate identity, tree, parent and controlled generation are rechecked under
+  the existing exclusion before the branch or the proposal is touched. A moved or
+  foreign input, an inconsistent candidate identity, tree or parent, or
+  generation drift refuses with zero publication. Configured CCE denial is
+  enacted; the absence of a configured decision is not a local denial.
+- **Publication is create-or-observe and nothing more.** The result reports the
+  exact candidate and proposal identity and the truthful effects. Repeating a
+  handoff recovers the same proposal rather than opening a duplicate, a branch
+  already present at different bytes refuses rather than being republished, and
+  publication neither merges nor completes the WK.
+- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
+  exactly two WK-only commits carrying the actual applicable closure evidence and
+  then the parent review-to-done transition; a workflow without terminal review
+  has no terminal-review record fabricated for it. Merge takes the exact
+  authenticated pull-request head only on confirmed mergeability, and an
+  unmerged, unknown, moved or foreign state leaves the canonical parent in
+  review. The confirmed merged base record is canonical, and a reconciliation
+  failure is a typed partial success.
 
 ## Terminal candidates select material, not review execution
 
@@ -23,7 +70,48 @@ and publication, but it owns no separate reviewer executor, run, monitor,
 settlement, receipt, recovery, or replay path. The review action remains
 read-only and action-local, and its output creates no lifecycle authority.
 
-## The authenticated per-attempt terminal review contract
+The managed post-worker lifecycle constructs and publishes the candidate after the
+final implementation slice integrates, and only when the canonical record
+designates a `terminal_whole_wk` unit. It never dispatches the terminal reviewer:
+terminal review runs only when a coordinator explicitly dispatches that unit. A
+record that designates no such unit gets no candidate from the lifecycle and
+reaches the workflow-not-selected state below.
+
+The advertised terminal reviewer call is subject-addressed:
+`{role: "reviewer", subject}` for the canonical slice whose `review_purpose` is
+`terminal_whole_wk`. Without an explicit `diff_base_sha`/`reviewed_sha` pair, the
+pipeline asks the backend candidate owner for that subject's material. The owner
+requires a published `refs/agent-launch/terminal-current-v2/<WK>` selection and
+authenticates it for this action through the same cold recovery used by forge
+publication. That recovery authenticates the current controlled generation at `W`,
+recomputes the candidate identity from `B`, `W`, and that generation, and verifies
+the candidate object and private checkout. Candidate preparation and cold recovery
+perform authentication only: they do not execute product validation or proof
+attempts. Any required verification is a separately authorized
+`workspace_verify_proof` operation, and missing evidence remains missing rather
+than triggering execution. Recovery then binds the review context against the
+live canonical record. The selected `C` must
+still be the published selection. The review
+materializes `C` against `B` as material kind `launcher_terminal_candidate`.
+
+Selection re-authenticates on every dispatch, so it behaves identically in a fresh
+backend and after the worker identity is retired. A retained process-local
+context or an earlier review action is not material authority. An unpublished
+candidate refuses as `terminal_candidate_unpublished` without reconstruction. A
+foreign, moved, stale-generation, or otherwise unauthenticated candidate refuses
+with the recovery owner's verdict. Both refuse before reviewer execution as
+`agent_launch.advisory_review.material_invalid.v1` with reason
+`terminal_candidate_unavailable`, and never fall back to canonical design
+material. The request cannot supply a candidate object: the registered
+`workspace_agent_dispatch` declares `terminal_candidate` and
+`reviewer_launch_identity` only so it can refuse them as
+`caller_supplied_identity` before admission, material selection, recovery, or
+execution. Canonical WK and
+non-terminal design subjects keep canonical design material, implementation
+slices keep their retained delivery, and an explicit SHA pair keeps
+`explicit_sha_range`.
+
+## The authenticated controlled-generation envelope for terminal candidates
 
 Terminal-candidate authority includes one owner-produced
 `controlled-contract-authenticated-generation.v1` envelope. The envelope binds the
@@ -80,13 +168,13 @@ The terminal-candidate coordinator owns hot preparation and cold reconstruction
 sequencing under the exclusion. The terminal-candidate runtime owns public status and
 explicit advance sequencing. Both consume the primitive owner and may add no local
 tuple, ref, construction, verification, or CAS implementation. Hot retry, cold
-recovery, status, reviewer spawn, receipt publication, and forge handoff resolve one
+recovery, status, reviewer material selection, and forge handoff resolve one
 explicit candidate version and return consistent current or superseded state.
 
 Forge mutation has no versionless compatibility path. Branch publication, pull-request
 mutation, closeout, and merge require one launcher-authenticated selected version
-decision, its immutable version ref and current-selection observation, and at least
-one matching authenticated reviewer receipt. A historical state without that version
+decision and its immutable version ref and current-selection observation. Review
+receipts, results, and findings are not forge prerequisites. A historical state without that version
 decision remains readable through observation surfaces only and cannot authorize a
 forge effect. Merge consumes the exact authenticated handoff result and never
 re-resolves a candidate when that result is absent.
@@ -119,7 +207,28 @@ text informs coordinator disposition but review schema, receipts, provenance,
 history, and formal-attestation availability grant no candidate or forge authority
 and cannot veto publication. Formal attestations retain their narrow admission
 consumer semantics. Historical `review_provenance` fields remain parseable archival
-bytes only. work record retains candidate and forge ownership, work record retains landed
+bytes only.
+
+After a terminal findings action finishes, `workspace_agent_run_status` may
+carry the advisory `closeout_continuation` stage `forge_handoff_ready`. It is
+projected from the backend terminal-candidate publication owner alone: the WK's
+retained designated terminal review unit must equal the observed subject, and the
+owner must re-verify the candidate objects, private checkout, and a `selected`
+version decision. The projection names `workspace_wk_forge_handoff
+{assigned_unit}` as `current_safe_call` with `decision_required: true` and
+`decision_reason: "terminal_review_disposition_outstanding"`, because the
+coordinator dispositions the actual review response. Findings, run outcome, and
+schema adherence neither produce nor suppress it. The first ordered step,
+`terminal_whole_wk_review`, is `complete` only when the observed action's
+launcher-bound material was exactly the current candidate `C` against its base `B`
+and a review response was captured; an explicit SHA range on the same subject,
+other material, or a failed action reports `not_established`. That label comes
+from a bounded, non-serialized observation of the action's own retained review
+input, is process-local like the run itself, and never gates or grants the forge
+call. An unpublished, superseded,
+foreign, or unauthenticated candidate, or a failed re-verification, projects no
+forge call. The projection performs no handoff, recovery, or ref movement, and
+forge authenticates its complete input again before any effect. work record retains candidate and forge ownership, work record retains landed
 publication identity, work record retains recovery ownership, and forge remains the
 sole merge-readiness boundary. Findings remain advisory under decision and
 decision.
@@ -159,8 +268,9 @@ is not a mechanical refusal.
 Parent and slice titles plus `sections.agent_notes` are authored contract
 constituents. They are compared byte-for-byte and are never neutralized as
 coordination prose. Moving any of them invalidates the prior execution generation,
-candidate lifecycle decision, reviewer attempt, receipt, and forge evidence; the
-old immutable candidate remains readable only as historical evidence.
+candidate lifecycle decision, and forge evidence, so a later reviewer dispatch
+refuses until a current candidate exists; the old immutable candidate remains
+readable only as historical evidence.
 
 Executable and dependency authority remains exact. The whole-byte comparison still
 binds authored titles and agent notes, implementation and review acceptance,
@@ -175,38 +285,44 @@ by lifecycle normalization.
 ### Producer-authenticated integrated-delivery evidence
 
 An `integrated_delivery_sha` difference is not authenticated by the live canonical
-field, a SHA-shaped string, caller input, or a copied object. The integration
-authority owner reads the exact historical receipt contract and live canonical
-projection, then authenticates the immutable Git receipt produced by
-`packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs`. The proof binds:
+field, a SHA-shaped string, caller input, a copied object, or review output.
+Advisory reviews produce no receipt and grant no delivery authority. The
+integration authority owner authenticates the transition from implementation-owned
+integration evidence written by
+`packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs` and re-reads
+every fact on each decision. The proof binds:
 
 - the exact repository and canonical WK ref;
 - the addressed same-record implementation dependency and its canonical
-  `/slices/<index>/integrated_delivery_sha` path;
+  `/slices/<index>/integrated_delivery_sha` path, compared between the terminal
+  lifecycle's historical parent contract and the live canonical projection;
 - change kind `add` or `replace`, limited to historical absence or `null` becoming
   one exact integrated commit;
-- the reviewed delivery and its exact base, producer message/tree/delta (or exact
-  zero-delta evidence), reachability from current `W`, and the exact current `W`;
-- producer module and receipt schema, plus the failure consequence when any bound
-  fact is unavailable or disagrees.
+- the launcher delivery retained on the exact slice ref and its authenticated
+  sole-parent base, matched to the integrated commit by identity, by exact
+  message and delta for a replayed delivery, or by exact zero-delta evidence;
+- reachability of the integrated commit from the exact current `W`, and a
+  re-observation of `W`, the retained slice ref, and the live canonical projection;
+- the producer module and proof schema, plus the failure consequence when any
+  bound fact is unavailable or disagrees.
 
-`authenticateCanonicalIntegratedDeliveryTransition` returns the opaque branded
-proof; `decideAuthenticatedTerminalReviewLifecycleDelta` consumes that exact proof.
-Copying its enumerable fields loses provenance. A plain receipt-shaped object,
-live-field lookalike, stale proof bound to another `W`, wrong dependency/path,
-changed pre-existing value, mismatched reviewed delivery, malformed commit, or
-unreachable integrated commit cannot authenticate the transition.
+A copied or caller-shaped proof, an absent or moved retained slice delivery, a
+foreign or already-integrated historical value, a delivery or base that does not
+match the integrated commit, an integrated commit unreachable from current `W`, or
+any fact that moves during authentication cannot authenticate the transition.
 
 The positive decision reports `integrated_delivery: producer_authenticated` only
-for that exact evidence. Without it, a delivery-field difference refuses as
-`integrated_delivery_receipt_required`. An unbranded or mismatched proof refuses as
-`integrated_delivery_receipt_unauthenticated`; wrong dependency, path, and value
-bindings use `integrated_delivery_dependency_identity_mismatch`,
+for that exact evidence. Without an authenticated transition, a delivery-field
+difference refuses as `integrated_delivery_receipt_required`. Integration evidence
+that fails authentication refuses as `integrated_delivery_receipt_unauthenticated`;
+wrong dependency, path, and value bindings use
+`integrated_delivery_dependency_identity_mismatch`,
 `integrated_delivery_canonical_path_mismatch`, and
-`integrated_delivery_transition_mismatch` respectively. Changed executable or
-dependency authority refuses as `executable_or_dependency_authority_changed`, and
-other unexplained authored bytes refuse as
-`canonical_authored_bytes_unauthenticated`.
+`integrated_delivery_transition_mismatch` respectively. More than one distinct
+authenticated delivery identity refuses as
+`integrated_delivery_producer_receipt_ambiguous`. Changed executable or dependency
+authority refuses as `executable_or_dependency_authority_changed`, and other
+unexplained authored bytes refuse as `canonical_authored_bytes_unauthenticated`.
 
 Every refusal carries its named identity, authentication, integrity, or operability
 invariant and the concrete consequence: candidate or delivery authority would be
@@ -225,7 +341,13 @@ Terminal-candidate status and advance continuations preserve repository
 selection without creating repository authority. When the public request
 explicitly supplies `repo`, `resolveWorkspaceRepo` accepts it and the route
 passes only that resolved alias to the runtime; the runtime appends it to every
-returned `next_call` and neither derives nor overrides it. When `repo` is
+returned `next_call`, including `version_lifecycle.next_call`, and neither derives
+nor overrides it. A reviewer continuation is exactly
+`workspace_agent_dispatch {role: "reviewer", subject: <terminal review subject>}`,
+the same subject-addressed request the post-worker lifecycle advertises, and a
+stale or absent candidate advertises no reviewer dispatch. Status decides
+lifecycle differences through the backend's integration-evidence owner, so an
+authenticated integrated delivery reports the candidate healthy. When `repo` is
 omitted, continuations omit it as well, so default-repository behavior is not
 pinned. Candidate/ref/CAS/authorization identity remains launcher-owned and is
 unchanged by this transport projection.
@@ -254,112 +376,41 @@ reviewer route with the canonical WK or review-slice `subject` and the landed
 commit's complete `diff_base_sha` and `reviewed_sha`. The reviewer is read-only
 and never creates Git objects.
 
-An admissible attempt derives an immutable per-attempt review contract keyed by the
-exact candidate-version identity, immutable version ref, current-selection
-observation, `C/B/W`, repository identity, tree, parent, private candidate checkout,
-exact addressed parent and designated review-unit identities, historical and live
-canonical contract digests, and authenticated transitions. Its identity is the
-SHA-256 of that canonical key, so identical concurrent derivations converge on one
-contract and a differing version or snapshot yields a different identity that
-rechecks or refuses. Nothing process-local — a monitor handle, a run id, a clock, a
-counter — participates, and nothing is persisted: this is not a durable epoch
-registry. A crash before spawn therefore grants no durable launch authority, and a
-retry re-reads, re-verifies, and re-derives from canonical evidence alone.
+### Terminal advisory review execution
 
-Managed Codex and Claude terminal reviewers receive this exact per-attempt
-contract through the [normative frozen reviewer-query
-protocol](mcp-dispatch-runtime-contract.md#frozen-reviewer-query-protocol), not
-through prompt bodies. This terminal lifecycle remains responsible for the
-candidate and live-contract gates above; it does not own query authorization,
-contract-discriminator coverage, pagination, cursor grammar, or query refusals.
-The shared role instruction still requires exhausting both acceptance targets,
-and managed reviewer prompts remain invariant to contract length under the
-complete-prompt 1200 UTF-8-byte ceiling. Pre-spawn validation, exact target facts,
-findings-only terminal instructions, result schema enforcement, and unrelated
-roles are unchanged.
+Each terminal reviewer dispatch is one independent advisory action. An accepted
+call resolves its material once through the published-candidate selection above,
+materializes a fresh action-private read-only checkout of `C`, invokes the
+selected family executor once with the launcher-built advisory review input, and
+settles its own run and monitor. Another explicit dispatch repeats selection,
+authentication, materialization, and execution. No earlier action, retained
+context, or review result is reused, and status observations launch nothing.
 
-The final live canonical read and digest verification happens **inside the
-production spawn stack, immediately adjacent to the actual process-creation
-primitive** — not in backend routing, not merely before the family executor is
-invoked, and not at the family's call site either. Invoking the family executor is
-not spawning: every supported family performs substantial asynchronous preparation
-afterwards, and canonical coordination state can move anywhere inside that window.
-Claude probes runtime availability, mints native-permission settings, constructs a
-stdio-MCP conduit, and re-verifies runtime identity; Codex builds its plan,
-constructs a conduit, injects config overrides, assembles the bwrap plan, and
-asserts the containment backend.
+The advisory review input carries role, subject, repository, `base_sha`,
+`reviewed_sha`, reviewed tree, the private checkout root, the rendered review
+brief with the parent and selected-unit contracts and acceptance, tool profile,
+and any launcher-selected formal result contract. It carries no readiness, frozen
+review target, dependency mount, per-attempt execution contract, or candidate
+validation evidence. Existing explicit verification results retain their own
+candidate, population, generation, provider, and attempt bindings; candidate
+preparation and recovery neither produce nor replay them. They are not transported
+to reviewers, and review output never becomes validation evidence.
 
-Calling a family's spawn function is not spawning either. For both isolated
-families that call enters `spawnIsolated`, which still revalidates the
-identity-pinned read-only sources, probes and resolves the bwrap backend binary
-from the host filesystem, authenticates the stdio-MCP conduit binding, and composes
-the child stdio before it creates a process; isolated Claude additionally
-constructs its whole bwrap plan — credential-leaf policy, writable-mount
-derivation, settings mask, runtime mount policy, executable resolution — in the
-launch-support wrapper in front of it.
+Authentication precedes execution. Selection refuses before any run, monitor,
+materialization, or executor call when publication, cold recovery,
+controlled-generation authentication at `W`, the lifecycle-difference decision, or
+selection agreement fails. Recovery failures publish only the recovery verdict
+through the closed candidate failure projection: a typed candidate code such as
+`candidate_invalid`, `input_moved`, or `controlled_generation_stale` when the
+current controlled generation is not persisted in `W`, or the fixed unknown-cause
+projection for any unrecognized or untrusted exception. The reviewed material is
+the immutable selected `C`. Canonical movement after selection affects the next
+dispatch, not the running action. There is no terminal-review spawn barrier,
+retained per-attempt execution contract, or pre-spawn coordination refusal.
 
-The launcher therefore binds a synchronous barrier closure over the retained
-per-attempt contract and hands it down the launcher-internal spawn-options
-transport — never argv, env, readiness, the plan, a prompt, or any model-visible
-surface — to the authoritative site in each family:
-
-- isolated Codex and isolated Claude, **inside `spawnIsolated`**, after plan
-  validation, read-only-source revalidation, backend resolution, conduit binding,
-  and stdio composition, as the last statement before `child_process.spawn`;
-- unenforced plain-spawn Codex and unenforced plain-spawn Claude, through the
-  shared family launch lifecycle, after baseline capture and spawn-primitive
-  preload and immediately before its spawn call.
-
-Nothing intervenes between the authoritative verdict and process creation: no
-await, callback, mutable selection, bwrap-plan construction, identity or backend
-check, conduit operation, caller-controlled code, or wrapper/shared-family
-lifecycle step.
-
-A present-but-uncallable barrier fails closed with
-`terminal_review_spawn_barrier_invalid` rather than degrading into an unchecked
-spawn. A launch whose `spawn` merely returns an already-created child is a
-post-spawn supervision step and deliberately carries no barrier.
-
-The deep refusal is a process-local branded throw recognized only by the spawn
-primitive and deliberately **not** a `BubblewrapIsolationError`: each family
-classifies it first, ahead of the conduit remap and the sandbox decision, so a
-coordination refusal is not reclassified as an unenforced retry. It carries
-the verifier's verdict verbatim, so the family returns the same typed
-terminal-review lifecycle refusal — including `exact_candidate_unchanged` — that
-the earlier gates return. Refusal runs the family's existing pre-spawn
-compensation — stdio-MCP conduit teardown and attempt-owned cleanup — so no
-process, namespace, FIFO, host server, descriptor, or directory survives it, and
-the fail-open plain-spawn retry is re-verified on its own terms rather than
-inheriting the isolated attempt's verdict.
-
-The plain-spawn primitive is **preloaded before the barrier**. Both families
-resolved `node:child_process` dynamically inside their spawn function, which put an
-`await` between the barrier's verdict and process creation; canonical state can move
-during that await, and the import being a builtin does not close the race. The
-builtin is now resolved once, ahead of the barrier, into a callable that creates the
-process synchronously. A barrier composed over a primitive that was NOT preloaded
-fails closed with `terminal_review_spawn_primitive_unresolved` rather than trusting
-that the supplied spawn function contains no awaited step.
-
-Backend routing, the dispatch run lifecycle, and each family's own call site keep
-earlier checks so a state change is refused cheaply before deeper preparation
-begins, but none of them is the authority — they are defense in depth. After the
-authoritative verdict no authority-bearing await, callback, caller-controlled
-operation, or mutable decision step remains before spawn. Canonical state that
-changes at any point up to that boundary — including an otherwise-authorized
-transition arriving late — refuses with the actual process-creation primitive
-provably never called, which the regressions measure by driving the registered
-production wrappers against a real recorded executable rather than an injected
-wrapper-call substitute.
-
-A coordination refusal is not a candidate defect. It is reported as
-`terminal_review_lifecycle_state_inadmissible` with the specific lifecycle reason
-and an explicit `exact_candidate_unchanged` marker: unchanged `C/B/W` stay valid, no
-new decision cycle is required, and no ref, checkout, or historical contract is
-mutated. A recovered terminal reviewer still runs only in the private exact
-candidate checkout, with `B` as the findings-only diff base and empty write
-authority. Standalone findings-only reviewers and redteam units carry no per-attempt
-contract and reach none of this.
+A selection refusal is not a candidate defect. Unchanged `C/B/W` remain valid, and
+no ref, checkout, or historical contract is mutated. Standalone findings-only
+reviewers and redteam units select their own material and reach none of this.
 
 Empty write authority is also the lifecycle discriminator. Terminal, exact-slice,
 standalone reviewer, and standalone redteam actions bind immutable findings
@@ -422,25 +473,15 @@ confined child creation. Other direct operator launches remain outside it.
 ## Lifecycle compatibility precedes confined child spawn or MCP forwarding
 
 The launcher proves the active producer/consumer lifecycle contract before it
-allows a confined client to exchange MCP bytes. The exact readiness subject
-depends on whether the client contract permits one MCP command lifetime or
-overlapping command lifetimes.
+allows a confined client to exchange MCP bytes. Confined Claude and Codex both
+use the decision local socket adapter. The managed composition gate probes the
+on-disk producer before conduit construction; each authenticated connection
+then supplies its own running server's registration evidence.
 
-For anonymous-pipe and named-FIFO one-lifetime conduits, the family executor
-constructs the complete conduit before invoking the isolated child spawn.
-Construction starts exactly one host wiki-MCP server and waits for its first
-launcher-only `wiki-mcp-launcher-readiness.v2` event. That event carries
-`lifecycle_protocol_generation` from the producer contract loaded inside the
-spawned server process. The long-lived launcher consumer compares it with its
-own loaded generation before returning a conduit binding to the family
-executor. This binds the compatibility result to the producer that is actually
-running without filesystem fingerprints or parent-process module-cache
-assumptions.
-
-For the decision Codex local-acceptor variant, no host server exists until an
-MCP command invocation authenticates. Before confined-child spawn, the launcher
-instead proves that the private listener is armed, the endpoint and token file
-are projected, the connector and interpreter are descriptor-pinned, the
+No host MCP server generation exists until an MCP command invocation
+authenticates. Before confined-child spawn, the launcher proves that the private
+listener is armed, the endpoint and token file are projected, the connector and
+interpreter are descriptor-pinned, the
 admission window is open, and exactly-once settlement supervision is installed.
 After a connection authenticates, the launcher reserves and starts one host
 wiki-MCP generation with its stdio mechanically wired, then verifies that
@@ -450,14 +491,8 @@ client MCP bytes. Only a matching, well-formed generation authorizes the fixed
 admission acknowledgement; MCP forwarding begins after that acknowledgement.
 Each later overlapping connection repeats the same per-generation check.
 
-For a one-lifetime conduit, a missing, malformed, legacy, unknown, or mismatched
-generation remains a pre-spawn `stdio_mcp_lifecycle_protocol_incompatible`
-failure. Existing exactly-once cleanup reaps the server and conduit resources;
-the executor never reaches confined-child spawn and creates no delivery,
-review, integration, retry, or fallback authority.
-
-For the local acceptor, listener or projection failure before confined-child
-spawn is the same launch-admission refusal. Authentication rejection creates no
+Listener or projection failure before confined-child spawn is the same
+launch-admission refusal. Authentication rejection creates no
 generation. A server spawn, registration, or readiness failure after
 authentication but before acknowledgement closes that connection, reaps the
 partial generation, and enters the post-spawn conduit-failure path below. It
@@ -527,9 +562,10 @@ indefinitely `launching`, and it can never be silently discarded. Valid running
 and terminal probes keep their existing semantics.
 
 Conduit cleanup has one ownership path and one memoized settlement. Client
-termination, relay shutdown, host-server reap, FIFO retirement, private-directory
-removal, and descriptor disposal settle exactly once; child exit, cancellation,
-the executors, and the terminal probe projection all await that same settlement,
+termination, admission shutdown, per-generation host-server reap, endpoint and
+credential retirement, private-directory removal, and descriptor disposal settle
+exactly once; child exit, cancellation, the executors, and the terminal probe
+projection all await that same settlement,
 and no terminal result is published before it completes. Concurrent status and
 wait callers coalesce on it. A cleanup failure remains typed and terminal rather
 than being masked or discarded.
@@ -576,19 +612,16 @@ code `0` and no terminating signal. It is derived from structure only: never fro
 prose, stderr, substring matching, or the mere presence of a final result.
 
 One shared launcher-owned predicate decides verdict eligibility for every
-consumer, so the review-result projection and durable receipt outcome cannot
-drift. A reviewer verdict is usable when either the ordinary
+consumer, so every review-result projection of the run agrees. A reviewer verdict is usable when either the ordinary
 succeeded-reviewer rules hold, or ALL of: the role is exactly `reviewer`; the run
 is terminal with aggregate status `failed`; the run carries the validated
 cleanup-only conduit disposition; the preserved child exit is code `0` with no
 signal; and the preserved final result carries a schema-valid
 `agent-role-result.v1` bound to that exact run's role and subject.
 
-In the cleanup-only case the verdict remains available as exact-target evidence:
-the durable receipt records the structured outcome, a
-`cleanup_only_terminal_failure` disposition, and `verdict_evidence:
-"verdict_recorded"`, while `terminal_run_status` stays `failed`. Each review is
-retained independently by run id and monitor handle. Clean and findings-bearing
+In the cleanup-only case the verdict remains available in that run's settled
+advisory result while the aggregate run status stays `failed`. No receipt is
+published. Each review is observed independently by run id and monitor handle. Clean and findings-bearing
 output are advisory evidence only. Neither outcome consumes the target, prevents
 another reviewer or policy-allowed redteam dispatch, or directly permits or
 prevents a boundary mutation.
@@ -605,54 +638,28 @@ whether another exact-target review may be dispatched.
 
 ## Canonical acceptance.validation admission across the findings-only surfaces
 
-Every `acceptance.validation` entry that `work-record.v1` admits is consumable by
-ready-slice structural projection and by both frozen findings-only contract
-surfaces. A canonical structured entry can no longer be valid in the record yet
-rejected or silently dropped at any of those three consumers.
+One wiki-core owner validates and projects every selected unit's complete
+`acceptance.validation[]` declaration. The only executable entry is exactly
+`{operation: "node_test", target, verification_ids}`; `target` is one
+canonical repository-relative lowercase-`.mjs` test-module path and
+`verification_ids` is an array of unique nonblank identities. Plain nonblank
+strings and exact `{note, verification_ids}` objects are human instructions,
+not execution authority. Command-bearing objects, unknown operations, extra
+fields, duplicate executable bindings, invalid targets, and
+`sections.structured_validation` are rejected.
 
-Validity has exactly one owner. `validateAcceptanceValidationSection` in
-wiki-core's work-record schema validators validates the COMPLETE section: array
-shape, entry iteration, legacy command strings, structured
-`{command, verification_ids}` entries, the section-wide verification-identity
-uniqueness state, the closed structured-field vocabulary, and every diagnostic
-path. It reports validation facts only — appended diagnostics — and holds no
-readiness, dispatch, proof, admission, or policy authority. A legacy entry is a
-nonblank command string. A structured entry carries exactly `command` and
-`verification_ids`, a nonblank `command`, and a nonempty `verification_ids` array
-of nonblank strings whose identities are unique across the whole section,
-including across separate entries. A non-string/non-object entry and any
-unsupported structured field are refused.
+The work-record schema, ready-slice projection, bounded selected-unit read,
+dispatch/admission projection, findings-only classifier, and role-contract
+renderer all consume that owner. The same projected operation, target, and
+verification population also feeds terminal-candidate execution and
+`workspace_verify_proof`; no public route executes a declared node_test target
+directly. Consumers retain their own confinement and role
+authority, but none parses command text, searches secondary sections, or
+reconstructs target bindings.
 
-Three consumers delegate to that owner rather than restating it:
-
-- The work-record schema's `validateAcceptance` delegates the complete validation
-  section to it. `acceptance.criteria` handling is unaffected.
-- Ready-slice structural projection delegates the validity judgment and keeps only
-  its own closed readiness vocabulary. A nonempty valid legacy, structured, or
-  mixed section reports `acceptance_validation_nonempty` as ready; an exactly-empty
-  array keeps the existing empty result; an absent section stays missing; and a
-  non-array or canonically malformed section reports mismatch. The projection
-  gains no dispatch, policy, proof, or admission authority.
-- One shared classifier/renderer serves both the frozen exact-slice findings-only
-  contract and the frozen terminal whole-WK findings-only contract. It validates
-  the complete stored section through the canonical owner before rendering
-  anything, and it never pre-filters, coerces, stringifies, deduplicates, or omits
-  an entry on the way in.
-
-The non-frozen findings-only context resolver reuses that same classifier and
-renderer. The bounded selected-unit read projection separately validates the
-complete section through the canonical owner and clones canonical legacy and
-structured entries without changing their stored order. These statements cover
-only the consumers named here; they are not a repository-wide consumer claim.
-
-Rendering is an explicit typed projection performed only after canonical
-validation. A legacy command string keeps its current trimmed reviewer text, so
-existing legacy contracts read exactly as before. A structured entry renders as
-deterministic compact JSON with property order `command` then `verification_ids`,
-preserving the complete command verbatim and every verification identity in
-stored order — identities are never sorted, deduplicated, truncated, or dropped.
-
-Composition ordering is unchanged on both surfaces: the parent WK's entries
+Reviewer rendering preserves note order and emits executable entries as compact
+JSON in `operation`, `target`, `verification_ids` order. Verification
+identities are deterministically sorted by the shared projection. Composition ordering is unchanged on both surfaces: the parent WK's entries
 precede the selected review unit's. On a slice-level standalone surface, the
 parent is authenticated as immutable inherited review material rather than as
 the executable selected unit. Its canonical nonempty criteria may intentionally
@@ -702,10 +709,11 @@ private materialization. Active or historical actions never block another call.
 Restart may make an old process-local handle unknown and never turns history into
 an admission latch.
 
-Receipts, logs, outcomes, and provenance are optional action-local audit evidence.
-They may describe the exact subject, committed SHA/tree, diff base, role, run,
-monitor, and terminal disposition, but no receipt set or latest-result projection
-has dispatch, admission, completion, integration, or veto authority.
+Logs, results, and provenance are optional action-local audit evidence; advisory
+reviews publish no receipt. They may describe the exact subject, committed
+SHA/tree, diff base, role, run, monitor, and terminal disposition, but no result
+set or latest-result projection has dispatch, admission, completion, integration,
+or veto authority.
 
 Historical `admission_review_target_unit` metadata is not read by review
 execution and is not an occurrence or provenance prerequisite. Its absence,
@@ -729,14 +737,16 @@ observation and cleanup only. It is never review authority or a historical
 per-subject dispatch prohibition.
 
 Terminal whole-WK findings use the same independent-action model. The current
-call binds the designated review unit, exact terminal candidate ref and SHA,
-fixed base SHA, WK ref and SHA, canonical WK digest, private checkout, and current
-controlled generation. A fresh call for unchanged inputs still launches a new
+call binds the designated review unit, the published terminal candidate and its
+base, WK ref and SHA, canonical WK digest, and current controlled generation, and
+reviews a fresh action-private checkout of that candidate. A fresh call for unchanged inputs still launches a new
 action; no durable store recovers, resumes, replaces, or returns an earlier
 action after the process-local registry is gone.
 
 ## Exact-slice review-surface state budget
 
+No managed post-worker route invokes slice-review preparation; this section is
+the contract of the preparation primitive for its direct callers.
 Slice-review preparation freezes and re-proves a closed, authority-bound state
 budget rather than a repository-global snapshot. Bound state is the worktree
 identity digest, canonical worktree path, linked Git directory, resolved common
@@ -820,33 +830,20 @@ members of this envelope schema. This is a response-contract fact, not a
 confidentiality or minimum-disclosure guarantee. Existing envelopes are otherwise
 unchanged.
 
-The additive field survives every public projection of both monitor routes: the
-`workspace_agent_run_status` and `workspace_agent_run_wait` catch seams, the
-terminal-worker lifecycle `slice_lifecycle` reconstruction on either route's
-accepted response, and the `run_wait` wait-window-expiry projection.
-
-That last one matters because a postcheck refusal's next action is
-progress-capable, so `run_wait` keeps polling and leaves through the timeout
-projection when its deadline expires — making that envelope the only response a
-waiting coordinator ever sees for this failure. It therefore carries
-`slice_lifecycle` alongside `lifecycle_resolution`. The bounded retained-failure
-ring inside `lifecycle_resolution` keeps its fixed four-key entries; the latest
-attempt's full typed envelope is where the discriminator lives on both routes.
-
-All three publication points pass through one re-gate against the same frozen
-15-member vocabulary, so they cannot drift and a widened producer cannot widen
-what is published. Carrying the diagnostic never promotes the run: a timed-out
-response stays `timed_out: true`, `terminal: false`, with `child_terminal` and
-`next_action` reporting exactly which wait expired, and a refusal is never
-rewritten into success, finalization, or an automatic retry.
+The additive field is published by the `workspace_agent_run_status` catch seam
+through one re-gate against the frozen 15-member vocabulary, so a widened producer
+cannot widen what is published. The managed post-worker lifecycle does not run
+slice-review preparation and therefore never carries this field on
+`slice_lifecycle`. Carrying the diagnostic never promotes a run, and a refusal is
+never rewritten into success, finalization, or an automatic retry.
 
 ## Terminal-review audit evidence
 
-A terminal whole-WK findings action is independent. Its receipt, log, outcome,
-and provenance, when captured, are optional evidence about only that action.
-Audit append failure does not change the action's result and cannot prevent a
-later terminal findings dispatch. No receipt or provenance record elects,
-replays, resumes, replaces, or settles a later findings action.
+A terminal whole-WK findings action is independent. Its log, result, and
+provenance, when captured, are optional evidence about only that action, and it
+publishes no receipt. Capture failure does not change the action's result and
+cannot prevent a later terminal findings dispatch. No result or provenance record
+elects, replays, resumes, replaces, or settles a later findings action.
 
 Run and monitor observation is process-local. An old findings handle may
 truthfully be unknown after restart; a new call launches from the current
@@ -874,20 +871,22 @@ coordinator reads and dispositions the actual response normally.
 ## Terminal findings execution (decision, work record)
 
 The findings execution action for a canonical terminal whole-WK review unit is an
-empty-scope immutable snapshot action. It does not recover, consult, or advance a
-persistent terminal/WK lifecycle. The terminal purpose remains frozen contract
-metadata, while source bytes, the canonical WK record, manifests, and the complete
-carrier generation are bound independently for that call in the same manner as
-standalone and exact-slice findings.
+empty-scope immutable snapshot action. It does not advance a persistent
+terminal/WK lifecycle, move the WK ref, or publish a candidate. Its immutable
+review source is the launcher-published terminal candidate selected as described
+in [Terminal candidates select material](#terminal-candidates-select-material-not-review-execution).
+The WK ref remains unchanged, and the call binds the candidate's authenticated
+generation and bytes for that call alone.
 
-Historical terminal-candidate machinery remains relevant to implementation
-candidate construction and forge coordination, but it is not findings-action
-provisioning authority and cannot be selected by caller-supplied locators.
+Terminal-candidate construction and forge coordination remain implementation
+lifecycle owners. They supply the selected candidate object but grant the
+findings action no provisioning authority, and caller-supplied locators cannot
+select a candidate.
 Every accepted terminal findings call creates a fresh run, monitor, source
 carrier, and private materialization. Prior runs, receipts, results, failures,
 roles, or metadata cannot select, satisfy, suppress, resume, replace, veto, or
 refuse another terminal findings call. Observation is process-local; an old
-handle may be unknown after restart. Receipts, logs, outcomes, and provenance are
-optional action-local audit evidence, and audit capture failure cannot block a
-later dispatch. Implementation candidate construction, integration, CAS, and
+handle may be unknown after restart. Logs, results, and provenance are optional
+action-local audit evidence, no receipt is published, and capture failure cannot
+block a later dispatch. Implementation candidate construction, integration, CAS, and
 forge behavior remain independently owned and unchanged.

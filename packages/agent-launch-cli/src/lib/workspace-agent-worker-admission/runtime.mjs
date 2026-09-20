@@ -3,10 +3,14 @@ import {
 } from "@agent-chassis/agent-launch-core";
 import { randomBytes } from "node:crypto";
 import {
-  computeWorkRecordSourceDigest,
-  loadWorkRecordById,
-  validateWorkRecordDispatch
-} from "@agent-chassis/wiki-core";
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
+
+const loadValidateWorkRecordDispatch = async () => (
+  await import("@agent-chassis/wiki-core/src/operations/validate-dispatch.mjs")
+).validateWorkRecordDispatch;
+
 import {
   IDENTITY_REFUSAL_CODES,
   refuseCallerSuppliedIdentityFields
@@ -15,6 +19,10 @@ import {
 import {
   createSelectedUnitWorkerAdmissionDomainPackInput
 } from "@agent-chassis/wiki-core/src/lib/work-record-admission-derived-evidence.mjs";
+import {
+  ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE,
+  isAdmissionEvidenceSnapshotChangedError
+} from "@agent-chassis/wiki-core/src/lib/work-record-admission-evidence-sidecar.mjs";
 import {
   createReviewAttestationBindingFromRemoteNeedsReview,
   preserveFirstPassReviewThresholdReasonsForOpaqueRetryResult
@@ -34,13 +42,11 @@ import {
 import {
   projectValidateDispatchPackInputCarrier
 } from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-node-engine-admissibility.mjs";
-import {
-  projectWorkRecordTestProofValidation
-} from "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
 
 import {
   ensureNewWorkerWriteRoots as helperEnsureNewWorkerWriteRoots
 } from "../codex-worker-write-scope-plan.mjs";
+import { deriveCanonicalUnitScope } from "../canonical-unit-scope.mjs";
 
 import {
   buildNeedsReviewRecoveryDetail,
@@ -81,12 +87,10 @@ function isDeepFrozenCanonicalValue(value, seen = new WeakSet()) {
   return Object.values(value).every((child) => isDeepFrozenCanonicalValue(child, seen));
 }
 
-function normalizeCarrierScope(value, { required = false } = {}) {
-  if (value === undefined && !required) return [];
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.length === 0)) {
-    return null;
-  }
-  return [...new Set(value)].sort();
+class CarrierScopeInvalid extends Error {}
+
+function throwCarrierScopeInvalid(message) {
+  throw new CarrierScopeInvalid(message);
 }
 
 function sameStringArray(left, right) {
@@ -170,11 +174,26 @@ function resolveManagedAdmissionCarrier({
       actual_source_digest: computedDigest
     });
   }
-  const expectedReadScope = normalizeCarrierScope(canonicalSelectedUnit.read_scope);
-  const expectedRepoPaths = normalizeCarrierScope(canonicalSelectedUnit.repo_paths);
-  const expectedWriteScope = normalizeCarrierScope(canonicalSelectedUnit.write_scope, { required: true });
-  if (expectedReadScope === null || expectedRepoPaths === null || expectedWriteScope === null ||
-      !sameStringArray(workerScopeAuthority.read_scope, expectedReadScope) ||
+
+  const recordPath = `wiki/work-records/${unit.record_id}.json`;
+  let expectedReadScope;
+  let expectedRepoPaths;
+  let expectedWriteScope;
+  try {
+    const scopeOptions = { invalid: throwCarrierScopeInvalid };
+    expectedReadScope = deriveCanonicalUnitScope(
+      canonicalSelectedUnit.read_scope, "read_scope", recordPath, { ...scopeOptions, required: false });
+    expectedRepoPaths = deriveCanonicalUnitScope(
+      canonicalSelectedUnit.repo_paths, "repo_paths", recordPath, { ...scopeOptions, required: false });
+    expectedWriteScope = deriveCanonicalUnitScope(
+      canonicalSelectedUnit.write_scope, "write_scope", recordPath, scopeOptions);
+  } catch (error) {
+    if (!(error instanceof CarrierScopeInvalid)) throw error;
+    return managedAdmissionCarrierRefusal("canonical_selected_unit_scope_mismatch", {
+      message: error.message
+    });
+  }
+  if (!sameStringArray(workerScopeAuthority.read_scope, expectedReadScope) ||
       !sameStringArray(workerScopeAuthority.repo_paths, expectedRepoPaths) ||
       !sameStringArray(workerScopeAuthority.write_scope, expectedWriteScope)) {
     return managedAdmissionCarrierRefusal("canonical_selected_unit_scope_mismatch");
@@ -313,8 +332,20 @@ export function buildNodeEngineAdmissionRuntimeDiagnostic(env = process.env) {
 }
 
 export function evaluateWorkerAdmissionDecision({ unit, remote }) {
-  const remoteResult = normalizeRemoteWorkerAdmissionPackResultForDecision(remote);
   const recordId = unit?.record_id ?? null;
+
+  if (remote?.outcome === ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE) {
+    return {
+      allowed: false,
+      reason: ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE,
+      detail: {
+        record_id: recordId,
+        capture_pass: remote.capture_pass ?? null,
+        authenticated_request_sent: false
+      }
+    };
+  }
+  const remoteResult = normalizeRemoteWorkerAdmissionPackResultForDecision(remote);
   const detail = {
     record_id: recordId,
     remote_effect: remoteResult ? remoteResult.effect : null,
@@ -459,7 +490,8 @@ export async function evaluateWorkerAdmissionForBackend({
     if (!currentManagedSource.ok) return currentManagedSource.decision;
   }
   const now = new Date().toISOString();
-  const readiness = await validateWorkRecordDispatch({ dir: repo, unitAddress, now });
+  const readiness = await (await loadValidateWorkRecordDispatch())(
+    { dir: repo, unitAddress, now });
   if (!readiness.dispatchable) {
     return {
       allowed: false,
@@ -522,10 +554,22 @@ export async function resolveRemoteWorkerAdmissionPackResultForUnit({
     Boolean(config.apiKey) &&
     workerAdmissionRoute.present &&
     resolveRequestContractDigest({ config }).present;
+
+  const snapshotChangedResult = (error, capturePass) => ({
+    outcome: ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE,
+    reason_code: error.code,
+    capture_pass: capturePass,
+    authenticated_request_sent: false,
+    worker_admission_route_source: workerAdmissionRoute.source ?? null,
+    worker_admission_route_present: workerAdmissionRoute.present === true
+  });
   if (canSendPackRequest) {
     try {
       packInput = await createSelectedUnitWorkerAdmissionDomainPackInput({ dir, record, unit });
-    } catch {
+    } catch (error) {
+      if (isAdmissionEvidenceSnapshotChangedError(error)) {
+        return snapshotChangedResult(error, "first_pass");
+      }
       packInput = null;
     }
 
@@ -534,8 +578,9 @@ export async function resolveRemoteWorkerAdmissionPackResultForUnit({
         resolvedReadiness = readiness;
       } else {
 
+        const validateDispatch = await loadValidateWorkRecordDispatch();
         try {
-          resolvedReadiness = await validateWorkRecordDispatch({
+          resolvedReadiness = await validateDispatch({
             dir,
             unitAddress: unit?.address ?? null,
             now: new Date().toISOString()
@@ -566,7 +611,10 @@ export async function resolveRemoteWorkerAdmissionPackResultForUnit({
         unit,
         review_attestation_binding: reviewAttestationBinding
       });
-    } catch {
+    } catch (error) {
+      if (isAdmissionEvidenceSnapshotChangedError(error)) {
+        return snapshotChangedResult(error, "attestation_retry");
+      }
       secondPackInput = null;
     }
     if (Array.isArray(secondPackInput?.review_attestations) && secondPackInput.review_attestations.length > 0) {
@@ -594,60 +642,3 @@ export async function resolveRemoteWorkerAdmissionPackResultForUnit({
   return result;
 }
 
-export function buildCanonicalSummary(record, readiness, unit) {
-  const selectedSlice = unit.slice_id
-    ? Array.isArray(record.slices)
-      ? record.slices.find((slice) => slice && slice.id === unit.slice_id) || null
-      : null
-    : null;
-  const selectedUnit = selectedSlice
-    ? {
-        id: selectedSlice.id,
-        title: selectedSlice.title,
-        work_kind: selectedSlice.work_kind,
-        status: selectedSlice.status,
-        docs: Array.isArray(selectedSlice.docs) ? selectedSlice.docs : [],
-        repo_paths: Array.isArray(selectedSlice.repo_paths) ? selectedSlice.repo_paths : [],
-        write_scope: Array.isArray(selectedSlice.write_scope) ? selectedSlice.write_scope : [],
-        acceptance: selectedSlice.acceptance || null,
-        dispatch_intent: selectedSlice.dispatch_intent || null
-      }
-    : null;
-  const validationProjection = projectWorkRecordTestProofValidation({
-    selectedUnit: selectedUnit ?? record
-  });
-  if (validationProjection.status !== "valid") {
-    throw new Error("worker admission requires valid current acceptance.validation declarations");
-  }
-
-  return {
-    record_id: record.id,
-    repo: record.repo,
-    title: record.title,
-    docs: selectedUnit && selectedUnit.docs.length > 0
-      ? selectedUnit.docs
-      : Array.isArray(record.docs)
-        ? record.docs
-        : [],
-    repo_paths: selectedUnit && selectedUnit.repo_paths.length > 0
-      ? selectedUnit.repo_paths
-      : Array.isArray(record.repo_paths)
-        ? record.repo_paths
-        : [],
-    write_scope: selectedUnit ? selectedUnit.write_scope : (Array.isArray(record.write_scope) ? record.write_scope : []),
-    acceptance_criteria: selectedUnit
-      ? Array.isArray(selectedUnit.acceptance?.criteria)
-        ? selectedUnit.acceptance.criteria
-        : []
-      : Array.isArray(record.acceptance?.criteria)
-        ? record.acceptance.criteria
-        : [],
-    validation_commands: validationProjection.validation_entries,
-    dispatch_intent: selectedUnit ? selectedUnit.dispatch_intent : record.dispatch_intent || null,
-    selected_unit: selectedUnit,
-    accepted_escalations: Array.isArray(readiness.accepted_escalations) ? readiness.accepted_escalations : [],
-    canonical_refs: Array.isArray(readiness.canonical_refs) ? readiness.canonical_refs : [],
-    derived_evidence: Array.isArray(readiness.derived_evidence) ? readiness.derived_evidence : [],
-    state: readiness.state || null
-  };
-}

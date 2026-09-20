@@ -139,7 +139,7 @@ async function isolatedRoot(t, label) {
 const EVALUATION_INPUT_SCHEMA_PATH = path.join(
   REPO,
   "packages/controlled-contract/schema",
-  "controlled-contract-verification-profile-input.v1.schema.json"
+  "controlled-contract-verification-profile-input.v2.schema.json"
 );
 
 test("a failed group resolution is evicted and the next attempt re-resolves", async (t) => {

@@ -26,17 +26,36 @@ export function buildLintFindingsResponse(
   fullLint,
   { maxFindings = null, defaultMaxFindings = LINT_COMPACT_FINDINGS_LIMIT } = {}
 ) {
-  const allFindings = Array.isArray(fullLint?.findings) ? fullLint.findings : [];
-  const allProblems = Array.isArray(fullLint?.problems) ? fullLint.problems : [];
-  const allWarnings = Array.isArray(fullLint?.warnings) ? fullLint.warnings : [];
+  if (
+    !Array.isArray(fullLint?.findings) ||
+    !Array.isArray(fullLint?.problems) ||
+    !Array.isArray(fullLint?.warnings)
+  ) {
+    throw new Error("lint findings response requires complete consistent producer arrays");
+  }
+
+  const allFindings = fullLint.findings;
+  const allProblems = fullLint.problems;
+  const allWarnings = fullLint.warnings;
+  let problemIndex = 0;
+  for (const finding of allFindings) {
+    if (finding?.severity !== "error") {
+      continue;
+    }
+    if (problemIndex >= allProblems.length || allProblems[problemIndex] !== finding.message) {
+      throw new Error("lint findings response requires complete consistent producer arrays");
+    }
+    problemIndex += 1;
+  }
+  if (problemIndex !== allProblems.length) {
+    throw new Error("lint findings response requires complete consistent producer arrays");
+  }
 
   const normalizedMax = normalizeMaxFindings(maxFindings);
-  const explicitMax = normalizedMax !== null;
-  const effectiveMax = explicitMax ? normalizedMax : defaultMaxFindings;
+  const effectiveMax = normalizedMax !== null ? normalizedMax : defaultMaxFindings;
 
   const findingCountTotal = allFindings.length;
   const cappedFindings = allFindings.slice(0, effectiveMax);
-  const cappedProblems = allProblems.slice(0, effectiveMax);
   const cappedWarnings = allWarnings.slice(0, effectiveMax);
   const findingsReturned = cappedFindings.length;
   const findingsTruncated = findingsReturned < findingCountTotal;
@@ -45,8 +64,8 @@ export function buildLintFindingsResponse(
   const warningCount = allWarnings.length;
 
   const nextAction =
-    explicitMax && findingsTruncated
-      ? `findings truncated to max_findings=${effectiveMax} of ${findingCountTotal} total; rerun this lint route with a higher max_findings (for example max_findings:${findingCountTotal}) to retrieve the remaining findings for repair`
+    findingsTruncated
+      ? `before repair, rerun this same lint route with max_findings:${findingCountTotal} (at least finding_count_total) to retrieve all ${findingCountTotal} findings and the complete warning list; this response contains only the ordered prefix and may not identify every error`
       : buildLintNextAction({ errorCount, warningCount, findingsTruncated });
 
   const result = {
@@ -63,9 +82,6 @@ export function buildLintFindingsResponse(
 
   if (cappedFindings.length > 0) {
     result.findings = cappedFindings;
-  }
-  if (cappedProblems.length > 0) {
-    result.problems = cappedProblems;
   }
   if (cappedWarnings.length > 0) {
     result.warnings = cappedWarnings;

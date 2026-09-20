@@ -38,16 +38,25 @@ git commit -m "bootstrap AgentChassis wiki adoption"
 
 ## Bootstrap result
 
-Fresh bootstrap creates `wiki/initiatives/IN-0001.md` as an in-progress
-placeholder for the repository's first real work. It does not create
+Fresh bootstrap creates canonical `wiki/initiatives/IN-0001.json` as a valid
+`initiative.v1` in-progress placeholder for the repository's first real work
+and generates `wiki/initiatives/IN-0001.md` as its Markdown projection through
+the shared kind-record persistence path. It does not create
 `wiki/work-records/WK-0001.json`; `WK-0001` remains available as the first
 allocator-backed work-record identifier.
 
+On rerun, bootstrap preserves a valid operator-authored `IN-0001.json` and
+regenerates the Markdown projection from it. A legacy projection without the
+canonical JSON is refused with migration guidance; Markdown is never read as
+initiative authority.
+
 The fresh path has no adoption-verification gate, AGENTS-authoring worker,
 customization review, seeded adoption tracker, or other adoption lifecycle.
-The legacy `wiki adoption verify` implementation remains available for
-compatibility, but setup and fresh bootstrap do not invoke, advertise, or
-require it.
+An obsolete `wiki adoption verify` implementation may still be present, but it
+is unsupported legacy residue and may be removed without compatibility notice.
+Setup and fresh bootstrap do not invoke, advertise, or require it. Supporting
+it again would require an accepted DEC under the repository-wide compatibility
+posture.
 
 ## Start the first work
 

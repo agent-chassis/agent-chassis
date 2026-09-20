@@ -1,0 +1,29 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "280b6c7e8217727a18c6255039133ad6d18902180afe53237bde15fb604c979b",
+  "profile_id": "proof.failure.cleanup-noninterference",
+  "profile_version": "4.0.0",
+  "profile_digest": "8336a9179a31578b836572ccfeebd4d45916d2d504ca9ae2e0b31026a5d66b2f",
+  "guarantee": "After one declared failure, cleanup empties the complete declared residue population. A distinct complete protected-resource population is observed through the same bound population identity before failure and after settlement; both complete state populations have the protected-resource cardinality and the after-state population equals the before-state population. A separately selected authority, distinct from the failed attempt's authority, has equal state before and after settlement, is preserved by cleanup, later authorizes a valid attempt, and that attempt returns the expected successful result.",
+  "guarantee_digest": "62ae4f4831d33b86afebf1116205c1b494c8fa64b83f6e135ed7b22dc854f0e5",
+  "explicit_exclusions": [
+    "authored-population-truthfulness",
+    "authority-validity-outside-the-selected-later-attempt",
+    "concurrent-interleavings-outside-the-declared-sequence",
+    "identity-provenance-truthfulness",
+    "mutations-outside-the-declared-protected-population",
+    "requirements-omitted-from-authored-contract",
+    "residue-created-after-the-settlement-observation",
+    "runtime-evidence-truthfulness",
+    "transient-protected-resource-mutation-restored-before-after-observation",
+    "undiscovered-resources-outside-declared-populations"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "9899d073f7edcad273411d68edb816a9dc31e3490d4490ac55307dc992cc9fae",
+    "adequacy_result_digest": "dd03da78be31212b6aeb32b08c3b3efa227942c7c2ba1ebd6d6bb36f5fd7befd",
+    "executable_control_count": 49,
+    "negative_fixture_count": 176,
+    "coverage_witness_count": 176
+  }
+}

@@ -254,13 +254,6 @@ function validateProfileSemantics(profile, {
     profile.claim_patterns.map((pattern) => [pattern.pattern_id, pattern])
   );
 
-  for (const pattern of patterns) {
-    if (!profile.evaluation_stages.includes(pattern.required_by_stage)) diagnostics.push({
-      code: "profile_pattern_stage_unreachable",
-      pattern_id: pattern.pattern_id,
-      required_by_stage: pattern.required_by_stage
-    });
-  }
 
   for (const pattern of profile.claim_patterns) {
     const iteration = pattern.for_each;

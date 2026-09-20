@@ -8,7 +8,7 @@ import {
   buildAuthenticationProvenanceSources
 } from "./authentication-provenance-v1-fixture.mjs";
 
-const PROFILE_DIGEST = "0b9b62d09bc5d01b743b5f8fa895fe9729fe05037863ec33f6fe46d6bbb1c42c";
+const PROFILE_DIGEST = "4c54447eaf003dd075263596f590769c4740af17477c8a8d1659bc98c4cf4d7a";
 const GUARANTEE_DIGEST = "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81";
 
 const EXCLUSIONS = Object.freeze([

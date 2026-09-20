@@ -18,7 +18,7 @@ import {
   spawnIsolated
 } from "../../packages/agent-launch-cli/src/lib/launch-isolation.mjs";
 import {
-  resolveFindingsRoleGitMetadata
+  resolveRepositoryGitMetadataProjection
 } from "../../packages/agent-launch-cli/src/lib/launch-isolation-findings-git-metadata.mjs";
 
 function makeLinkedMetadataFixture(prefix = "findings-git-metadata-") {
@@ -63,9 +63,8 @@ test("findings Git metadata resolves the linked checkout chain and recursive ext
       `${path.relative(alternate, transitive)}\n`
     );
 
-    const metadata = resolveFindingsRoleGitMetadata({
-      repoReal: fixture.checkout,
-      role: "reviewer"
+    const metadata = resolveRepositoryGitMetadataProjection({
+      repoReal: fixture.checkout
     });
     assert.equal(metadata.gitPointerFile, path.join(fixture.checkout, ".git"));
     assert.equal(metadata.worktreeGitDir, fixture.worktreeGitDir);
@@ -101,9 +100,8 @@ test("findings Git metadata refuses missing dependencies", () => {
   const fixture = makeLinkedMetadataFixture();
   try {
     rmSync(fixture.worktreeGitDir, { recursive: true, force: true });
-    expectMetadataRefusal(() => resolveFindingsRoleGitMetadata({
-      repoReal: fixture.checkout,
-      role: "reviewer"
+    expectMetadataRefusal(() => resolveRepositoryGitMetadataProjection({
+      repoReal: fixture.checkout
     }));
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
@@ -116,14 +114,12 @@ test("findings Git metadata refuses a dead external gitdir and a fresh resolutio
     const pointer = path.join(fixture.checkout, ".git");
     const original = `gitdir: ${fixture.worktreeGitDir}\n`;
     writeFileSync(pointer, "gitdir: /tmp/launcher-dead-external-gitdir\n");
-    expectMetadataRefusal(() => resolveFindingsRoleGitMetadata({
-      repoReal: fixture.checkout,
-      role: "reviewer"
+    expectMetadataRefusal(() => resolveRepositoryGitMetadataProjection({
+      repoReal: fixture.checkout
     }));
     writeFileSync(pointer, original);
-    const fresh = resolveFindingsRoleGitMetadata({
-      repoReal: fixture.checkout,
-      role: "reviewer"
+    const fresh = resolveRepositoryGitMetadataProjection({
+      repoReal: fixture.checkout
     });
     assert.equal(fresh.worktreeGitDir, fixture.worktreeGitDir);
   } finally {
@@ -136,9 +132,8 @@ test("findings Git metadata refuses wrong-type dependencies", () => {
   try {
     rmSync(fixture.primaryObjectDirectory, { recursive: true, force: true });
     writeFileSync(fixture.primaryObjectDirectory, "not a directory\n");
-    expectMetadataRefusal(() => resolveFindingsRoleGitMetadata({
-      repoReal: fixture.checkout,
-      role: "redteam"
+    expectMetadataRefusal(() => resolveRepositoryGitMetadataProjection({
+      repoReal: fixture.checkout
     }));
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
@@ -156,9 +151,8 @@ test("findings Git metadata refuses symlink substitution", () => {
       path.join(fixture.primaryObjectDirectory, "info", "alternates"),
       `${linkedAlternate}\n`
     );
-    expectMetadataRefusal(() => resolveFindingsRoleGitMetadata({
-      repoReal: fixture.checkout,
-      role: "reviewer"
+    expectMetadataRefusal(() => resolveRepositoryGitMetadataProjection({
+      repoReal: fixture.checkout
     }));
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
@@ -171,7 +165,7 @@ test("findings Git metadata replacement is refused at the final pre-spawn bounda
     const plan = buildBubblewrapLaunchPlan({
       repo: fixture.checkout,
       command: "/bin/true",
-      findingsRole: "reviewer"
+      gitMetadataProjection: resolveRepositoryGitMetadataProjection({ repoReal: fixture.checkout })
     });
     const pointer = path.join(fixture.checkout, ".git");
     renameSync(pointer, `${pointer}.planned`);
@@ -191,7 +185,7 @@ test("findings Git metadata rejects supplied Git topology while worker planning 
     expectMetadataRefusal(() => buildBubblewrapLaunchPlan({
       repo: fixture.checkout,
       command: "/bin/true",
-      findingsRole: "reviewer",
+      gitMetadataProjection: resolveRepositoryGitMetadataProjection({ repoReal: fixture.checkout }),
       provisionedWorktreeGitIdentity: {
         worktreePath: fixture.checkout,
         gitDir: fixture.worktreeGitDir,
@@ -219,13 +213,13 @@ test("findings Git metadata cannot overlap a writable or runtime mount", () => {
     expectMetadataRefusal(() => buildBubblewrapLaunchPlan({
       repo: fixture.checkout,
       command: "/bin/true",
-      findingsRole: "reviewer",
+      gitMetadataProjection: resolveRepositoryGitMetadataProjection({ repoReal: fixture.checkout }),
       writableFiles: [writableFile]
     }));
     assert.throws(() => buildBubblewrapLaunchPlan({
       repo: fixture.checkout,
       command: "/bin/true",
-      findingsRole: "redteam",
+      gitMetadataProjection: resolveRepositoryGitMetadataProjection({ repoReal: fixture.checkout }),
       runtimeRoots: [fixture.commonGitDir]
     }), (error) => {
       assert.ok(error instanceof BubblewrapIsolationError);
@@ -241,7 +235,7 @@ test("normal in-repository .git directories need no findings runtime-support mou
   const root = mkdtempSync(path.join(os.tmpdir(), "findings-normal-gitdir-"));
   try {
     mkdirSync(path.join(root, ".git"), { recursive: true });
-    const metadata = resolveFindingsRoleGitMetadata({ repoReal: root, role: "reviewer" });
+    const metadata = resolveRepositoryGitMetadataProjection({ repoReal: root });
     assert.equal(metadata, null);
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -42,6 +42,9 @@ import {
   nextOrdinalSliceId,
   refusal
 } from "./work-record-contract-edit-shared.mjs";
+import { validateWorkRecordMaterialRefs } from "./work-record-entry-material.mjs";
+import { planAcceptanceNarrativeValidation } from "./work-record-contract-edit-acceptance.mjs";
+import { validateWorkRecordEntryContent } from "./work-record-entry-schema.mjs";
 
 const READY_SLICE_DIFF_PATH_LIMIT = 64;
 
@@ -52,7 +55,8 @@ const READY_SLICE_CONTROL_FIELDS = Object.freeze([
 const READY_SLICE_PAYLOAD_FIELDS = Object.freeze([
   "title", "status", "work_kind", "priority", "owner", "depends_on", "read_scope",
   "repo_paths", "write_scope", "dispatch_intent", "acceptance", "expected_edit_targets",
-  "expected_changed_line_budget", "agent_notes", "review_purpose"
+  "expected_changed_line_budget", "summary", "why_it_matters", "agent_notes",
+  "review_purpose", "material_refs"
 ]);
 export const WORK_RECORD_READY_SLICE_FIELDS = Object.freeze([
   ...READY_SLICE_CONTROL_FIELDS,
@@ -87,6 +91,13 @@ const READY_TARGET_PROVENANCE_FIELDS = new Set([
 ]);
 const READY_ACCEPTANCE_PROVENANCE_FIELDS = new Set([
   "text", "verification_method", "evidence_target"
+]);
+
+export const ACCEPTANCE_CRITERION_METADATA_KEYS = Object.freeze([
+  "verification_method", "evidence_target", "facet_provenance"
+]);
+const ACCEPTANCE_CRITERION_KEYS = new Set([
+  "text", ...ACCEPTANCE_CRITERION_METADATA_KEYS
 ]);
 
 const READY_TARGET_COARSE_ACTIVITY_KIND = "implementation";
@@ -145,9 +156,11 @@ function normalizeCoarseTargetFacet({ field, value, target, shapingMode, path })
 }
 
 class ReadySliceInputError extends Error {
+
   constructor(code, message, path) {
-    super(message);
-    this.diagnostic = createDiagnostic(code, message, { path });
+    const diagnostic = isObject(code) ? code : createDiagnostic(code, message, { path });
+    super(diagnostic.message);
+    this.diagnostic = diagnostic;
   }
 }
 function readyInputError(code, message, path) {
@@ -197,7 +210,65 @@ function strictProvenance(value, allowedFields, path) {
   }
   return result;
 }
-function normalizeAcceptance(value) {
+function normalizeAcceptanceCriterion(entry, path) {
+  if (isString(entry)) return nonemptyString(entry, path);
+  if (!isObject(entry)) readyInputError("ready_slice_invalid_acceptance", `${path} must be a string or object`, path);
+  for (const key of Object.keys(entry)) {
+    if (!ACCEPTANCE_CRITERION_KEYS.has(key)) readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
+  }
+  const result = { text: nonemptyString(entry.text, `${path}.text`) };
+  if (hasOwn(entry, "verification_method")) {
+    result.verification_method = controlled(
+      entry.verification_method,
+      new Set(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES),
+      `${path}.verification_method`,
+      { nullable: true }
+    );
+  }
+  if (hasOwn(entry, "evidence_target")) {
+    if (entry.evidence_target !== null && !isString(entry.evidence_target)) {
+      readyInputError("ready_slice_invalid_acceptance", `${path}.evidence_target must be a string or null`, `${path}.evidence_target`);
+    }
+    result.evidence_target = entry.evidence_target;
+  }
+  if (hasOwn(entry, "facet_provenance")) {
+    result.facet_provenance = strictProvenance(
+      entry.facet_provenance,
+      READY_ACCEPTANCE_PROVENANCE_FIELDS,
+      `${path}.facet_provenance`
+    );
+  }
+  return result;
+}
+
+export function normalizeAcceptanceCriteria(entries, { path = "acceptance.criteria", append = false } = {}) {
+  try {
+    if (append) return { ok: true, value: normalizeAcceptanceCriterion(entries, path) };
+    if (!Array.isArray(entries)) {
+      readyInputError("ready_slice_invalid_acceptance", `${path} must be an array`, path);
+    }
+    return {
+      ok: true,
+      value: entries.map((entry, index) => normalizeAcceptanceCriterion(entry, `${path}[${index}]`))
+    };
+  } catch (error) {
+    if (!(error instanceof ReadySliceInputError)) throw error;
+    return { ok: false, diagnostic: error.diagnostic };
+  }
+}
+
+function composeAcceptanceValidation(requested, current = []) {
+  const composed = planAcceptanceNarrativeValidation({
+    current,
+    requested,
+    action: "replace",
+    path: "acceptance.validation"
+  });
+  if (!composed.ok) throw new ReadySliceInputError(composed.diagnostic);
+  return composed.validation;
+}
+
+function normalizeAcceptance(value, { currentValidation = [] } = {}) {
   if (!isObject(value) || !Array.isArray(value.criteria) || !Array.isArray(value.validation)) {
     readyInputError("ready_slice_invalid_acceptance", "acceptance must contain complete criteria and validation arrays", "acceptance");
   }
@@ -206,40 +277,15 @@ function normalizeAcceptance(value) {
       readyInputError("ready_slice_unknown_field", `acceptance.${key} is not allowed`, `acceptance.${key}`);
     }
   }
-  const criteria = value.criteria.map((entry, index) => {
-    const path = `acceptance.criteria[${index}]`;
-    if (isString(entry)) return nonemptyString(entry, path);
-    if (!isObject(entry)) readyInputError("ready_slice_invalid_acceptance", `${path} must be a string or object`, path);
-    const allowed = new Set(["text", "verification_method", "evidence_target", "facet_provenance"]);
-    for (const key of Object.keys(entry)) {
-      if (!allowed.has(key)) readyInputError("ready_slice_unknown_field", `${path}.${key} is not allowed`, `${path}.${key}`);
-    }
-    const result = { text: nonemptyString(entry.text, `${path}.text`) };
-    if (hasOwn(entry, "verification_method")) {
-      result.verification_method = controlled(
-        entry.verification_method,
-        new Set(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES),
-        `${path}.verification_method`,
-        { nullable: true }
-      );
-    }
-    if (hasOwn(entry, "evidence_target")) {
-      if (entry.evidence_target !== null && !isString(entry.evidence_target)) {
-        readyInputError("ready_slice_invalid_acceptance", `${path}.evidence_target must be a string or null`, `${path}.evidence_target`);
-      }
-      result.evidence_target = entry.evidence_target;
-    }
-    if (hasOwn(entry, "facet_provenance")) {
-      result.facet_provenance = strictProvenance(
-        entry.facet_provenance,
-        READY_ACCEPTANCE_PROVENANCE_FIELDS,
-        `${path}.facet_provenance`
-      );
-    }
-    return result;
-  });
+  const criteria = value.criteria.map((entry, index) =>
+    normalizeAcceptanceCriterion(entry, `acceptance.criteria[${index}]`));
+  return { criteria, validation: composeAcceptanceValidation(value.validation, currentValidation) };
+}
 
-  return { criteria, validation: cloneJson(value.validation) };
+function storedAcceptanceValidation(slice) {
+  return isObject(slice?.acceptance) && hasOwn(slice.acceptance, "validation")
+    ? slice.acceptance.validation
+    : [];
 }
 function normalizeTargets(value, { shapingMode = null } = {}) {
   if (!Array.isArray(value)) readyInputError("ready_slice_invalid_targets", "expected_edit_targets must be an array", "expected_edit_targets");
@@ -318,18 +364,7 @@ function normalizeReadyDispatchIntent(value) {
     requires_escalation: value.requires_escalation
   };
 }
-function normalizeAgentNotes(value) {
-  if (Array.isArray(value)) {
-    if (!value.every(isString)) readyInputError("ready_slice_invalid_agent_notes", "agent_notes entries must be strings", "agent_notes");
-    value = value.join("\n");
-  }
-  if (!isString(value) || Buffer.byteLength(value, "utf8") > 8192) {
-    readyInputError("ready_slice_invalid_agent_notes", "agent_notes must be a string bounded to 8192 UTF-8 bytes", "agent_notes");
-  }
-  return value;
-}
-
-export function validateWorkRecordReadySliceRequest(request) {
+export function validateWorkRecordReadySliceRequest(request, { resolvedProse = false } = {}) {
   try {
     if (!isObject(request)) readyInputError("ready_slice_invalid_request", "ready-slice input must be an object", null);
     for (const key of Object.keys(request)) {
@@ -358,7 +393,19 @@ export function validateWorkRecordReadySliceRequest(request) {
       });
     }
     if (hasOwn(request, "dispatch_intent")) normalizeReadyDispatchIntent(request.dispatch_intent);
-    if (hasOwn(request, "agent_notes")) normalizeAgentNotes(request.agent_notes);
+    for (const field of ["summary", "why_it_matters", "agent_notes"]) {
+      if (!hasOwn(request, field)) continue;
+      if (resolvedProse) {
+        if (!isString(request[field])) readyInputError(
+          "ready_slice_invalid_prose_destination",
+          `${field} must resolve to a string`,
+          field
+        );
+      } else {
+        const content = validateWorkRecordEntryContent(request[field], { path: field });
+        if (!content.ok) throw new ReadySliceInputError(content.diagnostic);
+      }
+    }
     if (
       hasOwn(request, "expected_changed_line_budget") &&
       request.expected_changed_line_budget !== null &&
@@ -402,8 +449,8 @@ function effectiveShapeForUpdate(slice) {
   return null;
 }
 
-export function planWorkRecordReadySlice(record, request = {}) {
-  const requestCheck = validateWorkRecordReadySliceRequest(request);
+export function planWorkRecordReadySlice(record, request = {}, { repository = null } = {}) {
+  const requestCheck = validateWorkRecordReadySliceRequest(request, { resolvedProse: true });
   if (!requestCheck.ok) return refusal(requestCheck.diagnostics[0]);
   try {
     if (!isObject(record) || record.id !== request.unit) readyInputError("ready_slice_record_mismatch", "unit does not match the loaded work record", "unit");
@@ -416,7 +463,17 @@ export function planWorkRecordReadySlice(record, request = {}) {
       if (!sliceId) readyInputError("ordinal_slice_id_exhausted", "no unused ordinal slice ids remain", "slice_id");
     } else {
       const indexes = findSliceIndexes(record, sliceId);
-      if (indexes.length !== 1) readyInputError(indexes.length ? "ready_slice_ambiguous_slice" : "slice_not_found", `slice '${sliceId}' must identify exactly one existing slice`, "slice_id");
+
+      if (indexes.length === 0) {
+        readyInputError(
+          "slice_not_found",
+          `slice '${sliceId}' does not exist on ${record.id}; slice_id selects an existing ` +
+          "slice to update. Omit slice_id to create one: the route allocates the next ordinal " +
+          "id and returns it as slice_id",
+          "slice_id"
+        );
+      }
+      if (indexes.length > 1) readyInputError("ready_slice_ambiguous_slice", `slice '${sliceId}' must identify exactly one existing slice`, "slice_id");
       sliceIndex = indexes[0];
     }
     const existing = create ? null : slices[sliceIndex];
@@ -425,6 +482,7 @@ export function planWorkRecordReadySlice(record, request = {}) {
     if (!mode) readyInputError("ready_slice_unsupported_effective_shape", "existing slice requires explicit implementation, reviewer, or redteam shaping", "shaping_mode");
     const shape = READY_SHAPES[mode];
     const supplied = {};
+    const suppliedProse = {};
     if (hasOwn(request, "title")) supplied.title = nonemptyString(request.title, "title");
     if (hasOwn(request, "status")) supplied.status = controlled(request.status, new Set(WORK_RECORD_STATUS_VALUES), "status");
     if (hasOwn(request, "priority")) supplied.priority = controlled(request.priority, READY_PRIORITIES, "priority");
@@ -433,13 +491,31 @@ export function planWorkRecordReadySlice(record, request = {}) {
     if (hasOwn(request, "read_scope")) supplied.read_scope = stringList(request.read_scope, "read_scope");
     if (hasOwn(request, "repo_paths")) supplied.repo_paths = stringList(request.repo_paths, "repo_paths", { paths: true });
     if (hasOwn(request, "write_scope")) supplied.write_scope = stringList(request.write_scope, "write_scope", { paths: true });
-    if (hasOwn(request, "acceptance")) supplied.acceptance = normalizeAcceptance(request.acceptance);
+    if (hasOwn(request, "acceptance")) {
+
+      supplied.acceptance = normalizeAcceptance(request.acceptance, {
+        currentValidation: create ? [] : storedAcceptanceValidation(existing)
+      });
+    }
     if (hasOwn(request, "expected_edit_targets")) supplied.expected_edit_targets = normalizeTargets(request.expected_edit_targets, { shapingMode: mode });
     if (hasOwn(request, "expected_changed_line_budget")) {
       if (request.expected_changed_line_budget !== null && (!Number.isInteger(request.expected_changed_line_budget) || request.expected_changed_line_budget < 0)) readyInputError("ready_slice_invalid_field", "expected_changed_line_budget must be a non-negative integer or null", "expected_changed_line_budget");
       supplied.expected_changed_line_budget = request.expected_changed_line_budget;
     }
-    if (hasOwn(request, "agent_notes")) supplied.agent_notes = normalizeAgentNotes(request.agent_notes);
+    for (const field of ["summary", "why_it_matters", "agent_notes"]) {
+      if (hasOwn(request, field)) suppliedProse[field] = request[field];
+    }
+    if (hasOwn(request, "material_refs")) {
+      const materialDiagnostics = validateWorkRecordMaterialRefs(request.material_refs, {
+        path: "material_refs",
+        repository
+      });
+      if (materialDiagnostics.length > 0) {
+        readyInputError(materialDiagnostics[0].code, materialDiagnostics[0].message,
+          materialDiagnostics[0].path);
+      }
+      supplied.material_refs = cloneJson(request.material_refs);
+    }
     if (hasOwn(request, "review_purpose")) supplied.review_purpose = controlled(request.review_purpose, new Set(["standalone", "terminal_whole_wk"]), "review_purpose");
     const completionPolicy = hasOwn(request, "completion_policy")
       ? controlled(request.completion_policy, READY_COMPLETION_POLICIES, "completion_policy")
@@ -474,7 +550,6 @@ export function planWorkRecordReadySlice(record, request = {}) {
       expected_edit_targets: supplied.expected_edit_targets ?? [],
       expected_changed_line_budget: supplied.expected_changed_line_budget ?? null
     } : { ...cloneJson(existing), ...cloneJson(supplied) };
-    delete next.agent_notes;
     next.work_kind = shape.work_kind;
     if (mode === "reviewer") {
       next.review_purpose = supplied.review_purpose ?? next.review_purpose ?? "standalone";
@@ -511,9 +586,19 @@ export function planWorkRecordReadySlice(record, request = {}) {
       requires_graph_impact: preservedIntent.requires_graph_impact ?? false,
       requires_escalation: preservedIntent.requires_escalation ?? false
     };
-    if (hasOwn(supplied, "agent_notes")) {
+    if (["summary", "why_it_matters", "agent_notes"].some((field) =>
+      hasOwn(suppliedProse, field))) {
       next.sections = isObject(next.sections) ? cloneJson(next.sections) : {};
-      next.sections.agent_notes = supplied.agent_notes;
+      for (const field of ["summary", "why_it_matters", "agent_notes"]) {
+        if (hasOwn(suppliedProse, field)) {
+          next.sections[field] = suppliedProse[field];
+        }
+      }
+    }
+    if (hasOwn(supplied, "material_refs")) {
+      next.sections = isObject(next.sections) ? cloneJson(next.sections) : {};
+      next.sections.material_refs = supplied.material_refs;
+      delete next.material_refs;
     }
     if (mode !== "implementation") {
       if (hasOwn(request, "write_scope") && supplied.write_scope.length > 0) readyInputError("ready_slice_findings_write_scope_nonempty", "reviewer/redteam write_scope must be empty", "write_scope");

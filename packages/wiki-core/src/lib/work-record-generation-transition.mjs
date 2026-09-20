@@ -51,11 +51,6 @@ export function projectUnitPurpose(canonicalRecord, selectedUnit) {
   return purposeForUnit(selectedRecord(canonicalRecord, selectedUnit));
 }
 
-function completedBeforeMutation(beforeRecord, selectedUnit) {
-  if (beforeRecord?.status === "done") return true;
-  return selectedUnit?.kind === "slice" && selectedRecord(beforeRecord, selectedUnit)?.status === "done";
-}
-
 export function classifyWorkRecordGenerationTransition(selectedUnit, beforeRecord, afterRecord) {
   const beforeUnit = selectedRecord(beforeRecord, selectedUnit);
   const afterUnit = selectedRecord(afterRecord, selectedUnit);
@@ -65,9 +60,7 @@ export function classifyWorkRecordGenerationTransition(selectedUnit, beforeRecor
   const purposeChanged = !equalJson(beforePurpose, afterPurpose);
 
   let transition = "unchanged";
-  if (unitChanged && completedBeforeMutation(beforeRecord, selectedUnit)) {
-    transition = "completed_revision";
-  } else if (purposeChanged) {
+  if (purposeChanged) {
     transition = "new_generation";
   }
 

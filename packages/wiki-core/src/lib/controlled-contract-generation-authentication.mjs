@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import {
+  classifyControlledContractCarrierBasename,
   controlledContractGenerationDigest,
   digestBytes,
   validateControlledContractAttachmentGenerationDescriptors
@@ -313,7 +314,12 @@ function parseObservedManifest(wkId, selected, observed, descriptors) {
         path: observed.path
       });
   }
-  const selectedDescriptors = descriptors.filter((descriptor) => descriptor.focus === selected.focus);
+  const selectedDescriptors = descriptors.filter((descriptor) =>
+    descriptor.focus === selected.focus &&
+    classifyControlledContractCarrierBasename({
+      wkId,
+      basename: descriptor.basename
+    }).member === true);
   const selectedMembers = manifest.carrier_census.filter((member) =>
     member.member_kind === "carrier" || member.member_kind === "evaluation_input");
   if (selectedMembers.length !== selectedDescriptors.length ||
@@ -440,7 +446,13 @@ export async function constructAuthenticatedControlledContractGeneration(input =
     generation_digest: generationDigest,
     count: descriptors.length,
     manifest_identity: resolved.manifestSelection === null ? null : manifestIdentity({
-      wkId: input.wkId, manifests: manifestDescriptors, descriptors
+      wkId: input.wkId,
+      manifests: manifestDescriptors,
+      descriptors: descriptors.filter((descriptor) =>
+        classifyControlledContractCarrierBasename({
+          wkId: input.wkId,
+          basename: descriptor.basename
+        }).member === true)
     }),
     manifest_descriptors: manifestDescriptors,
     descriptors

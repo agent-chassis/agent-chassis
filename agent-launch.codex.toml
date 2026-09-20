@@ -4,13 +4,13 @@ model = "gpt-5.6-luna"
 effort = "medium"
 
 [roles.reviewer]
-model = "gpt-5.6-sol"
+model = "gpt-6-astra"
 effort = "high"
 
 [roles.orchestrator]
-model = "gpt-5.6-sol"
+model = "gpt-6-astra"
 effort = "high"
 
 [roles.redteam]
-model = "gpt-5.6-sol"
+model = "gpt-6-astra"
 effort = "high"

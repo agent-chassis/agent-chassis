@@ -1,17 +1,19 @@
 import { constants } from "node:fs";
-import { lstat, mkdir, open, realpath, stat, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { lstat, mkdir, open, realpath, rename, stat, unlink } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import {
-  GENERATED_VIEW_NAMES,
-  loadCanonicalState,
-  resolvePageFacets,
-  resolveContractContext
-} from "./wiki.mjs";
+  buildSearchSourceCorpus,
+  captureSearchSourceCorpus,
+  projectCapturedWorkRecordEntrySources
+} from "./search-source-corpus.mjs";
+import { findPassageMatchRange } from "./search-passages.mjs";
 
-export const SEARCH_INDEX_VERSION = 3;
+export const SEARCH_INDEX_VERSION = 5;
 const SEARCH_CACHE_DIR = path.join(".cache", "wiki-search");
 const SEARCH_INDEX_FILE = "index.json";
+const inMemoryPreparedIndexes = new Map();
+const inMemoryEntryOverlays = new Map();
 
 export const SEARCH_INDEX_STATE_EXISTING = "existing";
 export const SEARCH_INDEX_STATE_REBUILT_IN_MEMORY = "rebuilt_in_memory";
@@ -50,13 +52,13 @@ export function getSearchIndexPath(targetDir) {
 
 function buildIndexRemediation() {
   return {
-    cli: "npm run wiki -- build-search-index --dir <repo-dir>",
-    mcp: "workspace_build_search_index",
+    cli: "npm run wiki -- build-search-index --dir <repo-dir> --reindex",
     note:
-      "Persisting `.cache/wiki-search/index.json` is an optional operator optimization, not a prerequisite for " +
-      "read-only search: when no index exists, read-only search builds the repository's complete corpus in memory " +
-      "and serves the query in the same call. Use the explicit build-search-index capability only to create or " +
-      "refresh the persisted cache."
+      "Operator action. A missing, stale, or different-version `.cache/wiki-search/index.json` needs no recovery: " +
+      "read-only search prepares the repository's complete current corpus in memory and writes nothing. A corrupt " +
+      "or unreadable current-version index requires an operator to rebuild the persisted index explicitly. A " +
+      "refused write requires the operator to make `.cache/wiki-search` real directories inside the repository, " +
+      "with the index absent or a regular file, before rebuilding."
   };
 }
 
@@ -93,39 +95,7 @@ function isOpaqueIdentifierQuery(value) {
   );
 }
 
-export function inferPageKind(page) {
-  const relativePath = page.relativePath;
-  if (relativePath.startsWith("docs/")) {
-    return "docs";
-  }
-  if (relativePath.startsWith("wiki/issues/")) {
-    return "issues";
-  }
-  if (relativePath.startsWith("wiki/initiatives/")) {
-    return "initiatives";
-  }
-  if (relativePath.startsWith("wiki/decisions/")) {
-    return "decisions";
-  }
-  if (relativePath.startsWith("wiki/sources/")) {
-    return "sources";
-  }
-  if (relativePath.startsWith("wiki/areas/")) {
-    return "areas";
-  }
-  if (relativePath.startsWith("wiki/")) {
-    const segments = relativePath.split("/");
-    if (segments.length >= 3) {
-      return segments[1];
-    }
-  }
-  if (relativePath.startsWith("wiki/")) {
-    return "wiki";
-  }
-  return "other";
-}
-
-export function resolveLocalMarkdownTarget(targetDir, page, rawTarget) {
+function resolveLocalMarkdownTarget(targetRoot, source, rawTarget) {
   const target = String(rawTarget ?? "").split("#")[0].trim();
   if (
     !target ||
@@ -136,243 +106,79 @@ export function resolveLocalMarkdownTarget(targetDir, page, rawTarget) {
     return null;
   }
 
-  const absolutePath = path.resolve(path.dirname(page.path), target);
-  if (!absolutePath.startsWith(targetDir) || !absolutePath.endsWith(".md")) {
+  const absolutePath = path.resolve(path.dirname(source.capture.absolutePath), target);
+  const relativePath = path.relative(targetRoot, absolutePath);
+  if (
+    relativePath === "" ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath) ||
+    !absolutePath.endsWith(".md")
+  ) {
     return null;
   }
 
-  return path.relative(targetDir, absolutePath).replaceAll(path.sep, "/");
+  return relativePath.replaceAll(path.sep, "/");
 }
 
-const WORK_RECORD_PROSE_KEYS = [
-  "summary",
-  "closure",
-  "tasks",
-  "references",
-  "agent_notes"
-];
-
-const WORK_RECORD_PROSE_LEAF_KEYS = new Set([
-  "summary",
-  "closure",
-  "tasks",
-  "references",
-  "agent_notes",
-  "why_it_matters",
-  "acceptance",
-  "criteria",
-  "validation",
-  "follow_ups",
-  "items",
-  "out_of_scope",
-  "title",
-  "description",
-  "rationale",
-  "notes",
-  "text",
-  "content",
-  "prose"
-]);
-
-function collectProseStrings(value, output = [], leafKey = "", keyPath = [leafKey]) {
-  if (typeof value === "string") {
-    const hasPermittedPath = keyPath.every((key, index) => (
-      index === 0
-        ? WORK_RECORD_PROSE_KEYS.includes(key) || WORK_RECORD_PROSE_LEAF_KEYS.has(key)
-        : WORK_RECORD_PROSE_LEAF_KEYS.has(key)
-    ));
-    if (hasPermittedPath) {
-      const text = normalizeSearchText(value);
-      if (text && !output.includes(text)) {
-        output.push(text);
-      }
-    }
-  } else if (Array.isArray(value)) {
-    value.forEach((entry) => collectProseStrings(entry, output, leafKey, keyPath));
-  } else if (value && typeof value === "object") {
-    Object.entries(value).forEach(([key, entry]) => {
-      collectProseStrings(entry, output, key, [...keyPath, key]);
-    });
+function authorityLinks(source) {
+  if (source.record) {
+    const record = source.record;
+    return {
+      id: record.id,
+      markdownLinks: [],
+      docs: record.docs || record.read_scope,
+      relatedDocs: record.related_docs,
+      related: record.related
+    };
   }
-  return output;
-}
-
-function collectRecordRegion(record, key) {
-  const values = [];
-  collectProseStrings(record?.sections?.[key], values, key);
-  collectProseStrings(record?.[key], values, key);
-  return values;
-}
-
-function collectAcceptanceRegion(record, key) {
-  return collectProseStrings(record?.acceptance?.[key], [], key);
-}
-
-function makeWorkRecordText(record, heading, prose) {
-  return [
-    String(record.id || ""),
-    String(record.title || ""),
-    `status: ${record.status || ""}`,
-    `priority: ${record.priority || ""}`,
-    `owner: ${record.owner || ""}`,
-    record.initiative ? `initiative: ${record.initiative}` : "",
-    record.area ? `area: ${record.area}` : "",
-    heading,
-    ...prose
-  ].filter(Boolean).join("\n");
-}
-
-function workRecordSections(record) {
-  const sections = [];
-  for (const key of ["summary", "closure", "tasks", "references", "agent_notes"]) {
-    const prose = collectRecordRegion(record, key);
-    if (prose.length > 0) {
-      sections.push({
-        heading: key,
-        text: makeWorkRecordText(record, key, prose),
-        preview: prose.join(" ")
-      });
-    }
-  }
-  for (const key of ["criteria", "validation"]) {
-    const prose = collectAcceptanceRegion(record, key);
-    if (prose.length > 0) {
-      sections.push({
-        heading: `acceptance.${key}`,
-        text: makeWorkRecordText(record, `acceptance.${key}`, prose),
-        preview: prose.join(" ")
-      });
-    }
-  }
-  for (const slice of Array.isArray(record.slices) ? record.slices : []) {
-    const prose = [String(slice.title || "")];
-    collectProseStrings(slice?.acceptance, prose, "acceptance");
-    for (const key of WORK_RECORD_PROSE_KEYS) {
-      collectProseStrings(slice?.sections?.[key], prose, key);
-      collectProseStrings(slice?.[key], prose, key);
-    }
-    const uniqueProse = [...new Set(prose.map(normalizeSearchText).filter(Boolean))];
-    if (uniqueProse.length > 0) {
-      sections.push({
-        heading: `slice ${slice.id || ""}`.trim(),
-        text: makeWorkRecordText(record, `slice ${slice.id || ""}`.trim(), uniqueProse),
-        preview: uniqueProse.join(" ")
-      });
-    }
-  }
-  if (sections.length === 0) {
-    sections.push({
-      heading: "metadata",
-      text: makeWorkRecordText(record, "metadata", []),
-      preview: String(record.title || record.id || "")
-    });
-  }
-  return sections;
-}
-
-function projectWorkRecordToPage(load) {
-  if (!load?.valid || !load.record) {
-    return null;
-  }
-  const record = load.record;
-  const relativePath = load.source_path_relative;
-  const frontmatter = {
-    id: record.id,
-    title: record.title,
-    type: record.record_kind || record.work_kind || "work_item",
-    status: record.status,
-    priority: record.priority,
-    owner: record.owner,
-    area: record.area,
-    initiative: record.initiative,
-    docs: record.docs || record.read_scope || [],
-    related: record.related || [],
-    related_docs: record.related_docs || []
-  };
-  const prose = workRecordSections(record);
-  const body = prose.map((section) => `## ${section.heading}\n${section.preview}`).join("\n\n");
+  const frontmatter = source.page?.frontmatter ?? {};
   return {
-    path: load.source_path,
-    relativePath,
-    title: record.title || record.id,
-    body,
-    frontmatter,
-    markdownLinks: [],
-    retrievalFacets: {
-      canonicality: "canonical",
-      retrieval_role: ["record"],
-      knowledge_role: "work",
-      maintenance_mode: "operational",
-      retrieval_visibility: "default",
-      lifecycle: "active",
-      sensitivity: "normal"
-    },
-    workRecordSections: prose
+    id: frontmatter.id,
+    markdownLinks: source.page?.markdownLinks ?? [],
+    docs: frontmatter.docs,
+    relatedDocs: frontmatter.related_docs,
+    related: frontmatter.related
   };
 }
 
-function assembleSupersededPages(state) {
-  const canonicalRecords = (state.workRecords || [])
-    .map(projectWorkRecordToPage)
-    .filter(Boolean);
-  const canonicalIds = new Set(canonicalRecords.map((page) => String(page.frontmatter.id)));
-  const markdownPages = [
-    ...state.docs,
-    ...state.decisions,
-    ...state.areas,
-    ...state.issues.filter((page) => !canonicalIds.has(String(page.frontmatter?.id || ""))),
-    ...state.initiatives,
-    ...state.sources,
-    ...state.wikiPages,
-    ...(state.extensionPages || [])
-  ];
-  return [...markdownPages, ...canonicalRecords].filter(
-    (page) => !GENERATED_VIEW_NAMES.has(path.basename(page.relativePath))
-  );
-}
-
-export function computePageAuthority(targetDir, state, pages = assembleSupersededPages(state)) {
-  const pagesByPath = new Map(pages.map((page) => [page.relativePath, page]));
-  const pagesById = new Map(
-    pages
-      .filter((page) => page.frontmatter?.id)
-      .map((page) => [String(page.frontmatter.id), page.relativePath])
+function computeCorpusAuthority(targetRoot, sources) {
+  const pagePaths = sources.map((source) => source.capture.relativePath);
+  const knownPaths = new Set(pagePaths);
+  const links = sources.map((source) => ({ source, ...authorityLinks(source) }));
+  const pathsById = new Map(
+    links
+      .filter((entry) => entry.id)
+      .map((entry) => [String(entry.id), entry.source.capture.relativePath])
   );
 
   const outgoing = new Map();
-  for (const page of pages) {
+  for (const entry of links) {
     const targets = new Set();
 
-    for (const markdownLink of page.markdownLinks || []) {
-      const resolved = resolveLocalMarkdownTarget(targetDir, page, markdownLink);
-      if (resolved && pagesByPath.has(resolved)) {
+    for (const markdownLink of entry.markdownLinks) {
+      const resolved = resolveLocalMarkdownTarget(targetRoot, entry.source, markdownLink);
+      if (resolved && knownPaths.has(resolved)) {
         targets.add(resolved);
       }
     }
 
-    for (const docPath of asStringList(page.frontmatter?.docs)) {
-      if (pagesByPath.has(docPath)) {
-        targets.add(docPath);
+    for (const linkedPath of [...asStringList(entry.docs), ...asStringList(entry.relatedDocs)]) {
+      if (knownPaths.has(linkedPath)) {
+        targets.add(linkedPath);
       }
     }
 
-    for (const relatedDoc of asStringList(page.frontmatter?.related_docs)) {
-      if (pagesByPath.has(relatedDoc)) {
-        targets.add(relatedDoc);
-      }
-    }
-
-    for (const relatedId of asStringList(page.frontmatter?.related)) {
-      const relatedPath = pagesById.get(relatedId);
+    for (const relatedId of asStringList(entry.related)) {
+      const relatedPath = pathsById.get(relatedId);
       if (relatedPath) {
         targets.add(relatedPath);
       }
     }
 
-    outgoing.set(page.relativePath, [...targets]);
+    outgoing.set(entry.source.capture.relativePath, [...targets]);
   }
 
-  const pagePaths = [...pagesByPath.keys()];
   if (pagePaths.length === 0) {
     return new Map();
   }
@@ -411,223 +217,120 @@ export function computePageAuthority(targetDir, state, pages = assembleSupersede
   );
 }
 
-export function splitLongText(text, maxLength) {
-  const normalized = normalizeSearchText(text);
-  if (normalized.length <= maxLength) {
-    return [normalized];
-  }
-
-  const chunks = [];
-  let start = 0;
-  while (start < normalized.length) {
-    let end = Math.min(normalized.length, start + maxLength);
-    if (end < normalized.length) {
-      const boundary = normalized.lastIndexOf(". ", end);
-      if (boundary > start + Math.floor(maxLength / 2)) {
-        end = boundary + 1;
-      }
-    }
-    chunks.push(normalized.slice(start, end).trim());
-    start = end;
-  }
-
-  return chunks.filter(Boolean);
-}
-
-export function extractSectionChunks(page) {
-  const sections = [];
-  const lines = page.body.split("\n");
-  let currentHeading = "Overview";
-  let currentLines = [];
-
-  const flushSection = () => {
-    const content = normalizeSearchText(currentLines.join("\n"));
-    if (!content) {
-      currentLines = [];
-      return;
-    }
-
-    const parts = [];
-    if (page.frontmatter?.id) {
-      parts.push(String(page.frontmatter.id));
-    }
-    parts.push(page.title);
-    if (currentHeading && currentHeading !== "Overview") {
-      parts.push(currentHeading);
-    }
-
-    for (const key of ["type", "status", "priority", "owner", "area", "initiative"]) {
-      if (page.frontmatter?.[key]) {
-        parts.push(`${key}: ${page.frontmatter[key]}`);
-      }
-    }
-
-    const retrievalFacets = page.retrievalFacets || {};
-    for (const key of [
-      "canonicality",
-      "maintenance_mode",
-      "knowledge_role",
-      "evidence_stage",
-      "retrieval_visibility",
-      "lifecycle",
-      "sensitivity"
-    ]) {
-      if (retrievalFacets[key]) {
-        parts.push(`${key}: ${retrievalFacets[key]}`);
-      }
-    }
-    if (Array.isArray(retrievalFacets.retrieval_role) && retrievalFacets.retrieval_role.length > 0) {
-      parts.push(`retrieval_role: ${retrievalFacets.retrieval_role.join(", ")}`);
-    }
-    if (Array.isArray(retrievalFacets.topics) && retrievalFacets.topics.length > 0) {
-      parts.push(`topics: ${retrievalFacets.topics.join(", ")}`);
-    }
-
-    const tags = asStringList(page.frontmatter?.tags);
-    if (tags.length > 0) {
-      parts.push(`tags: ${tags.join(", ")}`);
-    }
-
-    const docs = asStringList(page.frontmatter?.docs);
-    if (docs.length > 0) {
-      parts.push(`docs: ${docs.join(", ")}`);
-    }
-
-    parts.push(content);
-    const fullText = parts.join("\n");
-    const segments = splitLongText(content, 1800);
-
-    if (segments.length <= 1) {
-      sections.push({
-        heading: currentHeading,
-        text: fullText,
-        preview: content
-      });
-    } else {
-      segments.forEach((segment, index) => {
-        sections.push({
-          heading: `${currentHeading} [${index + 1}/${segments.length}]`,
-          text: [...parts.slice(0, -1), segment].join("\n"),
-          preview: segment
-        });
-      });
-    }
-
-    currentLines = [];
-  };
-
-  for (const line of lines) {
-    const match = line.match(/^(#{2,6})\s+(.+)$/);
-    if (match) {
-      flushSection();
-      currentHeading = match[2].trim();
-      continue;
-    }
-
-    if (!line.startsWith("# ")) {
-      currentLines.push(line);
-    }
-  }
-
-  flushSection();
-
-  if (sections.length === 0) {
-    const fallback = normalizeSearchText(page.body.replace(/^#\s+.+$/m, ""));
-    if (fallback) {
-      sections.push({
-        heading: "Overview",
-        text: `${page.title}\n${fallback}`,
-        preview: fallback
-      });
-    }
-  }
-
-  return sections;
-}
-
-export function buildSearchChunks(targetDir, state, pages = assembleSupersededPages(state)) {
-  const facetContext = state.context || {};
-  const pageAuthority = computePageAuthority(targetDir, state, pages);
-
-  return pages.flatMap((page) => {
-    const pageKind = inferPageKind(page);
-    const retrievalFacets = page.retrievalFacets || resolvePageFacets(page, facetContext).effective;
-    const sections = page.workRecordSections || extractSectionChunks(page);
-    return sections.map((section, index) => ({
-      chunkId: `${page.relativePath}#${index}`,
-      pageKind,
-      relativePath: page.relativePath,
-      title: page.title,
-      heading: section.heading,
-      preview: section.preview.slice(0, 280),
-      text: section.text,
-      authority: Number((pageAuthority.get(page.relativePath) || 0).toFixed(6)),
-      frontmatter: page.frontmatter || {},
-      retrievalFacets
-    }));
-  });
-}
-
-export async function computeSearchSourceSignature(targetDir, chunks) {
-  const hash = createHash("sha256");
-  const uniquePaths = [...new Set(chunks.map((chunk) => chunk.relativePath))].sort((left, right) =>
-    left.localeCompare(right)
-  );
-
-  for (const relativePath of uniquePaths) {
-    const absolutePath = path.join(targetDir, relativePath);
-    const details = await stat(absolutePath);
-    hash.update(relativePath);
-    hash.update(":");
-    hash.update(String(details.mtimeMs));
-    hash.update(":");
-    hash.update(String(details.size));
-    hash.update("\n");
-  }
-
-  return hash.digest("hex");
-}
-
 export async function buildLexicalSearchIndex(
   targetDir,
-  { profile = null, extensionNamespaces = null } = {}
+  { profile = null, extensionNamespaces = null, capturedCorpus = null } = {}
 ) {
-  const context = await resolveContractContext(targetDir, {
-    profile,
-    extensionNamespaces
+  const corpus = await buildSearchSourceCorpus(targetDir, {
+    profile, extensionNamespaces, ...(capturedCorpus ? { capturedCorpus } : {})
   });
-  const state = await loadCanonicalState(targetDir, {
-    extensionNamespaces: context.extensionNamespaces
-  });
-  state.context = {
-    manifest: context.manifest,
-    metadata: context.metadata
-  };
-  const pages = assembleSupersededPages(state);
-  const chunks = buildSearchChunks(targetDir, state, pages);
-  const sourceSignature = await computeSearchSourceSignature(targetDir, chunks);
+  const authority = computeCorpusAuthority(await realpath(path.resolve(targetDir)), corpus.sources);
+  const chunks = corpus.passages.map((passage) => ({
+    ...passage,
+    text: normalizeSearchText(passage.originalText),
+    authority: Number((authority.get(passage.relativePath) || 0).toFixed(6))
+  }));
+  const sourceSignature = digestCorpusIdentity(corpus);
 
   return {
     version: SEARCH_INDEX_VERSION,
     mode: "lexical",
     builtAt: new Date().toISOString(),
     sourceSignature,
+    contextDigest: corpus.contextDigest,
+    sourceDigests: corpus.sourceDigests,
+    totalSourceBytes: corpus.totalSourceBytes,
     chunkCount: chunks.length,
-    extensionNamespaces: context.extensionNamespaces,
+    extensionNamespaces: corpus.context.extensionNamespaces,
     chunks
   };
 }
 
+function digestCorpusIdentity(corpus) {
+  const hash = createHash("sha256");
+  hash.update(corpus.contextDigest);
+  for (const [relativePath, digest] of Object.entries(corpus.sourceDigests)
+    .sort(([left], [right]) => left.localeCompare(right))) {
+    hash.update(`\n${relativePath}:${digest}`);
+  }
+  return hash.digest("hex");
+}
+
+async function lstatIfPresent(filePath) {
+  try {
+    return await lstat(filePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+function assertReplaceableIndexDestination(details) {
+  if (details !== null && (details.isSymbolicLink() || !details.isFile())) {
+    throw new Error("persisted lexical search index destination is not a regular file");
+  }
+}
+
 export async function writeSearchIndex(targetDir, index) {
   const indexPath = getSearchIndexPath(targetDir);
+  let temporaryPath = null;
   try {
-    await mkdir(path.dirname(indexPath), { recursive: true });
-    await writeFile(indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+    if (typeof constants.O_NOFOLLOW !== "number") {
+      throw new Error("no-follow file opening is unavailable");
+    }
+    let directory = await realpath(path.resolve(targetDir));
+    const directories = [];
+    for (const component of SEARCH_CACHE_DIR.split(path.sep)) {
+      directory = path.join(directory, component);
+      let details = await lstatIfPresent(directory);
+      if (details === null) {
+        await mkdir(directory);
+        details = await lstat(directory);
+      }
+      if (details.isSymbolicLink() || !details.isDirectory()) {
+        throw new Error(`search cache path ${directory} is not a contained directory`);
+      }
+      directories.push({ directory, details });
+    }
+    const destination = path.join(directory, SEARCH_INDEX_FILE);
+    assertReplaceableIndexDestination(await lstatIfPresent(destination));
+
+    temporaryPath = path.join(directory, `.${SEARCH_INDEX_FILE}.${process.pid}-${randomUUID()}.tmp`);
+    const handle = await open(
+      temporaryPath,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+      0o666
+    );
+    try {
+      await handle.writeFile(`${JSON.stringify(index, null, 2)}\n`, "utf8");
+    } finally {
+      await handle.close();
+    }
+
+    for (const { directory: checked, details } of directories) {
+      const current = await lstat(checked);
+      if (current.isSymbolicLink() || current.dev !== details.dev || current.ino !== details.ino) {
+        throw new Error(`search cache path ${checked} changed during index publication`);
+      }
+    }
+    assertReplaceableIndexDestination(await lstatIfPresent(destination));
+    await rename(temporaryPath, destination);
+    temporaryPath = null;
   } catch (error) {
+    let cleanup = "";
+    if (temporaryPath !== null) {
+      try {
+        await unlink(temporaryPath);
+      } catch (cleanupError) {
+        if (cleanupError?.code !== "ENOENT") {
+          cleanup = `; temporary file ${temporaryPath} could not be removed: ${cleanupError.message}`;
+        }
+      }
+    }
     throw new SearchIndexUnavailableError({
       code: SEARCH_INDEX_DIAGNOSTIC_CODES.WRITE_UNAVAILABLE,
       indexPath,
-      message: `Failed to write lexical search index at ${indexPath}: ${error.message}`,
+      message: `Failed to write lexical search index at ${indexPath}: ${error.message}${cleanup}`,
       remediation: buildIndexRemediation(),
       cause: error
     });
@@ -710,6 +413,17 @@ function validatePersistedSearchIndex(index, indexPath) {
       return false;
     }
   };
+
+  if (
+    isRecord(index) &&
+    Number.isInteger(index.version) &&
+    index.version !== SEARCH_INDEX_VERSION &&
+    index.mode === "lexical" &&
+    hasWriterTimestamp(index.builtAt)
+  ) {
+    return Object.freeze({ version: index.version, mode: index.mode, builtAt: index.builtAt });
+  }
+
   const validChunk = (chunk) => (
     isRecord(chunk) &&
     typeof chunk.chunkId === "string" &&
@@ -717,8 +431,12 @@ function validatePersistedSearchIndex(index, indexPath) {
     typeof chunk.relativePath === "string" &&
     typeof chunk.title === "string" &&
     typeof chunk.heading === "string" &&
-    typeof chunk.preview === "string" &&
     typeof chunk.text === "string" &&
+    typeof chunk.originalText === "string" &&
+    typeof chunk.sourceId === "string" &&
+    typeof chunk.sourceDigest === "string" &&
+    Number.isInteger(chunk.scalarLength) &&
+    isRecord(chunk.location) &&
     typeof chunk.authority === "number" &&
     isRecord(chunk.frontmatter) &&
     isRecord(chunk.retrievalFacets)
@@ -726,10 +444,13 @@ function validatePersistedSearchIndex(index, indexPath) {
 
   if (
     !isRecord(index) ||
-    !Number.isInteger(index.version) ||
+    index.version !== SEARCH_INDEX_VERSION ||
     index.mode !== "lexical" ||
     !hasWriterTimestamp(index.builtAt) ||
     typeof index.sourceSignature !== "string" ||
+    typeof index.contextDigest !== "string" ||
+    !isRecord(index.sourceDigests) ||
+    !Number.isSafeInteger(index.totalSourceBytes) || index.totalSourceBytes < 0 ||
     !Number.isInteger(index.chunkCount) ||
     index.chunkCount < 0 ||
     !Array.isArray(index.extensionNamespaces) ||
@@ -763,11 +484,12 @@ export async function ensureLexicalSearchIndex(
     };
   }
 
-  const current = await buildLexicalSearchIndex(targetDir, {
-    profile,
-    extensionNamespaces
-  });
-  if (existing.sourceSignature !== current.sourceSignature) {
+  const capturedCorpus = await captureSearchSourceCorpus(targetDir, { profile, extensionNamespaces });
+  const currentSignature = digestCorpusIdentity(capturedCorpus);
+  if (existing.sourceSignature !== currentSignature) {
+    const current = await buildLexicalSearchIndex(targetDir, {
+      profile, extensionNamespaces, capturedCorpus
+    });
     const indexPath = await writeSearchIndex(targetDir, current);
     return {
       index: current,
@@ -787,61 +509,114 @@ export async function ensureLexicalSearchIndex(
   };
 }
 
+async function prepareLexicalSearchIndexInMemory(
+  targetDir,
+  { profile, extensionNamespaces, capturedCorpus, sourceSignature }
+) {
+  const memoryKey = `${path.resolve(targetDir)}\0${capturedCorpus.contextDigest}`;
+  const prepared = inMemoryPreparedIndexes.get(memoryKey);
+  if (prepared?.sourceSignature === sourceSignature) {
+    return prepared;
+  }
+  const rebuilt = await buildLexicalSearchIndex(targetDir, { profile, extensionNamespaces, capturedCorpus });
+  inMemoryPreparedIndexes.set(memoryKey, rebuilt);
+  return rebuilt;
+}
+
+async function prepareWorkRecordEntryOverlay(targetDir, index, capturedCorpus, { repository, history }) {
+  const memoryKey = JSON.stringify([path.resolve(targetDir), index.contextDigest, repository, history]);
+  const prepared = inMemoryEntryOverlays.get(memoryKey);
+  if (prepared?.sourceSignature === index.sourceSignature) {
+    return prepared;
+  }
+  const projected = await projectCapturedWorkRecordEntrySources(targetDir, capturedCorpus, { repository, history });
+  const recordChunks = new Map();
+  for (const chunk of index.chunks) {
+    if (!recordChunks.has(chunk.relativePath)) recordChunks.set(chunk.relativePath, chunk);
+  }
+  const chunks = [];
+  for (const { relativePath, sourceDigest, descriptor } of projected.sources) {
+    const recordChunk = recordChunks.get(relativePath);
+    if (!recordChunk) continue;
+    const location = {
+      kind: "work_record_entry",
+      unit: descriptor.unit,
+      entry_id: descriptor.entry_id,
+      version_id: descriptor.version_id
+    };
+    chunks.push({
+      chunkId: `${relativePath}#entry:${descriptor.unit}:${descriptor.entry_id}:${descriptor.version_id}`,
+      sourceId: createHash("sha256").update(JSON.stringify([relativePath, location])).digest("hex").slice(0, 24),
+      pageKind: recordChunk.pageKind,
+      relativePath,
+      title: descriptor.title,
+      heading: descriptor.title,
+      originalText: descriptor.original_text,
+      text: normalizeSearchText(descriptor.original_text),
+      sourceDigest,
+      scalarLength: descriptor.scalar_length,
+      location,
+      authority: recordChunk.authority,
+      frontmatter: recordChunk.frontmatter,
+      retrievalFacets: recordChunk.retrievalFacets,
+      entry: {
+        entry_kind: descriptor.entry_kind,
+        utf8_bytes: descriptor.utf8_bytes,
+        reference: descriptor.reference,
+        source_closure: descriptor.source_closure
+      }
+    });
+  }
+  const overlay = Object.freeze({
+    sourceSignature: index.sourceSignature,
+    repository,
+    history,
+    chunks,
+    diagnostics: projected.diagnostics
+  });
+  inMemoryEntryOverlays.set(memoryKey, overlay);
+  return overlay;
+}
+
 export async function loadLexicalSearchIndexForRead(
   targetDir,
-  { profile = null, extensionNamespaces = null } = {}
+  { profile = null, extensionNamespaces = null, repository = null, history = false } = {}
 ) {
   const indexPath = getSearchIndexPath(targetDir);
   const existing = await readSearchIndex(targetDir);
 
-  if (!existing) {
-    const rebuilt = await buildLexicalSearchIndex(targetDir, {
-      profile,
-      extensionNamespaces
-    });
-    return {
-      index: rebuilt,
-      indexPath,
-      rebuilt: false,
-      indexState: SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
-      indexStateReason: "index_missing"
-    };
-  }
-
-  if (existing.version !== SEARCH_INDEX_VERSION) {
-    const rebuilt = await buildLexicalSearchIndex(targetDir, {
-      profile,
-      extensionNamespaces
-    });
-    return {
-      index: rebuilt,
-      indexPath,
-      rebuilt: false,
-      indexState: SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
-      indexStateReason: "index_version_mismatch"
-    };
-  }
-
-  const current = await buildLexicalSearchIndex(targetDir, {
-    profile,
-    extensionNamespaces
-  });
-  if (existing.sourceSignature !== current.sourceSignature) {
-    return {
-      index: current,
-      indexPath,
-      rebuilt: false,
-      indexState: SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
-      indexStateReason: "source_signature_mismatch"
-    };
-  }
+  const capturedCorpus = await captureSearchSourceCorpus(targetDir, { profile, extensionNamespaces });
+  const sourceSignature = digestCorpusIdentity(capturedCorpus);
+  const loaded = existing?.version === SEARCH_INDEX_VERSION && existing.sourceSignature === sourceSignature
+    ? {
+        index: existing,
+        indexPath,
+        rebuilt: false,
+        indexState: SEARCH_INDEX_STATE_EXISTING,
+        indexStateReason: null
+      }
+    : {
+        index: await prepareLexicalSearchIndexInMemory(targetDir, {
+          profile, extensionNamespaces, capturedCorpus, sourceSignature
+        }),
+        indexPath,
+        rebuilt: false,
+        indexState: SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
+        indexStateReason: !existing
+          ? "index_missing"
+          : existing.version !== SEARCH_INDEX_VERSION
+            ? "index_version_mismatch"
+            : "source_signature_mismatch"
+      };
 
   return {
-    index: existing,
-    indexPath,
-    rebuilt: false,
-    indexState: SEARCH_INDEX_STATE_EXISTING,
-    indexStateReason: null
+    ...loaded,
+    entryOverlay: repository === null
+      ? null
+      : await prepareWorkRecordEntryOverlay(targetDir, loaded.index, capturedCorpus, {
+          repository,
+          history: history === true
+        })
   };
 }
 
@@ -861,9 +636,14 @@ export function matchesSearchFilters(chunk, filters = {}) {
   }
 
   for (const key of ["type", "status", "priority", "owner", "area", "initiative"]) {
+    const actual = key === "owner" && frontmatter.owner === undefined && Array.isArray(frontmatter.owners)
+      ? frontmatter.owners.map((entry) => String(entry).toLowerCase())
+      : String(frontmatter[key] ?? "").toLowerCase();
     if (
       filters[key] &&
-      String(frontmatter[key] ?? "").toLowerCase() !== String(filters[key]).toLowerCase()
+      !(Array.isArray(actual)
+        ? actual.includes(String(filters[key]).toLowerCase())
+        : actual === String(filters[key]).toLowerCase())
     ) {
       return false;
     }
@@ -908,8 +688,10 @@ export function matchesSearchFilters(chunk, filters = {}) {
 }
 
 export function scoreLexicalMatch(query, queryTokens, chunk) {
+  const isPrimaryPassage = chunk.location?.section_ordinal === 0 || chunk.location?.pointer === "/title";
+  const titleText = isPrimaryPassage ? normalizeSearchText(chunk.title).toLowerCase() : "";
   const haystack = normalizeSearchText(
-    `${chunk.title}\n${chunk.heading}\n${chunk.text}`
+    `${titleText}\n${chunk.heading}\n${chunk.text}`
   ).toLowerCase();
   const id = String(chunk.frontmatter?.id ?? "").toLowerCase();
   const queryText = query.toLowerCase();
@@ -919,7 +701,6 @@ export function scoreLexicalMatch(query, queryTokens, chunk) {
     score += 100;
   }
 
-  const titleText = normalizeSearchText(chunk.title).toLowerCase();
   const headingText = normalizeSearchText(chunk.heading).toLowerCase();
 
   if (titleText.includes(queryText)) {
@@ -962,7 +743,7 @@ function normalizeSearchLimit(limit) {
   if (!parsed || !Number.isFinite(parsed)) {
     return 8;
   }
-  return Math.max(1, Math.ceil(parsed));
+  return Math.min(50, Math.max(1, Math.ceil(parsed)));
 }
 
 function normalizeSearchOffset(offset) {
@@ -973,7 +754,7 @@ function normalizeSearchOffset(offset) {
   return Math.floor(parsed);
 }
 
-function rankLexicalSearchResults(index, { query, filters = {} }) {
+function interpretLexicalSearchQuery(query) {
   const normalizedQuery = normalizeSearchText(query);
   const queryTokens = isOpaqueIdentifierQuery(normalizedQuery)
     ? [normalizedQuery.toLowerCase()]
@@ -982,6 +763,11 @@ function rankLexicalSearchResults(index, { query, filters = {} }) {
   if (!normalizedQuery || queryTokens.length === 0) {
     throw new Error("search requires a non-empty textual query");
   }
+  return { normalizedQuery, queryTokens };
+}
+
+export function rankLexicalSearchResults(index, { query, filters = {} }) {
+  const { normalizedQuery, queryTokens } = interpretLexicalSearchQuery(query);
 
   const scored = [];
   for (const chunk of index.chunks || []) {
@@ -994,10 +780,7 @@ function rankLexicalSearchResults(index, { query, filters = {} }) {
       continue;
     }
 
-    scored.push({
-      ...chunk,
-      score: lexical
-    });
+    scored.push({ ...chunk, score: lexical });
   }
 
   scored.sort((left, right) => {
@@ -1010,31 +793,23 @@ function rankLexicalSearchResults(index, { query, filters = {} }) {
     return left.relativePath.localeCompare(right.relativePath);
   });
 
-  const deduped = [];
-  const seenPaths = new Set();
-  for (const result of scored) {
-    if (seenPaths.has(result.relativePath)) {
-      continue;
-    }
-    deduped.push(result);
-    seenPaths.add(result.relativePath);
-  }
-
-  return deduped;
+  return scored;
 }
 
 export function searchLexicalIndexPage(
   index,
-  { query, limit = 8, offset = 0, filters = {}, unbounded = false } = {}
+  { query, limit = 8, offset = 0, filters = {} } = {}
 ) {
   const rankedResults = rankLexicalSearchResults(index, { query, filters });
   const totalCount = rankedResults.length;
   const normalizedOffset = normalizeSearchOffset(offset);
-  const normalizedLimit = unbounded ? totalCount : normalizeSearchLimit(limit);
-  const pageEnd = unbounded
-    ? totalCount
-    : Math.min(totalCount, normalizedOffset + normalizedLimit);
-  const results = rankedResults.slice(normalizedOffset, pageEnd);
+  const normalizedLimit = normalizeSearchLimit(limit);
+  const pageEnd = Math.min(totalCount, normalizedOffset + normalizedLimit);
+  const { normalizedQuery, queryTokens } = interpretLexicalSearchQuery(query);
+  const results = rankedResults.slice(normalizedOffset, pageEnd).map((result) => ({
+    ...result,
+    matchRange: findPassageMatchRange(result.originalText ?? result.text, normalizedQuery, queryTokens)
+  }));
   const nextOffset = pageEnd < totalCount ? pageEnd : null;
 
   return {
@@ -1050,14 +825,13 @@ export function searchLexicalIndexPage(
 
 export function searchLexicalIndex(
   index,
-  { query, limit = 8, offset = 0, filters = {}, unbounded = false } = {}
+  { query, limit = 8, offset = 0, filters = {} } = {}
 ) {
   return searchLexicalIndexPage(index, {
     query,
     limit,
     offset,
-    filters,
-    unbounded
+    filters
   }).results;
 }
 

@@ -105,16 +105,87 @@ time. Every other declared path resolves at the base commit.
 
 At the base commit, a blob is a file, a tree is a directory, and modes `120000`
 (symlink) and `160000` (gitlink) are refused at both terminal and intermediate
-positions. A missing entry follows the existing rules: a missing leaf is allowed
-only for a writable target (or a read entry that is also a write target), and a
-missing intermediate component always refuses. Wildcard semantics are unchanged
-and now stated: a root-wide wildcard is refused, any wildcard in `write_scope` is
-refused, and for `read_scope` / `repo_paths` only the pre-wildcard prefix is
-validated.
+positions. A missing leaf is allowed only for an exact writable target, or a read
+entry the resolved write assignment already covers; a missing intermediate
+component always refuses. Glob selectors are accepted in read and write scope; only
+their pre-glob literal prefix is existence-checked, and a glob never lends the
+missing-leaf exception.
+
+The same base tree derives the ephemeral `resolved_scope` the authority carries
+beside its unchanged authored selectors. A glob selects exactly the regular files
+that exist at the base and match `node:path.posix.matchesGlob()`: a file absent at
+the base or created later is not a member, zero matches select nothing, symlinks
+and gitlinks are never members, and the containing directory is never granted. An
+existing directory is a directory grant whether spelled `docs` or `docs/`. Members
+at or under `wiki/contracts` are subtracted; a wildcard selector itself is kept.
+The sparse namespace, writable mounts, and Codex and Claude plans project only this
+assignment, and the isolation layer refuses a member whose checkout type changed.
+Exact commit resolves the same membership at the binding's authenticated base:
+changes to members (deletions included), eligible exact missing writable leaves,
+and paths beneath directory members are contained; every other path is refused.
+A changed path carries no directory intent, so a path that IS a granted directory
+is a replacement of that directory and is refused rather than read as the
+directory's own grant.
+
+Committed-slice review and integration admission own no scope interpretation of
+their own. They project the canonical slice contract's declared `write_scope`
+through the same declared-to-effective derivation, resolve membership at the
+authenticated diff base — the base the server-minted delivery chain binds into
+every delivery commit, never mutable `HEAD` and never a base chosen for
+convenience — and decide every changed path with the same commit containment
+matcher. A selector one of these gates accepts is therefore accepted by all of
+them, and the admitted identity's effective write scope is the same array the
+exact-unit worktree binding froze, which is what lets the original worker
+recognize its own completed integration.
+
+Excluded families are re-applied to every CANDIDATE, at the commit and admission
+gates as well as at launch: an ancestor of `wiki/contracts` is a legitimate
+directory member, and a descendant inside the family is not covered by it. The
+enforced namespace's family overlay is a separate mechanism and is not that
+proof.
+
+Every refusal from this resolution is a typed path verdict:
+`worker_scope_path_refused` with the declared `field`, the declared `path`, the
+first offending `component`, and a `cause`. Its message names only
+repository-relative paths. Only an error minted by the scope authority carries
+this verdict; a thrown value that copies the code is not promoted. A launch
+refusal publishes the verdict as its registered public code with the same facts
+and an authored-correction recovery, never as a launcher preparation or sandbox
+failure. The launch-time assigned-source
+readability gate asks the same coverage question for a missing read leaf through
+the shared resolved write coverage, and so do the closed-input commit gate and
+committed-slice admission; that one owner subtracts excluded families on every
+query. Public `workspace_validate_dispatch` runs this same resolution read-only
+at the prospective base (the WK tip, or the configured base for a first slice)
+and reports what it evaluated and what remains for launch. Launch still resolves
+membership again at the base it provisions, so a pass never certifies launch.
+
+Resolved writable directories that are absent from the checkout are prepared
+once by the shared bubblewrap planner, the path Codex and Claude both use,
+immediately before the namespace is inspected. Preparation consumes only
+`resolved_scope.writable.directories`. It creates only the missing leaf, and
+only when every parent is already a real directory. It refuses a missing,
+replaced, or symlinked parent and any member inside an excluded family. Missing
+exact file members stay file targets and are never created as directories, and
+no name is classified by its spelling. A preparation refusal names the scope
+member and its failing component by repository-relative path, in the same
+`scope_member` shape namespace projection uses. If planning later refuses, the created
+directories are rolled back. Once planning succeeds they join the attempt-owned
+precreation cleanup, which removes only a still-empty directory with an
+unchanged identity. A refused launch releases them before any child exists.
+A managed Claude child keeps them until its termination is observed; see
+[Agent-launch write-scope preparation](agent-launch-write-scope-preparation.md).
+Preparation never widens a mount to a parent or sibling.
 
 This is a scope-freezing authority only. `inspectAuthorityPath` in the isolation
 layer remains an independent second filesystem check over the checkout produced
-from that same base.
+from that same base. When that check fails, its typed diagnostic names the resolved
+scope member and the failing component by repository-relative path. The launch
+then refuses with the operator-owned
+`agent_launch.confined_launch.path_unprepared.v1`. That refusal never widens
+scope and never falls back to an unconfined launch. It is not reported as a
+missing sandbox, because a divergence found at this point is a launcher
+preparation or projection defect.
 
 The actual family command tool is available without interactive approval:
 Codex receives `exec_command` and Claude receives `Bash`. Commands may inspect,
@@ -123,83 +194,31 @@ classifier or command allowlist; bubblewrap is the filesystem authority and
 cannot be widened by a command. This tranche exposes no general worker MCP tools.
 Delivery uses only the closed-input commit capability in the trusted
 host/runtime boundary, with the server-resolved binding as its input. A managed
-workspace receives a constrained, read-only projection of the launcher-resolved
-worktree gitdir, object stores, refs, and required singleton Git files so ordinary
-inspection commands work inside confinement. It never receives a broad bind of
-the mutable common `.git` directory or Git-metadata write authority, and it does
-not receive a general commit shell. Delivery and ref mutation remain trusted
-host/runtime operations.
+worker receives no Git administration or object-store mounts: the launcher
+authenticates the provisioned worktree binding against the checkout-derived Git
+topology but projects none of it into the namespace. Validation, delivery, and ref
+mutation remain trusted host/runtime operations. Read-only Git inspection belongs to
+advisory reviewer/redteam launches and terminal candidate validation, whose required
+projection is described in
+[Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md).
 
-#### The launcher-owned worker declared-test capability
+#### No public worker declared-test route
 
 A managed worker's namespace is exactly `R union W` over a tmpfs skeleton and
-carries no dependency tree, so it cannot execute any test whose system under test
-imports a workspace package by bare specifier. Projecting dependencies **into**
-the worker's namespace was tried and reverted: an unconditional dependency
-precondition on the launch path took managed dispatch down repository-wide. The
-supported answer is the opposite direction, and it rests on an asymmetry — the
-worktree **on disk** is dense (`checkout_mode: full`), while the worker's
-**namespace** is sparse.
+carries no dependency tree, so it cannot execute a test whose system under test
+imports a workspace package by bare specifier. Dependencies are not projected
+into the worker's namespace to change that: an unconditional dependency
+precondition on the launch path took managed dispatch down repository-wide.
 
-`workspace_worker_run_declared_test` is a launcher-owned capability that runs the
-unit's declared test **launcher-side**, in a separate confined process against
-that dense worktree, and returns the output. The worker's own namespace is
-untouched: no path is bound, mounted, stat-able, or readable inside it that was
-not already, so a launcher-side runner structurally cannot leak one into it, and
-the worker's mutation set stays exactly `W`.
-
-`decision` clause 3 is the authority: a worker's baseline is extended by "a
-launcher-owned capability", what the capability **confers** on the worker is
-bounded by `decision` clause 2, and "what the capability itself reads or executes
-is bounded by its own confinement, not the worker's." `decision` clause 4 permits
-the purpose — executing a test to check your own delivery is not the
-coordinator-owned acceptance validation. `decision` clause 4 covers the
-dependency mount: launcher-provided non-repository runtime infrastructure is not
-repository content and is not bounded by a role's repository entitlement, so it
-needs no scope declaration.
-
-What is launcher-bound, and why it has to be:
-
-- **The unit and the worktree** resolve from the dispatched run's launcher-minted
-  identity binding — the same carrier the closed-input commit capability is bound
-  to — and never from caller input. The coordinator route
-  (`workspace_run_validation`) takes a caller-supplied unit address and resolves
-  its workspace from server config; reusing that path here would let a worker
-  select targets from any record's `allowed[]` and run them against the landing
-  checkout. A caller-supplied unit, record, repository, workspace, worktree, cwd,
-  base, or target set is **refused**, not silently overridden by the bound value.
-- **The targets** come from the bound unit's exact
-  `acceptance.validation[]` declarations shaped as
-  `{operation: "node_test", target, verification_ids}`.
-  They are neither derived from `write_scope` nor auto-discovered, and an
-  undeclared target refuses rather than widening to something broader.
-- Plain validation strings and `{note, verification_ids}` objects are inert
-  notes and never authorize targets. **The argv, node binary, cwd, env, timeout,
-  and output bounds** are launcher
-  facts. No arbitrary command string, argv, environment, or working directory is
-  accepted from any source.
-
-Confinement of the run: the repository is mounted **read-only with no writable
-`W`**, secrets are masked, the network is denied, the environment is
-launcher-minted and clean, and the **only** writable location is an ephemeral
-tmpfs `TMPDIR` outside the repository. The read-only repository bind is the
-intended final posture rather than a gap — it makes it structurally impossible
-for a test byproduct to land inside the write scope, be staged by the delivery
-`add -A`, and ship silently in the worker's delivery commit.
-
-The dependency mount is **fail-soft**. A managed worktree has no `node_modules`
-(it is gitignored), so a launcher-owned, read-only, identity-pinned mount is what
-makes a bare-specifier workspace import resolve at all; it reuses the reviewer
-projection mechanism, including the host-side creation of the mount destination
-that bubblewrap cannot create inside a read-only bind. An unavailable, stale, or
-mismatched dependency tree **degrades that run and is recorded as advisory
-evidence**. It never refuses a dispatch.
-
-The result carries no admission, review, or closure authority, adds no admission
-metric, and neither satisfies the mandatory findings-only review nor authorizes
-integration. Output retains the head **and** the tail of each stream so a failing
-assertion's diagnostics survive a chatty passing run; the elided middle is
-byte-accounted rather than silently dropped.
+The wiki-MCP server registers no worker declared-test route
+(`workspace_worker_run_declared_test`) and no coordinator node_test route
+(`workspace_run_validation`). Neither name has a discovery descriptor or a role
+grant, and a call to either is refused as an unknown tool before any handler
+runs. The launcher-bound `workspace_verify_proof` registration is the worker's
+retained verification route; its registration is not evidence that a particular
+unit has an executable proof. Launcher-internal candidate validation is not a
+public route, and no validation result carries admission, review, or closure
+authority.
 
 Every family/backend path claimed as supported must enact this same binding.
 Unsupported families, backends, scope shapes, or confinement capabilities fail
@@ -481,9 +500,10 @@ minting / attestation) is never part of this local set — it is CCE or remote
   that grants `Edit` only within `write_scope` (an explicit path list) and runs the
   editor in its default permission mode, so an allowed in-scope write applies with no
   prompt while any unlisted/out-of-scope write is default-denied *before it executes*.
-  The settings are launcher-minted; the launch is refused if they cannot
-  be minted or if a behavioral probe cannot prove the restriction is in effect), and
-  are bound read-only so the worker cannot disable them; committed lower-scope editor
+  The settings are launcher-minted; ordinary launch does not empirically test
+  installed Claude. See [configuration and empirical testing](claude-native-permission-probe.md).
+  The launch is refused if settings cannot be minted or the returned artifact
+  is invalid. Settings are bound read-only so the worker cannot disable them; committed lower-scope editor
   settings are masked so they cannot widen the grant. Underneath, the repo stays
   read-only except the writable `write_scope` directories, and a post-run
   `changed-files ⊆ write_scope` verifier refuses an invalid delivery as the backstop. Both paths
@@ -520,8 +540,8 @@ network behavior remains `shareNet: true` as described above.
 
 | Executor family | What it may write | Write-scope enforcement | What is sandboxed | What is not sandboxed / known caveats | Network posture |
 | --- | --- | --- | --- | --- | --- |
-| Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for file scopes and writable root binds only for directory scopes. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
-| Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow`, `--allowedTools`, and the capability probe, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository content visibility is exactly `R union W`, and launcher-resolved Git support is projected read-only without broadly exposing the common `.git` directory. The real host OAuth credential leaf is writable for normal implementation workers so Claude can persist token refresh; exact findings roles bind it read-only. | Legacy non-managed native-edit composition may retain directory-scoped native editing, but managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
+| Codex | The assigned implementation `write_scope` for workers; reviewer/redteam subjects must have `write_scope: []`. | The outer bubblewrap plan mounts the repo read-only, then emits exact `--bind <file> <file>` entries for file scopes and writable root binds only for directory scopes. Paths are realpath-normalized and must remain inside the repo; repo root and `.git` writable roots fail closed. Codex CLI `-s workspace-write` / `--add-dir` records directory-level intent only, so the bwrap file bind is the file-level boundary. Worker launches keep the Codex `exec_command` tool inside that boundary. | The dispatched child runs under bwrap with system/read-only roots, env filtered through the launcher policy, and write binds derived from canonical record state. Workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. | The Codex CLI sandbox itself is not the file-level guarantee; do not read `--add-dir` as per-file enforcement. | Worker launch shares network (`shareNet: true`) for model API access; this is the accepted worker-egress risk above. |
+| Claude | The assigned implementation `write_scope` for managed workers; reviewer/redteam are read-only and receive `Bash` with native edit tools denied so they can run read-only Git inspection. | Managed workers receive exact `W` writable mounts over a sparse `R union W` namespace. `Bash` is present in `permissions.allow` and `--allowedTools`, and absent from both deny layers. Native WebFetch/WebSearch and delegation/spawn tools remain denied. | The settings root is read-only, repository content visibility is exactly `R union W`, and workers receive no Git administration or object-store mounts; reviewer/redteam launches receive the required read-only Git projection. The real host OAuth credential leaf is writable for normal implementation workers so Claude can persist token refresh; exact findings roles bind it read-only. | Legacy non-managed native-edit composition may retain directory-scoped native editing, but managed-worker shell authority comes from bwrap, not command parsing or native edit permissions. Post-run changed-path containment remains a backstop. | `shareNet: true`; shell-visible network binaries may use the shared network. Native WebFetch/WebSearch denial is not network confinement. |
 | Agy | Unsupported; no repository writes. | No executor or write-scope projection is created. | No role sandbox is spawned. | No Gemini state, credential, config, or wiki-MCP transport is mounted. | No launch; fails closed. |
 
 #### Why native-edit families use a directory bind
@@ -792,6 +812,14 @@ recovery does not. Downstream wiki-core, wiki-MCP, and launcher code consumes th
 typed result and does not repeat response parsing, identity checks, reason caps,
 effect-specific recovery rules, or recovery validation.
 
+Request construction, fetch transport, response reading, and response
+classification are distinct client failure boundaries. Each preserves the
+complete losslessly serializable originating diagnostic, including nested causes,
+as inert `failure_diagnostic` data through the registered wiki-MCP response. A
+response validator exception is therefore never reported as a network failure.
+These diagnostics do not alter or supply a policy effect, recovery action,
+ratification, authority binding, or launch permission.
+
 Complete typed and verbose/ranged transports preserve producer values and
 ordering. Ordinary diagnostics may present bounded summaries, including at most
 16 reasons, 24 evidence keys, and 256 observed-string characters, but those are
@@ -826,7 +854,35 @@ malformed or unbounded suppression evidence, a disappeared classified site, and
 an unowned authenticated deciding-authority literal fail the command. A newly
 discovered ordinary site absent from the point-in-time corpora is emitted as a
 finite unresolved fact with its candidate owner and falsifying selector, but
-that absence alone is non-gating. This preserves decision's separation between
+that absence alone is non-gating.
+
+The command reports every gate in one run. Only an invalid registry *shape*
+aborts it; each owner-reference defect becomes its own gating diagnostic
+carrying that reference's id, path, expected digest and measured digest, so the
+census and the suppression-witness verification still execute and publish their
+own gates. A stale reference therefore no longer hides later failures behind the
+first mismatch. Default output prints each gating diagnostic's details; `--json`
+remains the complete deterministic result. `--help` prints usage; exit status is
+0 with no gating diagnostic, 1 with one, and 2 for a usage error.
+
+Owner-proof digests record the bytes that were *validated* as the proof. A
+digest is repinned only after its registered selector has been run and shown to
+prove its bound boundary; a mismatch is never cleared by refreshing the digest
+to make the gate pass.
+
+The census enumerates production files through one vendored grammar. Source the
+grammar cannot type is refused with `guarded_owner_exception_parse_failed`,
+carrying each anomaly's kind and location, because a census read from an
+untyped region would be a guess. A grammar limitation on *legal* source is
+distinct from malformed source and is admitted only when its exact structural
+shape is recognised and no discovered site falls inside the recovered span. Such
+a recovery is never silent: it is published as a non-gating
+`guarded_owner_lint_grammar_recovery` naming the file and the recovery. The one
+recognised recovery is an `export { … }` clause whose `from` clause begins on
+the following line, which the grammar mis-shapes into three statements around a
+recovered `;`.
+
+This preserves decision's separation between
 mechanical refusal and policy authority: the lint consumes existing
 classification and exact-policy identities and never authenticates, rebuilds,
 or re-decides a carrier.
@@ -834,10 +890,18 @@ or re-decides a carrier.
 Modeled mechanical failures retain their exact identity: launcher declaration
 and authority-binding defects, validation failures, backend and route failures,
 decision-envelope problems, and recovery-contract conformance failures each
-have a registered code and owner. `operator_recovery_needed` is not their
+have a registered code and owner, as do launch failures before start, handler
+exceptions, lifecycle protocol incompatibility, monitoring and post-worker
+recovery failures, and slice-integration refusals.
+`operator_recovery_needed` is not their
 fallback. It is reachable only for an authenticated unexpected condition from
 outside the tooling model, with the exact external condition preserved; seeing
-it during normal tooling operation is itself a classification defect.
+it during normal tooling operation is itself a classification defect. Its one
+producer is the shared classifier's `unexpected_external.authenticated_condition`
+limb, which refuses to select it without the exact external condition, and the
+response boundary rebuilds any other envelope that claims it without that
+authentication. A tooling defect, an unknown exception, or a missing route is
+never relabelled as an external condition.
 
 CCE alone produces `worker_admission.recovery.v1`, owns that schema, and chooses
 every recovery action. When recovery is present, wiki-core owns Portfolio's one
@@ -967,6 +1031,12 @@ The integration boundary keeps three limbs separate:
   code does not manufacture that authority from review evidence or lifecycle
   expectations.
 
+The managed runtime therefore imposes no review of its own. A mechanically
+valid managed delivery proceeds to committed-slice integration without a review
+unit, review context, or reviewer launch, and review runs only when a coordinator
+explicitly dispatches it. See
+[managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md#post-worker-delivery-without-built-in-review).
+
 Accordingly, contributor review sequencing and runtime integration authority
 must not be conflated. Rejected `decision` is not adopted policy and supplies
 no product or consuming-repository authority; references to its proposed
@@ -1029,8 +1099,9 @@ Claude). Per Principles (3) and (4), an advisory dimension is recorded as such a
 never presented as the guarantee.
 
 **An allowed code-runner is contained by where it spawns.**
-Managed implementation workers receive no validation or general wiki-MCP tool;
-their only server capability is closed-input commit delivery. Test availability
+Managed implementation workers receive closed-input commit delivery and the
+launcher-bound `workspace_verify_proof`; they receive no declared-test or
+node_test public route and no general wiki-MCP surface. Test availability
 and success are not worker admission or commit prerequisites. Findings-only
 review owns declared validation against the exact committed target, in a read-only
 reviewer namespace with isolated writable scratch and bounded structured output.

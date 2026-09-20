@@ -9,6 +9,8 @@ import {
   WORKER_ADMISSION_RECOVERY_VALIDATION_ISSUES,
   validateWorkerAdmissionRecovery
 } from "./node-engine-worker-admission-recovery.mjs";
+import { serializeWorkRecordDiagnosticValue } from
+  "../operations/work-record-persistence-diagnostics.mjs";
 
 export {
   NODE_ENGINE_WORKER_ADMISSION_PACK_INPUT_SCHEMA_VERSION,
@@ -352,6 +354,10 @@ export const PACK_CLIENT_REASON_CODES = Object.freeze({
   AVAILABILITY_FAILURE: "node_engine_api_client.worker_admission_pack.availability_failure.v1",
   NON_JSON_RESPONSE: "node_engine_api_client.worker_admission_pack.non_json_response.v1",
   MALFORMED_RESULT: "node_engine_api_client.worker_admission_pack.malformed_result.v1",
+  REQUEST_FAILURE: "node_engine_api_client.worker_admission_pack.request_failure.v1",
+  RESPONSE_READ_FAILURE: "node_engine_api_client.worker_admission_pack.response_read_failure.v1",
+  RESPONSE_CLASSIFICATION_FAILURE:
+    "node_engine_api_client.worker_admission_pack.response_classification_failure.v1",
   TIMEOUT_ABORT: "node_engine_api_client.worker_admission_pack.timeout_abort.v1",
   TRANSPORT_FAILURE: "node_engine_api_client.worker_admission_pack.transport_failure.v1",
 });
@@ -828,25 +834,76 @@ export function classifyWorkerAdmissionDomainPackResponse(
   };
 }
 
+function classifyWorkerAdmissionDomainPackFailure(
+  error,
+  config,
+  { digest, outcome, reasonCode, authenticatedRequestSent, diagnosticPath }
+) {
+  return {
+    outcome,
+    reason_code: reasonCode,
+    disposition: PACK_CLIENT_DISPOSITIONS.STRUCTURAL_REMOTE,
+    authenticated_request_sent: authenticatedRequestSent,
+    pack_backed: false,
+    effect: null,
+    node_engine_backed_success: false,
+    node_engine_binding_status: NODE_ENGINE_UNRATIFIED_PLACEHOLDER,
+    node_engine_binding_ratified: false,
+    failure_diagnostic: serializeWorkRecordDiagnosticValue(error, { path: diagnosticPath }),
+    ...packDigestContext(digest),
+    ...sourceContext(config),
+  };
+}
+
 export function classifyWorkerAdmissionDomainPackTransportError(error, config = null, { digest = null } = {}) {
   const name =
     error && typeof error === "object" && typeof error.name === "string" ? error.name : typeof error;
   const isAbort = name === "AbortError";
   return {
-    outcome: isAbort ? "timeout_abort" : "transport_failure",
-    reason_code: isAbort ? PACK_CLIENT_REASON_CODES.TIMEOUT_ABORT : PACK_CLIENT_REASON_CODES.TRANSPORT_FAILURE,
-    disposition: PACK_CLIENT_DISPOSITIONS.STRUCTURAL_REMOTE,
-    authenticated_request_sent: true,
-    pack_backed: false,
-    effect: null,
-    node_engine_backed_success: false,
-
-    node_engine_binding_status: NODE_ENGINE_UNRATIFIED_PLACEHOLDER,
-    node_engine_binding_ratified: false,
+    ...classifyWorkerAdmissionDomainPackFailure(error, config, {
+      digest,
+      outcome: isAbort ? "timeout_abort" : "transport_failure",
+      reasonCode: isAbort
+        ? PACK_CLIENT_REASON_CODES.TIMEOUT_ABORT
+        : PACK_CLIENT_REASON_CODES.TRANSPORT_FAILURE,
+      authenticatedRequestSent: true,
+      diagnosticPath: "node_engine.worker_admission.transport_failure",
+    }),
     error_name: name,
-    ...packDigestContext(digest),
-    ...sourceContext(config),
   };
+}
+
+export function classifyWorkerAdmissionDomainPackRequestError(
+  error,
+  config = null,
+  { digest = null } = {}
+) {
+  return classifyWorkerAdmissionDomainPackFailure(error, config, {
+    digest,
+    outcome: "request_failure",
+    reasonCode: PACK_CLIENT_REASON_CODES.REQUEST_FAILURE,
+    authenticatedRequestSent: false,
+    diagnosticPath: "node_engine.worker_admission.request_failure",
+  });
+}
+
+export function classifyWorkerAdmissionDomainPackResponseError(
+  error,
+  config = null,
+  { digest = null, stage = "classification" } = {}
+) {
+  const readFailure = stage === "read";
+  return classifyWorkerAdmissionDomainPackFailure(error, config, {
+    digest,
+    outcome: readFailure ? "response_read_failure" : "response_classification_failure",
+    reasonCode: readFailure
+      ? PACK_CLIENT_REASON_CODES.RESPONSE_READ_FAILURE
+      : PACK_CLIENT_REASON_CODES.RESPONSE_CLASSIFICATION_FAILURE,
+    authenticatedRequestSent: true,
+    diagnosticPath: readFailure
+      ? "node_engine.worker_admission.response_read_failure"
+      : "node_engine.worker_admission.response_classification_failure",
+  });
 }
 
 export async function executeWorkerAdmissionDomainPackValidation(
@@ -912,8 +969,9 @@ export async function executeWorkerAdmissionDomainPackValidation(
     throw new Error("node_engine_api_client.fetch_unavailable.v1");
   }
 
+  let request;
   try {
-    const request = buildWorkerAdmissionDomainPackRequest({
+    request = buildWorkerAdmissionDomainPackRequest({
       serviceUrl: config.serviceUrl.value,
       apiKey: config.apiKey.value,
       route: routeInfo.path,
@@ -923,28 +981,49 @@ export async function executeWorkerAdmissionDomainPackValidation(
       requestContractDigest: digest.value,
       packInputOverride,
     });
-    const response = await fetchImpl(request.url, {
+  } catch (error) {
+    return classifyWorkerAdmissionDomainPackRequestError(error, config, { digest });
+  }
+
+  let response;
+  try {
+    response = await fetchImpl(request.url, {
       method: request.method,
       headers: request.headers,
       body: request.body,
     });
-    if (!response || typeof response.status !== "number") {
+  } catch (error) {
+    return classifyWorkerAdmissionDomainPackTransportError(error, config, { digest });
+  }
 
-      return {
-        outcome: "availability_failure",
-        reason_code: PACK_CLIENT_REASON_CODES.AVAILABILITY_FAILURE,
-        disposition: PACK_CLIENT_DISPOSITIONS.STRUCTURAL_REMOTE,
-        authenticated_request_sent: true,
-        pack_backed: false,
-        effect: null,
-        node_engine_backed_success: false,
-        node_engine_binding_status: NODE_ENGINE_UNRATIFIED_PLACEHOLDER,
-        redacted_key: redactSecret(config.apiKey.value),
-        ...packDigestContext(digest),
-        ...sourceContext(config),
-      };
-    }
-    const result = await readPackResponseStructural(response, config.apiKey.value);
+  if (!response || typeof response.status !== "number") {
+
+    return {
+      outcome: "availability_failure",
+      reason_code: PACK_CLIENT_REASON_CODES.AVAILABILITY_FAILURE,
+      disposition: PACK_CLIENT_DISPOSITIONS.STRUCTURAL_REMOTE,
+      authenticated_request_sent: true,
+      pack_backed: false,
+      effect: null,
+      node_engine_backed_success: false,
+      node_engine_binding_status: NODE_ENGINE_UNRATIFIED_PLACEHOLDER,
+      redacted_key: redactSecret(config.apiKey.value),
+      ...packDigestContext(digest),
+      ...sourceContext(config),
+    };
+  }
+
+  let result;
+  try {
+    result = await readPackResponseStructural(response, config.apiKey.value);
+  } catch (error) {
+    return classifyWorkerAdmissionDomainPackResponseError(error, config, {
+      digest,
+      stage: "read",
+    });
+  }
+
+  try {
 
     const resolvedAuthorityBinding = resolveWorkerAdmissionAuthorityBinding({ config, authorityBinding });
     return classifyWorkerAdmissionDomainPackResponse(result, config, {
@@ -953,6 +1032,9 @@ export async function executeWorkerAdmissionDomainPackValidation(
       routeRatified: true,
     });
   } catch (error) {
-    return classifyWorkerAdmissionDomainPackTransportError(error, config, { digest });
+    return classifyWorkerAdmissionDomainPackResponseError(error, config, {
+      digest,
+      stage: "classification",
+    });
   }
 }

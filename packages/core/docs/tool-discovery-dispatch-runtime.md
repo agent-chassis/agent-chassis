@@ -59,16 +59,12 @@ launcher-owned in-process runtime, not a wrapper_command row, inline env policy,
 mount change, graph-impact side channel, registration frame, per-connection
 identity registry, or stdio prelude.
 
-For hot context compaction in the same backend process,
-`workspace_agent_runs_list` gives orchestrator and operator sessions a read-only
-view of their visible run handles. Use a returned handle with
-`workspace_agent_run_status` or `workspace_agent_run_wait`. The list is not
-durable or historically complete and does not provide cold/restart recovery.
-After a restart, reviewer/redteam advisory text already returned remains usable;
-do not re-dispatch, append, or repair its monitor merely to recover optional
-metadata or attestation.
-The detailed listing and process-local authority contract is owned by
-[Process-local monitoring versus restart-stable receipt authority](mcp-dispatch-managed-run-lifecycle.md#process-local-monitoring-versus-restart-stable-receipt-authority).
+`workspace_agent_run_status` selects a caller-visible attempt by canonical
+subject and optional exact attempt id. It is the only public run-observation
+operation; the former global run-list and separate wait operations are retired.
+Omitted timeout performs one immediate observation, while an explicit timeout
+waits without cancelling work. The detailed selection and restart contract is
+owned by [Subject-addressed observation and lifecycle side effects](mcp-dispatch-monitoring-and-ownership.md#subject-addressed-observation-and-lifecycle-side-effects).
 
 Current AI-agent reviewer independence is enforced through role, tool, and
 evidence boundaries rather than author/reviewer principal equality. The
@@ -84,13 +80,16 @@ The enforceable current boundary is:
 - implementation workers may edit only their assigned `write_scope` and can
   move only their own implementation unit to `review` through the scoped
   commit/submit-for-review path; they cannot complete their own work
-- reviewer sessions are findings-only role sessions with `write_scope: []`;
-  dispatch-readiness refuses reviewer units whose canonical JSON write scope is
-  non-empty with `role_policy_violation` and diagnostic reason
-  `reviewer_write_scope_nonempty`
-- the sole non-empty canonical-scope exception is a launcher-owned frozen
-  exact-slice review; backend admission re-verifies its context and Git target,
-  while the reviewer still launches read-only, and no request field selects it
+- reviewer and redteam sessions are findings-only role sessions with
+  `write_scope: []`; the registered dispatch selects the advisory review pipeline
+  for them before worker admission, so worker dispatch-readiness never evaluates
+  them. The launcher selects immutable material (canonical design, an
+  implementation slice's retained delivery, the published terminal candidate, or
+  an explicit full-commit `diff_base_sha`/`reviewed_sha` pair) and a missing,
+  unpublished, or invalid subject or material refuses as
+  `agent_launch.advisory_review.material_invalid.v1` before execution; the
+  selected slice's own canonical write scope never grants reviewer mutation
+  authority, and no request field selects material authority
 - `review_purpose` defaults to `standalone`; only structural
   `terminal_whole_wk` can participate in terminal lifecycle review, and it
   carries no authority by itself

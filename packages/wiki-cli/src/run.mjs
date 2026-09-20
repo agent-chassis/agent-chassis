@@ -45,7 +45,6 @@ Commands:
   validate-dispatch   Validate a unit address against the dispatch-readiness contract
   node-engine        Consumer-facing Node Engine API-key checks (structural-only; validate-smoke)
   code-index         Repo code index status, build, impact, graph impact, symbol navigation, call graph, and context surfaces
-  sidecar            Legacy alias for code-index
   help               Show this help text
 
 Examples:
@@ -76,12 +75,11 @@ Examples:
   wiki validate-dispatch --unit WK-0001 --dir /path/to/repo --json
   wiki node-engine validate-smoke --json
   wiki code-index build --json --dir /path/to/repo
-  wiki code-index graph-impact-paths --json --paths packages/app/src/service.mjs --dir /path/to/repo
+  wiki code-index impact --json --paths packages/app/src/service.mjs --dir /path/to/repo
   wiki code-index find-references --json --symbol "<scip-symbol>" --dir /path/to/repo
   wiki code-index definition --json --path packages/app/src/service.mjs --line 12 --dir /path/to/repo
   wiki code-index callers --json --symbol "<scip-symbol>" --dir /path/to/repo
   wiki code-index callees --json --path packages/app/src/service.mjs --line 12 --dir /path/to/repo
-  wiki code-index impact-paths --json --paths packages/app/src/service.mjs --dir /path/to/repo
   wiki code-index context-for-path --json --path packages/app/src/service.mjs --dir /path/to/repo
   wiki code-index status --json --dir /path/to/repo
 `;
@@ -160,9 +158,6 @@ export async function run(argv) {
       await runNodeEngine(rest);
       return;
     case "code-index":
-      await runSidecar(rest, { surfaceName: "code-index" });
-      return;
-    case "sidecar":
       await runSidecar(rest);
       return;
     default:

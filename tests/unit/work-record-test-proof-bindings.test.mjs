@@ -2,13 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../../packages/controlled-contract/lib/stable-v1-migration.mjs";
 import { validateWorkRecordTestProofBindings } from
   "../../packages/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
 
-const v02 = JSON.parse(await readFile(new URL(
-  "../../packages/controlled-contract/examples/minimal-controlled-acceptance-contract-v034.json",
+const stableExample = JSON.parse(await readFile(new URL(
+  "../../packages/controlled-contract/examples/minimal-controlled-acceptance-contract.v1.json",
   import.meta.url
 )));
 
@@ -27,22 +25,18 @@ function proof() {
       proposition_id: "prop-component-absent", expected_outcome: "verification_fails",
       mutation: {mutation_id: "mutation-component", mechanism: "module_substitution",
         target_kind: "module", module_path: "packages/controlled-contract/lib/test-proof-contract.mjs"},
-      execution_provider: {provider_id: "launcher.node-test-module-fault", provider_version: "1.0.0",
+      execution_provider: {provider_id: "launcher.node-test-module-fault", provider_version: "2.0.0",
         capability: "falsifier_execution"}}],
     traversal_provider: {mode: "provider", provider_id: "launcher.node-test-v8-coverage",
       provider_version: "1.0.0", capability: "boundary_traversal", boundary_kind: "module",
       observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion", evidence_artifact_type: "boundary_trace"},
-    coverage_disposition: {baseline_id: "coverage-baseline-component",
-      baseline_state: "complete_executed_inventory",
-      items: [{test_id: "test-component", disposition: "preserved"}]},
+    test_selector: {name: "suite covers component", nesting: 0},
     prohibited_shortcuts: ["source_text_inspection"]
   };
 }
 
-const v03 = () => migrateControlledAcceptanceContractV02ToV1({
-  contract: structuredClone(v02), testProofs: [proof()]
-});
+const v03 = () => ({ ...structuredClone(stableExample), test_proofs: [proof()] });
 const record = {id: "WK-9000"};
 const unit = (validation) => ({acceptance: {validation}});
 const structured = (ids = ["claim-suite-covers-component"],
@@ -96,11 +90,13 @@ test("discriminates invalid declarations, proof binding, and inert notes", async
   }])).includes("validation_note_fields_invalid"));
 });
 
-test("refuses unchanged v0.2 carriers before stable processing", async () => {
+test("refuses a retired contract version before stable processing", async () => {
+  const retired = v03();
+  retired.schema_version = "controlled-acceptance-contract.experimental.v0.2";
   const result = await validateWorkRecordTestProofBindings({
     workRecord: record,
     selectedUnit: unit(["node --test legacy.mjs"]),
-    controlledContract: structuredClone(v02)
+    controlledContract: retired
   });
   assert.equal(result.status, "refused");
   assert.deepEqual(result.diagnostics.map(({code}) => code), [

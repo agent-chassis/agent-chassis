@@ -33,7 +33,9 @@ import {
   prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
 import {
-  readPersistedWorkerAdmissionEvidenceSidecar,
+  captureSelectedWorkRecordAdmissionEvidence,
+  isAdmissionEvidenceSnapshotChangedError,
+  readCapturedWorkRecordAdmissionEvidence,
   WorkerAdmissionSidecarError
 } from "../lib/work-record-admission-evidence-sidecar.mjs";
 import {
@@ -238,13 +240,16 @@ function findAnyDerivedEvidenceEntryForUnit(record, unit) {
   return entries.find((entry) => isWorkerAdmissionDerivedEvidenceForUnit(entry, record.id, unit)) ?? null;
 }
 
-async function createFullEvidenceForSliceReviewAcceptance({ dir, record, unit, sourceDigest }) {
-  const priorFullEvidence = await readPersistedWorkerAdmissionEvidenceSidecar({
-    dir,
-    record,
-    selectedUnit: unit,
-    sourceDigest
-  });
+async function createFullEvidenceForSliceReviewAcceptance({ dir, record, unit, sourceDigest, recordStore }) {
+  const priorFullEvidence = readCapturedWorkRecordAdmissionEvidence(
+    await captureSelectedWorkRecordAdmissionEvidence({
+      dir,
+      record,
+      selectedUnit: unit,
+      sourceDigest,
+      recordStore
+    })
+  );
   if (priorFullEvidence) return { ok: true, fullEvidence: priorFullEvidence };
   if (findAnyDerivedEvidenceEntryForUnit(record, unit) !== null) {
     return {
@@ -306,7 +311,8 @@ async function persistSliceReviewAcceptanceProof({
     dir,
     record: updatedRecord,
     unit,
-    sourceDigest
+    sourceDigest,
+    recordStore
   });
   if (!envelope.ok) return { refusal: envelope };
   const fullEvidenceWithProof = upsertSliceReviewAcceptanceProof(envelope.fullEvidence, proof);
@@ -445,6 +451,11 @@ export async function mintAndPersistSliceReviewAcceptanceProof(options = {}) {
     });
   } catch (error) {
 
+    if (isAdmissionEvidenceSnapshotChangedError(error)) {
+      return refusal(CODES.targetStale, [
+        `${error.code}: the unit's selected admission evidence changed after it was loaded; no proof was persisted`
+      ]);
+    }
     if (error instanceof WorkerAdmissionSidecarError) {
       return refusal(CODES.malformed, [
         `existing admission evidence for this unit is unreadable or tampered (${error.code}); no proof was persisted`
@@ -517,13 +528,21 @@ export async function resolveSliceReviewAcceptanceProof(options = {}) {
 
   let fullEvidence;
   try {
-    fullEvidence = await readPersistedWorkerAdmissionEvidenceSidecar({
-      dir: targetDir,
-      record: loaded.record,
-      selectedUnit: unit,
-      sourceDigest
-    });
+    fullEvidence = readCapturedWorkRecordAdmissionEvidence(
+      await captureSelectedWorkRecordAdmissionEvidence({
+        dir: targetDir,
+        record: loaded.record,
+        selectedUnit: unit,
+        sourceDigest,
+        recordStore
+      })
+    );
   } catch (error) {
+    if (isAdmissionEvidenceSnapshotChangedError(error)) {
+      return refusal(CODES.targetStale, [
+        `${error.code}: the unit's selected admission evidence changed after it was loaded`
+      ]);
+    }
     if (error instanceof WorkerAdmissionSidecarError) {
       return refusal(CODES.malformed, [
         `persisted slice-review acceptance evidence is unreadable or tampered (${error.code})`
@@ -605,13 +624,21 @@ export async function resolveHistoricalSliceReviewAcceptanceProof(options = {}) 
 
   let fullEvidence;
   try {
-    fullEvidence = await readPersistedWorkerAdmissionEvidenceSidecar({
-      dir: targetDir,
-      record: loaded.record,
-      selectedUnit: unit,
-      sourceDigest: historical.sourceDigest
-    });
+    fullEvidence = readCapturedWorkRecordAdmissionEvidence(
+      await captureSelectedWorkRecordAdmissionEvidence({
+        dir: targetDir,
+        record: loaded.record,
+        selectedUnit: unit,
+        sourceDigest: historical.sourceDigest,
+        recordStore
+      })
+    );
   } catch (error) {
+    if (isAdmissionEvidenceSnapshotChangedError(error)) {
+      return refusal(CODES.targetStale, [
+        `${error.code}: the unit's selected historical admission evidence changed after it was loaded`
+      ]);
+    }
     if (error instanceof WorkerAdmissionSidecarError) {
       return refusal(CODES.malformed, [
         `persisted historical slice-review acceptance evidence is unreadable or tampered (${error.code})`

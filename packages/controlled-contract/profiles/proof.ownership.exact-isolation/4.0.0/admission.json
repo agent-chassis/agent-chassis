@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "1dce9d21d4fe40221981092258ff72cf3f7349a26c6214ad2bd7f71988d4793e",
+  "profile_id": "proof.ownership.exact-isolation",
+  "profile_version": "4.0.0",
+  "profile_digest": "9446d388315a4c607f7b3fd4b0b28c066f866d34215b129eb7ac8c9295f777cd",
+  "guarantee": "Given one grounded owned resource, legitimate owner, distinct foreign subject, legitimate authority, reusable operation, refused foreign attempt, protected interval, complete authority-state observations before the foreign attempt and after refusal, and a distinct later valid attempt and expected successful result: the resource is assigned to the legitimate owner; the authority authorizes that owner but not the foreign subject for the operation; the foreign attempt targets the exact resource and is refused before writing or mutating it; the authority state after refusal equals its state before the attempt; and the later attempt uses the same authority, owner, operation, and resource and reaches the expected result state.",
+  "guarantee_digest": "5a3b73c64e5fb0057b749b9cc0422bebd0118b282d213e251b7d43a9f2d41e5c",
+  "explicit_exclusions": [
+    "concurrent-owner-access",
+    "delivered-evidence-authenticity",
+    "external-authorization-policy",
+    "ownership-discovery-completeness",
+    "pack-applicability",
+    "resources-outside-owned-resource",
+    "truthful-identity-and-observation-grounding"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "a143d070bdf1a71da8ff826ae47bc9574bc3e2d4ceabb062f92f568dead78f71",
+    "adequacy_result_digest": "5e122714e17fa38b84fcc4da21501f6d9ce96fae36f81be1a578a0c077e9abe7",
+    "executable_control_count": 38,
+    "negative_fixture_count": 15,
+    "coverage_witness_count": 222
+  }
+}

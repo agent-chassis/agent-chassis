@@ -2,18 +2,26 @@
 
 import path from "node:path";
 
+import { isRuntimeBlockerCode } from
+  "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+
 import { spawnIsolated as defaultSpawnIsolated } from "./launch-isolation.mjs";
 import { defaultBuildClaudeBwrapPlan } from "./workspace-agent-claude-launch-support.mjs";
 import {
   BACKEND_REFUSAL_CODES
 } from "./workspace-agent-dispatch-backend.mjs";
 import {
+  TERMINAL_STRUCTURED_ROLE_RESULT_MODES,
   resolveTerminalStructuredRoleResultMode
 } from "@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
 import { resolveLauncherRoleToolNames } from "./launcher-role-tool-profile.mjs";
 import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
 import { assertCodexWorkerCommitCredentialBinding } from "./codex-role-mcp-env.mjs";
 import { __LAUNCH_CORE_TERMINAL_STATUSES_FOR_TESTS } from "./workspace-agent-launch-core.mjs";
+import {
+  PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
+  createAttemptPrecreatedResourceOwner
+} from "./pre-spawn-cleanup-binding.mjs";
 import {
   consumeAdvisoryReviewInput,
   renderFamilyNeutralAdvisoryReviewInput
@@ -50,6 +58,11 @@ import {
 import { selectWorkerLifecycleFromEffectiveWriteScope } from
   "./workspace-agent-worker-lifecycle.mjs";
 
+import {
+  assertManagedWorkerAssignment,
+  workerAssignmentRefusal
+} from "./worker-assignment-authority.mjs";
+
 export const CLAUDE_WORKER_SCOPE_AUTHORITY_INVALID_REASON =
   "claude_worker_scope_authority_invalid";
 
@@ -64,15 +77,12 @@ export {
   CLAUDE_FINAL_MESSAGE_FINDINGS_SCHEMA_VERSION,
   CLAUDE_LAUNCH_EXECUTOR_MISSING_BACKEND_PATH,
   CLAUDE_LAUNCH_EXECUTOR_UNAVAILABLE_REASON,
-  CLAUDE_NATIVE_PERMISSION_PROBE_UNPROVEN_REASON,
-  CLAUDE_NATIVE_PERMISSION_SETTINGS_UNAVAILABLE_REASON,
   CLAUDE_RUNTIME_SETUP_REASONS,
   CLAUDE_WORKER_DENY_TOOLS,
   CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS,
   CLAUDE_WORKER_SCRATCH_DIRNAME,
   CLAUDE_WORKER_SCRATCH_UNAVAILABLE_REASON,
   CLAUDE_WORKSPACE_AGENT_LAUNCH_EXECUTOR_SCHEMA_VERSION,
-  DEFAULT_CLAUDE_RUNTIME_SYMLINK,
   buildClaudeEffortArgs,
   buildClaudeNativePermissionSettings,
   createDefaultClaudeBwrapIsolatedSpawn,
@@ -86,8 +96,6 @@ export {
   deriveLauncherOwnedClaudeRuntimeFacts,
   deriveLauncherOwnedHostHome,
   mintClaudeWorkerScratchRoot,
-  mintLauncherOwnedClaudeNativePermissionSettings,
-  probeClaudeNativePermissionEnforcement,
   resolveCanonicalWriteScope,
   resolveLauncherOwnedClaudeRuntimeFacts
 } from "./workspace-agent-claude-launch-support.mjs";
@@ -95,14 +103,13 @@ export {
 export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
   const {
     hasInjectedCredentialsReadOnlyFile,
-    nativePermissionProbeExplicitlyInjected,
     launchTransportInjected,
     probeClaudeRuntime, captureFinalResult, claudePath, resolveClaudeRuntimeFacts,
     readLauncherOwnedHostHome, buildCommandLine, promptForSubject, env, defaultCwd,
     buildBwrapPlan, spawnIsolated, plainSpawn, familyRuntimeReadOnlyRoots, killTimeoutMs,
     loadWorkRecord, credentialsReadOnlyFile, mintWorkerScratchRoot, nativeRepoWriteMechanism,
     verifyWorkerWriteScope, captureWriteScopeBaseline, mintClaudeNativePermissionSettings,
-    verifyNativePermissionEnforcement, resolveSchemaConstrainedTier, verifyRuntimeIdentity,
+    resolveSchemaConstrainedTier, verifyRuntimeIdentity,
     createMcpConduit
   } = resolveClaudeExecutorSeams(options, {
     defaultSpawnIsolated,
@@ -178,13 +185,34 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       probeClaudeRuntime
     });
     if (runtimePreflight.refusal) return runtimePreflight.refusal;
-    const { spawn, probe, resolvedClaudePath } = runtimePreflight;
+    const { spawn, probe, resolvedClaudePath, configuredLeadingArgs } = runtimePreflight;
 
-    const prompt = advisoryReviewInput === null
-      ? (typeof promptForSubject === "function"
-          ? promptForSubject({ role, subject, workspaceDir })
-          : null)
-      : renderFamilyNeutralAdvisoryReviewInput(advisoryReviewInput);
+    const provisioning = input?.worktree_provisioning ?? null;
+    const managedImplementationWorker =
+      lifecycleKind === "implementation" && provisioning !== null;
+
+    let managedAssignment = null;
+    if (managedImplementationWorker) {
+      try {
+        managedAssignment = assertManagedWorkerAssignment(input?.worker_assignment ?? null, {
+          role,
+          subject,
+          runId: input?.run_id ?? null,
+          monitorHandle: input?.monitor_handle ?? null,
+          worktreePath: provisioning.worktree_path
+        });
+      } catch (error) {
+        return workerAssignmentRefusal(makeRefusal, error, { role, subject });
+      }
+    }
+
+    const prompt = advisoryReviewInput !== null
+      ? renderFamilyNeutralAdvisoryReviewInput(advisoryReviewInput)
+      : managedAssignment !== null
+        ? managedAssignment.prompt
+        : (typeof promptForSubject === "function"
+            ? promptForSubject({ role, subject, workspaceDir })
+            : null);
 
     const requestedModel = typeof input?.model === "string" && input.model.length > 0
       ? input.model
@@ -202,11 +230,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     if (wsr) return makeRefusal(wsr.code, wsr.reason, wsr.detail);
     const writeScope = writeScopeGate.writeScope;
 
-    const provisioning = input?.worktree_provisioning ?? null;
     const serverProvisionedWorktreeGitBinding =
       input?.provisionedWorktreeGitBinding ?? input?.provisioned_worktree_git_binding ?? null;
-    const managedImplementationWorker =
-      lifecycleKind === "implementation" && provisioning !== null;
     const advisoryExecution = advisoryReviewInput !== null;
     const canonicalRepo = advisoryReviewInput?.repository ?? null;
 
@@ -294,8 +319,11 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
           canonicalRepo: advisoryExecution ? canonicalRepo : null
         });
       } catch (err) {
+
         return await refuseAfterConduit(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          isRuntimeBlockerCode(err?.code)
+            ? err.code
+            : BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
           err?.code ?? "claude_stdio_mcp_conduit_failed",
           { message: err?.message ?? String(err), detail: err?.detail ?? null }
         );
@@ -304,19 +332,15 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     const mcpToolNames = conduit?.toolNames ?? resolveLauncherRoleToolNames(role);
 
-    const commandSurfaceRole = role === "worker" || role === "reviewer";
+    const commandSurfaceRole = role === "worker" || role === "reviewer" || role === "redteam";
     const permissionSurface = await mintClaudeNativePermissionSurface({
       commandSurfaceRole,
       mintClaudeNativePermissionSettings,
-      verifyNativePermissionEnforcement,
-      nativePermissionProbeExplicitlyInjected,
-      launchTransportInjected,
       workspaceDir,
       writeScope,
       role,
       mcpToolNames,
-      env,
-      resolvedClaudePath
+      env
     });
     if (permissionSurface.refusal) {
       const r = permissionSurface.refusal;
@@ -324,15 +348,20 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     }
     const claudeSettings = permissionSurface.claudeSettings;
 
-    const schemaConstrainedTerminalResult = advisoryReviewInput !== null
-      ? advisoryReviewInput.formal_result_contract?.mode === "schema_constrained"
-      : workspaceDir
-        ? resolveSchemaConstrainedTier({ workspaceDir }) === true
-        : false;
-    const terminalStructuredRoleResultMode = resolveTerminalStructuredRoleResultMode({
-      schemaConstrained: schemaConstrainedTerminalResult,
-      role
-    });
+    const schemaConstrainedTerminalResult = managedAssignment !== null
+      ? managedAssignment.terminal_result_mode ===
+        TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED
+      : advisoryReviewInput !== null
+        ? advisoryReviewInput.formal_result_contract?.mode === "schema_constrained"
+        : workspaceDir
+          ? resolveSchemaConstrainedTier({ workspaceDir }) === true
+          : false;
+    const terminalStructuredRoleResultMode = managedAssignment !== null
+      ? managedAssignment.terminal_result_mode
+      : resolveTerminalStructuredRoleResultMode({
+          schemaConstrained: schemaConstrainedTerminalResult,
+          role
+        });
 
     const commandLineResult = buildClaudeLaunchCommandLine({
       buildCommandLine,
@@ -358,7 +387,8 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       commandLine,
       conduit,
       mcpToolNames,
-      commandSurfaceRole
+      commandSurfaceRole,
+      configuredLeadingArgs
     });
     if (argvComposition.refusal) {
       const r = argvComposition.refusal;
@@ -382,6 +412,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       hasAssignedWriteScope,
       workspaceDir,
       writeScope,
+      workerScopeAuthority,
       captureWriteScopeBaseline,
       mintWorkerScratchRoot,
       env
@@ -430,6 +461,12 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       writeScopeBaseline
     };
 
+    const attemptResources = createAttemptPrecreatedResourceOwner({
+      role,
+      subject,
+      runId: input?.run_id ?? null
+    });
+
     let child;
     try {
       child = spawn(commandLine.command, argv, {
@@ -443,16 +480,27 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
         runtimeRoots,
         readOnlyRoots,
-        protectGitMetadata: advisoryExecution,
+        advisoryReviewInput,
         provisionedWorktreeGitBinding: serverProvisionedWorktreeGitBinding,
         credentialsWritable: !advisoryExecution,
         stdioMcpConduit: conduit,
+        attemptResources,
         stdio: ["ignore", "pipe", "pipe"]
       });
     } catch (err) {
-      return await resolveClaudeSpawnFailureOutcome(err, launchOutcomeContext);
+      if (attemptResources.ownershipRefusal !== null) {
+        return attemptResources.settle(await refuseAfterConduit(
+          BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
+          attemptResources.ownershipRefusal
+        ));
+      }
+      return attemptResources.settle(await resolveClaudeSpawnFailureOutcome(err, launchOutcomeContext));
     }
-    const launchResult = await settleClaudeSupervisedLaunch({ ...launchOutcomeContext, child });
+    const launchResult = attemptResources.settle(
+      await settleClaudeSupervisedLaunch({ ...launchOutcomeContext, child }),
+      child
+    );
     return launchResult?.accepted === true
       ? attachLauncherObservedTerminalResultModeFacts(
           launchResult,

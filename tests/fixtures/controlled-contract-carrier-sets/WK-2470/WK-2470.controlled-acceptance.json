@@ -1,0 +1,2131 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-design-provenance",
+      "kind": "provenance",
+      "text": "WK-2470 Design Draft 3 follows one DRY review and one all-accepted-decision review, each dispositioned exactly once in SLICE-001 and SLICE-002."
+    },
+    {
+      "annotation_id": "ann-design-authority",
+      "kind": "rationale",
+      "text": "The package owns refactor closure and semantic classification; wiki-core owns canonical state, continuation, reconciliation, and publication; existing coverage rebase owners retain coverage semantics; wiki-MCP remains a thin adapter."
+    },
+    {
+      "annotation_id": "ann-verification-transition",
+      "kind": "note",
+      "text": "Initial inspection verification claims establish a valid stable-v1 carrier; supported authoring-state recovery owns conversion to complete test-execution bundles before proof planning."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-criterion-01",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-01-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-02",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-02-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-03",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-03-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-04",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-04-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-05",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-05-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-06",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-06-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-07",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-07-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-08",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-08-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-09",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-09-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-10",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-10-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-11",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-11-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-12",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-12-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-13",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-13-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-14",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-14-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-15",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-15-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-16",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-16-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-17",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-17-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-18",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-18-authoritative"
+    },
+    {
+      "claim_id": "claim-criterion-19",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-19-authoritative"
+    },
+    {
+      "claim_id": "claim-verify-criterion-01",
+      "falsifying_proposition_id": "prop-criterion-01-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-01-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-02",
+      "falsifying_proposition_id": "prop-criterion-02-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-02-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-03",
+      "falsifying_proposition_id": "prop-criterion-03-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-03-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-04",
+      "falsifying_proposition_id": "prop-criterion-04-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-04-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-05",
+      "falsifying_proposition_id": "prop-criterion-05-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-05-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-06",
+      "falsifying_proposition_id": "prop-criterion-06-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-06-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-07",
+      "falsifying_proposition_id": "prop-criterion-07-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-07-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-08",
+      "falsifying_proposition_id": "prop-criterion-08-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-08-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-09",
+      "falsifying_proposition_id": "prop-criterion-09-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-09-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-10",
+      "falsifying_proposition_id": "prop-criterion-10-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-10-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-11",
+      "falsifying_proposition_id": "prop-criterion-11-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-11-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-12",
+      "falsifying_proposition_id": "prop-criterion-12-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-12-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-13",
+      "falsifying_proposition_id": "prop-criterion-13-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-13-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-14",
+      "falsifying_proposition_id": "prop-criterion-14-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-14-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-15",
+      "falsifying_proposition_id": "prop-criterion-15-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-15-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-16",
+      "falsifying_proposition_id": "prop-criterion-16-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-16-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-17",
+      "falsifying_proposition_id": "prop-criterion-17-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-17-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-18",
+      "falsifying_proposition_id": "prop-criterion-18-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-18-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-verify-criterion-19",
+      "falsifying_proposition_id": "prop-criterion-19-not-authoritative",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-criterion-19-authoritative",
+      "verification_method": "inspection"
+    },
+    {
+      "claim_id": "claim-attempt-performs-compound-operation",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-attempt-performs-compound-operation"
+    },
+    {
+      "claim_id": "claim-compound-operation-writes-constituent-effects",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-compound-operation-writes-constituent-effects"
+    },
+    {
+      "claim_id": "claim-constituent-effect-population-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-constituent-effect-population-members"
+    },
+    {
+      "claim_id": "claim-earlier-effect-population-membership",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-earlier-effect-population-membership"
+    },
+    {
+      "claim_id": "claim-later-effect-population-membership",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-later-effect-population-membership"
+    },
+    {
+      "claim_id": "claim-constituent-effect-population-cardinality",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-constituent-effect-population-cardinality"
+    },
+    {
+      "claim_id": "claim-constituent-effect-population-plurality",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-constituent-effect-population-plurality"
+    },
+    {
+      "claim_id": "claim-constituent-effect-order",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-constituent-effect-order"
+    },
+    {
+      "claim_id": "claim-failure-boundary-follows-earlier-effect",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-failure-boundary-follows-earlier-effect"
+    },
+    {
+      "claim_id": "claim-failure-boundary-precedes-later-effect",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-failure-boundary-precedes-later-effect"
+    },
+    {
+      "claim_id": "claim-failure-injected-at-boundary",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-failure-injected-at-boundary"
+    },
+    {
+      "claim_id": "claim-settlement-follows-injected-failure",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-settlement-follows-injected-failure"
+    },
+    {
+      "claim_id": "claim-settlement-follows-later-effect",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-settlement-follows-later-effect"
+    },
+    {
+      "claim_id": "claim-earlier-effect-settled-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-earlier-effect-settled-state"
+    },
+    {
+      "claim_id": "claim-later-effect-settled-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-later-effect-settled-state"
+    },
+    {
+      "claim_id": "claim-population-settled-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-population-settled-state"
+    },
+    {
+      "claim_id": "claim-settled-result-composition",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-settled-result-composition"
+    },
+    {
+      "claim_id": "claim-earlier-effect-observation-record",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-earlier-effect-observation-record"
+    },
+    {
+      "claim_id": "claim-later-effect-observation-record",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-later-effect-observation-record"
+    },
+    {
+      "claim_id": "claim-earlier-effect-observation-read",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-earlier-effect-observation-read"
+    },
+    {
+      "claim_id": "claim-later-effect-observation-read",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-later-effect-observation-read"
+    },
+    {
+      "claim_id": "claim-fully-committed-state-allowed",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-fully-committed-state-allowed"
+    },
+    {
+      "claim_id": "claim-fully-uncommitted-state-allowed",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-fully-uncommitted-state-allowed"
+    },
+    {
+      "claim_id": "claim-allowed-settlement-states-closed",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-allowed-settlement-states-closed"
+    },
+    {
+      "claim_id": "claim-partial-state-not-allowed",
+      "kind": "evidence",
+      "modality": "MUST_NOT",
+      "proposition_id": "prop-partial-state-not-allowed"
+    },
+    {
+      "claim_id": "claim-partial-commit-condition-state",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-partial-commit-condition-state"
+    },
+    {
+      "claim_id": "claim-settled-outcome-is-fully-uncommitted",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-settled-outcome-is-fully-uncommitted"
+    },
+    {
+      "claim_id": "claim-settled-outcome-within-allowed-states",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-settled-outcome-within-allowed-states"
+    },
+    {
+      "claim_id": "claim-atomic-settlement-verification",
+      "falsifying_proposition_id": "prop-falsifier-atomic-settlement-verification",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-atomic-settlement-verification",
+      "verification_method": "test_execution"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-wk-2470-acceptance",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-criterion-01",
+        "claim-criterion-02",
+        "claim-criterion-03",
+        "claim-criterion-04",
+        "claim-criterion-05",
+        "claim-criterion-06",
+        "claim-criterion-07",
+        "claim-criterion-08",
+        "claim-criterion-09",
+        "claim-criterion-10",
+        "claim-criterion-11",
+        "claim-criterion-12",
+        "claim-criterion-13",
+        "claim-criterion-14",
+        "claim-criterion-15",
+        "claim-criterion-16",
+        "claim-criterion-17",
+        "claim-criterion-18",
+        "claim-criterion-19"
+      ],
+      "purpose": "wk_acceptance_criteria"
+    },
+    {
+      "collection_id": "set-wk-2470-verification",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-verify-criterion-01",
+        "claim-verify-criterion-02",
+        "claim-verify-criterion-03",
+        "claim-verify-criterion-04",
+        "claim-verify-criterion-05",
+        "claim-verify-criterion-06",
+        "claim-verify-criterion-07",
+        "claim-verify-criterion-08",
+        "claim-verify-criterion-09",
+        "claim-verify-criterion-10",
+        "claim-verify-criterion-11",
+        "claim-verify-criterion-12",
+        "claim-verify-criterion-13",
+        "claim-verify-criterion-14",
+        "claim-verify-criterion-15",
+        "claim-verify-criterion-16",
+        "claim-verify-criterion-17",
+        "claim-verify-criterion-18",
+        "claim-verify-criterion-19"
+      ],
+      "purpose": "criterion_verifications"
+    },
+    {
+      "collection_id": "set-proof-sequence-earlier-effect",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-attempt-performs-compound-operation",
+        "claim-constituent-effect-order",
+        "claim-failure-boundary-follows-earlier-effect",
+        "claim-failure-injected-at-boundary",
+        "claim-settlement-follows-injected-failure",
+        "claim-settlement-follows-later-effect",
+        "claim-earlier-effect-settled-state",
+        "claim-earlier-effect-observation-record",
+        "claim-earlier-effect-observation-read"
+      ],
+      "purpose": "profile_proof_sequence_earlier_effect"
+    },
+    {
+      "collection_id": "set-proof-sequence-later-effect",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-attempt-performs-compound-operation",
+        "claim-constituent-effect-order",
+        "claim-failure-boundary-precedes-later-effect",
+        "claim-failure-injected-at-boundary",
+        "claim-settlement-follows-injected-failure",
+        "claim-settlement-follows-later-effect",
+        "claim-later-effect-settled-state",
+        "claim-later-effect-observation-record",
+        "claim-later-effect-observation-read"
+      ],
+      "purpose": "profile_proof_sequence_later_effect"
+    },
+    {
+      "collection_id": "set-proof-population",
+      "collection_kind": "closed_set",
+      "member_claim_ids": [
+        "claim-attempt-performs-compound-operation",
+        "claim-constituent-effect-order",
+        "claim-failure-boundary-follows-earlier-effect",
+        "claim-failure-boundary-precedes-later-effect",
+        "claim-failure-injected-at-boundary",
+        "claim-settlement-follows-injected-failure",
+        "claim-settlement-follows-later-effect",
+        "claim-earlier-effect-settled-state",
+        "claim-later-effect-settled-state",
+        "claim-population-settled-state",
+        "claim-settled-result-composition",
+        "claim-earlier-effect-observation-record",
+        "claim-later-effect-observation-record",
+        "claim-earlier-effect-observation-read",
+        "claim-later-effect-observation-read"
+      ],
+      "purpose": "profile_proof_population"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-01-authoritative",
+      "subject_reference_id": "ref-criterion-01"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-02-authoritative",
+      "subject_reference_id": "ref-criterion-02"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-03-authoritative",
+      "subject_reference_id": "ref-criterion-03"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-04-authoritative",
+      "subject_reference_id": "ref-criterion-04"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-05-authoritative",
+      "subject_reference_id": "ref-criterion-05"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-06-authoritative",
+      "subject_reference_id": "ref-criterion-06"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-07-authoritative",
+      "subject_reference_id": "ref-criterion-07"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-08-authoritative",
+      "subject_reference_id": "ref-criterion-08"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-09-authoritative",
+      "subject_reference_id": "ref-criterion-09"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-10-authoritative",
+      "subject_reference_id": "ref-criterion-10"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-11-authoritative",
+      "subject_reference_id": "ref-criterion-11"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-12-authoritative",
+      "subject_reference_id": "ref-criterion-12"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-13-authoritative",
+      "subject_reference_id": "ref-criterion-13"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-14-authoritative",
+      "subject_reference_id": "ref-criterion-14"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-15-authoritative",
+      "subject_reference_id": "ref-criterion-15"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-16-authoritative",
+      "subject_reference_id": "ref-criterion-16"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-17-authoritative",
+      "subject_reference_id": "ref-criterion-17"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-18-authoritative",
+      "subject_reference_id": "ref-criterion-18"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-19-authoritative",
+      "subject_reference_id": "ref-criterion-19"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-01-not-authoritative",
+      "subject_reference_id": "ref-criterion-01"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-02-not-authoritative",
+      "subject_reference_id": "ref-criterion-02"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-03-not-authoritative",
+      "subject_reference_id": "ref-criterion-03"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-04-not-authoritative",
+      "subject_reference_id": "ref-criterion-04"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-05-not-authoritative",
+      "subject_reference_id": "ref-criterion-05"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-06-not-authoritative",
+      "subject_reference_id": "ref-criterion-06"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-07-not-authoritative",
+      "subject_reference_id": "ref-criterion-07"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-08-not-authoritative",
+      "subject_reference_id": "ref-criterion-08"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-09-not-authoritative",
+      "subject_reference_id": "ref-criterion-09"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-10-not-authoritative",
+      "subject_reference_id": "ref-criterion-10"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-11-not-authoritative",
+      "subject_reference_id": "ref-criterion-11"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-12-not-authoritative",
+      "subject_reference_id": "ref-criterion-12"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-13-not-authoritative",
+      "subject_reference_id": "ref-criterion-13"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-14-not-authoritative",
+      "subject_reference_id": "ref-criterion-14"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-15-not-authoritative",
+      "subject_reference_id": "ref-criterion-15"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-16-not-authoritative",
+      "subject_reference_id": "ref-criterion-16"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-17-not-authoritative",
+      "subject_reference_id": "ref-criterion-17"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-18-not-authoritative",
+      "subject_reference_id": "ref-criterion-18"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:authoritative",
+      "proposition_id": "prop-criterion-19-not-authoritative",
+      "subject_reference_id": "ref-criterion-19"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-compound-operation"
+        }
+      ],
+      "operator": "reference:performs",
+      "proposition_id": "prop-attempt-performs-compound-operation",
+      "subject_reference_id": "ref-operation-attempt"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-constituent-effect"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-constituent-effect"
+        }
+      ],
+      "operator": "reference:writes",
+      "proposition_id": "prop-compound-operation-writes-constituent-effects",
+      "subject_reference_id": "ref-compound-operation"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-constituent-effect"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-constituent-effect"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-constituent-effect-population-members",
+      "subject_reference_id": "ref-constituent-effect-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-constituent-effect-population"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-earlier-effect-population-membership",
+      "subject_reference_id": "ref-earlier-constituent-effect"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-constituent-effect-population"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-later-effect-population-membership",
+      "subject_reference_id": "ref-later-constituent-effect"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-constituent-effect-population-cardinality",
+      "subject_reference_id": "ref-constituent-effect-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "range",
+          "minimum": 2
+        }
+      ],
+      "operator": "range:has_cardinality",
+      "proposition_id": "prop-constituent-effect-population-plurality",
+      "subject_reference_id": "ref-constituent-effect-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-constituent-effect"
+        }
+      ],
+      "operator": "reference:precedes",
+      "proposition_id": "prop-constituent-effect-order",
+      "subject_reference_id": "ref-earlier-constituent-effect"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-constituent-effect"
+        }
+      ],
+      "operator": "reference:follows",
+      "proposition_id": "prop-failure-boundary-follows-earlier-effect",
+      "subject_reference_id": "ref-failure-boundary"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-constituent-effect"
+        }
+      ],
+      "operator": "reference:precedes",
+      "proposition_id": "prop-failure-boundary-precedes-later-effect",
+      "subject_reference_id": "ref-failure-boundary"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-failure-boundary"
+        }
+      ],
+      "operator": "reference:targets",
+      "proposition_id": "prop-failure-injected-at-boundary",
+      "subject_reference_id": "ref-injected-failure"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-injected-failure"
+        }
+      ],
+      "operator": "reference:follows",
+      "proposition_id": "prop-settlement-follows-injected-failure",
+      "subject_reference_id": "ref-settlement-event"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-constituent-effect"
+        }
+      ],
+      "operator": "reference:follows",
+      "proposition_id": "prop-settlement-follows-later-effect",
+      "subject_reference_id": "ref-settlement-event"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-effect-settled-state"
+        }
+      ],
+      "operator": "reference:has_state",
+      "proposition_id": "prop-earlier-effect-settled-state",
+      "subject_reference_id": "ref-earlier-constituent-effect"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-effect-settled-state"
+        }
+      ],
+      "operator": "reference:has_state",
+      "proposition_id": "prop-later-effect-settled-state",
+      "subject_reference_id": "ref-later-constituent-effect"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fully-uncommitted-state"
+        }
+      ],
+      "operator": "reference:has_state",
+      "proposition_id": "prop-population-settled-state",
+      "subject_reference_id": "ref-constituent-effect-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-effect-settled-state"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-effect-settled-state"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-settled-result-composition",
+      "subject_reference_id": "ref-fully-uncommitted-state"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-effect-settled-state"
+        }
+      ],
+      "operator": "reference:records",
+      "proposition_id": "prop-earlier-effect-observation-record",
+      "subject_reference_id": "ref-earlier-effect-observation"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-effect-settled-state"
+        }
+      ],
+      "operator": "reference:records",
+      "proposition_id": "prop-later-effect-observation-record",
+      "subject_reference_id": "ref-later-effect-observation"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-earlier-effect-observation"
+        }
+      ],
+      "operator": "reference:reads",
+      "proposition_id": "prop-earlier-effect-observation-read",
+      "subject_reference_id": "ref-verification"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-later-effect-observation"
+        }
+      ],
+      "operator": "reference:reads",
+      "proposition_id": "prop-later-effect-observation-read",
+      "subject_reference_id": "ref-verification"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-allowed-settlement-states"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-fully-committed-state-allowed",
+      "subject_reference_id": "ref-fully-committed-state"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-allowed-settlement-states"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-fully-uncommitted-state-allowed",
+      "subject_reference_id": "ref-fully-uncommitted-state"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-allowed-settlement-states-closed",
+      "subject_reference_id": "ref-allowed-settlement-states"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-allowed-settlement-states"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-partial-state-not-allowed",
+      "subject_reference_id": "ref-forbidden-partial-state"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-partial-commit-condition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-forbidden-partial-state"
+        }
+      ],
+      "operator": "reference:has_state",
+      "proposition_id": "prop-partial-commit-condition-state",
+      "subject_reference_id": "ref-constituent-effect-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-fully-uncommitted-state"
+        }
+      ],
+      "operator": "reference:equals",
+      "proposition_id": "prop-settled-outcome-is-fully-uncommitted",
+      "subject_reference_id": "ref-fully-uncommitted-state"
+    },
+    {
+      "applicability_context": {
+        "mode": "after",
+        "operand_reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-allowed-settlement-states"
+        }
+      ],
+      "operator": "reference:member_of",
+      "proposition_id": "prop-settled-outcome-within-allowed-states",
+      "subject_reference_id": "ref-fully-uncommitted-state"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-constituent-effect-population"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-atomic-settlement-verification",
+      "subject_reference_id": "ref-verification"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-partial-commit-condition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-allowed-settlement-states"
+        }
+      ],
+      "operator": "reference:not_member_of",
+      "proposition_id": "prop-falsifier-atomic-settlement-verification",
+      "subject_reference_id": "ref-fully-uncommitted-state"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "PURPOSE. Provide one bounded controlled-contract refactoring lifecycle for identity-only renames and explicit semantic subgraph replacement, eliminating the current need to coordinate separate contract, verification-bundle, test-proof, obligation-coverage, acceptance-coverage, proof-plan, and assessment mutations through multiple caller-managed CAS operations."
+      },
+      "reference_id": "ref-criterion-01",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "EXISTING OWNERSHIP. Reuse the stable-v1 controlled-contract package as semantic owner, wiki-core as repository/WK/focus, canonical-generation, continuation, reconciliation, and publication owner, wiki-MCP as a thin bounded adapter, the existing coverage rebase owners from WK-2427/WK-2438, and the atomic generation-publication machinery from WK-2096 and subsequent proof-authoring work. Add exactly one package-owned refactor graph closure and semantic-classification primitive, extending or succeeding the existing proof-graph composition owner. Wiki-core resolves canonical carrier bytes and currentness, passes the complete live population to that primitive, and consumes its result unchanged for planning, apply, and assessment. Do not create parallel schema, identity, closure, classification, validation, persistence, continuation, replay, receipt, or refusal owners."
+      },
+      "reference_id": "ref-criterion-02",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "CURRENT-STATE INTEGRITY. Extend workspace_controlled_contract_assess and workspace_controlled_contract_assessment_query with a bounded cross-carrier integrity axis for current live state. The axis consumes the same package-owned refactor closure/classification result as planning and apply; it does not implement a second identity graph or classifier. It identifies dangling live references, orphan live verification/test-proof bindings, obligation or acceptance mappings to absent nodes, stale derived proof plans/assessments, and current-generation identity conflicts. Do not create a separate generic audit tool."
+      },
+      "reference_id": "ref-criterion-03",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "PLAN OPERATION. workspace_controlled_contract_refactor_plan is read-only and accepts one canonical WK/focus, the exact current generation or digest precondition, exactly one mode, and only the caller-authored semantics required by that mode. Wiki-core resolves canonical carrier bytes and currentness server-side, delegates complete closure and semantic classification to the package owner, and projects that result without recomputation. The operation accepts no raw complete carrier, caller path/root/basename, environment, authority claim, proof result, historical evidence payload, or derived artifact bytes."
+      },
+      "reference_id": "ref-criterion-04",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "COMPLETE LIVE CLOSURE. The package-owned refactor graph primitive receives the complete canonical current carrier population resolved by wiki-core and owns every affected current reference, proposition, claim, relation, collection membership, verification bundle, stable test-proof reference, obligation mapping, acceptance mapping, proof-plan source binding, and assessment source binding. Unknown or unresolved live references refuse with bounded exact identities; callers are never asked to reconstruct hidden carrier state. Plan, apply, and assessment consume this one closure result and must not maintain parallel traversal or classification logic."
+      },
+      "reference_id": "ref-criterion-05",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "RENAME IDENTITY. rename_identity changes only one stable identity and every live reference to it. The package must mechanically establish graph isomorphism and proposition, modality, applicability, verification-method, relation-role, collection-membership, and proof-requirement equivalence. Any semantic difference refuses and requires replace_subgraph."
+      },
+      "reference_id": "ref-criterion-06",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "REPLACE SUBGRAPH. replace_subgraph permits a semantic change only with an explicit old-to-new node correspondence, a nonempty reason, and complete treatment of every affected live edge and coverage mapping. The package planner translates that correspondence into the existing obligation/acceptance coverage rebase conflict, currentness, and disposition model; those existing owners validate the prospective changes under the shared generation lease. Generic package patch composition may aggregate the resulting carrier bytes for atomic publication but must not redefine coverage conflicts, row currentness, dispositions, locks, CAS, or receipt classification. Removed, added, split, merged, or changed requirements receive honest new coverage/proof disposition; absence of proof is represented as an explicit gap rather than inherited credit."
+      },
+      "reference_id": "ref-criterion-07",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "BOUNDED REVIEWABLE PLAN. Planning returns the first bounded semantic page containing mode, affected live identities and truthful complete/returned/omitted counts, explicit old-to-new correspondence, semantic-change classification, coverage effects, proof and derived-artifact invalidation, and unresolved facts. When detail remains, it returns exactly one next call to workspace_controlled_contract_refactor_query; only the final complete page returns the apply continuation. The apply continuation is mutation capability and never substitutes for retrieval."
+      },
+      "reference_id": "ref-criterion-08",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "LOSSLESS PLAN AND RECEIPT RETRIEVAL. workspace_controlled_contract_refactor_query is the single read-only complete path for one exact refactor plan or publication receipt. It accepts only the server-issued resource identity, resource_kind plan or receipt, an optional bounded semantic selector, and an integrity- and currentness-bound cursor. Every page reports complete, returned, omitted, and remaining counts and exactly one next query until final. A changed plan snapshot or invalid cursor refuses with a fresh-plan or exact-receipt recovery; pages from different snapshots cannot be stitched. Any individually oversized semantic item uses the existing workspace_read_mcp_content_reference ranged path. No result is byte-cut, silently omitted, or made recoverable only through apply."
+      },
+      "reference_id": "ref-criterion-09",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "GENERATION-BOUND CONTINUATION. An applicable plan extends the existing wiki-core controlled-contract authoring-continuation transition and reconciliation machinery; it does not add a registry, continuation type, source-lease owner, or replay ledger. The opaque continuation is bound to repository, WK/focus, exact current generation, the complete server-resolved proposal, package/schema identities, and source lease. A concurrent change makes it stale and returns one executable re-plan route; blind retry, caller-supplied source declarations, and semantic reconstruction are forbidden."
+      },
+      "reference_id": "ref-criterion-10",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "ATOMIC APPLY. workspace_controlled_contract_refactor_apply consumes only the apply continuation through the existing continuation state machine and canonical carrier-set publisher, then publishes one completely validated new canonical generation. Contract nodes and all affected current dependent carriers change together or none change. Prospective package validation, coverage-rebase validation, source-lease validation, staging, publication selection, transition reconciliation, and receipt durability complete before success; no temporary invalid state, partial carrier set, cleanup guess, or multi-CAS race is observable."
+      },
+      "reference_id": "ref-criterion-11",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "DERIVED STATE. Proof plans and assessments whose source bindings changed become explicitly stale through their normal generation/digest semantics. The refactor never edits or deletes their historical bytes and returns exact supported rebuild/reassessment calls rather than silently rebuilding or treating stale output as current."
+      },
+      "reference_id": "ref-criterion-12",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "HISTORY AND PROOF CREDIT. Historical contract generations, review/redteam/blueteam evidence, proof results, runtime receipts, and assessment bundles are immutable. Existing historical references are allowed to continue naming their original generation. Refactor operations refuse attempts to rewrite them and never silently transfer authenticated proof credit to a renamed or replacement identity."
+      },
+      "reference_id": "ref-criterion-13",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "DURABLE RECEIPT AND REPLAY. The apply result returns the first bounded page of an immutable receipt derived from the existing canonical continuation/publication transition and reconciliation record, not a new persistence mechanism. It binds old and new generation identities, mode, correspondence, reason, changed carrier digests, invalidated derived identities/counts, package identity, and written/no-op outcome with truthful complete/returned/omitted counts and the workspace_controlled_contract_refactor_query next call when detail remains. Identical replay is a durable no-op; restart and concurrent replay converge through the existing state machine on the same receipt identity and bytes."
+      },
+      "reference_id": "ref-criterion-14",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "POST-APPLY CONVERGENCE. The existing assessment surface consumes the package-owned closure/classification result to verify current cross-carrier integrity after apply and direct callers to rebuild proof plans, reassess, repair explicit gaps, and invoke workspace_verify_proof for the exact affected executable obligations. It grants no review, dispatch, integration, completion, policy, or proof authority."
+      },
+      "reference_id": "ref-criterion-15",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "REVIEWER ERGONOMICS. Reviewers need no generic semantic-diff tool. Through the bounded initial result and workspace_controlled_contract_refactor_query complete path they can read the full plan and final receipt: rename_identity states mechanically verified semantic equivalence; replace_subgraph states the explicit correspondence, reason, affected obligations, existing-rebase dispositions, and required reevaluation. Reviewer access remains read-only and non-authorizing."
+      },
+      "reference_id": "ref-criterion-16",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "FAILURE CONTRACT AND LIMBS. Every failure reports exactly one limb, mechanical_failure or returned_policy_decision, the owning operation, stable code, deciding facts, concrete invariant that would break if execution continued, and one supported recovery when one exists. Invalid mode, malformed correspondence, ambiguous selector, incomplete live closure, dangling prospective reference, semantic change under rename_identity, stale or conflicting continuation, cross-WK/focus identity, package incompatibility, coverage-rebase conflict, semantic proposal bound exceeded, persistence failure, and replay conflict are mechanical because a unique valid complete plan or atomic publication cannot be produced. Response-size overflow is not a refusal while cursor, ranged, or item-reference recovery applies. The refactor operations synthesize no policy judgments; any returned policy decision must come from and preserve the exact CCE result, with no local fallback or reclassification. Existing package, continuation, publication, and coverage owners retain their refusal codes; the refactor projection creates no aliases or competing taxonomy."
+      },
+      "reference_id": "ref-criterion-17",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "NON-GOALS. Do not add generic generation diff, rollback, aliases, tombstones, cross-WK cloning/migration, automatic conflict merging, automatic proof-credit migration, a separate audit tool, a refactor-specific continuation registry or replay ledger, duplicate coverage currentness/conflict/disposition semantics, a generic artifact-query surface, or a new historical-evidence store. Do not alter accepted DECs or broaden CCE, review, dispatch, integration, or completion authority."
+      },
+      "reference_id": "ref-criterion-18",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "DESIGN-FIRST DELIVERY. Before implementation, complete the required DRY review and all-accepted-decision review, author the controlled contract and comprehensive obligation/acceptance maps, run one design redteam and any single required blueteam/disposition, then decompose package semantics, wiki-core canonical transaction/public operations, and MCP/discovery/docs/regressions into independently executable implementation slices."
+      },
+      "reference_id": "ref-criterion-19",
+      "type_term": "cc:criterion"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:workspace-controlled-contract-refactor-apply"
+      },
+      "reference_id": "ref-compound-operation",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:refactor-apply-attempt"
+      },
+      "reference_id": "ref-operation-attempt",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:canonical-publication-constituent-effects"
+      },
+      "reference_id": "ref-constituent-effect-population",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:staged-carrier-generation"
+      },
+      "reference_id": "ref-earlier-constituent-effect",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:canonical-manifest-generation-selection"
+      },
+      "reference_id": "ref-later-constituent-effect",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:between-staging-and-manifest-selection"
+      },
+      "reference_id": "ref-failure-boundary",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:injected-publication-boundary-failure"
+      },
+      "reference_id": "ref-injected-failure",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:continuation-publication-settlement"
+      },
+      "reference_id": "ref-settlement-event",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:staged-generation-absent"
+      },
+      "reference_id": "ref-earlier-effect-settled-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:manifest-selection-absent"
+      },
+      "reference_id": "ref-later-effect-settled-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:generation-and-manifest-selection-absent"
+      },
+      "reference_id": "ref-fully-uncommitted-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:staged-generation-post-settlement-observation"
+      },
+      "reference_id": "ref-earlier-effect-observation",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:manifest-selection-post-settlement-observation"
+      },
+      "reference_id": "ref-later-effect-observation",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:allowed-settlement-states:fully-committed-or-fully-uncommitted"
+      },
+      "reference_id": "ref-allowed-settlement-states",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:generation-and-manifest-selection-committed"
+      },
+      "reference_id": "ref-fully-committed-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:orphan-or-unselected-partial-generation"
+      },
+      "reference_id": "ref-forbidden-partial-state",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:fault-injection-atomic-publication-regression"
+      },
+      "reference_id": "ref-verification",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk-2470:exactly-one-publication-effect-visible"
+      },
+      "reference_id": "ref-partial-commit-condition",
+      "type_term": "cc:configuration"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-criterion-01",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-01",
+      "target_claim_id": "claim-criterion-01"
+    },
+    {
+      "relation_id": "rel-verify-criterion-02",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-02",
+      "target_claim_id": "claim-criterion-02"
+    },
+    {
+      "relation_id": "rel-verify-criterion-03",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-03",
+      "target_claim_id": "claim-criterion-03"
+    },
+    {
+      "relation_id": "rel-verify-criterion-04",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-04",
+      "target_claim_id": "claim-criterion-04"
+    },
+    {
+      "relation_id": "rel-verify-criterion-05",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-05",
+      "target_claim_id": "claim-criterion-05"
+    },
+    {
+      "relation_id": "rel-verify-criterion-06",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-06",
+      "target_claim_id": "claim-criterion-06"
+    },
+    {
+      "relation_id": "rel-verify-criterion-07",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-07",
+      "target_claim_id": "claim-criterion-07"
+    },
+    {
+      "relation_id": "rel-verify-criterion-08",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-08",
+      "target_claim_id": "claim-criterion-08"
+    },
+    {
+      "relation_id": "rel-verify-criterion-09",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-09",
+      "target_claim_id": "claim-criterion-09"
+    },
+    {
+      "relation_id": "rel-verify-criterion-10",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-10",
+      "target_claim_id": "claim-criterion-10"
+    },
+    {
+      "relation_id": "rel-verify-criterion-11",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-11",
+      "target_claim_id": "claim-criterion-11"
+    },
+    {
+      "relation_id": "rel-verify-criterion-12",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-12",
+      "target_claim_id": "claim-criterion-12"
+    },
+    {
+      "relation_id": "rel-verify-criterion-13",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-13",
+      "target_claim_id": "claim-criterion-13"
+    },
+    {
+      "relation_id": "rel-verify-criterion-14",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-14",
+      "target_claim_id": "claim-criterion-14"
+    },
+    {
+      "relation_id": "rel-verify-criterion-15",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-15",
+      "target_claim_id": "claim-criterion-15"
+    },
+    {
+      "relation_id": "rel-verify-criterion-16",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-16",
+      "target_claim_id": "claim-criterion-16"
+    },
+    {
+      "relation_id": "rel-verify-criterion-17",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-17",
+      "target_claim_id": "claim-criterion-17"
+    },
+    {
+      "relation_id": "rel-verify-criterion-18",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-18",
+      "target_claim_id": "claim-criterion-18"
+    },
+    {
+      "relation_id": "rel-verify-criterion-19",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-criterion-19",
+      "target_claim_id": "claim-criterion-19"
+    },
+    {
+      "relation_id": "rel-verification-target-settled-outcome",
+      "role": "verifies",
+      "source_claim_id": "claim-atomic-settlement-verification",
+      "target_claim_id": "claim-settled-outcome-within-allowed-states"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "2.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-atomic-settlement-verification",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+            "mutation_id": "mutation-atomic-settlement-verification",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsifier-atomic-settlement-verification",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "state_transition",
+        "observable_id": "observable-atomic-settlement-verification",
+        "proposition_id": "prop-settled-outcome-within-allowed-states"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-atomic-settlement-verification",
+        "kind": "module",
+        "runtime_module_path": "packages/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs",
+        "subject_reference_ids": [
+          "ref-compound-operation",
+          "ref-constituent-effect-population",
+          "ref-earlier-constituent-effect",
+          "ref-later-constituent-effect"
+        ]
+      },
+      "test_proof_id": "test-proof-atomic-settlement-verification",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-atomic-settlement-verification",
+      "test_selector": {
+        "name": "atomic settlement verification",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

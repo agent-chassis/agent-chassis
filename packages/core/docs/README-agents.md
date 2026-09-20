@@ -79,9 +79,11 @@ point to.
 3. Use generated views only as navigation into canonical docs and wiki records.
 4. Load known `WK-*` records with `workspace_work_record_summary` or
    `workspace_get_record`.
-5. Use tool discovery before choosing an agent-facing tool:
-   `workspace_tools_list`, `workspace_tools_query`, then
-   `workspace_tools_describe` for targeted detail.
+5. Call a known agent-facing tool directly. When the tool choice is uncertain,
+   ask `workspace_tool_router_recommend`; when the capability itself or its
+   complete contract is unknown, use `workspace_tools_list` (filtered by
+   `task_id` when the task is known), then `workspace_tools_describe` for
+   targeted detail.
 6. Use code-index and graph-impact tools before moving from docs/records into
    implementation files.
 7. Inspect package source only after the canonical docs or records identify the
@@ -106,8 +108,8 @@ available. Do not infer support from package manifests, wrapper filenames,
 executable bits, generated examples, or historical work records.
 
 Worker, reviewer, and redteam dispatch goes through `workspace_agent_dispatch`.
-Monitor those runs with `workspace_agent_run_status` or
-`workspace_agent_run_wait`. Operator shell wrappers and package-file-only role
+Observe those runs by canonical subject with `workspace_agent_run_status`.
+Operator shell wrappers and package-file-only role
 shims are inventory/debug surfaces, not agent dispatch authority.
 
 Orchestrators are human/operator-launched through `agent-launch`. Agents do not

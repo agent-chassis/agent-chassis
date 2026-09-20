@@ -43,7 +43,7 @@ test("orchestrator gets content reads, process-measurement reads, and authority;
     "workspace_validate_dispatch",
     "workspace_coordination_preflight",
     "workspace_initiative_status",
-    "workspace_agent_run_wait",
+    "workspace_agent_run_status",
     "workspace_node_engine_admission_runtime_diagnostic",
     "workspace_work_record_set_status",
     "workspace_agent_dispatch",
@@ -93,21 +93,23 @@ test("reviewer and redteam get broad CONTENT reads + submit-for-review, but no p
   }
 });
 
-test("worker gets the closed-input commit primitive and the launcher-bound declared-test capability", () => {
+test("worker gets the closed-input commit primitive and no retired validation route", () => {
   const role = "worker";
   assert.equal(shouldExposeTool(role, WORKER_COMMIT_TOOL_NAME), true);
-
-  assert.equal(shouldExposeTool(role, "workspace_worker_run_declared_test"), true);
   assert.equal(shouldExposeTool(role, SUBMIT_FOR_REVIEW), false);
   for (const name of [
     "workspace_search_repo",
     "workspace_read_page",
     "workspace_work_record_validate",
-    "workspace_work_record_set_status",
-
-    "workspace_run_validation"
+    "workspace_work_record_set_status"
   ]) {
     assert.equal(shouldExposeTool(role, name), false, `worker must not see ${name}`);
+  }
+
+  for (const retired of ["workspace_run_validation", "workspace_worker_run_declared_test"]) {
+    for (const profile of [...SESSION_ROLE_VALUES, "full"]) {
+      assert.equal(shouldExposeTool(profile, retired), false, `${profile} must not see ${retired}`);
+    }
   }
 });
 
@@ -176,7 +178,6 @@ test("accepted-decision capability floor retains exactly the enumerated role gra
   const policy = loadAccessPolicy();
   const expected = {
     commit: ["worker", "operator"],
-    workspace_worker_run_declared_test: ["worker", "operator"],
     workspace_verify_proof: ["orchestrator", "reviewer", "worker"],
     workspace_submit_for_review: ["reviewer", "redteam", "operator"]
   };
@@ -192,20 +193,20 @@ test("accepted-decision capability floor retains exactly the enumerated role gra
   }
 });
 
-test("SLICE-008 retain-only identity preserves exposure and real removal mutants remain discriminating", () => {
+test("SLICE-008 workbench policy preserves exact exposure and removal mutants remain discriminating", () => {
   const baseline = loadAccessPolicy();
   const retainOnlyPolicy = clone(baseline);
   const classifiedNames = Object.keys(baseline.access).sort();
   assert.deepEqual(
     retainOnlyPolicy,
     baseline,
-    "retain-only identity confirms that no candidate policy change occurred"
+    "the checked-in policy clone must preserve the exact current surface"
   );
 
   for (const role of ["orchestrator", "operator"]) {
     const visible = classifiedNames.filter((name) =>
       shouldExposeToolFromPolicy(role, name, retainOnlyPolicy));
-    assert.equal(visible.length, role === "orchestrator" ? 112 : 142, role);
+    assert.equal(visible.length, role === "orchestrator" ? 62 : 80, role);
   }
 
   for (const [role, toolName] of [
@@ -223,6 +224,37 @@ test("SLICE-008 retain-only identity preserves exposure and real removal mutants
     assert.equal(shouldExposeToolFromPolicy(role, toolName, countOnlyMutant), false);
   }
 });
+
+test("controlled-contract policy exposes only the retained semantic owners",
+  () => {
+    const expected = {
+      workspace_controlled_proof_intents_discover: ["orchestrator", "reviewer", "redteam", "operator"],
+      workspace_controlled_contract_obligation_coverage_upsert: ["orchestrator", "operator"],
+      workspace_controlled_contract_obligation_coverage_query: ["orchestrator", "reviewer", "redteam", "operator"],
+      workspace_controlled_contract_obligation_coverage_remove: ["orchestrator", "operator"],
+      workspace_validate_proof: ["orchestrator", "reviewer", "redteam", "operator"],
+      workspace_verify_proof: ["orchestrator", "reviewer", "worker"]
+    };
+    for (const [name, granted] of Object.entries(expected)) {
+      for (const role of SESSION_ROLE_VALUES) assert.equal(
+        shouldExposeTool(role, name), granted.includes(role), `${name}/${role}`);
+    }
+    for (const name of [
+      "workspace_controlled_contract_carrier_create",
+      "workspace_controlled_verification_bundle_patch",
+      "workspace_controlled_proof_authoring_skeleton",
+      "workspace_controlled_contract_authoring_continue",
+      "workspace_controlled_contract_proof_graph_continue",
+      "workspace_controlled_proof_plan_build"
+    ]) {
+      assert.equal(shouldExposeTool("orchestrator", name), false, name);
+      assert.equal(shouldExposeTool("operator", name), false, name);
+    }
+    assert.equal(shouldExposeTool("orchestrator",
+      "workspace_controlled_contract_carrier_patch"), false);
+    assert.equal(shouldExposeTool("orchestrator",
+      "workspace_controlled_contract_authoring_state"), false);
+  });
 
 test("agent-safe resolves to the orchestrator surface (transition alias)", () => {
   for (const name of [

@@ -458,6 +458,8 @@ export function superviseChildLaunch({
     finalResultPromise: null
   };
 
+  let observedChildTermination = false;
+
   let killTimer = null;
   function clearKillTimer() {
     if (killTimer !== null) {
@@ -565,6 +567,7 @@ export function superviseChildLaunch({
     const code = typeof child.exitCode === "number" ? child.exitCode : null;
     const signal = typeof child.signalCode === "string" ? child.signalCode : null;
     if (code === null && signal === null) return;
+    observedChildTermination = true;
     if (runtime.exited) {
       maybeResolveFlushGate();
       return;
@@ -612,6 +615,7 @@ export function superviseChildLaunch({
 
   if (typeof child.on === "function") {
     child.on("exit", (code, signal) => {
+      observedChildTermination = true;
       const finalStatus = deriveTerminalStatus({ code, signal });
       recordExit(finalStatus, buildExitEnvelope({ code, signal }));
     });
@@ -623,6 +627,7 @@ export function superviseChildLaunch({
       maybeResolveFlushGate();
     });
     child.on("close", (code, signal) => {
+      observedChildTermination = true;
 
       if (!runtime.exited) {
         const finalStatus = deriveTerminalStatus({ code, signal });
@@ -760,6 +765,7 @@ export function superviseChildLaunch({
     accepted: true,
     status: "launching",
     pid: runtime.pid,
+    hasObservedChildTermination: () => observedChildTermination,
     probe: async () => {
       observeAlreadyExitedChild();
       if (runtime.exited) {

@@ -23,9 +23,10 @@ const WORK_RECORD_FRAGMENTS = [
       'workspace_create_record',
 
       'workspace_record_staleness_check',
+      'workspace_work_record_entry_read',
+      'workspace_work_record_entry_upsert',
       'workspace_work_record_set_closure',
       'workspace_work_record_set_status',
-      'workspace_work_record_set_task',
       'workspace_work_record_summary',
       'workspace_work_record_validate',
     ],
@@ -47,13 +48,11 @@ const WORK_RECORD_FRAGMENTS = [
   {
     file: 'work-record-edit-mcp-tools.json',
     mcp: [
-      'workspace_work_record_cleanup_derived_evidence',
       'workspace_work_record_delete_slice',
       'workspace_work_record_ready_slice',
       'workspace_work_record_refresh_admission_metrics',
       'workspace_work_record_refresh_target_resolution_evidence',
-      'workspace_work_record_set_acceptance',
-      'workspace_work_record_set_list_field',
+      'workspace_work_record_edit',
       'workspace_work_record_shape_review_unit',
       'workspace_work_record_upsert_slice',
     ],
@@ -66,7 +65,6 @@ const WORK_RECORD_FRAGMENTS = [
       'wiki-work-records-cleanup-derived-evidence',
       'wiki-work-records-delete-slice',
       'wiki-work-records-refresh-admission-metrics',
-      'wiki-work-records-set-acceptance',
       'wiki-work-records-set-list-field',
       'wiki-work-records-shape-review-unit',
       'wiki-work-records-upsert-slice',
@@ -256,23 +254,15 @@ test('hot work-record tools carry routing guidance metadata', async () => {
   const mutationTools = [
     ['workspace_create_record', 'create', ['record kind', 'title/scope', 'no existing WK target'], ['allocator-backed record creation']],
     ['workspace_work_record_set_status', 'status', ['unit', 'status'], ['status work-record mutations']],
-    ['workspace_work_record_set_task', 'task', ['unit', 'task selector/value'], ['task work-record mutations']],
     ['workspace_work_record_set_closure', 'closure', ['unit', 'closure patch'], ['closure work-record mutations']],
     ['workspace_work_record_upsert_slice', 'slice upsert', ['WK unit', 'slice body'], ['slice upsert work-record mutations']],
     ['workspace_work_record_delete_slice', 'slice delete', ['WK unit', 'slice id'], ['slice delete work-record mutations']],
-    ['workspace_work_record_set_list_field', 'list field', ['unit', 'field', 'values'], ['list-field work-record mutations']],
-    ['workspace_work_record_set_acceptance', 'acceptance', ['unit', 'criteria/validation'], ['acceptance work-record mutations']],
     ['workspace_work_record_shape_review_unit', 'review unit shaping', ['unit', 'review role intent'], ['review-unit work-record mutations']],
   ];
 
   for (const [toolName, operation, requires_prior_state, authoritative_for] of mutationTools) {
     const argumentsByTool = {
       workspace_create_record: { type: 'wk', title: '$title_if_known' },
-      workspace_work_record_set_acceptance: {
-        unit: '$unit_if_known',
-        criteria: '$criteria_if_known',
-        validation: '$validation_if_known',
-      },
       workspace_work_record_set_closure: { unit: '$unit_if_known' },
     };
     const recommendedArguments = argumentsByTool[toolName];
@@ -301,24 +291,45 @@ test('hot work-record tools carry routing guidance metadata', async () => {
       ],
     });
   }
+
+  assertRoutingGuidance(familyTools, 'workspace_work_record_edit', {
+    use_when: ['work_record_mutation', 'mutation_operation=ordinary authored field'],
+    do_not_use_when: [
+      'lifecycle or semantic-contract mutation',
+      'arbitrary path or bulk replacement',
+      'read-only context',
+    ],
+    authoritative_for: [
+      'WORK_RECORD_EDIT_FIELD_REGISTRY-driven bounded ordinary authored-field facade routing',
+    ],
+    recommended_first_call: {
+      routing_intents: ['work_record_mutation'],
+      operation: 'replace complete agent notes',
+      arguments: {
+        unit: 'WK-0000',
+        kind: 'scalar',
+        field: 'sections.agent_notes',
+        action: 'replace',
+        value: 'Complete replacement notes text',
+      },
+      omit_null_arguments: true,
+    },
+    requires_prior_state: [
+      'configured repository',
+      'canonical WK or slice unit',
+      'one registry-declared edit request',
+    ],
+    replacement_for_misuse: [{
+      misuse_code: 'ignored_required_next_action',
+      routing_intent: 'work_record_mutation',
+      use_instead: 'workspace_work_record_edit',
+    }],
+  });
 });
 
 const SUMMARY_ADVISORY_FACT_PHRASES = [
-
-  'normalized review_purpose',
-  'rows in review_state.review_slices',
-  'selected review-unit summaries',
-  'standalone and terminal_whole_wk',
-  'omitted one normalizes to standalone',
-  'no review_purpose key at all',
-
+  'review_purpose',
   'terminal_review_designation',
-  'eligible_count',
-  'adding unit_id only when exactly one is eligible',
-  'state is missing',
-  'designated for exactly one',
-  'ambiguous for more than one',
-  'not_applicable for a closed parent',
 
   'advisory, descriptive, fact-only',
   'non-authorizing',

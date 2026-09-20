@@ -140,18 +140,10 @@ function packOutcomeState(pack, ordinal) {
     pack.profile_discrimination, "per_pack", ordinal,
     "pack_profile_discrimination_invalid"
   );
-  const exact = requiredString(
-    pack.exact_binding, "per_pack", ordinal, "pack_exact_binding_invalid"
-  );
-  if (!["proven", "not_proven", "not_assessed"].includes(profile) ||
-      !["proven", "not_proven", "not_applicable", "not_assessed"].includes(exact)) {
+  if (!["proven", "not_proven", "not_assessed"].includes(profile)) {
     invalidProofProducerShape("per_pack", ordinal, "pack_outcome_unsupported");
   }
-  if (profile === "not_proven" || exact === "not_proven") return "not_proven";
-  if (profile === "proven" && ["proven", "not_applicable"].includes(exact)) {
-    return "proven";
-  }
-  return "not_assessed";
+  return profile;
 }
 
 function provenancedDetail(row, collection, ordinal) {
@@ -213,7 +205,7 @@ function integrationDiagnosticItem(row, ordinal) {
 }
 
 function proofCollections(assessment) {
-  if (assessment?.schema_version !== "controlled-contract-multi-pack-assessment.v1") {
+  if (assessment?.schema_version !== "controlled-contract-multi-pack-assessment.v2") {
     invalidProofProducerShape("assessment", null, "schema_version_unsupported");
   }
   for (const collection of [
@@ -229,8 +221,7 @@ function proofCollections(assessment) {
       profile_id: identity.profile_id,
       profile_version: identity.profile_version,
       state: packOutcomeState(pack, ordinal),
-      profile_discrimination: pack.profile_discrimination,
-      exact_binding: pack.exact_binding
+      profile_discrimination: pack.profile_discrimination
     });
   }).sort((a, b) => compare(a.pack_id, b.pack_id));
   const packStates = new Map(perPackOutcomes.map(({ pack_id: id, state }) => [id, state]));
@@ -408,7 +399,14 @@ export function projectControlledContractProofAssessmentSummary(assessment, sour
   );
   assertTaskRelevantRows("proof", CONTROLLED_CONTRACT_PROOF_ASSESSMENT_COLLECTIONS,
     collections);
-  const gaps = collections.diagnostics.filter(({ state }) => state !== "pass");
+  const states = new Map(assessment.per_pack.map((pack, index) =>
+    [packKey(pack), packOutcomeState(pack, index)]));
+  const stages = new Map(assessment.diagnostics.map((diagnostic, ordinal) => {
+    const projected = proofDiagnosticItem(diagnostic, ordinal, states, assessment.structure);
+    return [projected.diagnostic_id, diagnostic.detail.assessment_stage];
+  }));
+  const gaps = collections.diagnostics.filter(({ state }) => state !== "pass")
+    .map((gap) => ({ ...gap, assessment_stage: stages.get(gap.diagnostic_id) }));
   const counts = collectionCounts(CONTROLLED_CONTRACT_PROOF_ASSESSMENT_COLLECTIONS,
     collections);
   const integrity = assessment.cross_carrier_integrity;
@@ -416,6 +414,7 @@ export function projectControlledContractProofAssessmentSummary(assessment, sour
     schema_version: "controlled-contract-proof-assessment-summary.v1",
     family: "proof",
     state: assessment?.overall_code ?? "assessment_unavailable",
+    stage_assessment: structuredClone(assessment.stage_assessment),
     authority: CONTROLLED_CONTRACT_ASSESSMENT_NON_AUTHORITY,
     source: structuredClone(sourceIdentity ?? {}),
     source_current: sourceCurrent === true,
@@ -434,7 +433,7 @@ export function projectControlledContractProofAssessmentSummary(assessment, sour
     unavailable_collections: Object.freeze([]),
     compact_omission: CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY.compact_omission,
     continuation: CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY.continuation,
-    supported_next_call: "workspace_controlled_contract_assessment_query"
+    supported_next_call: null
   }, gaps, maximumBytes);
 }
 
@@ -468,7 +467,7 @@ export function projectControlledContractIntegrationAssessmentSummary(assessment
     unsupported_axes: Object.freeze(collections.unsupported_axes.map(({ axis }) => axis)),
     compact_omission: CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY.compact_omission,
     continuation: CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY.continuation,
-    supported_next_call: "workspace_controlled_contract_integration_test_design_query"
+    supported_next_call: null
   }, collections.gaps, maximumBytes);
 }
 

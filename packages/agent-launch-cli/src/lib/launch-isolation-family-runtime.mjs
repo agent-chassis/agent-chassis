@@ -41,7 +41,8 @@ export function deriveFamilyRuntimeHomePolicyProfile({ policyFacts } = {}) {
     return EMPTY_FAMILY_RUNTIME_POLICY_PROFILE;
   }
   const facts = policyFacts;
-  const localPrefix = path.dirname(path.dirname(facts.paths.executable));
+
+  const localPrefix = facts.paths.localRuntimePrefix;
   const geminiParent = path.join(facts.launcherOwnedHostHome, ".gemini");
   const deniedPrefixes = facts.deniedPaths.filter(
     (denied) => denied !== facts.launcherOwnedHostHome

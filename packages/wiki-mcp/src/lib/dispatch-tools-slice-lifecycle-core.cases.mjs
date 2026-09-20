@@ -1,41 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import path from "node:path";
-import { tmpdir } from "node:os";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { z } from "zod";
-
-import { registerDispatchTools } from "./dispatch-tools.mjs";
-import { createWorkspaceAgentDispatchBackend } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
-
-import {
-  assessManagedRunProcessIdentity,
-  bindManagedRunSandboxProcessIdentity,
-  deriveOuterSandboxKillShape,
-  publishPendingManagedRunProcessIdentity
-} from "@agent-chassis/agent-launch-cli/src/lib/managed-run-process-identity.mjs";
 
 import {
   RUNTIME_BLOCKER_CODES
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import {
-  SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES,
-  SLICE_REVIEW_POSTCHECK_STATE_BUDGET
-} from "@agent-chassis/agent-launch-cli/src/lib/slice-review-materialization.mjs";
-import {
-  buildDispatchToolExceptionDetail,
-  SAFE_POSTCHECK_MISMATCH_FIELDS,
-  SLICE_REVIEW_POSTCHECK_FAILED_CODE
-} from "./dispatch-tool-helpers.mjs";
-
-import {
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
-  runPostWorkerSliceLifecycle,
-  TERMINAL_REVIEW_EVIDENCE_MODES
+  runPostWorkerSliceLifecycle
 } from "./dispatch-run-monitor-routes.mjs";
 import * as lifecycleExports from "./dispatch-post-worker-lifecycle.mjs";
+import * as lifecycleRunExports from "./dispatch-post-worker-lifecycle-run.mjs";
+import * as lifecyclePolicyExports from "./dispatch-post-worker-lifecycle-policy.mjs";
+import * as launchRuntimeExports from "./dispatch-launch-runtime.mjs";
 import * as monitorRouteExports from "./dispatch-run-monitor-routes.mjs";
+import * as terminalReviewEvidenceExports from "./dispatch-terminal-review-evidence.mjs";
+import { POST_WORKER_LIFECYCLE_PHASES } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import {
   composePostWorkerSliceLifecycle,
   resolveLauncherOwnedLifecycleDeps
@@ -44,33 +24,44 @@ import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
   parseStructuredTextResponse,
-  terminalReviewAttestation
+  RETIRED_POST_WORKER_REVIEW_SEAMS
 } from "./dispatch-tools-test-helpers.mjs";
-
-import { withSliceReviewPreparation } from "./dispatch-tools-slice-lifecycle-test-support.mjs";
 import {
   CLOSED_LIFECYCLE_FAILURE_CODES,
+  CLOSED_LIFECYCLE_FAILURE_SEAMS,
   isClosedLifecycleFailure
 } from "./dispatch-lifecycle-failure-projection.mjs";
 
-test("WK-1634 production composition pins launcher-owned candidate prepare/validate functions over caller deps", async () => {
-  const calls = [];
+const WORKSPACE = Object.freeze({ repo: "agent-chassis", dir: "/home/user/agent-chassis" });
+
+function assertNoReviewFields(label, result) {
+  for (const field of [
+    "slice_review",
+    "reviewer_dispatch",
+    "terminal_review_materialization",
+    "terminal_review_policy",
+    "empty_delivery"
+  ]) {
+    assert.equal(Object.hasOwn(result, field), false, `${label}: ${field} must be absent`);
+  }
+}
+
+test("WK-2672 production composition pins launcher-owned preparation without supplying validation", async () => {
   const coordinator = {
-    prepareTerminalCandidate: async () => { calls.push("launcher-prepare"); },
-    validateTerminalCandidate: async () => { calls.push("launcher-validate"); }
+    prepareTerminalCandidate: async () => {}
   };
   const owned = resolveLauncherOwnedLifecycleDeps({
     worktreeProvisioning: { mainRepo: "/repo", worktreeRoot: "/worktrees" },
-    hostSliceReviewPreparationAdapter: async () => null,
     terminalCandidateCoordinator: coordinator
   });
   assert.equal(owned.prepareTerminalCandidate, coordinator.prepareTerminalCandidate);
-  assert.equal(owned.validateTerminalCandidate, coordinator.validateTerminalCandidate);
+  assert.equal(Object.hasOwn(owned, "validateTerminalCandidate"), false);
+  assert.equal(Object.hasOwn(owned, "hostSliceReviewPreparationAdapter"), false);
+  assert.equal(Object.hasOwn(owned, "reviewEnforcementMode"), false);
 
   let observed;
   const composed = composePostWorkerSliceLifecycle({
     worktreeProvisioning: { mainRepo: "/repo", worktreeRoot: "/worktrees" },
-    hostSliceReviewPreparationAdapter: async () => null,
     terminalCandidateCoordinator: coordinator,
     lifecycle: async ({ deps }) => { observed = deps; return "ok"; }
   });
@@ -78,20 +69,60 @@ test("WK-1634 production composition pins launcher-owned candidate prepare/valid
     workspace: { dir: "/repo" },
     status: {},
     deps: {
-      prepareTerminalCandidate: async () => calls.push("caller-prepare"),
-      validateTerminalCandidate: async () => calls.push("caller-validate")
+      prepareTerminalCandidate: async () => {}
     }
   });
   assert.equal(result, "ok");
   assert.equal(observed.prepareTerminalCandidate, coordinator.prepareTerminalCandidate);
-  assert.equal(observed.validateTerminalCandidate, coordinator.validateTerminalCandidate);
 });
+
+test("the launcher-owned composition installs the direct integration adapter as the host integration route", () => {
+  const directSliceIntegrationAdapter = async () => null;
+  const owned = resolveLauncherOwnedLifecycleDeps({
+    worktreeProvisioning: { mainRepo: "/repo" },
+    directSliceIntegrationAdapter
+  });
+  assert.deepEqual(Object.keys(owned), ["hostSliceIntegrationAdapter"]);
+  assert.equal(owned.hostSliceIntegrationAdapter, directSliceIntegrationAdapter);
+
+  assert.deepEqual(resolveLauncherOwnedLifecycleDeps({
+    worktreeProvisioning: null,
+    directSliceIntegrationAdapter
+  }), {});
+});
+
 test("wiki-MCP exposes no retained-slice cleanup helper", () => {
   assert.equal(Object.hasOwn(lifecycleExports, "runRetainedSliceCleanupDisposition"), false);
   assert.equal(Object.hasOwn(monitorRouteExports, "runRetainedSliceCleanupDisposition"), false);
 });
 
-test("terminal worker monitoring invokes the trusted post-worker slice lifecycle and exposes the frozen WK target", async () => {
+test("WK-2510 the post-worker lifecycle exposes no built-in review vocabulary or seam", async () => {
+  assert.deepEqual(Object.values(POST_WORKER_LIFECYCLE_PHASES).sort(),
+    ["finalized", "integrated", "pre-integration"]);
+  assert.equal(Object.hasOwn(LIFECYCLE_RESOLUTION_NEXT_ACTIONS, "REQUEST_SLICE_INTEGRATION"), false);
+  assert.equal(Object.hasOwn(CLOSED_LIFECYCLE_FAILURE_SEAMS, "FROZEN_REVIEW_CONTEXT_BINDING"), false);
+  assert.equal(Object.hasOwn(CLOSED_LIFECYCLE_FAILURE_CODES, "FROZEN_REVIEW_CONTEXT_BINDING_FAILED"), false);
+  for (const name of ["planReviewerClosure", "planTerminalWholeWkClosure"]) {
+    assert.equal(Object.hasOwn(lifecycleRunExports, name), false, name);
+  }
+  assert.equal(typeof lifecycleRunExports.POST_WORKER_MISSING_DELIVERY_CODE, "string");
+  for (const name of ["reconstructPolicyReviewTarget", "assertCanonicalReviewIdentity",
+    "policyLifecycleError", "OID_RE"]) {
+    assert.equal(Object.hasOwn(lifecyclePolicyExports, name), false, name);
+  }
+  assert.equal(Object.hasOwn(lifecyclePolicyExports.POLICY_LIFECYCLE_CODES, "CANONICAL_STATE_INVALID"), false);
+  assert.deepEqual(Object.keys(terminalReviewEvidenceExports), ["verifyTerminalCandidateCycle"]);
+  for (const name of ["resolveTerminalReviewEvidence", "TERMINAL_REVIEW_EVIDENCE_MODES",
+    "LIFECYCLE_EXTERNAL_ACTION_NEXT_ACTIONS", "lifecycleResolutionRequiresExternalAction"]) {
+    assert.equal(Object.hasOwn(monitorRouteExports, name), false, name);
+  }
+  for (const name of ["createDirectSliceReviewPreparationAdapter", "validateSliceReviewPreparationResult"]) {
+    assert.equal(Object.hasOwn(launchRuntimeExports, name), false, name);
+  }
+  await assert.rejects(import("./dispatch-post-worker-lifecycle-review.mjs"), { code: "ERR_MODULE_NOT_FOUND" });
+});
+
+test("terminal worker monitoring invokes the trusted post-worker slice lifecycle once and exposes the integrated WK target", async () => {
   const calls = [];
   const frozen = {
     ref: "refs/heads/wk/IN-0021/WK-1537",
@@ -101,108 +132,107 @@ test("terminal worker monitoring invokes the trusted post-worker slice lifecycle
     complete_parent_wk_contract: true,
     accumulated_wk_diff: true
   };
+  const terminal = {
+    accepted: true,
+    run_id: "run-worker",
+    monitor_handle: "wkmh_worker",
+    role: "worker",
+    subject: "WK-1537#SLICE-001",
+    status: "succeeded",
+    terminal: true,
+    started_at: "2026-07-12T00:00:00.000Z",
+    updated_at: "2026-07-12T00:01:00.000Z"
+  };
   const tools = createDispatchToolRegistry({
     backend: {
-      getRunStatus: async () => ({
-        accepted: true,
-        run_id: "run-worker",
-        monitor_handle: "wkmh_worker",
-        role: "worker",
-        subject: "WK-1537#SLICE-001",
-        status: "succeeded",
-        terminal: true,
-        started_at: "2026-07-12T00:00:00.000Z",
-        updated_at: "2026-07-12T00:01:00.000Z"
-      }),
+      getRunStatus: async () => ({ ...terminal }),
       runPostWorkerSliceLifecycle: async ({ workspace, status }) => {
         calls.push({ workspace, status });
         return {
           invoked: true,
+          phase: "finalized",
           integrated: true,
-          integration: { review_target: frozen },
-          reviewer_dispatch: {
-            tool: "workspace_agent_dispatch",
-            args: { role: "reviewer", subject: "WK-1537#SLICE-003" },
-            context: { frozen_review_target: frozen, complete_parent_wk_contract: true }
-          }
+          wk_transitioned_to_review: true,
+          integration: { review_target: frozen }
         };
       },
-      waitForRunStatus: async () => ({
-        accepted: true,
-        timed_out: false,
-        run_id: "run-worker",
-        monitor_handle: "wkmh_worker",
-        role: "worker",
-        subject: "WK-1537#SLICE-001",
-        status: "succeeded",
-        terminal: true,
-        started_at: "2026-07-12T00:00:00.000Z",
-        updated_at: "2026-07-12T00:01:00.000Z"
-      })
+      waitForRunStatus: async () => ({ ...terminal, timed_out: false })
     }
   });
 
   const first = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: "wkmh_worker",
     subject: "WK-1537#SLICE-001"
   }));
-  const second = parseStructuredTextResponse(await tools.get("workspace_agent_run_wait").handler({
-    monitor_handle: "wkmh_worker",
+  const second = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-001",
-    timeout_ms: 1000,
-    poll_interval_ms: 500
+    timeout_ms: 1000
   }));
 
   assert.equal(calls.length, 1, "one terminal worker run is integrated once per monitor lifecycle");
   assert.equal(calls[0].workspace.dir, "/home/user/agent-chassis");
-  assert.deepEqual(first.slice_lifecycle.reviewer_dispatch.context.frozen_review_target, frozen);
-  assert.equal(first.slice_lifecycle.reviewer_dispatch.args.subject, "WK-1537#SLICE-003");
+  assert.deepEqual(first.slice_lifecycle.integration.review_target, frozen);
+  assert.equal(first.slice_lifecycle.wk_transitioned_to_review, true);
+  assertNoReviewFields("first", first.slice_lifecycle);
+  assert.equal(first.terminal, true);
   assert.deepEqual(second.slice_lifecycle, first.slice_lifecycle);
 });
 
-test("post-integration finalization failure resumes across repeated status and wait without reintegration", async () => {
-  const harness = createResumableLifecycleHarness({ bindFailures: 1 });
+test("a post-integration candidate preparation failure re-enters the same seam across immediate and bounded status without reintegration", async () => {
+  const harness = createResumableLifecycleHarness({
+    declaredTerminalReviewUnit: { record_id: "WK-1537", initiative: "IN-0021", subject: "WK-1537#SLICE-099" }
+  });
+  let prepareCalls = 0;
+  harness.deps.prepareTerminalCandidate = async () => {
+    prepareCalls += 1;
+    throw new Error("injected terminal candidate preparation failure /secret/path");
+  };
   const tools = createDispatchToolRegistry({
     backend: {
-      getRunStatus: async () => ({ ...harness.status }),
-      waitForRunStatus: async () => ({ ...harness.status }),
-      runPostWorkerSliceLifecycle: ({ workspace, status }) =>
-        runPostWorkerSliceLifecycle({
-          workspace,
-          status,
-          deps: withSliceReviewPreparation(harness.deps)
-        })
+      getRunStatus: async () => harness.status,
+      waitForRunStatus: async () => harness.status,
+      runPostWorkerSliceLifecycle: harness.invoke
     }
   });
 
   const failed = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: harness.status.monitor_handle,
     subject: harness.status.subject
   }));
+  assert.equal(failed.terminal, false);
   assert.equal(failed.slice_lifecycle.phase, "integrated");
   assert.equal(failed.slice_lifecycle.integrated, true);
+  assert.equal(
+    failed.slice_lifecycle.error_code,
+    CLOSED_LIFECYCLE_FAILURE_CODES.TERMINAL_CANDIDATE_PREPARATION_FAILED
+  );
   assert.deepEqual(failed.slice_lifecycle.integration, harness.integrationResult);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, bindCalls: 1 });
 
-  const resumed = parseStructuredTextResponse(await tools.get("workspace_agent_run_wait").handler({
-    monitor_handle: harness.status.monitor_handle,
-    subject: harness.status.subject,
-    timeout_ms: 1000,
-    poll_interval_ms: 500
-  }));
-  assert.equal(resumed.slice_lifecycle.phase, "finalized");
-  assert.deepEqual(resumed.slice_lifecycle.integration, harness.integrationResult);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, bindCalls: 2 });
+  assert.equal(failed.slice_lifecycle.evidence.thrown.value.message,
+    "injected terminal candidate preparation failure /secret/path");
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
+  assert.equal(prepareCalls, 1);
 
-  const repeated = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: harness.status.monitor_handle,
+  const retried = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
     subject: harness.status.subject
   }));
-  assert.deepEqual(repeated.slice_lifecycle, resumed.slice_lifecycle);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, bindCalls: 2 });
+  assert.equal(retried.terminal, false);
+  assert.equal(retried.lifecycle_resolution.phase, "integrated");
+  assert.equal(retried.lifecycle_resolution.failure_attempts, 2);
+  assert.equal(prepareCalls, 2);
+
+  const bounded = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    subject: harness.status.subject,
+    timeout_ms: 300
+  }));
+  assert.equal(bounded.terminal, false);
+  assert.equal(bounded.child_terminal, true);
+  assert.equal(bounded.lifecycle_resolution.phase, "integrated");
+  assert.equal(bounded.lifecycle_resolution.failure_attempts, prepareCalls);
+  assert.equal(bounded.next_action, "retry_wait_or_check_status");
+  assert.equal(harness.counts().integrationCalls, 1, "the integrated phase is never re-integrated");
+  assert.equal(harness.counts().reviewSeamCalls, 0);
 });
 
-test("concurrent status and wait polling share one phased post-worker lifecycle", async () => {
+test("concurrent immediate and bounded status polling share one phased post-worker lifecycle", async () => {
   let releaseIntegration;
   const integrationGate = new Promise((resolve) => { releaseIntegration = resolve; });
   const harness = createResumableLifecycleHarness({ integrationGate });
@@ -211,23 +241,16 @@ test("concurrent status and wait polling share one phased post-worker lifecycle"
       getRunStatus: async () => ({ ...harness.status }),
       waitForRunStatus: async () => ({ ...harness.status }),
       runPostWorkerSliceLifecycle: ({ workspace, status }) =>
-        runPostWorkerSliceLifecycle({
-          workspace,
-          status,
-          deps: withSliceReviewPreparation(harness.deps)
-        })
+        runPostWorkerSliceLifecycle({ workspace, status, deps: harness.deps })
     }
   });
 
   const statusPromise = tools.get("workspace_agent_run_status").handler({
-    monitor_handle: harness.status.monitor_handle,
     subject: harness.status.subject
   });
-  const waitPromise = tools.get("workspace_agent_run_wait").handler({
-    monitor_handle: harness.status.monitor_handle,
+  const waitPromise = tools.get("workspace_agent_run_status").handler({
     subject: harness.status.subject,
-    timeout_ms: 1000,
-    poll_interval_ms: 500
+    timeout_ms: 1000
   });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(harness.counts().integrationCalls, 1);
@@ -236,68 +259,90 @@ test("concurrent status and wait polling share one phased post-worker lifecycle"
   const first = parseStructuredTextResponse(statusResult);
   const second = parseStructuredTextResponse(waitResult);
   assert.equal(first.slice_lifecycle.phase, "finalized");
+  assertNoReviewFields("concurrent", first.slice_lifecycle);
   assert.deepEqual(second.slice_lifecycle, first.slice_lifecycle);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, bindCalls: 1 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
-test("process-local checkpoint loss recovers integrated phase only from canonical review and exact matching bindings and refs", async () => {
-  const harness = createResumableLifecycleHarness({ bindFailures: 1 });
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
+test("process-local checkpoint loss after a lost integration response recovers only from canonical review and the exact marker", async () => {
+  const harness = createResumableLifecycleHarness();
+  const trustedAdapter = harness.deps.hostSliceIntegrationAdapter;
+  let adapterCalls = 0;
 
+  const deps = {
+    ...harness.deps,
+    hostSliceIntegrationAdapter: async (request) => {
+      adapterCalls += 1;
+      const answer = await trustedAdapter(request);
+      return adapterCalls === 1
+        ? { accepted: false, refusal: { code: "injected_lost_response" } }
+        : answer;
+    }
+  };
   await assert.rejects(
-    runPostWorkerSliceLifecycle({ workspace, status: { ...harness.status }, deps: withSliceReviewPreparation(harness.deps) }),
+    runPostWorkerSliceLifecycle({ workspace: WORKSPACE, status: { ...harness.status }, deps }),
     (error) => {
+
       assert.equal(isClosedLifecycleFailure(error), true);
-      assert.equal(
-        error.code,
-        CLOSED_LIFECYCLE_FAILURE_CODES.FROZEN_REVIEW_CONTEXT_BINDING_FAILED
-      );
-      assert.equal(error.message.includes("injected post-integration context failure"), false);
+      assert.equal(error.code, CLOSED_LIFECYCLE_FAILURE_CODES.COMMITTED_SLICE_INTEGRATION_FAILED);
+      assert.equal(error.failure_cause.kind, "integration_refusal");
+      assert.equal(error.failure_cause.diagnostic_code, null);
+
+      assert.equal(error.evidence.thrown.value.properties.detail.integration_refusal.code,
+        "injected_lost_response");
       return true;
     }
   );
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, bindCalls: 1 });
+  assert.equal(harness.counts().integrationCalls, 1);
 
   const recovered = await runPostWorkerSliceLifecycle({
-    workspace,
+    workspace: WORKSPACE,
     status: { ...harness.status },
-    deps: withSliceReviewPreparation(harness.deps)
+    deps
   });
   assert.equal(recovered.phase, "finalized");
+  assert.equal(recovered.integrated, true);
   assert.equal(recovered.integration.recovered, true);
+  assert.equal(recovered.integration.integrated_state, "final");
   assert.equal(recovered.integration.previous_wk_sha, "a".repeat(40));
   assert.deepEqual(recovered.integration.review_target, harness.integrationResult.review_target);
-  assert.deepEqual(harness.counts(), { integrationCalls: 2, bindCalls: 2 });
+  assert.equal(recovered.wk_transitioned_to_review, true);
+  assertNoReviewFields("recovered", recovered);
+  assert.deepEqual(harness.counts(), { integrationCalls: 2, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
 test("WK-1603 restart recovery-only mode: an advanced slice without terminal authority refuses; a missing binding refuses", async () => {
-  const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
 
   const preIntegration = createResumableLifecycleHarness();
   const skipped = await runPostWorkerSliceLifecycle({
-    workspace,
+    workspace: WORKSPACE,
     status: { ...preIntegration.status },
     deps: { ...preIntegration.deps, recoveryOnly: true }
   });
   assert.equal(skipped, null);
-  assert.deepEqual(preIntegration.counts(), { integrationCalls: 0, bindCalls: 0 });
+  assert.deepEqual(preIntegration.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 
   const missing = createResumableLifecycleHarness();
   await assert.rejects(
     runPostWorkerSliceLifecycle({
-      workspace,
+      workspace: WORKSPACE,
       status: { ...missing.status },
       deps: { ...missing.deps, recoveryOnly: true, resolveManagedRunBinding: () => null }
     }),
-    /complete launcher-owned WK and slice provisioning binding/
+    (error) => {
+      assert.equal(isClosedLifecycleFailure(error), true);
+      assert.equal(error.code, CLOSED_LIFECYCLE_FAILURE_CODES.LIFECYCLE_BINDING_RESOLUTION_FAILED);
+      assert.equal(error.failure_cause.reason, "provisioning_binding_incomplete");
+      return true;
+    }
   );
-  assert.deepEqual(missing.counts(), { integrationCalls: 0, bindCalls: 0 });
+  assert.deepEqual(missing.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 
   const integrated = createResumableLifecycleHarness();
   integrated.setCanonicalStatus("review");
   let recoveryAdapterCalls = 0;
   const recovered = await runPostWorkerSliceLifecycle({
-    workspace,
+    workspace: WORKSPACE,
     status: { ...integrated.status },
     deps: {
       ...integrated.deps,
@@ -313,8 +358,10 @@ test("WK-1603 restart recovery-only mode: an advanced slice without terminal aut
   });
   assert.equal(recovered.phase, "finalized");
   assert.equal(recovered.integration.recovered, true);
+  assert.equal(recovered.wk_transitioned_to_review, true);
   assert.equal(recoveryAdapterCalls, 1);
-  assert.deepEqual(integrated.counts(), { integrationCalls: 0, bindCalls: 1 });
+  assertNoReviewFields("recovery-only", recovered);
+  assert.deepEqual(integrated.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
 });
 
 test("monitor restart recovery is attempted only after normal unknown-handle lookup", async () => {
@@ -325,12 +372,12 @@ test("monitor restart recovery is attempted only after normal unknown-handle loo
         accepted: false,
         refusal: { code: "monitor_handle_subject_mismatch", reason: "subject_mismatch", detail: null }
       }),
-      recoverIntegratedWorkerRun: async () => { recoveryCalls += 1; return null; }
+      recoverManagedWorkerRun: async () => { recoveryCalls += 1; return null; }
     }
   });
   const mismatch = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: "wkmh_restart_selector",
-    subject: "WK-1537#SLICE-011"
+    subject: "WK-1537#SLICE-011",
+    attempt_id: "wkdb_restart_selector"
   }));
   assert.equal(mismatch.accepted, false);
   assert.equal(mismatch.blocker.code, RUNTIME_BLOCKER_CODES.MONITOR_HANDLE_SUBJECT_MISMATCH);
@@ -342,12 +389,12 @@ test("monitor restart recovery is attempted only after normal unknown-handle loo
         accepted: false,
         refusal: { code: "monitor_handle_unknown", reason: "unknown_run_or_handle", detail: null }
       }),
-      recoverIntegratedWorkerRun: async () => { recoveryCalls += 1; return null; }
+      recoverManagedWorkerRun: async () => { recoveryCalls += 1; return null; }
     }
   });
   const unknown = parseStructuredTextResponse(await unknownTools.get("workspace_agent_run_status").handler({
-    monitor_handle: "wkmh_restart_selector",
-    subject: "WK-1537#SLICE-011"
+    subject: "WK-1537#SLICE-011",
+    attempt_id: "wkdb_restart_selector"
   }));
   assert.equal(unknown.accepted, false);
   assert.equal(unknown.blocker.code, RUNTIME_BLOCKER_CODES.MONITOR_HANDLE_UNKNOWN);
@@ -374,7 +421,6 @@ test("run monitoring never invokes slice integration before confirmed worker ter
   });
 
   const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: "wkmh_worker_live",
     subject: "WK-1537#SLICE-001"
   }));
   assert.equal(result.terminal, false);
@@ -382,8 +428,8 @@ test("run monitoring never invokes slice integration before confirmed worker ter
   assert.equal(lifecycleCalls, 0);
 });
 
-test("the production post-worker helper delegates terminal integration and freezes canonical WK review state", async () => {
-  const calls = { integration: [], transition: [], bind: [], commitExercised: 0 };
+test("the production post-worker helper delegates a committed delivery straight to integration and ends at the WK review handoff", async () => {
+  const calls = { integration: [], reviewSeams: [] };
   const commit = "b".repeat(40);
   const base = "a".repeat(40);
   const wkRef = "refs/heads/wk/IN-0021/WK-1537";
@@ -396,7 +442,10 @@ test("the production post-worker helper delegates terminal integration and freez
     complete_parent_wk_contract: true,
     accumulated_wk_diff: true
   };
+
   const sliceBinding = {
+    launch_ref: "wkmh_worker",
+    run_id: "run-worker.slice",
     unit_address: "IN-0021/WK-1537/SLICE-001",
     output_branch: "slice/IN-0021/WK-1537/SLICE-001",
     worktree_path: "/tmp/slice-IN-0021-WK-1537-SLICE-001",
@@ -404,13 +453,16 @@ test("the production post-worker helper delegates terminal integration and freez
     retry_id: 0
   };
   const wkBinding = {
+    launch_ref: "wkmh_worker",
+    run_id: "run-worker.wk",
+    retry_id: 0,
     unit_address: "IN-0021/WK-1537",
     output_branch: "wk/IN-0021/WK-1537",
     worktree_path: "/tmp/wk-IN-0021-WK-1537",
     base_sha: base
   };
   const result = await runPostWorkerSliceLifecycle({
-    workspace: { repo: "agent-chassis", dir: "/home/user/agent-chassis" },
+    workspace: WORKSPACE,
     status: {
       run_id: "run-worker",
       monitor_handle: "wkmh_worker",
@@ -420,17 +472,10 @@ test("the production post-worker helper delegates terminal integration and freez
       terminal: true
     },
     deps: {
-      hostSliceReviewPreparationAdapter: async (request) => ({
-        accepted: true,
-        preparation: {
-          ...request,
-          worktree_path: sliceBinding.worktree_path,
-          slice_ref: `refs/heads/${sliceBinding.output_branch}`,
-          base_sha: base,
-          reviewed_sha: commit,
-          reviewed_tree: commit
-        }
-      }),
+      ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, () => {
+        calls.reviewSeams.push(name);
+        throw new Error(`retired seam ${name} called`);
+      }])),
       resolveManagedRunBinding: () => ({
         record_id: "WK-1537",
         slice_id: "SLICE-001",
@@ -438,37 +483,10 @@ test("the production post-worker helper delegates terminal integration and freez
         wk_binding: wkBinding,
         validation_worktree_path: wkBinding.worktree_path
       }),
-      resolveCanonicalReviewUnit: () => ({
-        record_id: "WK-1537",
-        slice_id: "SLICE-003",
-        subject: "WK-1537#SLICE-003",
-        unit_contract: "canonical-review"
-      }),
-
-      resolveCanonicalSliceReviewUnit: () => ({
-        record_id: "WK-1537",
-        slice_id: "SLICE-001",
-        subject: "WK-1537#SLICE-001",
-        initiative: "IN-0021",
-        canonical_parent_wk_contract: "canonical-parent",
-        review_unit_contract: "canonical-slice"
-      }),
-      bindFrozenSliceReviewContext: () => ({
-        schema_version: "workspace-agent-frozen-slice-review-context.v1",
-        worktree_path: sliceBinding.worktree_path
-      }),
-      resolveCommittedSliceIntegrationContinuation: () => ({
-        schema_version: "workspace-agent-committed-slice-integration-continuation.v1",
-        requested: true,
-        completed: true,
-        reviewed_sha: commit,
-      }),
-      runGit: ({ repo, args }) => {
-        if (args[0] === "symbolic-ref") return { ok: true, stdout: `${wkRef}\n` };
-        if (args[0] === "status" || args[0] === "reset") return { ok: true, stdout: "" };
-        if (args[0] === "rev-parse" && repo.endsWith("WK-1537")) return { ok: true, stdout: `${commit}\n` };
-        return { ok: true, stdout: `${commit}\n` };
+      resolveCommittedSliceIntegrationContinuation: () => {
+        throw new Error("a fresh first attempt consults no continuation");
       },
+      runGit: () => ({ ok: true, stdout: `${commit}\n` }),
 
       reconcileIntegratedSliceRecord: () => null,
       hostSliceIntegrationAdapter: async (input) => {
@@ -488,28 +506,21 @@ test("the production post-worker helper delegates terminal integration and freez
             }
           }
         };
-      },
-      bindFrozenReviewContext: (input) => {
-        calls.bind.push(input);
-        return { schema_version: "workspace-agent-frozen-wk-review-context.v1" };
-      },
-
-      terminalReviewEvidenceMode: TERMINAL_REVIEW_EVIDENCE_MODES.LIVE_MATERIALIZER,
-      materializeTerminalReviewWorktree: terminalReviewAttestation,
-      markCommitAuthorityExercised: () => { calls.commitExercised += 1; }
+      }
     }
   });
-  assert.equal(calls.integration.length, 1);
-  assert.deepEqual(calls.integration[0], {
+  assert.deepEqual(calls.integration, [{
     assigned_unit: "WK-1537#SLICE-001",
     launch_ref: "wkmh_worker",
     run_id: "run-worker",
     retry_id: 0
-  });
-  assert.deepEqual(calls.transition, []);
-  assert.equal(calls.bind.length, 1);
-  assert.equal(calls.bind[0].provisioning.validation_worktree_path, wkBinding.worktree_path);
-  assert.equal(calls.commitExercised, 1);
-  assert.deepEqual(result.reviewer_dispatch.args, { role: "reviewer", subject: "WK-1537#SLICE-003" });
-  assert.deepEqual(result.reviewer_dispatch.context.frozen_review_target, reviewTarget);
+  }]);
+  assert.deepEqual(calls.reviewSeams, []);
+  assert.equal(result.phase, "finalized");
+  assert.equal(result.integrated, true);
+  assert.equal(result.wk_transitioned_to_review, true);
+  assert.deepEqual(result.integration.review_target, reviewTarget);
+  assert.equal(result.delivery_state, "delivery_finalized");
+  assert.equal(Object.hasOwn(result, "terminal_candidate"), false);
+  assertNoReviewFields("production helper", result);
 });

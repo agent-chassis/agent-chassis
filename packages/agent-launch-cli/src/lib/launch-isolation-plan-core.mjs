@@ -20,7 +20,9 @@ import { normalizeProvisionedWorktreeGitIsolation } from "./launch-isolation-git
 import { buildSparseWorkerNamespace } from "./launch-isolation-worker-scope.mjs";
 import { lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT } from "@agent-chassis/wiki-core";
+import {
+  CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
 
 function sparseNamespaceShowsPrivatePath(namespace, privatePath) {
   if (namespace === null) return true;

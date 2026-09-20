@@ -1,6 +1,3 @@
-export { applyControlledContractCarrierPatch } from
-  "@agent-chassis/controlled-contract";
-
 export const AUTHORING_LIMITS = Object.freeze({ index: 4096, selected: 16384 });
 
 const INDEX_SPILL_RESERVE_BYTES = 1024;
@@ -19,10 +16,14 @@ export function projectPackageTestProofAuthoringDescription({ packageApi }) {
 }
 export const CARRIER_TARGETS = Object.freeze({
   contract: Object.freeze({ references: "reference_id", propositions: "proposition_id", claims: "claim_id", relations: "relation_id", collections: "collection_id", residue: "residue_id", annotations: "annotation_id" }),
-  evaluation_input: Object.freeze({ reference_bindings: "role", number_bindings: "role", claim_pattern_bindings: "claim_pattern", resolver_facts: "resolver_fact", delivered_evidence: "delivered_evidence", evaluation_stage: "scalar" }),
+  evaluation_input: Object.freeze({ reference_bindings: "role", number_bindings: "role", claim_pattern_bindings: "claim_pattern", resolver_facts: "resolver_fact", delivered_evidence: "delivered_evidence" }),
   proof_plan_request: Object.freeze({ requested_intents: "value", selected_packs: "pack" })
 });
 const PROJECTION_SPILLS = new WeakMap();
+const SELECTED_POPULATIONS = new WeakMap();
+export function getControlledContractSelectedPopulation(result) {
+  return SELECTED_POPULATIONS.get(result) ?? null;
+}
 function fail(code, message, details = {}) { const error = new Error(message); error.code = code; error.details = details; throw error; }
 function bytes(value) { return Buffer.byteLength(JSON.stringify(value, null, 2), "utf8"); }
 export function measureControlledContractAuthoringValue(value) {
@@ -199,7 +200,7 @@ function indexProjection(carrier, { target = null, filter = null, cursor = null 
   PROJECTION_SPILLS.set(result, spills);
   return Object.freeze(result);
 }
-function selectedProjection(carrier, selectors) {
+function selectedProjection(carrier, selectors, sourceIdentity) {
   if (!Array.isArray(selectors) || selectors.length === 0 || selectors.length > 64 ||
       selectors.some((value) => typeof value !== "string" || value.length === 0))
     fail("controlled_contract_query_selectors_invalid", "selectors must contain 1 to 64 stable identities");
@@ -209,33 +210,34 @@ function selectedProjection(carrier, selectors) {
   const result = { ...queryBase(carrier, "selected"), requested_count: selectors.length, matched_count: matched.length,
     returned_count: 0, byte_omitted_matched_count: matched.length, missing_selector_count: missing.length,
     missing_selector_returned_count: 0, missing_selector_omitted_count: missing.length, items: [], missing_selectors: [] };
-  const spills = [];
   for (const selector of matched) {
     const { target, id, value } = bySelector.get(selector); const inline = { target, id, selector, value }; result.items.push(inline);
     result.returned_count += 1; result.byte_omitted_matched_count -= 1;
     if (bytes(result) <= AUTHORING_LIMITS.selected) continue;
     result.items.pop();
-    const spilled = { target, id, selector, value_spilled: true };
-    result.items.push(spilled);
+    const deferred = { target, id, selector, value_deferred: true };
+    result.items.push(deferred);
     if (bytes(result) <= AUTHORING_LIMITS.selected) continue;
     result.items.pop(); result.returned_count -= 1; result.byte_omitted_matched_count += 1;
     continue;
-  }
-  for (let index = 0; index < result.items.length; index += 1) {
-    if (result.items[index].value_spilled !== true) continue;
-    spills.push({ collection: "items", index,
-      value: bySelector.get(result.items[index].selector).value, integrity_prefix: "node" });
   }
   for (const selector of missing) {
     result.missing_selectors.push(selector); result.missing_selector_returned_count += 1; result.missing_selector_omitted_count -= 1;
     if (bytes(result) <= AUTHORING_LIMITS.selected) continue;
     result.missing_selectors.pop(); result.missing_selector_returned_count -= 1; result.missing_selector_omitted_count += 1;
   }
-  PROJECTION_SPILLS.set(result, spills);
+  SELECTED_POPULATIONS.set(result, Object.freeze({
+    source_identity: sourceIdentity,
+    items: Object.freeze(selectors.map((selector, index) => {
+      const item = bySelector.get(selector);
+      return Object.freeze({ stable_id: String(index).padStart(2, "0"), selector,
+        found: item !== undefined, ...(item ?? {}) });
+    }))
+  }));
   return Object.freeze(result);
 }
-export function projectControlledContractCarrierQuery({ carrier, selectors, target, filter, cursor }) {
-  return selectors === undefined ? indexProjection(carrier, { target, filter, cursor }) : selectedProjection(carrier, selectors); }
+export function projectControlledContractCarrierQuery({ carrier, selectors, target, filter, cursor, sourceIdentity = null }) {
+  return selectors === undefined ? indexProjection(carrier, { target, filter, cursor }) : selectedProjection(carrier, selectors, sourceIdentity); }
 export function getControlledContractProjectionSpills(result) { return PROJECTION_SPILLS.get(result) ?? []; }
 export function getControlledContractNodeSpills(result) {
   return new Map(getControlledContractProjectionSpills(result)
@@ -319,16 +321,11 @@ export function describeControlledContractAuthoring({ carrierKind, target = null
       minimal_valid_template_acceptance: {
         classification: "structural_only",
         directly_operation_acceptable: false,
-        addressed_operation: "workspace_controlled_contract_carrier_create"
+        addressed_operation: null
       }
     };
     if (carrierKind === "contract") {
-      result.authoring_continuation = {
-        tool: "workspace_controlled_test_proof_authoring_describe",
-        arguments: {},
-        recommended: true,
-        reason: "the structural template omits the semantic test-proof bindings required for unchanged carrier creation"
-      };
+      result.authoring_continuation = null;
     }
     if (bytes(result) > AUTHORING_LIMITS.index) fail("controlled_contract_authoring_projection_too_large", "compact authoring description exceeds 4,096 bytes");
     return result;
@@ -355,7 +352,7 @@ export function describeControlledContractAuthoring({ carrierKind, target = null
     minimal_valid_template_acceptance: {
       classification: "structural_only",
       directly_operation_acceptable: false,
-      addressed_operation: "workspace_controlled_contract_carrier_patch"
+      addressed_operation: null
     } };
   if (carrierKind === "proof_plan_request" && target === "selected_packs") {
     result.server_derived_fields = [{ field: "evaluation_input_path",
@@ -437,7 +434,7 @@ function boundedProofPackDescription(base, full) {
 export function compactProofPackDescription(full, options = {}) {
   const base = { schema_version: "controlled-contract-proof-pack-description.v2", profile_id: full.profile_id,
     profile_version: full.profile_version, guarantee: full.guarantee,
-    stages: full.evaluation_input_skeleton?.allowed_evaluation_stages ?? [], counts: full.counts, source_digests: full.source_digests,
+    counts: full.counts, source_digests: full.source_digests,
     projection_digest: full.projection_digest, authority: full.authority,
     detail_sections: [...PROOF_PACK_BOUNDED_SECTIONS, ...PROOF_PACK_DETAIL_SECTIONS] };
   const targeted = options.sections?.length || options.selectors?.length || options.cursor;

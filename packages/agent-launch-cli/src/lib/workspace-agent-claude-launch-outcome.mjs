@@ -3,9 +3,17 @@
 import {
   BACKEND_REFUSAL_CODES
 } from "./workspace-agent-dispatch-backend.mjs";
-import { BubblewrapIsolationError } from "./launch-isolation.mjs";
 import {
-  STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
+  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
+  BubblewrapIsolationError
+} from "./launch-isolation.mjs";
+import {
+  buildConduitSpawnFailureRefusal,
+  buildLaunchPathFailureRefusal,
+  classifyLaunchPathFailure,
+  cleanupConduitForRefusal
+} from "./launch-failure-cause.mjs";
+import {
   STDIO_MCP_CONDUIT_RUN_TIMEOUT_MS,
   attachStdioMcpConduitLaunchOutcome,
   settleStdioMcpConduitCleanup
@@ -69,24 +77,8 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
   } = ctx;
   if (conduit) {
 
-    let conduitCleanupDetail = null;
-    try {
-      await conduit.cleanup();
-    } catch (cleanupError) {
-      conduitCleanupDetail = cleanupError?.detail
-        ?? { message: cleanupError?.message ?? null };
-    }
-    return makeRefusal(
-      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-      STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
-      {
-        message: err?.message ?? String(err),
-        code: err?.code ?? null,
-        sandbox_required: true,
-        unenforced_fallback_permitted: false,
-        conduit_cleanup_failures: conduitCleanupDetail
-      }
-    );
+    const conduitCleanupFailure = await cleanupConduitForRefusal(conduit);
+    return buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure);
   }
   if (isClaudeCredentialsReadOnlyFileRefusal(err)) {
     return makeRefusal(
@@ -94,6 +86,23 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
       "claude_executor_credentials_path_invalid",
       err.detail ?? null
     );
+  }
+
+  if (err instanceof BubblewrapIsolationError && (
+    err.code === BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_INVALID ||
+    err.code === BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.FINDINGS_GIT_METADATA_CHANGED
+  )) {
+    return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "bubblewrap_plan_refused", {
+      code: err.code,
+      message: err.message,
+      detail: err.detail ?? null,
+      authority_limb: "mechanical_failure"
+    });
+  }
+
+  const pathFailure = classifyLaunchPathFailure(err);
+  if (pathFailure !== null) {
+    return buildLaunchPathFailureRefusal(makeRefusal, pathFailure);
   }
   if (err instanceof BubblewrapIsolationError) {
     const planCwd = workspaceDir ?? defaultCwd;

@@ -3,8 +3,8 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "cli-commands.json",
-  "summary": "wiki and agent-launch CLI command rows.",
-  "tool_count": 10,
+  "summary": "wiki, agent-launch and agent-chassis setup CLI command rows.",
+  "tool_count": 11,
   "tools": [
     {
       "tool_name": "wiki-docs-policy-validate",
@@ -166,7 +166,7 @@
         "packages/wiki-cli/src/commands/validate-dispatch.mjs",
         "packages/wiki-core/src/lib/work-record-dispatch.mjs"
       ],
-      "notes": "Compact CLI fallback for dispatch-readiness checks on a WK or slice. It returns the bounded decision envelope rather than the full readiness graph; use the MCP `workspace_validate_dispatch` route when the verbose/detail split is needed."
+      "notes": "Compact CLI fallback for dispatch-readiness checks on a WK or slice. CLI behavior is unchanged; use the strict MCP `workspace_validate_dispatch` route for its sole lossless readiness response, returned selected-owner detail calls, and content-reference transport."
     },
     {
       "tool_name": "agent-launch-provenance",
@@ -344,7 +344,43 @@
         "packages/wiki-cli/src/commands/agent-faq.mjs",
         "packages/wiki-core/src/operations/agent-faq.mjs"
       ],
-      "notes": "Operator/fallback parity for the workspace_agent_faq MCP tool. Lists the read-only agent-faq.v1 corpus or queries it by --id / --related-code; --json emits the same envelope the MCP tool returns."
+      "notes": "Operator CLI for the read-only agent-faq.v1 corpus; lists it or queries it by --id / --related-code. There is no MCP FAQ tool."
+    },
+    {
+      "tool_name": "agent-chassis-setup-test-runtimes",
+      "display_name": "Set up local test runtimes",
+      "kind": "cli_command",
+      "entrypoint": "agent-chassis setup --test-runtimes --runner <runner>[@<project>]... [--dry-run] [--json]",
+      "task_ids": [],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "cli",
+      "audience": [
+        "operator"
+      ],
+      "priority": 100,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/local-test-runtime-setup.md",
+        "docs/quickstart.md",
+        "docs/test-proof-runtime-identity.md"
+      ],
+      "source_files": [
+        "packages/core/bin/agent-chassis.mjs",
+        "packages/core/scripts/setup.mjs",
+        "packages/core/scripts/test-runtime-setup/cli.mjs",
+        "packages/agent-launch-cli/src/lib/test-runtime-setup/index.mjs"
+      ],
+      "notes": "Operator-run explicit local setup of the test runtimes that workspace_verify_proof native proofs need (runners node-test, jest, vitest, mocha, ava, deno, lib0-testing, pytest, stestr, go-test, cargo-test) in an existing repository. It installs missing selected Node, Python, Go, Rust/Cargo or Deno toolchains at supported pinned versions into an explicit toolchain root, prepares lockfile-pinned project test dependencies with the standard package manager into launcher-owned state, verifies every component inside the launcher sandbox and only then publishes .agent-launch/test-runtimes/readiness.v1.json. Omitting --runner repeats the published selection; a failed or partial run withdraws readiness. It does not rerun wiki bootstrap or touch root agent guidance, and proof attempts never download or install anything."
     }
   ]
 }

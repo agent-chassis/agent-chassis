@@ -38,7 +38,7 @@ import {
 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const packDirectory = new URL(
-  "../certification/profiles/proof.authorization.refusal-before-effects/2.0.0/",
+  "../certification/profiles/proof.authorization.refusal-before-effects/3.0.0/",
   import.meta.url
 );
 const packDirectoryPath = fileURLToPath(packDirectory);

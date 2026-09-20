@@ -10,22 +10,16 @@ const FOCUS_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 const RECOVERY = Object.freeze({
   controlled_contract_proof_plan_request_missing: Object.freeze({
-    missing_carrier: "proof_plan_request",
-    tool: "workspace_controlled_contract_authoring_describe",
-    arguments: Object.freeze({ carrier_kind: "proof_plan_request" })
+    missing_carrier: "proof_plan_request"
   }),
   controlled_contract_evaluation_input_missing: Object.freeze({
-    missing_carrier: "evaluation_input",
-    tool: "workspace_controlled_contract_authoring_describe",
-    arguments: Object.freeze({ carrier_kind: "evaluation_input" })
+    missing_carrier: "evaluation_input"
   }),
   controlled_contract_proof_plan_missing: Object.freeze({
-    missing_carrier: "proof_plan",
-    tool: "workspace_controlled_proof_plan_build"
+    missing_carrier: "proof_plan"
   }),
   controlled_contract_proof_plan_stale: Object.freeze({
-    stale_carrier: "proof_plan",
-    tool: "workspace_controlled_proof_plan_build"
+    stale_carrier: "proof_plan"
   })
 });
 
@@ -79,13 +73,6 @@ function normalizedIdentity(value) {
   };
 }
 
-function renderCall(call) {
-  const body = Object.entries(call.arguments)
-    .map(([key, value]) => `${key}:${JSON.stringify(value)}`)
-    .join(", ");
-  return `${call.tool}({${body}})`;
-}
-
 export function buildControlledContractAssessmentRecovery(input) {
   const supplied = exactObject(
     input,
@@ -105,22 +92,16 @@ export function buildControlledContractAssessmentRecovery(input) {
   }
 
   const expectedContentDigest = isStale ? supplied.staleContentDigest : null;
-  const arguments_ = recovery.arguments ?? {
-    wk_id: contractIdentity.wk_id,
-    ...(contractIdentity.focus === null ? {} : { focus: contractIdentity.focus }),
-    expected_content_digest: expectedContentDigest
-  };
-  const next = { tool: recovery.tool, arguments: arguments_, recommended: true };
   return deepFreeze({
-    status: "recoverable-incomplete",
+    status: "capability-incomplete",
     reason_code: supplied.reasonCode,
     contract_identity: contractIdentity,
-    next_calls: [next],
-    next_action: renderCall(next),
+    next_calls: [],
+    recovery: null,
     ...(recovery.missing_carrier === undefined
       ? { stale_carrier: recovery.stale_carrier }
       : { missing_carrier: recovery.missing_carrier }),
-    ...(recovery.tool === "workspace_controlled_proof_plan_build"
+    ...(isStale || recovery.missing_carrier === "proof_plan"
       ? { expected_content_digest: expectedContentDigest }
       : {})
   });

@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   realpathSync,
   rmSync
 } from "node:fs";
@@ -116,6 +118,20 @@ function cleanupFailure({ runGit, repository, actionRoot, checkout, worktreeAdde
   let filesystemRemovalFailed = false;
   if (registrationRetained === false) {
     try {
+
+      const makeOwnedTreeRemovable = (directory) => {
+        const stat = lstatSync(directory);
+        if (!stat.isDirectory() || stat.isSymbolicLink()) return;
+        chmodSync(directory, 0o700);
+        for (const name of readdirSync(directory)) {
+          const child = path.join(directory, name);
+          const childStat = lstatSync(child);
+          if (childStat.isDirectory() && !childStat.isSymbolicLink()) {
+            makeOwnedTreeRemovable(child);
+          }
+        }
+      };
+      makeOwnedTreeRemovable(actionRoot);
       rmSync(actionRoot, { recursive: true, force: true });
     } catch {
       filesystemRemovalFailed = true;

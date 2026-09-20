@@ -1,0 +1,347 @@
+{
+  "schema_version": "controlled-contract-current-definition-diagnostic-expectations.v1",
+  "definition_count": 17,
+  "diagnostic_count": 34,
+  "diagnostics": [
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/0",
+      "field_pointer": "/test_proofs/0/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-0615617ec0933a20eee608730ee6add45b143562",
+      "verification_claim_id": "claim-0615617ec0933a20eee608730ee6add45b143562"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/0",
+      "field_pointer": "/test_proofs/0/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-0615617ec0933a20eee608730ee6add45b143562",
+      "verification_claim_id": "claim-0615617ec0933a20eee608730ee6add45b143562"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/1",
+      "field_pointer": "/test_proofs/1/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-0f542f718035b2052c9708e0e46b769a5205d49b",
+      "verification_claim_id": "claim-0f542f718035b2052c9708e0e46b769a5205d49b"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/1",
+      "field_pointer": "/test_proofs/1/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-0f542f718035b2052c9708e0e46b769a5205d49b",
+      "verification_claim_id": "claim-0f542f718035b2052c9708e0e46b769a5205d49b"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/2",
+      "field_pointer": "/test_proofs/2/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-27fdd09710619ebff3e2773766827c25fe1c5a52",
+      "verification_claim_id": "claim-27fdd09710619ebff3e2773766827c25fe1c5a52"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/2",
+      "field_pointer": "/test_proofs/2/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-27fdd09710619ebff3e2773766827c25fe1c5a52",
+      "verification_claim_id": "claim-27fdd09710619ebff3e2773766827c25fe1c5a52"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/3",
+      "field_pointer": "/test_proofs/3/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+      "verification_claim_id": "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/3",
+      "field_pointer": "/test_proofs/3/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3",
+      "verification_claim_id": "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/4",
+      "field_pointer": "/test_proofs/4/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-402acecc547eab6f802b67fa2c73a48923f8966f",
+      "verification_claim_id": "claim-402acecc547eab6f802b67fa2c73a48923f8966f"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/4",
+      "field_pointer": "/test_proofs/4/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-402acecc547eab6f802b67fa2c73a48923f8966f",
+      "verification_claim_id": "claim-402acecc547eab6f802b67fa2c73a48923f8966f"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/5",
+      "field_pointer": "/test_proofs/5/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+      "verification_claim_id": "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/5",
+      "field_pointer": "/test_proofs/5/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708",
+      "verification_claim_id": "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/6",
+      "field_pointer": "/test_proofs/6/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+      "verification_claim_id": "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/6",
+      "field_pointer": "/test_proofs/6/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-55b15bdd3d6aeac3283587569f1e1098b89930cc",
+      "verification_claim_id": "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/7",
+      "field_pointer": "/test_proofs/7/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+      "verification_claim_id": "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/7",
+      "field_pointer": "/test_proofs/7/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+      "verification_claim_id": "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/8",
+      "field_pointer": "/test_proofs/8/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+      "verification_claim_id": "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/8",
+      "field_pointer": "/test_proofs/8/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-7c62d9d4c16c3235472cd520fb2a11636fdacdf0",
+      "verification_claim_id": "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/9",
+      "field_pointer": "/test_proofs/9/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+      "verification_claim_id": "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/9",
+      "field_pointer": "/test_proofs/9/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+      "verification_claim_id": "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/10",
+      "field_pointer": "/test_proofs/10/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-8be96edd2c15a7b2f1522b07694efb22395109fb",
+      "verification_claim_id": "claim-8be96edd2c15a7b2f1522b07694efb22395109fb"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/10",
+      "field_pointer": "/test_proofs/10/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-8be96edd2c15a7b2f1522b07694efb22395109fb",
+      "verification_claim_id": "claim-8be96edd2c15a7b2f1522b07694efb22395109fb"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/11",
+      "field_pointer": "/test_proofs/11/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-a27848c794c4007f8fd768547d433bb82a99c763",
+      "verification_claim_id": "claim-a27848c794c4007f8fd768547d433bb82a99c763"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/11",
+      "field_pointer": "/test_proofs/11/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-a27848c794c4007f8fd768547d433bb82a99c763",
+      "verification_claim_id": "claim-a27848c794c4007f8fd768547d433bb82a99c763"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/12",
+      "field_pointer": "/test_proofs/12/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+      "verification_claim_id": "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/12",
+      "field_pointer": "/test_proofs/12/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+      "verification_claim_id": "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/13",
+      "field_pointer": "/test_proofs/13/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+      "verification_claim_id": "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/13",
+      "field_pointer": "/test_proofs/13/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+      "verification_claim_id": "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/14",
+      "field_pointer": "/test_proofs/14/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+      "verification_claim_id": "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/14",
+      "field_pointer": "/test_proofs/14/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-c7c225b336bafe4ba9870225aaa4dc76b404d4e2",
+      "verification_claim_id": "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/15",
+      "field_pointer": "/test_proofs/15/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-dfbf6f81335180b04893667287799c1be5b4cf42",
+      "verification_claim_id": "claim-dfbf6f81335180b04893667287799c1be5b4cf42"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/15",
+      "field_pointer": "/test_proofs/15/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-dfbf6f81335180b04893667287799c1be5b4cf42",
+      "verification_claim_id": "claim-dfbf6f81335180b04893667287799c1be5b4cf42"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/16",
+      "field_pointer": "/test_proofs/16/coverage_disposition",
+      "property_name": "coverage_disposition",
+      "property_kind": "unexpected",
+      "keyword": "additionalProperties",
+      "test_proof_id": "test-proof-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+      "verification_claim_id": "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812"
+    },
+    {
+      "code": "stable_contract_schema_invalid",
+      "definition_pointer": "/test_proofs/16",
+      "field_pointer": "/test_proofs/16/test_selector",
+      "property_name": "test_selector",
+      "property_kind": "missing",
+      "keyword": "required",
+      "test_proof_id": "test-proof-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+      "verification_claim_id": "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812"
+    }
+  ]
+}

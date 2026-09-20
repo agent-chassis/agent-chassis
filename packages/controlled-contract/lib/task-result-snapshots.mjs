@@ -128,16 +128,31 @@ function defaultProjectPage({ result, domain, collection, selector, ordinal, max
   });
 }
 
-function defaultRowProjection(domain, collection, row, descriptor) {
+function inventoryFields(domain, collection, row, descriptor, expandField) {
+  return descriptor.fields.flatMap((field) => {
+    const value = row?.[field];
+    if (!expandField(domain, collection, field, value) ||
+        value === null || typeof value !== "object") {
+      return [Object.freeze({ path: Object.freeze([field]),
+        value_kind: valueKind(value) })];
+    }
+    return Object.keys(value).map((key) => {
+      const segment = Array.isArray(value) ? Number(key) : key;
+      return Object.freeze({ path: Object.freeze([field, segment]),
+        value_kind: valueKind(value[segment]) });
+    });
+  });
+}
+
+function defaultRowProjection(domain, collection, row, descriptor,
+  schemaVersion, expandField = () => false) {
   return Object.freeze({
     schema_version: "task-result-row-projection.v1",
     domain,
     collection,
     stable_id: row?.[descriptor.stable_id] ?? null,
-    fields: Object.freeze(descriptor.fields.map((field) => Object.freeze({
-      path: Object.freeze([field]),
-      value_kind: valueKind(row?.[field])
-    })))
+    fields: Object.freeze(
+      inventoryFields(domain, collection, row, descriptor, expandField))
   });
 }
 
@@ -153,6 +168,10 @@ export function createTaskResultSnapshotRegistry({
   projectPage = defaultProjectPage,
   projectPageContext = () => null,
   projectRow = defaultRowProjection,
+
+  deliverRowInventory = () => false,
+
+  expandRowField = () => false,
   measureProjectionBytes = defaultMeasure,
   assertProjectionBound = defaultAssertBound,
   queryOperationForDomain = (domain) => `${domain}_query`,
@@ -422,7 +441,23 @@ export function createTaskResultSnapshotRegistry({
       if (!descriptor.fields.includes(String(fieldPath[0]))) {
         throw invalid("field_unknown", recovery, { field_path: structuredClone(fieldPath) });
       }
-      const value = pathValue(selectedPage.items[0], fieldPath, invalid, recovery);
+      const selectedRow = selectedPage.items[0];
+
+      if (fieldPath.length === 1 && !Object.hasOwn(selectedRow, fieldPath[0])) {
+        if (offset !== null || length !== null) {
+          throw invalid("range_requires_scalar", recovery);
+        }
+        return Object.freeze(bounded({
+          schema_version: schemas.field,
+          ...common,
+          field_path: Object.freeze([...fieldPath]),
+          value_kind: "undefined",
+          complete: true,
+          total: 0
+        }, requestedBytes,
+        { projection_class: "task_result_field", domain, collection }));
+      }
+      const value = pathValue(selectedRow, fieldPath, invalid, recovery);
       const kind = valueKind(value);
       const fieldCommon = {
         schema_version: schemas.field,
@@ -550,14 +585,22 @@ export function createTaskResultSnapshotRegistry({
             accounting
           };
     };
+    const inventoryOnly = deliverRowInventory(domain, collection) === true;
     for (const item of selectedPage.items) {
-      if (measureProjectionBytes(candidateFor([...items, item], represented + 1)) <= requestedBytes) {
-        items.push(item);
+      const candidate = inventoryOnly
+        ? projectRow(domain, collection, item, descriptor, schemas.row,
+          expandRowField) : item;
+      if (measureProjectionBytes(
+        candidateFor([...items, candidate], represented + 1)) <= requestedBytes) {
+        items.push(candidate);
         represented += 1;
         continue;
       }
       if (represented > 0) break;
-      const projection = projectRow(domain, collection, item, descriptor, schemas.row);
+      const projection = inventoryOnly
+        ? candidate
+        : projectRow(domain, collection, item, descriptor, schemas.row,
+          expandRowField);
       if (measureProjectionBytes(candidateFor([projection], 1)) > requestedBytes) {
         throw invalid("row_field_inventory_exceeds_delivery_bound", recovery);
       }

@@ -15,6 +15,7 @@ export {
 
 export {
   resolveCanonicalFindingsOnlyReviewUnit,
+  resolveDeclaredCanonicalFindingsOnlyReviewUnit,
   TERMINAL_REVIEW_LIFECYCLE_INADMISSIBLE_CODE,
   terminalReviewLifecycleRefusal,
   isTerminalReviewLifecycleRefusal,

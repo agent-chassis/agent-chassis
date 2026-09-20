@@ -14,9 +14,9 @@ import { buildCompletePaginationProfileFixture } from
 
 const packageRoot = path.resolve(new URL("../../", import.meta.url).pathname);
 const runtimeDirectory = path.join(packageRoot,
-  "profiles/proof.pagination.complete-traversal/2.0.0");
+  "profiles/proof.pagination.complete-traversal/3.0.0");
 const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.pagination.complete-traversal/2.0.0");
+  "test/certification/profiles/proof.pagination.complete-traversal/3.0.0");
 
 async function json(directory, name) {
   return JSON.parse(await readFile(path.join(directory, name), "utf8"));
@@ -102,15 +102,12 @@ test("complete traversal freezes the full positive, mutant, and weakening census
     outcome === "survived" || outcome === "failed"), false);
 });
 
-test("complete traversal admission binds adequacy and exact certification bytes", async () => {
+test("complete traversal admission binds adequacy certification bytes", async () => {
   const admission = await json(runtimeDirectory, "admission.json");
   const adequacyBytes = await readFile(path.join(certificationDirectory, "adequacy.json"));
   const adequacy = JSON.parse(adequacyBytes);
   const result = await json(certificationDirectory,
     "certification-result.full-census.json");
-  const corpusBytes = await readFile(path.join(
-    certificationDirectory, "exact-binding-corpus.json"
-  ));
   assert.equal(admission.certification.adequacy_declaration_digest,
     canonicalDigest(adequacy));
   assert.equal(admission.certification.adequacy_result_digest,
@@ -123,8 +120,6 @@ test("complete traversal admission binds adequacy and exact certification bytes"
     category === "mutant" || category === "profile_rejection").length, 33);
   assert.equal(admission.certification.negative_fixture_count, 0);
   assert.equal(admission.certification.coverage_witness_count, 33);
-  assert.equal(admission.exact_binding.corpus_digest, sha256(corpusBytes));
-  assert.equal(admission.exact_binding.executable_control_count, 12);
 });
 
 test("complete traversal is one member of the complete stable catalog", async () => {
@@ -134,13 +129,13 @@ test("complete traversal is one member of the complete stable catalog", async ()
     json(path.join(packageRoot, "proof-intents"), "catalog.json")
   ]);
   assert.deepEqual(certificationCatalog, runtimeCatalog);
-  assert.equal(runtimeCatalog.packs.length, 38);
+  assert.equal(runtimeCatalog.packs.length, 37);
   assert.equal(runtimeCatalog.packs.filter(({ profile_id: id, profile_version: version }) =>
-    id === "proof.pagination.complete-traversal" && version === "2.0.0"
+    id === "proof.pagination.complete-traversal" && version === "4.0.0"
   ).length, 1);
-  assert.equal(intentCatalog.intents.length, 38);
+  assert.equal(intentCatalog.intents.length, 37);
   assert.equal(intentCatalog.intents.reduce(
-    (sum, intent) => sum + intent.capable_packs.length, 0), 40);
+    (sum, intent) => sum + intent.capable_packs.length, 0), 39);
 });
 
 test("current pagination runtime carriers equal their certification copies", async () => {

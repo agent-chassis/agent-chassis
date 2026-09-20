@@ -1,5 +1,3 @@
-import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
-import { createSidecarGraphState } from "./sidecar-graph-schema.mjs";
 import {
   SidecarPathValidationError,
   parseSidecarPatch,
@@ -8,10 +6,8 @@ import {
 import { runSidecarGit } from "./sidecar-status.mjs";
 import {
   SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS,
-  cloneJson,
   uniqueStrings
 } from "./sidecar-graph-impact-shared.mjs";
-import { createCompactGraphImpactSummary } from "./sidecar-graph-impact-summary.mjs";
 
 const GRAPH_IMPACT_DIFF_CHANGE_KINDS = new Set([
   "added",
@@ -425,39 +421,4 @@ export function diffPathStates({ records, graphResult }) {
       provenance: record.provenance
     };
   });
-}
-
-export function emptyGraphImpactResult({ status, inputPaths }) {
-  const result = createSidecarResultEnvelope({
-    source_kind: "code_index",
-    canonicality: "derived",
-    evidence_basis: "path_match",
-    index_head: status.index_head,
-    index_tree: status.index_tree,
-    dirty_state: status.dirty_state,
-    dirty_details: status.dirty_details,
-    staleness: status.staleness,
-    canonical_refs: [],
-    derived_evidence: status.derived_evidence.map(cloneJson),
-    cache_path: status.cache_path,
-    artifact_path: status.artifact_path,
-    artifact_exists: status.artifact_exists,
-    artifact_schema_version: status.artifact_schema_version,
-    expected_artifact_schema_version: status.expected_artifact_schema_version,
-    status_reason: status.status_reason,
-    query_kind: "graph_impact_paths",
-    input_paths: inputPaths,
-    validated_paths: [],
-    invalid_paths: [],
-    validation_hints: [],
-    graph_state: status.graph_state || createSidecarGraphState(),
-    graph_nodes: [],
-    graph_edges: [],
-    structural_impacts: [],
-    missing_update_hints: []
-  });
-  return {
-    ...result,
-    summary: createCompactGraphImpactSummary(result)
-  };
 }

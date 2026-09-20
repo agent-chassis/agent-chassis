@@ -2,6 +2,31 @@
 
 Deterministic controlled-contract validation and proof-plan assessment.
 
+Version 1.0.0 adds authenticated, pack-owned parameter and construction metadata.
+Import `@agent-chassis/controlled-contract/pack-parameters` for
+`loadPackParameterContract`, `validatePackParameterContract`,
+`describePackParameters`, `inspectPackParameterCoverage`,
+`loadCurrentParameterPopulation` and deterministic documentation APIs.
+The package owns the closed schema and every current exact companion; authored
+WK values and generic instance resolution remain separate consumers.
+
+Current admissions use v3 and bind `parameter_contract_digest`. The proof-intent
+catalog and multi-pack assessment use v2. The current pack versions advance from
+the work record baseline: ordinary 3.0.0 packs become 4.0.0, idempotency 4.0.0 becomes
+5.0.0. Test-validity publishes 7.0.0 and 8.0.0; work record selects only 8.0.0
+as current in all three scoped catalogs and the evaluator registry. Named and
+exact loads reject other versions with `proof_pack_exact_version_not_current`.
+The work record section below records the prior stage-free cutover baseline.
+See [durable parameter guidance](../../docs/proof-pack-parameters.md) and the
+[complete generated pack index](../../docs/proof-pack-parameters/index.md).
+
+The installed package can generate or check a supplied documentation directory:
+
+```sh
+node node_modules/@agent-chassis/controlled-contract/bin/proof-pack-parameter-docs.mjs --write ./pack-docs
+node node_modules/@agent-chassis/controlled-contract/bin/proof-pack-parameter-docs.mjs --check ./pack-docs
+```
+
 The package has bounded proof-intent discovery, selection, authoring, and
 assessment commands:
 
@@ -19,13 +44,13 @@ controlled-contract-select-proof-packs \
 
 controlled-contract-describe-proof-pack \
   --profile-id proof.completeness.lossless-projection \
-  --profile-version 1.0.0 \
+  --profile-version 3.0.0 \
   --intent controlled-proof-intent.lossless-projection
 
 controlled-contract-inspect-proof-pack-bindings \
   --input contract.json \
   --profile-id proof.completeness.lossless-projection \
-  --profile-version 1.0.0 \
+  --profile-version 3.0.0 \
   --intent controlled-proof-intent.lossless-projection
 
 controlled-contract-build-proof-plan \
@@ -37,19 +62,21 @@ controlled-contract \
   --proof-plan proof-plan.json
 ```
 
-It checks the v0.34 controlled graph and writes a bounded assessment to stdout.
+It checks the stable-v1 controlled graph and writes a bounded assessment to stdout.
 The lossless reports are stored beneath
 `.cache/controlled-contract/assessments/sha256/<assessment-digest>/`.
 
 ## What the result means
 
-The planning assessment keeps four questions separate when an exact-bound pack is selected:
+The planning assessment keeps three questions separate:
 
 - `structure`: is the authored controlled graph internally valid?
 - `profile_discrimination`: does it satisfy a release-certified proof pack?
-- `exact_binding`: do the complete captured inputs satisfy that pack's exact
-  binding declaration?
 - `residue_status`: what meaning remains explicitly outside the controlled graph?
+
+Runtime observations never appear in a planning assessment. Executing a
+definition against a candidate, collecting its observations, and binding the
+result to that exact definition is owned by `workspace_verify_proof`.
 
 The command is non-authoritative. It never turns authored claims into runtime
 truth, and honest residue does not make a structurally valid contract invalid.
@@ -64,7 +91,7 @@ a WK is implementation-ready.
 ## Discover controlled proof intents
 
 `controlled-contract-discover-proof-intents` is the preceding discovery step.
-With no arguments it returns all 36 controlled intents exactly once. Each compact
+With no arguments it returns all 37 controlled intents exactly once. Each compact
 summary contains the exact intent ID, its one-sentence definition, controlled
 discovery terms, exact capable pack IDs and versions, and authored distinctions
 from commonly confused intents. It reads only the intrinsic
@@ -102,7 +129,7 @@ than omitting fields required to interpret the result.
 `proof-intents/catalog.json` is the single intrinsic mapping from stable
 controlled proof-intent IDs to exact admitted pack IDs and versions. It records
 the intent definition, mechanically checkable compatibility, required inputs,
-exact-binding requirement, and distinctions from commonly confused intents.
+and distinctions from commonly confused intents.
 
 After discovery, explicitly choose controlled intent IDs. The pure
 `selectProofPacks` API accepts only a controlled contract and those explicitly
@@ -113,7 +140,7 @@ mechanically valid candidates remain an explicit ambiguity with no ranking.
 The compact selector command returns only relevant intent definitions and
 distinctions, pack guarantees and exclusions, required inputs, remediation
 codes, an exact authoring-projection digest and pattern counts, and
-substrate/source digests. It does not return the 36 profile definitions or
+substrate/source digests. It does not return the 37 catalog profile definitions or
 certification corpora.
 
 ## Author one selected proof pack
@@ -124,7 +151,7 @@ The command accepts no path, catalog, root, module, executable, or environment
 override. An optional repeated `--intent` narrows the projection and fails when
 the intent does not map to that exact pack.
 
-The result is a typed `controlled-contract-proof-pack-authoring.v1` projection.
+The result is a typed `controlled-contract-proof-pack-authoring.v2` projection.
 It contains the selected guarantee, every explicit exclusion, relevant intent
 distinctions, every reference and number binding requirement, distinctness and
 population/count constraints, compact claim propositions, falsifiers,
@@ -141,9 +168,9 @@ Every shipped pack must project within 65,536 UTF-8 bytes. An oversized
 projection fails closed instead of truncating. Certification controls,
 mutation corpora, profile source paths, and executable modules never appear.
 
-### Generic v0.34 profile controls
+### Generic stable-v1 profile controls
 
-The v0.34 profile grammar has three opt-in controls; profiles that omit them
+The stable-v1 profile grammar has three opt-in controls; profiles that omit them
 retain their existing evaluation behavior.
 
 - A `for_each` over a `zero_or_more` role may select
@@ -186,7 +213,7 @@ they do not define pagination, authentication, tri-state status, or negative
 observation vocabulary.
 
 An iterated claim may participate in a `closed_set` collection. It may not
-participate in an `ordered_sequence`: the v0.34 grammar has no semantic ordering
+participate in an `ordered_sequence`: the stable-v1 grammar has no semantic ordering
 source for a set-valued population, and deriving order from reference IDs would
 make identifier renaming observable.
 
@@ -254,17 +281,15 @@ The compiler reruns intrinsic selection, loads only exact admitted package-owned
 packs, verifies that each requested intent is assigned to exactly one explicitly
 selected capable pack, validates supplied evaluation-input bindings, and computes
 the contract, catalog, vocabulary, profile-population, intent-artifact, profile,
-admission, guarantee, adequacy, evaluation-input, and exact-binding digests. For
-exact-bound packs, the selected-pack request must also declare `exact_capture`
-with its capture root, normalized relative contract and evaluation-input paths,
-and exact sources. Paths in the request are resolved relative to the request
-file; the emitted plan binds resolved evaluation-input and capture-root paths.
+admission, guarantee, adequacy, and evaluation-input digests. Paths in the
+request are resolved relative to the request file; the emitted plan binds
+resolved evaluation-input paths. No capture root, exact source declaration, or
+execution observation is part of a plan.
 
 Missing inputs are returned together as stable typed diagnostics. Omitted or
 unknown intents, ambiguous assignments, uncovered or incompatible intents,
-duplicate or stale packs, malformed or incompatible evaluation inputs,
-unexpected exact capture, unsafe exact paths, and conflicting exact file
-identities fail closed. The request cannot contain digests, placeholders,
+duplicate or stale packs, and malformed or incompatible evaluation inputs
+fail closed. The request cannot contain digests, placeholders,
 caller catalogs, profile paths, modules, executables, environment overrides,
 alternate package roots, or an output path. The compiler never infers an intent,
 selects a pack, or binds a role. Its canonical JSON is deterministic under
@@ -285,59 +310,23 @@ discover-proof-intents
 
 ## Assess proof packs
 
-The package contains only each pack's compact runtime carriers. Ordinary packs
-ship a profile, evaluation-input template, and release admission. Exact-bound
-packs also ship an exact-binding declaration and its release certification.
+The package contains only each pack's compact runtime carriers: a profile, an
+evaluation-input template, and a release admission.
 Assessment verifies those digest bindings; it does not ship or rerun the large
 mutation, negative-fixture, and coverage-witness corpora used to certify a pack
 release.
 
 Every admitted assessment, including a one-pack assessment, requires a
 schema-valid `controlled-contract-proof-plan.v1` document. The CLI has no
-single-pack flags and never assigns proof intent implicitly. Exact-bound pack
-entries carry their capture root, relative contract and evaluation paths, and
-source declaration inside that plan.
+single-pack flags and never assigns proof intent implicitly.
 
-`proof.compatibility.behavioral-preservation` binds complete baseline and
-candidate behavior-report artifacts to the same contract/evaluation snapshot.
-It requires equal captured bytes and distinct caller-selected source
-descriptors. Different paths are not proof of different filesystem objects,
-producers, or honest baseline/candidate provenance; byte-identical copies and
-hard links remain inside that explicit grounding boundary.
+`proof.compatibility.behavioral-preservation` is verified from two typed
+behavior reports a real test produces itself and hands to the package-owned
+`verifyBehavioralPreservationReports`; the verification compares complete typed
+observable populations, exact counts, and one selected canonical value pair, and
+asserts nothing about provenance, execution, or proof credit.
 
-## Projected-evaluation binding
-
-Exact binding v1 proves that the captured artifacts are exactly the declared
-ones and that the declared role bindings are exactly the projected populations
-and references. On its own it does not require the contract nodes a profile
-selects to be the nodes the deterministic projection derived, so a caller could
-author additional graph material that satisfies the profile beside a satisfied
-exact binding.
-
-An exact-bound declaration may close that gap with the optional versioned opt-in
-`projected_evaluation_binding`, naming the deterministic projection's result
-requirement and one package-owned graph projection of that transformer. The
-field is optional: a declaration without it keeps its unchanged v1 meaning, and
-no admitted pack currently declares it.
-
-When it is declared, the assessment additionally requires that every
-captured-contract claim, relation, and collection the internally computed
-profile evaluation actually selected is a node of the projected contract graph
-derived from the captured projection-result bytes in the same capture cycle, and
-that every node of that graph — claims, propositions, references, relations,
-collections — appears exactly once in the captured contract with byte-equal
-canonical content. Contract material the profile did not select and the
-projection did not emit stays permitted. Equality normalization may not merge a
-projected reference with any other captured reference.
-
-The check binds the contract, profile, evaluation-input, admission,
-declaration, certification, vocabulary, projection-result, and opt-in
-identities, and refuses a declared opt-in with no derived graph, a derived graph
-with no declared opt-in, and any pattern kind whose selected contract nodes the
-evaluator does not name. Its failures appear as `assessment_binding` diagnostics
-under `exact_binding.projected_evaluation`, prevent `exact_binding: proven`, and
-are reported on `verification_scope.projected_evaluation_binding`. They are
-never structural or runtime-evidence findings.
+## Evaluator selection trace
 
 Two selection points consume contract claims the pattern results do not name:
 a `complete_population` reference binding, and a `for_each` claim pattern's
@@ -378,17 +367,16 @@ controlled-contract \
 
 Each pack entry independently binds its profile ID and version, requested
 controlled intents, evaluation-input location and digest, admission/profile
-digests, and—when required—its capture root, relative contract and evaluation
-paths, exact source declaration, and exact-binding digests. Plan-level digests
+digests. Plan-level digests
 bind the contract, admitted catalog, vocabulary, profile population, and intent
 artifact. Duplicate identities, conflicting inputs, unknown intents, stale
 digests, and pack/intent mismatches fail closed.
 
 The aggregate result proves profile discrimination only when every selected
-pack proves its own guarantee. Every v2 pack runs its own deterministic exact
-capture. Per-pack guarantees are not collapsed, and all diagnostics, exclusions,
-and missing inputs retain their pack ID/version provenance. Zero packs leaves
-profile discrimination and exact binding `not_assessed`; authority is always
+pack proves its own guarantee. Per-pack guarantees are not collapsed, and all
+diagnostics, exclusions, and missing inputs retain their pack ID/version
+provenance. Zero packs leaves profile discrimination `not_assessed`; authority
+is always
 `non_authoritative`. Delivered runtime behavior is outside the assessment rather
 than an incomplete proof intent or axis.
 
@@ -406,14 +394,12 @@ The multi-pack terminal result is intentionally small:
   "evaluated_pack_count": 1,
   "structure": "proven",
   "profile_discrimination": "proven",
-  "exact_binding": "not_assessed",
   "assessment_scope": "planning",
   "authority": "non_authoritative",
   "per_pack": [{
     "profile_id": "proof.completeness.lossless-projection",
     "profile_version": "1.0.0",
-    "profile_discrimination": "proven",
-    "exact_binding": "not_applicable"
+    "profile_discrimination": "proven"
   }],
   "diagnostic_count": 0,
   "exclusion_count": 0,
@@ -452,13 +438,13 @@ import {
 ```
 
 Vocabulary queries return advisory slices for authoring convenience. Validation
-always uses the complete intrinsic v0.34 vocabulary and its declared algebra.
+always uses the complete intrinsic stable-v1 vocabulary and its declared algebra.
 
 ## Deterministic projection bounds
 
 ### Declared bounded-policy proofs
 
-Two independent exact-binding packs cover different bounded-policy obligations:
+Two independent packs cover different bounded-policy obligations:
 
 - `proof.policy.declared-boundary-record-consistency@1.0.0` checks an exact
   `caller_asserted` observation record against an exact declared policy and
@@ -535,7 +521,7 @@ the captured policy, exact requests, and required source census.
 `proof.observation.sound-negative@1.0.0` implements
 `controlled-proof-intent.sound-negative-observation` with the package-owned
 `sound-negative-observation-capture.v1` transformer and its
-`observation-contract` projection. The pack is exact-binding-only. Its profile
+`observation-contract` projection. Its profile
 contains one conjunctive `all_of` and no `present` or `unavailable` branch.
 
 For one exact captured target, attempt, interval, declared source population,
@@ -594,10 +580,10 @@ proof pack for
 `controlled-proof-intent.deterministic-lexicographic-ordering`. It binds four
 canonical artifacts—the declared input, complete ordered result, closed ordering
 policy, and complete item-key/comparator evidence—to one package-derived
-`deterministic-lexicographic-conformance.v1` report. The exact-binding runner
-derives that report from the captured bytes, repeats the derivation, compares the
-canonical bytes, and projects the declared-item, result-item, and policy-key
-populations from the derived report. The profile accepts no caller-authored
+`deterministic-lexicographic-conformance.v1` report. The package derivation
+derives that report from the four artifacts' bytes, repeats the derivation,
+compares the canonical bytes, and projects the declared-item, result-item, and
+policy-key populations from the derived report. The profile accepts no caller-authored
 resolver facts.
 
 The policy contains at least two keys. Each key declares its extractor, type,
@@ -781,7 +767,7 @@ behaviour, recovery, and operator procedure are in
 
 ## Supported public surface
 
-The published artifact contains the current v0.34 runtime, bounded discovery,
+The published artifact contains the current stable-v1 runtime, bounded discovery,
 selection, authoring, binding-inspection, proof-plan compilation, and assessment
 commands, current schemas, the intrinsic
 vocabulary, and compact admitted packs. Historical carriers, prototype policy
@@ -825,3 +811,145 @@ policy decision, continuation, receipt, persistence owner, coverage classifier,
 generic diff, migration, rollback, or audit API. Repository and MCP behavior is
 documented in
 [`docs/mcp-controlled-contract-operations.md`](../../docs/mcp-controlled-contract-operations.md#generation-bound-controlled-contract-refactoring).
+
+## Current proof definition format and certification (work record)
+
+Proofs are declared during design and consumed after implementation. Definition
+certification checks the adequacy of the reusable definition; it produces no
+implementation evidence. The current definition/input/result schemas are v2.
+They contain no `evaluation_stages`, `required_by_stage`, or `evaluation_stage`.
+Every satisfaction leaf is assessed under its substantive applicability and
+binding semantics. Event ordering, observation intervals, complete populations,
+controlled complements, exclusions and attribution requirements are unchanged.
+There is no default stage, stage rank, inactive-rule credit or stage in a pack
+identity, authoring offer, component selector or verification result.
+
+The seven changed schema contracts are explicitly versioned:
+
+- `controlled-contract-verification-profile.v2`
+- `controlled-contract-proof-pack-authoring.v2`
+- `controlled-contract-proof-verification-result.v3` (saved-source execution)
+- `controlled-contract-obligation-coverage.v3` (authored draft)
+- `resolved-obligation-coverage.v1` (derived saved selections and design diagnostics)
+- `controlled-contract-verification-profile-input.v2`
+- `controlled-contract-component-exclusion-applicability.v2`
+- `controlled-contract-verification-profile-result.v2`
+
+The embedded authoring identity separately advances
+`controlled-contract-proof-pack-selection.v3` and `.v4`.
+
+Stable-v1 JavaScript evaluator names refer to the controlled-acceptance contract
+and vocabulary family; their current proof definition, input and result formats
+are v2. Selector indexes, proof resolutions, and assessment component-applicability
+projections also use v2. No old-format parser or alias is supplied. Exact loading validates the
+current closed definition schema and the exact profile/admission digests.
+Historical directories and their certificates retain their original bytes and
+identities; they are evidence, not a current executable compatibility surface.
+
+The complete current census is 38 identities across 37 profile IDs: all 37
+runtime/certification catalog entries, the intent catalog's 39 edges, and the
+verifier's independently pinned test-validity definition. Exact-consumer reads
+also cover the evaluator registry, authoring skeleton, and the behavioral and
+boundary-record consumers; their selections are already in the catalog
+population. `proof.scope.write-confinement` is deactivated as a selectable
+proof and has no catalog entry or controlled intent; the write-confinement
+evidence verifier names its historical 4.0.0 identity for reference only and
+loads no pack. Test-only execution of the superseded implementation-readiness
+2.0.0 pin is retired; its historical evidence is retained without recertification.
+
+| Definition | Previous version | Current version | Selection owner |
+| --- | --- | --- | --- |
+| `proof.atomicity.failure-boundary` | 2.0.0 | 3.0.0 | catalog |
+| `proof.authentication.direct-source-provenance` | 2.0.0 | 3.0.0 | catalog |
+| `proof.authorization.failed-attempt-nonconsumption` | 2.0.0 | 3.0.0 | catalog |
+| `proof.authorization.refusal-before-effects` | 2.0.0 | 3.0.0 | catalog |
+| `proof.authorization.revocation-propagation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.cancellation.isolation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.compatibility.behavioral-preservation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.completeness.lossless-projection` | 2.0.0 | 3.0.0 | catalog |
+| `proof.concurrency.single-winner-effect` | 2.0.0 | 3.0.0 | catalog |
+| `proof.design.implementation-readiness` | 2.1.0 | 3.0.0 | catalog |
+| `proof.dormancy.nonactivation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.failure.cleanup-noninterference` | 2.0.0 | 3.0.0 | catalog |
+| `proof.failure.retry-convergence` | 2.0.0 | 3.0.0 | catalog |
+| `proof.failure.settlement-and-cleanup` | 2.0.0 | 3.0.0 | catalog |
+| `proof.failure.supplementary-isolation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.idempotency.effect-nonduplication` | 3.0.0 | 4.0.0 | catalog |
+| `proof.input.caller-authority-confinement` | 2.0.0 | 3.0.0 | catalog |
+| `proof.integration.prefix-safety` | 2.0.0 | 3.0.0 | catalog |
+| `proof.lifecycle.bounded-state-stability` | 2.0.0 | 3.0.0 | catalog |
+| `proof.lifecycle.bounded-terminal-stability` | 2.0.0 | 3.0.0 | catalog |
+| `proof.observation.sound-negative` | 2.0.0 | 3.0.0 | catalog |
+| `proof.operation.forbidden-noninvocation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.ordering.lexicographic-conformance` | 2.0.0 | 3.0.0 | catalog |
+| `proof.ordering.visibility-after-durable-settlement` | 2.0.0 | 3.0.0 | catalog |
+| `proof.ownership.exact-isolation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.ownership.fenced-handoff` | 2.0.0 | 3.0.0 | catalog |
+| `proof.pagination.complete-traversal` | 2.0.0 | 3.0.0 | catalog |
+| `proof.pagination.snapshot-consistency` | 2.0.0 | 3.0.0 | catalog |
+| `proof.pagination.versioned-cursor-refusal` | 2.0.0 | 3.0.0 | catalog |
+| `proof.policy.declared-boundary-record-consistency` | 2.0.0 | 3.0.0 | catalog |
+| `proof.policy.declared-limit-propagation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.readiness.before-success` | 2.0.0 | 3.0.0 | catalog |
+| `proof.result-shape.conformance` | 2.0.0 | 3.0.0 | catalog |
+| `proof.result-shape.cross-representation-parity` | 2.0.0 | 3.0.0 | catalog |
+| `proof.scope.write-confinement` | 2.0.0 | 3.0.0 | catalog |
+| `proof.single-use.replay-refusal` | 2.0.0 | 3.0.0 | catalog |
+| `proof.state.bounded-interval-nonmutation` | 2.0.0 | 3.0.0 | catalog |
+| `proof.verification.test-validity` | 2.0.0 | 5.0.0 | catalog |
+| `proof.verification.test-validity` | 4.0.0 | 6.0.0 | exact verifier |
+
+The historical test-validity versions in this cutover table are not supported
+runtime selections. The sole current identity is 8.0.0, with the existing exact
+execution evaluator and certification population (one positive control and nine
+weakenings). Off-catalog evaluator registrations are refused during publication.
+Historical artifact bytes are retained without executable compatibility.
+
+`proof-obligation-runtime-resolver` consumes prepared native bindings and shared
+saved-application resolutions. Its v3 results carry the selected definition,
+resolved node and immutable execution-source binding, with no plan identities.
+The verifier graph owner preserves native mandatory/disagreement semantics and
+join arity. Shared design incompleteness is not runtime evidence or a prerequisite;
+actual required-input and integrity failures prevent execution. The wiki-core
+population resolver and MCP execution/detail/summary consumers use v3 together;
+aggregate and summary remain v1, as do their lossless retrieval semantics.
+
+`test/support/build-admitted-proof-pack-catalog.mjs` remains the publication
+owner. It executes every current generic definition through
+`runProofPackAdequacy(..., { variationMode: "full_census" })` and the one current
+test-validity population through its existing execution certification owner. It never copies a historical passing result as
+current certification. Changed profile, guarantee, adequacy, executable closure,
+negative-fixture and witness bindings are regenerated before admission. The
+result remains `experimental_local`, `authoritative: false`.
+
+The complete work record publication executes 1,633 controls and includes 2,195
+negative fixtures and 4,349 coverage witnesses across all 39 definitions.
+Publication authentication checks the exact runtime/certification profile,
+template and admission bytes, executable dependency closures, result digests,
+and component-applicability companions. Historical identities never enter this
+current executable population.
+
+Stage-only surfaces, mutations and witnesses are removed from the new adequacy
+and negative-corpus formats (experimental v0.2). All unaffected positive,
+mutant, profile-rejection, exclusion and coverage controls remain required.
+Definition versioning does not authorize changes to a substantive guarantee.
+The generator publishes into an empty destination only after all 38 exact
+certifications pass; runtime and certification copies are checked together.
+Validator schema declarations load independently of admitted catalog snapshots,
+so a schema cutover can be certified before its admissions exist.
+
+## Proof obligation drafts
+
+`validateObligationCoverageDraft`, `upsertProofAuthoringSelection`, and
+`removeProofAuthoringSelection` operate on the single v3 authored representation.
+Amendments preserve omitted values; explicit clearing is separate from JSON null.
+Selections automatically bind exact admitted versions and definition digests.
+`resolveProofAuthoring` consumes validated drafts and canonical context, including
+the source owner's `source_digest`; it reports exact parameter, construction and
+dependency facts without provider execution. Complete readers use
+`validateObligationCoverageCarrier` on derived v1 mappings and reject raw drafts
+as requiring resolution. No old-source parser or automatic migration is provided.
+
+Package 1.0.0 and existing implemented-capability bindings remain unchanged by
+this local source cutover. Local packaging checks do not authorize a release or
+republication under an existing release identity.

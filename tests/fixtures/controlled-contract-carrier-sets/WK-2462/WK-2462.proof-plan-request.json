@@ -1,0 +1,13 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.test-verification-validity"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2462.evaluation-input.json",
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "5.0.0"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { buildRetryConvergenceFixture, findClaim, findProposition, ref }
 import { DOMAINS, MUTATIONS, executeRetryConvergence, retryConvergenceGuaranteeSatisfied }
   from "./retry-convergence-v1-harness.mjs";
 const RETRY_CONVERGENCE_V1_PROFILE_DIGEST =
-  "0d4fdedef46d3113bade277bcd630bbe653f942195224805ca415395f9bb4437";
+  "d02af58e4476a861dec78a43e484fd0f22e095f541be604953c23cd217ef4241";
 const RETRY_CONVERGENCE_V1_GUARANTEE_DIGEST =
   "88b5ff9ccadc6a3ede7fc63f49c5ad281d8c6ffc38b68c79b5934a56212f8dce";
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>

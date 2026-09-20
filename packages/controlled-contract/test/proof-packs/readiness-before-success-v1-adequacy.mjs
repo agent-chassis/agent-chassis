@@ -17,7 +17,7 @@ import {
 } from "./readiness-before-success-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "6e93bb14dda10a6b355526cdcd473b3712c73855e477c67cd0a67c5ccda85302";
+  "37b911f302572e3a5382c888dfc01d316afa2c5aa1f8ff90e6368fdf352a0fe0";
 const GUARANTEE_DIGEST =
   "c9482f026f92212d71a5c1674efd1de475659c8957bfc71db33bc1217ac08d58";
 

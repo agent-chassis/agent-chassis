@@ -10,11 +10,16 @@ import {
 } from "./deterministic-projection-primitives.mjs";
 import { validateProjectedContractWithStableCore } from
   "./projected-contract-validation.mjs";
+import {
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "./native-contract-carrier-v1.mjs";
 import { GRAPH_VERSION } from "./projected-contract-graph.mjs";
 
 const TRANSFORMER_ID = "supplementary-isolation-attempt-record.v1";
-const CONTRACT_VERSION = "controlled-acceptance-contract.experimental.v0.2";
-const VOCABULARY_VERSION = "cv.experimental.0.34";
+const CONTRACT_VERSION = SCHEMA_VERSION_V1;
+const VOCABULARY_VERSION = VOCABULARY_VERSION_V1;
 const INPUT_VERSIONS = Object.freeze({
   attempt: "controlled-contract.supplementary-isolation-attempt.v1",
   settlement: "controlled-contract.supplementary-isolation-core-settlement.v1",
@@ -610,7 +615,7 @@ function deriveContract([attempt, settlementCapture, failureCapture, finalCaptur
   const contract = {
     schema_version: CONTRACT_VERSION,
     vocabulary_version: VOCABULARY_VERSION,
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    profile_id: PROFILE_ID_V1,
     references: [...state.references.values()].sort((a, b) =>
       compareCodeUnits(a.reference_id, b.reference_id)),
     propositions: state.propositions.sort((a, b) =>
@@ -664,14 +669,14 @@ function assertResult(value) {
     "annotations", "claims", "collections", "profile_id", "propositions", "references",
     "relations", "residue", "schema_version", "vocabulary_version"
   ]) || value.schema_version !== CONTRACT_VERSION || value.vocabulary_version !== VOCABULARY_VERSION ||
-      value.profile_id !== "acceptance-contract.standard.experimental.v0.2" ||
+      value.profile_id !== PROFILE_ID_V1 ||
       !Array.isArray(value.references) || !Array.isArray(value.propositions) ||
       !Array.isArray(value.claims) || !Array.isArray(value.relations) ||
       !Array.isArray(value.collections) || value.collections.length !== 0 ||
       !Array.isArray(value.residue) || value.residue.length !== 0 ||
       !Array.isArray(value.annotations) || value.annotations.length !== 0) fail(
     "supplementary_isolation_projection_result_invalid",
-    "projection is not a closed v0.2 controlled contract"
+    "projection is not a closed v1 controlled contract"
   );
   const graph = validateProjectedContractWithStableCore(value);
   if (!graph.schema_valid || graph.diagnostics.length !== 0) fail(

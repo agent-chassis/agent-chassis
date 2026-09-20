@@ -252,6 +252,9 @@ export async function buildCodexRolePlan({
   provisioned_worktree_git_identity = null,
   worker_scope_authority = null,
   worktree_provisioning = null,
+  dispatchWorkspaceBinding = null,
+
+  worker_assignment = null,
   sourceToolSurface = null,
   headless = false,
   logFile = null,
@@ -299,7 +302,9 @@ export async function buildCodexRolePlan({
       provisioned_worktree_git_binding,
       provisioned_worktree_git_identity,
       worker_scope_authority,
-      worktree_provisioning
+      worktree_provisioning,
+      dispatchWorkspaceBinding,
+      worker_assignment
     });
     if (
       workerPlan &&
@@ -349,7 +354,8 @@ async function executePlan(plan, io) {
     return;
   }
 
-  if (Array.isArray(plan.preparedNewWriteRoots) && plan.preparedNewWriteRoots.length > 0) {
+  if ((plan.isolation?.worker_scope_authority ?? null) === null &&
+      Array.isArray(plan.preparedNewWriteRoots) && plan.preparedNewWriteRoots.length > 0) {
     await ensureNewWorkerWriteRoots(plan.repo, plan.preparedNewWriteRoots, plan.role);
   }
 

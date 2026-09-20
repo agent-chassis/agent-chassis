@@ -1,0 +1,13 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.cross-representation-parity"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2264.evaluation-input.json",
+      "profile_id": "proof.result-shape.cross-representation-parity",
+      "profile_version": "4.0.0"
+    }
+  ]
+}

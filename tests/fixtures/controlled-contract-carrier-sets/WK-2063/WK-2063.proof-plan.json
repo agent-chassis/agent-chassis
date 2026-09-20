@@ -1,0 +1,33 @@
+{
+  "digests": {
+    "catalog": "9988a22893518fd1457de1ffa5301f82f913db00e4c688f74f0bb9602ba4ba78",
+    "contract": "570d93172441ea5fcfc7422f15a04dec20b1a45aa96a04d46f304363bd527dcc",
+    "intent_artifact": "5e118e13bf801f4e0d5673aa0487e2df4190be4552bbfe89df13e2ee1877aca1",
+    "profiles": "10e9dbcd36dfbddf8e12635b6b1203973b81c487d56874b99eaff9f89c0c5bf5",
+    "vocabulary": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+  },
+  "packs": [
+    {
+      "evaluation_input": {
+        "path": "WK-2063.pack-sha256-a18f2d2fd5ee73191441ab825375b5917787db3bdbd89deae850b76b30972406.evaluation-input.json"
+      },
+      "profile_id": "proof.operation.forbidden-noninvocation",
+      "profile_version": "3.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.forbidden-operation-noninvocation"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "61d393196438be33931984d3d8d6b17065436c2da4be60e321b6d0411441c283",
+        "adequacy_result": "ee615210a8b9a2109b87e5515c2e8e0e8add29e3c36e3575ba5c797666436cf0",
+        "admission": "2f77b8e1f74ee3c9d71b5492aa81f2fc02dd019fbf0b3096c942ec27f14b9d93",
+        "evaluation_input": "c10a3e2d48dc4eea08e9dde533161f51f43a3cdd0ea33971c93d08f4ce90ebf2",
+        "guarantee": "37c6bfcae8528804a5a06d4013d6595e92742ce97e982ef126790662e6acf7df",
+        "profile": "9dc263eec0fc97c79b686119db5594d7389d6391876dac8e924dd6edd8ff169e"
+      }
+    }
+  ],
+  "requested_intents": [
+    "controlled-proof-intent.forbidden-operation-noninvocation"
+  ],
+  "schema_version": "controlled-contract-proof-plan.v1"
+}

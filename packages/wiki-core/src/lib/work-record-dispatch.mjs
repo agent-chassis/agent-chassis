@@ -12,7 +12,6 @@ import {
   getCommittedHeadGraphImpactPaths
 } from "./sidecar-graph-impact.mjs";
 import {
-  rebuildGraphIndexAtHead,
   SidecarGraphIndexUnbuildableError
 } from "./sidecar-graph-impact-artifact.mjs";
 import { projectSelectedUnitGraphBearingPaths } from "./work-record-dispatch-graph-projection.mjs";
@@ -63,7 +62,8 @@ import {
 } from "./work-record-review-attestation.mjs";
 import { evaluateWorkRecordAdmissionDerivedEvidence } from "./work-record-admission.mjs";
 import {
-  readPersistedWorkerAdmissionEvidenceSidecarEntry
+  captureWorkRecordAdmissionEvidence,
+  readCapturedWorkRecordAdmissionEvidence
 } from "./work-record-admission-evidence-sidecar.mjs";
 
 export {
@@ -314,9 +314,21 @@ function boundedGraphImpactFailure(error) {
     kind: "sidecar_graph_index_unbuildable",
     code,
     remediation:
-      "build or fix the repo code index (run `code-index build` / `code-index rebuild`) before requesting graph impact",
+      "correct the reported repository or cache failure and retry; graph impact prepares the committed code index automatically",
     ...(statusReason ? { status_reason: statusReason } : {})
   };
+}
+
+function unavailableDispatchGraphState(failure) {
+  return normalizeDispatchGraphState({
+    graph_available: false,
+    graph_state: "unavailable",
+    overlay_state: "unavailable",
+    staleness: "rebuild_required",
+    status_reason: failure.code,
+    edge_source: "unavailable",
+    dirty_graph_mode: "unavailable"
+  });
 }
 
 async function resolveDispatchGraphState(dir, graphState) {
@@ -349,6 +361,7 @@ const VALIDATE_WORK_RECORD_DISPATCH_OPTION_KEYS = new Set([
   "policy_result",
   "node_engine_admissibility",
   "graph_resolver",
+  "graph_preparation_failure",
   "suppress_live_graph_resolution",
   "now"
 ]);
@@ -437,6 +450,8 @@ export async function validateWorkRecordDispatchById(options = {}) {
     graph_resolver = null,
 
     suppress_live_graph_resolution = false,
+
+    graph_preparation_failure = null,
     now = new Date().toISOString()
   } = assertValidateWorkRecordDispatchOptions(options, "validateWorkRecordDispatchById");
   const graphTestTools = isObject(graph_resolver) ? graph_resolver : null;
@@ -527,37 +542,44 @@ export async function validateWorkRecordDispatchById(options = {}) {
     normalizeSuppliedDirectImportAdjacency(
       isObject(graph_impact) ? graph_impact.graph_import_adjacency : null
     );
+  const capturedGraphPreparationFailure = isObject(graph_preparation_failure)
+    ? graph_preparation_failure
+    : null;
   const callerSuppliedGraphEvidence =
     (graph_state !== null && graph_state !== undefined) ||
-    (graph_impact !== null && graph_impact !== undefined);
+    (graph_impact !== null && graph_impact !== undefined) ||
+    capturedGraphPreparationFailure !== null;
+  const requiresGraphImpact = Boolean(subject?.dispatch_intent?.requires_graph_impact);
+  const graphDependent =
+    requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2;
 
   const suppressInitialLiveGraphResolution =
-    suppress_live_graph_resolution === true &&
-    Boolean(subject?.dispatch_intent?.requires_graph_impact);
-  const requiresGraphImpact = Boolean(subject?.dispatch_intent?.requires_graph_impact);
+    suppress_live_graph_resolution === true && graphDependent;
   const shouldResolveLiveGraph =
     !readOnly &&
     !suppressInitialLiveGraphResolution &&
     subject?.work_kind === "implementation" &&
-    (requiresGraphImpact || graphBearingImplementationWriteScope.length >= 2) &&
+    graphDependent &&
     suppliedAdjacency === null &&
     !callerSuppliedGraphEvidence;
 
   let directImportAdjacency = suppliedAdjacency ?? (
     graphBearingImplementationWriteScope.length <= 1 ? [] : null
   );
-  let graphImpactUnbuildable = false;
   let graphImpactFailure = null;
   let liveGraphState = null;
   let liveGraphImpact = null;
   let resolvedGraphState = null;
 
-  if (suppliedAdjacency !== null || !shouldResolveLiveGraph) {
+  if (capturedGraphPreparationFailure) {
+
+    graphImpactFailure = boundedGraphImpactFailure(capturedGraphPreparationFailure);
+    resolvedGraphState = unavailableDispatchGraphState(graphImpactFailure);
+  } else if (suppliedAdjacency !== null || !shouldResolveLiveGraph) {
 
     resolvedGraphState = (await resolveDispatchGraphState(dir, graph_state)).graphState;
   } else if (recordStore !== null && recordStore?.capabilities?.live_worktree !== true) {
 
-    graphImpactUnbuildable = true;
     resolvedGraphState = (await resolveDispatchGraphState(dir, graph_state)).graphState;
   } else {
     try {
@@ -565,17 +587,16 @@ export async function validateWorkRecordDispatchById(options = {}) {
       let live;
       if (effectiveGraphResolver) {
         live = await effectiveGraphResolver({ targetDir, selectedUnit: parsedUnit.value, subject });
-      } else {
-        const status = await (graphTestTools?.statusReader ?? getSidecarIndexStatus)({
-          dir: targetDir
-        });
-        if (status?.index_action === "rebuild") {
-          await (graphTestTools?.builder ?? rebuildGraphIndexAtHead)({ targetDir });
-        }
-        live = await (graphTestTools?.query ?? getCommittedHeadGraphImpactPaths)({
+      } else if (graphTestTools) {
+
+        live = await (graphTestTools.query ?? getCommittedHeadGraphImpactPaths)({
           dir: targetDir,
           selectedUnit: parsedUnit.value,
           subject
+        });
+      } else {
+        live = await getCommittedHeadGraphImpactPaths({
+          dir: targetDir, selectedUnit: parsedUnit.value, subject
         });
       }
       const committedProjectionMatches =
@@ -596,7 +617,6 @@ export async function validateWorkRecordDispatchById(options = {}) {
           liveGraphState = live.graph_state;
           resolvedGraphState = normalizeDispatchGraphState(live.graph_state);
         } else {
-          graphImpactUnbuildable = true;
           graphImpactFailure = boundedGraphImpactFailure({
             code: live.available === true && !committedProjectionMatches
               ? "selected_unit_projection_mismatch"
@@ -612,8 +632,6 @@ export async function validateWorkRecordDispatchById(options = {}) {
           graphBearingWriteScope
         );
         liveGraphState = selection.graphState;
-      } else {
-        graphImpactUnbuildable = true;
       }
 
       if (!resolvedGraphState) {
@@ -625,15 +643,7 @@ export async function validateWorkRecordDispatchById(options = {}) {
     } catch (error) {
       if (error instanceof SidecarGraphIndexUnbuildableError) {
         graphImpactFailure = boundedGraphImpactFailure(error);
-        resolvedGraphState = normalizeDispatchGraphState({
-          graph_available: false,
-          graph_state: "unavailable",
-          overlay_state: "unavailable",
-          staleness: "rebuild_required",
-          status_reason: graphImpactFailure.code,
-          edge_source: "unavailable",
-          dirty_graph_mode: "unavailable"
-        });
+        resolvedGraphState = unavailableDispatchGraphState(graphImpactFailure);
       } else {
         throw error;
       }
@@ -677,7 +687,6 @@ export async function validateWorkRecordDispatchById(options = {}) {
     directImportAdjacency,
     graphBearingWriteScope,
     graphBearingImplementationWriteScope,
-    graphImpactUnbuildable,
     graphImpactFailure,
     liveGraphState,
     admissionRecovery,
@@ -813,11 +822,15 @@ export async function revalidateWorkRecordDispatchPrivateHandoffById(options = {
 
   let evaluatedEvidence;
   try {
-    evaluatedEvidence =
-      (await readPersistedWorkerAdmissionEvidenceSidecarEntry({
+
+    evaluatedEvidence = readCapturedWorkRecordAdmissionEvidence(
+      await captureWorkRecordAdmissionEvidence({
         dir,
-        entry: classified.entry
-      })) ?? classified.entry;
+        entry: classified.entry,
+        expectedAuthoredSourceDigest: private_handoff.authored_source_digest,
+        recordStore
+      })
+    ) ?? classified.entry;
     evaluateWorkRecordAdmissionDerivedEvidence(evaluatedEvidence);
   } catch (error) {
 

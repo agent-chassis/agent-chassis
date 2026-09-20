@@ -84,7 +84,7 @@ export function sidecarBindsToPersistedEntry(sidecar, entry) {
   );
 }
 
-export async function readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry }) {
+export async function readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry, readBytes = readFile }) {
 
   if (!isObject(entry)) {
     return null;
@@ -119,7 +119,7 @@ export async function readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, en
 
   let rawBytes;
   try {
-    rawBytes = await readFile(path.resolve(dir, sidecarPath));
+    rawBytes = await readBytes(path.resolve(dir, sidecarPath));
   } catch (error) {
     throw new WorkerAdmissionSidecarError(
       "sidecar_read_failed",
@@ -164,9 +164,148 @@ export async function readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, en
   return cloneJson(sidecar);
 }
 
-export async function readPersistedWorkerAdmissionEvidenceSidecar({ dir, record, selectedUnit, sourceDigest }) {
-  const persistedEntry = findPersistedWorkerAdmissionEvidenceEntry(record, selectedUnit, sourceDigest);
-  return readPersistedWorkerAdmissionEvidenceSidecarEntry({ dir, entry: persistedEntry });
+export const ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE = "admission_evidence_snapshot_changed";
+
+export class AdmissionEvidenceSnapshotChangedError extends Error {
+  constructor(message, details = {}) {
+    super(message);
+    this.name = "AdmissionEvidenceSnapshotChangedError";
+    this.code = ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE;
+    this.details = details;
+  }
+}
+
+export function isAdmissionEvidenceSnapshotChangedError(error) {
+  return error?.code === ADMISSION_EVIDENCE_SNAPSHOT_CHANGED_CODE;
+}
+
+const ADMISSION_EVIDENCE_CAPTURES = new WeakMap();
+
+function selectedEntryIdentity(entry) {
+  return {
+    record_id: entry?.record_id ?? null,
+    unit: cloneJson(entry?.unit ?? null),
+    source_record_digest: entry?.source_record_digest ?? null,
+    sidecar_path: entry?.sidecar_path ?? null,
+    sidecar_digest: entry?.sidecar_digest ?? null
+  };
+}
+
+function matchesSelectedEntryIdentity(candidate, expected) {
+  return (
+    isObject(candidate) &&
+    candidate.schema_version === expected.schema_version &&
+    candidate.decision_kind === expected.decision_kind &&
+    candidate.record_id === expected.record_id &&
+    candidate.source_record_digest === expected.source_record_digest &&
+    candidate.sidecar_path === expected.sidecar_path &&
+    candidate.sidecar_digest === expected.sidecar_digest &&
+    !isObject(candidate.normalized_request) &&
+    unitsMatch(candidate.unit, expected.unit)
+  );
+}
+
+function snapshotChanged(message, entry, extra = {}) {
+  return new AdmissionEvidenceSnapshotChangedError(message, {
+    expected: selectedEntryIdentity(entry),
+    ...extra
+  });
+}
+
+function registerCapture(entry, evidence) {
+  const capture = Object.freeze({
+    ...selectedEntryIdentity(entry),
+    evidence_present: evidence !== null
+  });
+  ADMISSION_EVIDENCE_CAPTURES.set(capture, evidence === null ? null : cloneJson(evidence));
+  return capture;
+}
+
+export async function captureWorkRecordAdmissionEvidence({
+  dir = ".",
+  entry,
+  expectedAuthoredSourceDigest = null,
+  recordStore = null,
+  readBytes = readFile
+} = {}) {
+  if (!isObject(entry)) return null;
+
+  if (isObject(entry.normalized_request)) return registerCapture(entry, entry);
+  if ((entry.sidecar_path === null || entry.sidecar_path === undefined) &&
+      (entry.sidecar_digest === null || entry.sidecar_digest === undefined)) {
+    return null;
+  }
+  const recordId = normalizeStringEntry(entry.record_id);
+  if (!recordId) {
+    throw new WorkerAdmissionSidecarError(
+      "sidecar_reference_malformed",
+      "compact persisted derived-evidence entry references a sidecar without a record_id",
+      selectedEntryIdentity(entry)
+    );
+  }
+  const { withCanonicalWorkRecordReadLease } = await import("../operations/work-records-store-io.mjs");
+  try {
+    return await withCanonicalWorkRecordReadLease({
+      dir,
+      id: recordId,
+      recordStore,
+      requireValidRecord: false
+    }, async ({ record, source_digest: authoredSourceDigest }) => {
+      if (expectedAuthoredSourceDigest !== null && authoredSourceDigest !== expectedAuthoredSourceDigest) {
+        throw snapshotChanged(
+          "canonical authored source changed after the admission evidence was selected",
+          entry,
+          { expected_authored_source_digest: expectedAuthoredSourceDigest }
+        );
+      }
+      const entries = Array.isArray(record.derived_evidence) ? record.derived_evidence : [];
+      const current = entries.find((candidate) => matchesSelectedEntryIdentity(candidate, entry));
+      if (!current) {
+        throw snapshotChanged(
+          "selected admission evidence entry is no longer present in the canonical record",
+          entry
+        );
+      }
+      const evidence = await readPersistedWorkerAdmissionEvidenceSidecarEntry({
+        dir,
+        entry: current,
+        readBytes
+      });
+      return registerCapture(current, evidence);
+    });
+  } catch (error) {
+    if (error?.code === "canonical_work_record_read_lease_source_invalid") {
+      throw snapshotChanged("canonical record for the selected admission evidence is unavailable", entry);
+    }
+    throw error;
+  }
+}
+
+export async function captureSelectedWorkRecordAdmissionEvidence({
+  dir = ".",
+  record,
+  selectedUnit,
+  sourceDigest,
+  expectedAuthoredSourceDigest = null,
+  recordStore = null
+} = {}) {
+  return captureWorkRecordAdmissionEvidence({
+    dir,
+    entry: findPersistedWorkerAdmissionEvidenceEntry(record, selectedUnit, sourceDigest),
+    expectedAuthoredSourceDigest,
+    recordStore
+  });
+}
+
+export function readCapturedWorkRecordAdmissionEvidence(capture) {
+  if (capture === null || capture === undefined) return null;
+  if (typeof capture !== "object" || !ADMISSION_EVIDENCE_CAPTURES.has(capture)) {
+    const error = new Error("admission evidence capture is missing or forged");
+    error.code = "admission_evidence_capture_invalid";
+    throw error;
+  }
+  const evidence = ADMISSION_EVIDENCE_CAPTURES.get(capture);
+  return evidence === null ? null : cloneJson(evidence);
 }
 
 export function attachPersistedReviewAttestations(derivedEvidence, persistedEvidence) {

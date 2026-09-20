@@ -1,0 +1,705 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2063",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "Bound committed-slice recovery and same-slice marker scans to the fixed WK fork",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "status": "cancelled",
+  "priority": "medium",
+  "owner": "unassigned",
+  "created": "2026-08-14",
+  "updated": "2026-08-25",
+  "read_scope": [
+    "AGENTS.md",
+    "wiki/work-records/WK-2063.json",
+    "wiki/work-records/WK-1824.json",
+    "wiki/work-records/WK-1713.json",
+    "wiki/work-records/WK-1795.json",
+    "wiki/decisions/DEC-0154.md",
+    "wiki/decisions/DEC-0164.md",
+    "wiki/decisions/DEC-0169.md",
+    "docs/mcp-dispatch-runtime-contract.md",
+    "docs/mcp-dispatch-slice-integration.md",
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+    "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+    "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+    "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+    "tests/integration/slice-integration-delivery.test.mjs",
+    "tests/integration/slice-integration-zero-delta-recovery.test.mjs",
+    "tests/integration/committed-slice-review-integration.test.mjs"
+  ],
+  "repo_paths": [
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+    "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+    "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+    "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+    "tests/slice-integration-delivery.test.mjs",
+    "tests/slice-integration-zero-delta-recovery.test.mjs",
+    "tests/slice-integration-final-slice-marker-bound.test.mjs",
+    "tests/slice-integration-corrective-delivery.test.mjs",
+    "tests/slice-integration-lifecycle.test.mjs",
+    "tests/committed-slice-review-integration.test.mjs",
+    "tests/workspace-agent-integration-continuation-process-boundary.test.mjs",
+    "tests/helpers/launcher-wk-fork-ref.mjs",
+    "tests/helpers/slice-integration-fixture.mjs",
+    "tests/helpers/committed-slice-review-fixture.mjs",
+    "tests/helpers/committed-slice-review-lifecycle-fixture.mjs",
+    "docs/mcp-dispatch-runtime-contract.md",
+    "docs/mcp-dispatch-slice-integration.md"
+  ],
+  "write_scope": [],
+  "depends_on": [
+    "WK-2071"
+  ],
+  "blocks": [],
+  "related": [
+    "WK-1713",
+    "WK-1795",
+    "WK-1824",
+    "WK-2071",
+    "WK-2213"
+  ],
+  "dispatch_intent": {
+    "intended_agent_role": null,
+    "target_unit": "none",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "Committed-slice integration must not inspect commits before the launcher-owned fixed WK fork when answering the pre-admission zero-delta recovery question or authenticating same-slice marker history for advanceSliceRefCas. Cost must be O(commits since the fixed fork plus relevant marker candidates), independent of total repository history.",
+      "The fixed lifecycle floor is the exact direct commit at refs/agent-launch/wk-forks/<IN>/<WK>, derived only from validated canonical initiative/WK identity. Current main, merge-base, caller input, prompt, environment, record prose/status, reviewer output, and arbitrary reachability carry no floor authority.",
+      "Bounding must preserve exact zero-delta evidence cardinality and binding semantics, exact-current corrective-delivery marker matching, literal parent/object/message authentication, current-tip versus historical evidence distinctions, expected-old ref CAS behavior, record-CAS retry behavior, and all existing fail-closed outcomes.",
+      "No history proof or cache may cross a ref movement, record-CAS retry, or other observation boundary that invalidates its exact WK-tip/fork binding. The design must state whether and how one bounded authenticated post-fork observation can serve both recovery and fresh integration without weakening re-observation requirements.",
+      "Disposition requests that are structurally invalid or cannot match retained exact-target findings must be rejected before avoidable expensive history traversal, while exact-target evidence matching remains server-derived and cannot be selected by caller-carried authority.",
+      "The generic MCP oversized-response spill and integration-result evidence projection are out of scope for this WK; this WK owns the two whole-history integration scans only.",
+      "Before implementation dispatch, author and mechanically assess the controlled acceptance contract, map every operative obligation and named validation scenario to its implementation mechanism and proof coverage, and complete the required DRY-violation review. Preserve any unresolved authority or reuse question as a blocker rather than guessing."
+    ],
+    "validation": [
+      "Real-Git regression with at least 500 pre-fork commits and representative post-fork ordinary, corrective, and zero-delta integration commits; instrument subprocess/object reads and prove neither target path reads a pre-fork commit.",
+      "Reproduce a valid non-final workspace_integrate_committed_slice success and an invalid-disposition refusal. Prove cost is independent of pre-fork history size, invalid disposition avoids the unnecessary history scans, and the successful path does not perform two independent full-root walks.",
+      "Exercise zero, one, and multiple exact zero-delta matches; current-tip and historical evidence; singular and plural same-slice corrective markers; malformed claims; wrong delivery/base/WK-parent; merge paths; cycles; missing objects; bound exhaustion; fork absence/movement/deletion; and concurrent WK-ref and record-CAS races.",
+      "Use semantic mutants restoring full-root rev-list recovery, full-root literalReachable marker authentication, stale proof reuse across a CAS retry, moving-main/merge-base floor authority, and caller-selected authority. Each mutant must be killed by the focused regression.",
+      "Run focused slice-integration authorization, delivery, zero-delta recovery, lifecycle, committed-slice integration, and process-boundary suites; node --check for changed modules; git diff --check; workspace_docs_policy_validate; and workspace_work_record_validate WK-2063."
+    ]
+  },
+  "sections": {
+    "summary": "",
+    "why_it_matters": "",
+    "scope": {
+      "items": [],
+      "out_of_scope": []
+    },
+    "tasks": [],
+    "references": [],
+    "agent_notes": "",
+    "closure": {
+      "summary": "Cancelled as superseded by WK-2213. No WK-2063 implementation slice was dispatched or integrated. Its design history predates the current lifecycle: it has no DEC-violation review, and its single design redteam reviewed a one-slice implementation design before that design was replaced by five implementation slices. Historical DRY, redteam, and blueteam results remain evidence only and do not authorize the successor.",
+      "validation": [
+        "Read-only canonical inspection confirmed WK-2063 was valid and unchanged before this transition, with three completed design/review slices and five blocked implementation slices.",
+        "Targeted inspection of the declared implementation paths confirmed the named whole-history seams still exist; no product, runtime, or test file was modified.",
+        "The fresh repo code index was supplementary and based on Git tree 7e2a3c67239e9785ae29908cbb29d0d76c6cf782; the broader working tree was dirty and was not treated as canonical authority.",
+        "Accepted pre-existing closeout-lint blocker: workspace_lint_repo reported 6/6 errors outside WK-2063 — wiki/.wiki-contract.json contractVersion 0.2.0 versus expected 0.3.0; missing related identities in DEC-0122 and twice in DEC-0133; missing supersedes targets DEC-0121 and DEC-0148 in DEC-0178; and missing read_scope target tests/committed-slice-review-fixture-lifecycle-seam.test.mjs in WK-2185. WK-2063 does not own those repairs."
+      ],
+      "follow_ups": [
+        "WK-2213 owns a fresh current-code design draft, the required one-pass DRY-violation and DEC-violation reviews, controlled-contract authoring, risk-driven design redteam decision, and any independently executable implementation slice graph.",
+        "Re-evaluate the fixed-fork history problem against current code and durable decisions; do not copy WK-2063 mechanisms or proof assumptions without revalidation.",
+        "Repair the six repository-wide lint errors under their owning work rather than reopening WK-2063."
+      ]
+    }
+  },
+  "children": [],
+  "slices": [
+    {
+      "id": "SLICE-001",
+      "title": "DRY review of the first WK-2063 controlled design draft",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/work-records/WK-1713.json",
+        "wiki/work-records/WK-1795.json",
+        "wiki/work-records/WK-1824.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "wiki/contracts/WK-2063.evaluation-input.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs"
+      ],
+      "repo_paths": [
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "wiki/contracts/WK-2063.evaluation-input.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Perform exactly one findings-only DRY review of the first WK-2063 controlled design draft. Inspect only duplication that the proposed implementation would build in; do not assess general correctness, expand objectives, redesign the proof plan, implement changes, or modify any file.",
+          "Check whether the draft assigns one owner for the fixed-fork lifecycle walk, fork resolution, literal commit authentication, zero-delta classification, same-slice marker classification, observation invalidation, and invalid-disposition ordering. Treat reuse of WK-1824's boundedWkLifecycleRegion and resolveFixedWkForkCommit as the expected baseline.",
+          "For each finding, identify the exact duplicated contract claim or planned mechanism, the existing single owner that should remain, and the copy that should be deleted. Do not accept 'keep both synchronized' as remediation.",
+          "Return no findings when the contract references the same owner from multiple call paths without duplicating implementation or normative ownership."
+        ],
+        "validation": [
+          "Inspect the complete controlled contract and its annotations, then trace only the named code symbols necessary to distinguish shared use from duplicate ownership.",
+          "Return a bounded findings-only result with exact claim/reference IDs and source symbols for every finding, or an explicit no-findings result."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": 0,
+      "review_purpose": "standalone",
+      "sections": {
+        "closure": {
+          "summary": "Completed the single bounded DRY review in run wkdb_a2435c38f8a9ce20. Accepted DRY-001 by making boundedWkLifecycleRegion the single producer of distinct recovery and fresh bounded observations; accepted DRY-002 by making resolveSliceMarkerEvidence the sole bounded marker classifier and retiring boundedSiblingMarkerEvidence; accepted DRY-004 by making the authorization literal commit parser/reader the shared owner and retiring the delivery copy. Rejected DRY-003 as out of scope: legacy full-history compatibility callers remain, while advanceSliceRefCas is explicitly forbidden from using literalReachable. Per lifecycle policy, this DRY review receives no blueteam. Accepted closeout blocker: repository lint is red on eight existing canonical-reference errors unrelated to this review-only slice; the exact failures are recorded in validation and are not being repaired under this slice.",
+          "validation": [
+            "Managed reviewer run wkdb_a2435c38f8a9ce20 completed successfully with four bounded DRY findings and no file modifications.",
+            "Patched wiki/contracts/WK-2063.controlled-acceptance.json through the typed carrier route; package validation returned valid at digest sha256:741ef10e774825a7a84df9a7211e39b89ddbde24cc01c5f55a44b0c190f40c97.",
+            "Controlled assessment remains recoverable-incomplete only because the required proof-plan request and exact-capture artifacts are absent; reason code controlled_contract_proof_plan_request_missing.",
+            "Closeout lint failed with 8 errors: DEC-0122 one missing_related_id; DEC-0133 two missing_related_id; DEC-0178 one missing_supersedes_target for DEC-0121,DEC-0148; WK-2044 three missing read_scope targets; WK-2063 one missing read_scope target tests/slice-integration-authorization.test.mjs. These predate and are outside the empty-write-scope DRY review."
+          ],
+          "follow_ups": [
+            "Resolve the unsupported integration-prefix exact-capture/census authoring route before any design redteam or implementation dispatch.",
+            "Keep WK-2063 implementation limited to the two integration scans and the accepted in-path deduplication; do not migrate unrelated legacy full-history callers.",
+            "Repair or separately disposition the eight repository-wide lint errors; do not expand this closed review slice to own them."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-002",
+      "title": "Prepare the marker-bound mutant test for single-owner retirement",
+      "work_kind": "implementation",
+      "status": "blocked",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [
+        "SLICE-001"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/work-records/WK-1824.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs"
+      ],
+      "write_scope": [
+        "tests/slice-integration-final-slice-marker-bound.test.mjs"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": true,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Prepare only the existing WK-1824 marker-bound mutant suite for the already-dispositioned retirement of boundedSiblingMarkerEvidence. Replace literal source anchors tied to that soon-to-be-retired duplicate with anchors and mutations against the retained boundedWkLifecycleRegion and resolveSliceMarkerEvidence ownership seams.",
+          "Preserve the suite's current semantic strength: it must still kill unbounded/root-reaching traversal, wrong fixed-floor handling, and marker evidence that bypasses the retained resolver. Do not make assertions accept either behavior, skip a mutant, duplicate production logic in the test, rename unrelated tests, or edit product code.",
+          "The updated suite must pass against the current pre-retirement implementation and remain structurally capable of passing after SLICE-005 removes the duplicate owner; this is a test-contract preparation slice only."
+        ],
+        "validation": [
+          "Run node --test tests/slice-integration-final-slice-marker-bound.test.mjs.",
+          "Run git diff --check; confirm the only changed path is tests/slice-integration-final-slice-marker-bound.test.mjs; and report the exact retained mutation anchors and old boundedSiblingMarkerEvidence anchors removed."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "tests/slice-integration-final-slice-marker-bound.test.mjs",
+          "name": "WK-1824 marker-bound mutation anchors and assertions",
+          "kind": "test_case",
+          "operation": "modify"
+        }
+      ],
+      "expected_changed_line_budget": 80,
+      "sections": {
+        "agent_notes": "Atomicity decomposition step 1/5. This slice changes no runtime behavior and exists only so the subsequent authorization slice can retire the duplicate marker classifier without making the persistent WK ref fail its existing mutant suite.\n\nMULTI-PREFIX PROOF BLOCKER (2026-08-15). The split makes controlled-proof-intent.integration-prefix-safety applicable alongside forbidden-operation-noninvocation. Pack selection is unambiguous: proof.integration.prefix-safety@1.0.0 plus proof.operation.forbidden-noninvocation@1.0.0. Binding inspection against the existing root evaluation input is invalid with 9 incompatible reference roles; that input is stale (case_count=5 and old path-shaped prefix cases). The exact prefix pack requires package-generated exact DAG, integration-unit, execution-path, prefix-census, and capture-root sources. The available structured surface can patch the contract/evaluation-input/proof-plan request but exposes no supported generator or create route for those exact-capture source artifacts. Do not hand-author runnable wiki artifacts or fall back to the package CLI. No implementation dispatch is authorized until a supported structured generator exists or the operator explicitly dispositions this proof gap."
+      }
+    },
+    {
+      "id": "SLICE-003",
+      "title": "Design redteam of the fixed-fork bounded integration-history contract",
+      "work_kind": "redteam",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [
+        "SLICE-001"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "wiki/contracts/WK-2063.proof-plan-request.json",
+        "wiki/contracts/WK-2063.proof-plan.json",
+        "wiki/contracts/WK-2063.pack-sha256-cf0c29c136f0a7b54fb7c75116fae5473a259592f04a2679d95491a3c524ac4a.evaluation-input.json",
+        "wiki/work-records/WK-1713.json",
+        "wiki/work-records/WK-1795.json",
+        "wiki/work-records/WK-1824.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-corrective-delivery.test.mjs",
+        "tests/committed-slice-review-integration.test.mjs"
+      ],
+      "repo_paths": [
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "wiki/contracts/WK-2063.proof-plan-request.json",
+        "wiki/contracts/WK-2063.proof-plan.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-corrective-delivery.test.mjs",
+        "tests/committed-slice-review-integration.test.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "redteam",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Perform WK-2063's single findings-only design redteam against controlled contract digest sha256:d8dbbc6d2a677bf7c8f714c0690d606fe4d5aab41fb844699491600678b3aab3, proof-plan digest sha256:02e7037a319e384d89d6aaefab3a1c97c28db121a389e7aa1eb17b7af7aee0e3, and the complete current slice graph containing implementation unit WK-2063#SLICE-002. Modify nothing.",
+          "Challenge only residual semantic risks that the proven forbidden-operation pack does not establish: exact fixed-fork authority and authentication; completeness of the post-fork observation; separate recovery versus fresh observation occurrences; single-observation reuse inside one advance attempt; invalidation on WK/fork movement and both CAS retries; disposition refusal before history work; and preservation of zero-delta and corrective-marker fail-closed semantics.",
+          "Try to find a concrete execution where either target path still reads a pre-fork commit, performs two independent root-equivalent walks, reuses stale evidence, accepts caller/main/merge-base floor authority, validates a disposition from caller-selected evidence, or weakens current exact marker/zero-delta/CAS behavior.",
+          "Check that the one implementation slice is independently executable and does not silently expand into generic response projection, backend-provisioning-state callers, unrelated literalReachable compatibility users, docs, schemas, or broader lifecycle refactors.",
+          "Do not request exact-capture integration-prefix artifacts: the one-unit design deliberately selects controlled-proof-intent.forbidden-operation-noninvocation, whose assessed profile discrimination is proven and exact binding is not applicable. Do not redesign proof selection unless you demonstrate a concrete semantic mismatch with that intent's guarantee."
+        ],
+        "validation": [
+          "Return findings ordered by severity with exact controlled claim/reference IDs, source symbol paths, and a concrete failing trace or omitted scenario; otherwise return an explicit no-findings result.",
+          "Confirm the reviewed contract digest, proof-plan digest, WK source digest, and implementation slice identity in the result.",
+          "Make no file, record, carrier, ref, worktree, cache, generated-view, runtime, or lifecycle mutation."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": 0,
+      "sections": {
+        "closure": {
+          "summary": "Completed WK-2063's single design redteam in managed run wkdb_d4479ffaf12a6d2b (monitor wkmh_c8080fe707dac18f031866af). The valid structured result reported eight findings: RT-001 critical/blocking; RT-002 and RT-003 high/blocking; RT-004 through RT-006 medium/nonblocking; RT-007 and RT-008 low/nonblocking. Single blueteam run wkdb_730fc892edee7d05 retained RT-001, RT-004, RT-008; narrowed RT-002, RT-003, RT-005, RT-006; and rejected RT-007. Coordinator disposition accepts the seven surviving bounded corrections and rejects RT-007 as unreproducible. No second design redteam or blueteam is authorized.",
+          "validation": [
+            "Redteam run exited 0 with structured_role_result.valid=true, reported_outcome=changes_requested, total findings=8, blocking=3.",
+            "The redteam confirmed controlled contract digest sha256:d8dbbc6d2a677bf7c8f714c0690d606fe4d5aab41fb844699491600678b3aab3 and proof-plan digest sha256:02e7037a319e384d89d6aaefab3a1c97c28db121a389e7aa1eb17b7af7aee0e3.",
+            "Blueteam result was captured in full but its bounded structured projection was invalid solely on summary_oversized; its exact per-finding dispositions are recorded on SLICE-004 and in the updated implementation contract.",
+            "Controlled contract remediation was persisted at sha256:b133b010ad6e0f95d43ee32f4985afdedeac6eb7bb5c47ea7f5f40e208f233d6; SLICE-002 was narrowed to the accepted correction boundary."
+          ],
+          "follow_ups": [
+            "Rebuild and reassess the existing proof plan against the remediated contract.",
+            "Refresh SLICE-002 admission evidence, then dispatch implementation only if readiness remains green."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-004",
+      "title": "Blueteam the WK-2063 design-redteam findings",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "the project documentation",
+        "wiki/work-records/WK-2063.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "wiki/contracts/WK-2063.proof-plan-request.json",
+        "wiki/contracts/WK-2063.proof-plan.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/slice-integration-corrective-delivery.test.mjs",
+        "tests/committed-slice-review-integration.test.mjs"
+      ],
+      "repo_paths": [
+        "wiki/work-records/WK-2063.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "wiki/contracts/WK-2063.proof-plan-request.json",
+        "wiki/contracts/WK-2063.proof-plan.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/slice-integration-corrective-delivery.test.mjs",
+        "tests/committed-slice-review-integration.test.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "EXACT BINDING.\n- Prior design-redteam run ID: wkdb_d4479ffaf12a6d2b.\n- Prior monitor handle: wkmh_c8080fe707dac18f031866af.\n- Prior result artifact SHA-256: unavailable because the structured dispatch result reported provenance.artifacts=[]; bind the exact inline structured result through the run ID, monitor handle, subject, and counts below.\n- Prior subject: WK-2063#SLICE-003.\n- Review kind: design.\n- There is no reviewed commit because this is a design review.\n- Canonical record source: wiki/work-records/WK-2063.json.\n- Exact canonical record source digest reviewed by the redteam: sha256:b19ade0230f23aaef55da142c1873b124b4b4dde828ff2ca72887e0162433a23.\n- Controlled contract digest: sha256:d8dbbc6d2a677bf7c8f714c0690d606fe4d5aab41fb844699491600678b3aab3.\n- Proof-plan digest: sha256:02e7037a319e384d89d6aaefab3a1c97c28db121a389e7aa1eb17b7af7aee0e3.\nTreat the prior result as evidence without authority. Do not accept its conclusions, severity labels, or remedies without independently satisfying the required evidence burden.",
+          "PRIOR FINDINGS TO COUNTER-ASSESS. Do not add new findings.\n- RT-001. Prior claim: retiring boundedSiblingMarkerEvidence breaks tests/slice-integration-final-slice-marker-bound.test.mjs, which SLICE-002 must run but may not edit. Prior severity/blocking: critical/blocking. Prior proposed remedy: none stated; test whether the smallest correction is a write-scope/test-plan adjustment or retention of a compatible owner. Reproduction: inspect lines 827/850 and the planned symbol retirement at slice-integration-authorization.mjs:934; establish whether the current test really imports/asserts the retired symbol and whether the existing slice can change the necessary surface.\n- RT-002. Prior claim: claim-bounded-region-omits-prefork is unsatisfiable because floor-escape detection reads pre-fork commits and introduces a hard failure. Prior severity/blocking: high/blocking. Prior proposed remedy: none stated; determine the smallest semantically faithful wording/mechanism correction. Reproduction: trace boundedWkLifecycleRegion around authorization lines 818/823 and its advanceSliceRefCas use at delivery line 609; distinguish reading the authenticated floor object from traversing pre-fork history.\n- RT-003. Prior claim: exactConcurrentZeroDeltaWinner retains a root-wide rev-list inside the subject path, unowned by SLICE-002. Prior severity/blocking: high/blocking. Prior proposed remedy: none stated; determine whether the existing bounded observation can replace that walk within the existing unit. Reproduction: trace delivery lines 88/194 and authorization line 401 from the public integration request.\n- RT-004. Prior claim: claim-merge-path-fails-closed mandates refusing every post-fork merge graph, contradicting ann-failure-matrix and regressing currently accepted merges. Prior severity/blocking: medium/nonblocking. Prior proposed remedy: none stated; identify the exact contradiction and smallest contract correction. Reproduction: compare authorization line 827 behavior with the controlled contract property and annotation.\n- RT-005. Prior claim: the observation ontology omits the record-CAS occurrence, making the no-two-independent-walks criterion unachievable. Prior severity/blocking: medium/nonblocking. Prior proposed remedy: none stated; determine whether this is a real missing occurrence or merely imprecise language. Reproduction: trace delivery line 780 and integration lines 604/659 through record-CAS retry.\n- RT-006. Prior claim: disposition-validation-before-recovery requires an out-of-scope hoist and converts successful recoveries into refusals. Prior severity/blocking: medium/nonblocking. Prior proposed remedy: none stated; determine whether the criterion can be met at an existing seam without behavioral expansion. Reproduction: trace backend-integration lines 405/423/461/482 for invalid versus recoverable requests.\n- RT-007. Prior claim: required verification suites are absent from SLICE-002 validation and one read_scope path does not exist. Prior severity/blocking: low/nonblocking. Prior proposed remedy: none stated; identify exact missing commands/path and the smallest contract-only correction. Reproduction: inspect current WK read_scope and validation entries and stat only the named paths.\n- RT-008. Prior claim: SLICE-002 admission evidence was derived from a superseded record version. Prior severity/blocking: low/nonblocking. Prior proposed remedy: refresh readiness evidence after contract disposition. Reproduction: compare the evidence source digest with the exact current/dispatch-bound record digests and determine whether it gates design convergence.",
+          "FIXED MISSION AND EVIDENCE BURDEN. Counter-assess exactly RT-001 through RT-008. Re-derive every claim from the bound canonical contracts, source, and bounded tests or reproductions. Perform scope control, not a second open-ended redteam. Make no edits and implement nothing. For every finding assign exactly KEEP, NARROW, or REJECT. A finding survives only with concrete reproduced behavior at the owning/public boundary, real reachability, the exact existing contract violated, a causal source/execution mechanism, and proportionate severity/blocking. Theory, best practice, hardening opportunities, or new objectives are insufficient. Do not expand the reviewed contract, propose new WKs/slices, introduce frameworks/abstractions/dependencies/policy changes, implement anything, or blueteam this blueteam. Outside-contract observations are non-gating and excluded from remediation."
+        ],
+        "validation": [
+          "REQUIRED OUTPUT. For each RT-001 through RT-008 report: finding ID; KEEP/NARROW/REJECT; reproduction evidence; real reachability; existing contract anchor; exact surviving defect or none; smallest sufficient correction; scope explicitly removed; and whether it blocks. Conclude with retained findings, retired findings and why, smallest combined remediation boundary, exact allowed paths and expected scale when supported, explicit rejected expansions, whether WK-2063#SLICE-002 can absorb the correction or remains blocked, any required operator decision separated from findings, and the exact statement: The blueteam changed nothing.",
+          "Confirm the bound prior run identity, subject, controlled-contract digest, proof-plan digest, and canonical record source digest before counter-assessment.",
+          "Make no file, record, carrier, ref, worktree, cache, generated-view, runtime, or lifecycle mutation."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": 0,
+      "review_purpose": "standalone",
+      "sections": {
+        "closure": {
+          "summary": "Completed the single bounded blueteam challenge of design-redteam run wkdb_d4479ffaf12a6d2b in reviewer run wkdb_730fc892edee7d05 (monitor wkmh_173105e6640d100cbd307072). Dispositions: KEEP RT-001, RT-004, RT-008; NARROW RT-002, RT-003, RT-005, RT-006; REJECT RT-007. The reviewer changed nothing. Coordinator accepted exactly the surviving two-file contract boundary and rejected all proposed expansions.",
+          "validation": [
+            "Reviewer run exited 0 and returned all eight required per-finding dispositions plus a consolidated remediation boundary.",
+            "The full result was captured (16,854 bytes). structured_role_result.valid=false only because the summary exceeded the bounded diagnostic field; diagnostic summary_oversized. No finding content was missing.",
+            "workspace_record_review_result_evidence could not persist a dedicated evidence object because the lifecycle-required brief binding is not represented as a durable relationship field; decision review_result_evidence.wrong_unit.v1. The exact run/monitor binding and dispositions are therefore recorded in this canonical closure and SLICE-003 closure.",
+            "Accepted remediation changes only wiki/contracts/WK-2063.controlled-acceptance.json and the WK-2063 SLICE-002 contract; no implementation, policy, dependency, framework, or new lifecycle was added."
+          ],
+          "follow_ups": [
+            "Do not blueteam this blueteam or dispatch another design redteam.",
+            "Mechanically reconverge the proof plan and assessment before implementation dispatch."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-005",
+      "title": "Build the fixed-fork authenticated observation core",
+      "work_kind": "implementation",
+      "status": "blocked",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [
+        "SLICE-002"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/work-records/WK-1713.json",
+        "wiki/work-records/WK-1795.json",
+        "wiki/work-records/WK-1824.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/helpers/launcher-wk-fork-ref.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/helpers/launcher-wk-fork-ref.mjs"
+      ],
+      "write_scope": [
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "tests/slice-integration-bounded-history.test.mjs"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": true,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Make boundedWkLifecycleRegion the single authorization-side producer of literal-authenticated observations between an exact WK tip and the launcher-owned fixed fork. For well-formed regions, read every relevant post-fork commit and no pre-fork commit; resolve the floor only through the canonical fixed-fork resolver and reject absent, moved, deleted, cyclic, missing-object, bound-exhausted, wrong-binding, malformed, or escaping histories fail-closed.",
+          "Expose the observation data needed by zero-delta cardinality/current-versus-historical classification and resolveSliceMarkerEvidence without performing another repository-root walk. Preserve zero/one/multiple matching, exact object/parent/message authentication, singular/plural marker semantics, and converging post-fork merges while refusing merge paths that escape the fixed fork.",
+          "Retire the duplicate boundedSiblingMarkerEvidence classifier and make resolveSliceMarkerEvidence the sole marker classifier. Export or retain one authorization-owned literal commit parser/reader for later delivery reuse; do not edit delivery, integration, backend-dispatch, docs, schemas, or unrelated literalReachable compatibility callers.",
+          "Implement the authorization-core claim group named in ann-split-implementation-ownership; no caller wiring or disposition ordering belongs to this slice."
+        ],
+        "validation": [
+          "Run node --test tests/slice-integration-bounded-history.test.mjs tests/slice-integration-final-slice-marker-bound.test.mjs tests/slice-integration-zero-delta-recovery.test.mjs.",
+          "Using the focused Real-Git suite with at least 500 pre-fork commits, exercise fixed-fork authority/refusal, zero/one/multiple zero-delta matches, current/historical evidence, singular/plural markers, converging/escaping merges, cycles, missing objects, malformed bindings, and bound exhaustion; then run node --check packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs and git diff --check."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+          "name": "boundedWkLifecycleRegion",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+          "name": "resolveZeroDeltaIntegrationEvidence",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+          "name": "resolveSliceMarkerEvidence and boundedSiblingMarkerEvidence retirement",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+          "name": "authorization-owned literal commit parser and reader",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "tests/slice-integration-bounded-history.test.mjs",
+          "name": "fixed-fork authorization observation regression and mutants",
+          "kind": "test_case",
+          "operation": "create"
+        }
+      ],
+      "expected_changed_line_budget": 260,
+      "sections": {
+        "agent_notes": "Atomicity decomposition step 2/5. Primary owner of the fixed-fork observation mechanism and authorization/failure semantics. Depends on the test-anchor preparation slice so retiring boundedSiblingMarkerEvidence does not break the persistent WK ref.\n\nMULTI-PREFIX PROOF BLOCKER (2026-08-15). The split makes controlled-proof-intent.integration-prefix-safety applicable alongside forbidden-operation-noninvocation. Pack selection is unambiguous: proof.integration.prefix-safety@1.0.0 plus proof.operation.forbidden-noninvocation@1.0.0. Binding inspection against the existing root evaluation input is invalid with 9 incompatible reference roles; that input is stale (case_count=5 and old path-shaped prefix cases). The exact prefix pack requires package-generated exact DAG, integration-unit, execution-path, prefix-census, and capture-root sources. The available structured surface can patch the contract/evaluation-input/proof-plan request but exposes no supported generator or create route for those exact-capture source artifacts. Do not hand-author runnable wiki artifacts or fall back to the package CLI. No implementation dispatch is authorized until a supported structured generator exists or the operator explicitly dispositions this proof gap."
+      }
+    },
+    {
+      "id": "SLICE-006",
+      "title": "Consume one bounded observation in delivery and concurrency reauthentication",
+      "work_kind": "implementation",
+      "status": "blocked",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [
+        "SLICE-005"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-corrective-delivery.test.mjs",
+        "tests/slice-integration-delivery.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/slice-integration-final-slice-marker-bound.test.mjs",
+        "tests/slice-integration-corrective-delivery.test.mjs",
+        "tests/slice-integration-delivery.test.mjs"
+      ],
+      "write_scope": [
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": true,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Wire advanceSliceRefCas so each exact attempt obtains one fresh authorization-owned bounded observation for its exact WK tip and fixed fork and reuses that same occurrence for marker and zero-delta candidate classification. No observation may cross WK-ref or fork movement, retry, or a fresh integration attempt.",
+          "Replace delivery-local literal commit parsing/reading with the authorization-owned single owner and remove only the duplicate delivery copy. Preserve exact-current corrective-marker matching, zero-delta evidence identity/cardinality, expected-old ref CAS, malformed/ambiguous refusal, and all existing delivery outcomes.",
+          "Change exactConcurrentZeroDeltaWinner so the concurrency-loser reauthentication obtains its own fresh bounded observation and cannot reach the root-wide zero-delta rev-list or literalReachable. Do not change pre-admission recovery, record-CAS validation, disposition ordering, docs, schemas, or unrelated delivery behavior.",
+          "Implement the delivery/concurrency claim group named in ann-split-implementation-ownership."
+        ],
+        "validation": [
+          "Run node --test tests/slice-integration-bounded-history.test.mjs tests/slice-integration-final-slice-marker-bound.test.mjs tests/slice-integration-corrective-delivery.test.mjs tests/slice-integration-delivery.test.mjs.",
+          "Instrument the focused suite to prove successful advance performs one bounded walk and concurrency-loser reauthentication performs one new bounded walk, with neither path invoking repository-root history; then run node --check packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs and git diff --check."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+          "name": "advanceSliceRefCas",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+          "name": "exactConcurrentZeroDeltaWinner",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+          "name": "delivery-local literal commit reader removal",
+          "kind": "function",
+          "operation": "delete"
+        }
+      ],
+      "expected_changed_line_budget": 120,
+      "sections": {
+        "agent_notes": "Atomicity decomposition step 3/5. Owns only delivery and concurrency-loser consumption of the authorization observation; it does not edit the observation producer or caller layers.\n\nMULTI-PREFIX PROOF BLOCKER (2026-08-15). The split makes controlled-proof-intent.integration-prefix-safety applicable alongside forbidden-operation-noninvocation. Pack selection is unambiguous: proof.integration.prefix-safety@1.0.0 plus proof.operation.forbidden-noninvocation@1.0.0. Binding inspection against the existing root evaluation input is invalid with 9 incompatible reference roles; that input is stale (case_count=5 and old path-shaped prefix cases). The exact prefix pack requires package-generated exact DAG, integration-unit, execution-path, prefix-census, and capture-root sources. The available structured surface can patch the contract/evaluation-input/proof-plan request but exposes no supported generator or create route for those exact-capture source artifacts. Do not hand-author runnable wiki artifacts or fall back to the package CLI. No implementation dispatch is authorized until a supported structured generator exists or the operator explicitly dispositions this proof gap."
+      }
+    },
+    {
+      "id": "SLICE-007",
+      "title": "Bind recovery and record-CAS revalidation to fresh fixed-fork observations",
+      "work_kind": "implementation",
+      "status": "blocked",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [
+        "SLICE-006"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/slice-integration-lifecycle.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/slice-integration-authorization.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/slice-integration-zero-delta-recovery.test.mjs",
+        "tests/slice-integration-lifecycle.test.mjs"
+      ],
+      "write_scope": [
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": true,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Wire pre-admission committed-slice zero-delta recovery to obtain its own fixed-fork bounded observation and never reuse it for a later fresh integration attempt. Preserve zero/one/multiple exact-match behavior, current-tip versus historical evidence, and every existing fail-closed outcome.",
+          "At each canonical work-record CAS live-validation occurrence, re-resolve the exact fixed fork and obtain a new bounded observation for the current WK tip. Never reuse an observation across a record-CAS retry, WK-ref movement, fork movement, or a new transaction.",
+          "Preserve existing lifecycle and CAS ordering. Consume only the authorization and delivery mechanisms integrated by SLICE-005 and SLICE-006; do not edit those owners, backend disposition processing, tests, docs, schemas, or unrelated integration paths.",
+          "Implement the recovery/record-CAS claim group named in ann-split-implementation-ownership."
+        ],
+        "validation": [
+          "Run node --test tests/slice-integration-bounded-history.test.mjs tests/slice-integration-zero-delta-recovery.test.mjs tests/slice-integration-lifecycle.test.mjs.",
+          "Prove recovery observation isolation, fresh floor resolution and observation on every record-CAS retry, and mutant death for stale reuse or root-wide recovery; then run node --check packages/agent-launch-cli/src/lib/slice-integration.mjs and git diff --check."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+          "name": "recoverZeroDeltaIntegratedSlice bounded observation wiring",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+          "name": "record-CAS validateRecord live revalidation",
+          "kind": "function",
+          "operation": "modify"
+        }
+      ],
+      "expected_changed_line_budget": 90,
+      "sections": {
+        "agent_notes": "Atomicity decomposition step 4/5. Owns only pre-admission recovery and record-CAS observation occurrences after the authorization and delivery mechanisms have integrated.\n\nMULTI-PREFIX PROOF BLOCKER (2026-08-15). The split makes controlled-proof-intent.integration-prefix-safety applicable alongside forbidden-operation-noninvocation. Pack selection is unambiguous: proof.integration.prefix-safety@1.0.0 plus proof.operation.forbidden-noninvocation@1.0.0. Binding inspection against the existing root evaluation input is invalid with 9 incompatible reference roles; that input is stale (case_count=5 and old path-shaped prefix cases). The exact prefix pack requires package-generated exact DAG, integration-unit, execution-path, prefix-census, and capture-root sources. The available structured surface can patch the contract/evaluation-input/proof-plan request but exposes no supported generator or create route for those exact-capture source artifacts. Do not hand-author runnable wiki artifacts or fall back to the package CLI. No implementation dispatch is authorized until a supported structured generator exists or the operator explicitly dispositions this proof gap."
+      }
+    },
+    {
+      "id": "SLICE-008",
+      "title": "Separate structural disposition refusal from exact-target matching",
+      "work_kind": "implementation",
+      "status": "blocked",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [
+        "SLICE-007"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2063.json",
+        "wiki/contracts/WK-2063.controlled-acceptance.json",
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/committed-slice-review-integration.test.mjs",
+        "tests/workspace-agent-integration-continuation-process-boundary.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+        "packages/agent-launch-cli/src/lib/slice-integration.mjs",
+        "tests/slice-integration-bounded-history.test.mjs",
+        "tests/committed-slice-review-integration.test.mjs",
+        "tests/workspace-agent-integration-continuation-process-boundary.test.mjs"
+      ],
+      "write_scope": [
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": true,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "At the existing pre-recovery normalization seam, reject only structurally invalid disposition requests before requesting a bounded recovery observation. Do not resolve or simulate server-derived exact-target evidence at that seam.",
+          "Keep exact-target disposition matching against server-derived retained review evidence at the existing post-context seam. A non-empty disposition must not be matched against empty pre-context evidence, and an otherwise successful zero-delta recovery must not be converted into DISPOSITION_INVALID.",
+          "The complete public requestCommittedSliceIntegration path, including pre-admission recovery, advance, concurrency-loser reauthentication, and record-CAS live revalidation, must not reach either forbidden repository-root history operation. Preserve response, review-admission, and unrelated backend behavior.",
+          "Implement the backend/disposition claim group named in ann-split-implementation-ownership; do not edit lower-layer owners, tests, docs, schemas, response projection, or backend provisioning-state callers."
+        ],
+        "validation": [
+          "Run node --test tests/slice-integration-bounded-history.test.mjs tests/committed-slice-review-integration.test.mjs tests/workspace-agent-integration-continuation-process-boundary.test.mjs.",
+          "Prove structural disposition refusal precedes recovery, exact-target refusal occurs only after server evidence, valid recovery remains successful, and every integrated prefix of the public request avoids both forbidden root-history operations; then run node --check packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs and git diff --check."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+          "name": "pre-recovery structural disposition normalization",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+          "name": "post-context exact-target disposition matching",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs",
+          "name": "requestCommittedSliceIntegration bounded-history call path",
+          "kind": "function",
+          "operation": "modify"
+        }
+      ],
+      "expected_changed_line_budget": 80,
+      "sections": {
+        "agent_notes": "Atomicity decomposition step 5/5. Owns only backend-level disposition timing and the final public-boundary non-invocation guarantee after all lower-layer slices have integrated.\n\nMULTI-PREFIX PROOF BLOCKER (2026-08-15). The split makes controlled-proof-intent.integration-prefix-safety applicable alongside forbidden-operation-noninvocation. Pack selection is unambiguous: proof.integration.prefix-safety@1.0.0 plus proof.operation.forbidden-noninvocation@1.0.0. Binding inspection against the existing root evaluation input is invalid with 9 incompatible reference roles; that input is stale (case_count=5 and old path-shaped prefix cases). The exact prefix pack requires package-generated exact DAG, integration-unit, execution-path, prefix-census, and capture-root sources. The available structured surface can patch the contract/evaluation-input/proof-plan request but exposes no supported generator or create route for those exact-capture source artifacts. Do not hand-author runnable wiki artifacts or fall back to the package CLI. No implementation dispatch is authorized until a supported structured generator exists or the operator explicitly dispositions this proof gap."
+      }
+    }
+  ],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "derived_evidence": [],
+  "initiative": "IN-0030"
+}

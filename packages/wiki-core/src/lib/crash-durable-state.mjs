@@ -100,14 +100,18 @@ function assertNonEmptyString(value, label) {
   return value;
 }
 
-export function planReplacement({ targetPath, privatePath, bytes }) {
+function assertSiblingPrivatePath(targetPath, privatePath) {
   assertNonEmptyString(targetPath, "targetPath");
   assertNonEmptyString(privatePath, "privatePath");
-  if (typeof bytes !== "string") throw new Error("bytes must be a string");
   if (path.dirname(path.resolve(targetPath)) !== path.dirname(path.resolve(privatePath))) {
 
     throw new Error("the private path must be a sibling of the publication target");
   }
+}
+
+export function planReplacement({ targetPath, privatePath, bytes }) {
+  if (typeof bytes !== "string") throw new Error("bytes must be a string");
+  assertSiblingPrivatePath(targetPath, privatePath);
   return plan("replacement", [
     step(CRASH_DURABLE_EFFECTS.CREATE_PRIVATE_EXCLUSIVE, CRASH_DURABLE_FAULTS.PRIVATE_CREATED, { privatePath }),
     step(CRASH_DURABLE_EFFECTS.WRITE_BYTES, CRASH_DURABLE_FAULTS.PARTIAL_BYTES_WRITTEN, { privatePath, bytes, boundary: "partial" }),
@@ -128,6 +132,15 @@ export function planLogicalAppend({ targetPath, privatePath, priorBytes, appende
     prior_byte_length: Buffer.byteLength(priorBytes, "utf8"),
     appended_byte_length: Buffer.byteLength(appendedBytes, "utf8")
   });
+}
+
+export function planPreparedReplacement({ targetPath, privatePath }) {
+  assertSiblingPrivatePath(targetPath, privatePath);
+  return plan("prepared_replacement", [
+    step(CRASH_DURABLE_EFFECTS.SYNC_FILE, CRASH_DURABLE_FAULTS.FILE_SYNCED, { privatePath }),
+    step(CRASH_DURABLE_EFFECTS.PUBLISH_RENAME, CRASH_DURABLE_FAULTS.TARGET_PUBLISHED, { privatePath, targetPath }),
+    step(CRASH_DURABLE_EFFECTS.SYNC_DIRECTORY, CRASH_DURABLE_FAULTS.DIRECTORY_SYNCED, { directory: path.dirname(targetPath) })
+  ], { targetPath, privatePath });
 }
 
 export function planLockAcquisition({ canonicalPath, stagingPath, ownerToken, ownerIdentity }) {
@@ -195,7 +208,8 @@ export function compensationFor(activePlan, failedFault) {
     failedFault === CRASH_DURABLE_FAULTS.CLAIMED_DIRECTORY_MOVED ||
     failedFault === CRASH_DURABLE_FAULTS.TOMBSTONE_CLEANED;
   if (published) return Object.freeze([]);
-  if (activePlan.kind === "replacement" || activePlan.kind === "logical_append") {
+  if (activePlan.kind === "replacement" || activePlan.kind === "logical_append" ||
+      activePlan.kind === "prepared_replacement") {
     if (failedFault === CRASH_DURABLE_FAULTS.TARGET_PUBLISHED) {
       return Object.freeze([step(CRASH_DURABLE_EFFECTS.DISCARD_PRIVATE, null, { privatePath: activePlan.privatePath })]);
     }

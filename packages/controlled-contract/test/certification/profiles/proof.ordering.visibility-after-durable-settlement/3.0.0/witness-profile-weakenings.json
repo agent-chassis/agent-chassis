@@ -1,0 +1,4621 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.2",
+  "profile_digest": "e1fb9c4b312e6094cdc6736687a428bf1386828125bc793520c2fa3f5db63b84",
+  "witnesses": [
+    {
+      "surface_id": "claim-durable-effects-within-settled-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-effects-within-settled-effects-modalities",
+      "weakened_profile_digest": "c10efeaf92f177589c988d71749bb1b82ce3b1adfe518423a77f0778aee07736",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-durable-settlement-completeness-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-settlement-completeness-verification-modalities",
+      "weakened_profile_digest": "c10efeaf92f177589c988d71749bb1b82ce3b1adfe518423a77f0778aee07736",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-durable-settlement-completeness-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-settlement-completeness-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "33cc0fa8b72ef7e3c8e8565efcae7073aefc6a1b97fcf879d709a9e81cc0dc02",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/0/role",
+          "value": "durable_effects"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-durable-settlement-completeness-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-settlement-completeness-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "fce60c8512cdc9631e53783c72683981019a1a588782e741fd13d64a935f5ade",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/1/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-durable-settlement-completeness-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-settlement-completeness-verification-proposition-operator",
+      "weakened_profile_digest": "3f8bece43d286854781c06bc5703ef1db0376429ebd2bec31dd17b8ba26a7dfc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-durable-settlement-completeness-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-settlement-completeness-verification-proposition-subject",
+      "weakened_profile_digest": "5bce5eb3c23aee76d9708be3b62c4ea72841bdecdc0122582fda26517585d75a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-durable-settlement-completeness-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-durable-settlement-completeness-verification-verification-methods",
+      "weakened_profile_digest": "1f36c43632f30bedad0761161cb9d042ad21436fecb63055ecb3726c1e6f497d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-settled-effect-has-selected-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-each-settled-effect-has-selected-state-modalities",
+      "weakened_profile_digest": "c820bb63c335318dce283c352d2c9b72038629b3e54ae55af33a3f745743da60",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-settled-effect-has-selected-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-each-settled-effect-has-selected-state-proposition-applicability-mode",
+      "weakened_profile_digest": "560164dc8681987a2c7433017fd90b5dfd6a650e03021742c4eab2d99ad0fe56",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/mode",
+          "value": "unless"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-settled-effect-has-selected-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-each-settled-effect-has-selected-state-proposition-applicability-operands",
+      "weakened_profile_digest": "022f25035f7f91d7cdfdb71b6a5b730325df21efb5d66400cf1a1ed2ab803b73",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "durable_effect_population"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-settled-effect-has-selected-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-each-settled-effect-has-selected-state-proposition-operand-0-role",
+      "weakened_profile_digest": "d53ec37c1d9bb2fdde5328139d5ca53248c4fcfc5a1ad1053e90ef346b6f99fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-settled-effect-has-selected-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-each-settled-effect-has-selected-state-proposition-operator",
+      "weakened_profile_digest": "95cd28a19ddac31db2bf91358e4b394cf02c5cea8602e65f2a825410aafb5acc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:records"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-state-complete-against-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-expected-state-complete-against-effects-modalities",
+      "weakened_profile_digest": "99533c38f9648b1f739e34e9885326dcce6f4f74349d93cb8f1151ea6253b199",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-state-complete-against-effects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-expected-state-complete-against-effects-proposition-operand-0-role",
+      "weakened_profile_digest": "b69e30c7f7517161ccbeac26df275ed0cb27dd9d4b5a5eb5cdd026ccd3041334",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "durable_effects"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-state-complete-against-effects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-expected-state-complete-against-effects-proposition-operator",
+      "weakened_profile_digest": "4e16db2c7c345e78950a5351be55d323087eef32529576c2dc5f023ad18cff21",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-expected-state-complete-against-effects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-expected-state-complete-against-effects-proposition-subject",
+      "weakened_profile_digest": "4ea95f52d2f7dfc97ce317d6a0b666d886d81a7389be3b86ba22b3da44e3e33d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-branch-declares-visibility-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-branch-declares-visibility-population-modalities",
+      "weakened_profile_digest": "4995725eb411b904063e1dd94056ff4699bf03f21d5dd85ab8a7cc69899bb256",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-branch-declares-visibility-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-branch-declares-visibility-population-proposition-operand-0-role",
+      "weakened_profile_digest": "e5ffe7b8c96766d2e8ee6b2feea78ba7c40f8d3b6e4d0ec12ea748cabc4ac3c3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-branch-declares-visibility-population-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-branch-declares-visibility-population-proposition-operand-1-role",
+      "weakened_profile_digest": "0eca45d1428e977e83e2e5f7091445ce528039c9d4a6d09f801c9e47e97da7ea",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operands/1/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-branch-declares-visibility-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-branch-declares-visibility-population-proposition-operator",
+      "weakened_profile_digest": "e24607db46389e620bfc5fa8225463fd4885a1ca4aabc674edab000d0358ca6a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operator",
+          "value": "reference:contains"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-branch-declares-visibility-population-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-branch-declares-visibility-population-proposition-subject",
+      "weakened_profile_digest": "b6c373369fadf6bc86e735b814f7c53a11929ece4331c550f70058c87d3e457a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-population-empty-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-population-empty-modalities",
+      "weakened_profile_digest": "cb2c28cfe398f8ab47702f109037609df3e713b1d4b1381ea6091b0ef8156b1d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-verification-modalities",
+      "weakened_profile_digest": "cb2c28cfe398f8ab47702f109037609df3e713b1d4b1381ea6091b0ef8156b1d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "3b436aa95fd2fa1ae3640da9b05902492de96d0cdaf54181e5f2c775dc8fb955",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "fddb52017647ddb1633da197d002e906a7b07f5777a483504b6d9e1a62af4e89",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/operands/1/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-verification-proposition-operator",
+      "weakened_profile_digest": "225ad8308a6e38a7104e761bf0a1ade4ec86c0140b7ec5f786af83db2654d8ad",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-verification-proposition-subject",
+      "weakened_profile_digest": "c5e3906d7f5771311ae4e67bde991b5f4cf9cfea825001019756cf470ac6f265",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-failure-visibility-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-failure-visibility-verification-verification-methods",
+      "weakened_profile_digest": "7cafa9b1277c08af39fbbefec5489ba27fb01991865847c1d6740ebfe731885d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/19/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observation-order-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-observation-order-verification-modalities",
+      "weakened_profile_digest": "fa2b9ab6fe4a4772611f6a1518f0d35affd4d105680cff27c990c54c0cdeb0c7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observation-order-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-observation-order-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "93c17ec3716a8854b369f63bc6aadf61b298e93284d1517c7789a571863551ce",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observation-order-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-observation-order-verification-proposition-operator",
+      "weakened_profile_digest": "93eba438619041f4fdf94b67fa8ab4f2141b7a240ffb0aa6e219a26718d8d48d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observation-order-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-observation-order-verification-proposition-subject",
+      "weakened_profile_digest": "9c918505b02724832819ea20b3a8557703106d288378a19b5577189e3bdf9014",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-observation-order-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-observation-order-verification-verification-methods",
+      "weakened_profile_digest": "1ab4fcf6c1bf7bc09989521cb00a45d81ff5fa0851842d077efe2e1acc957837",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "claim-patterns",
+      "weakened_profile_digest": "24862f194c761d54912b05c40d8b4af7f7fe6a6a73d5f198b4c0e39bf6dac4c2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "durable-effects-within-settled-effects",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "durable_effect_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-effects-within-durable-effects",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settled_effect_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "selected-settled-state-allowed",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "selected_settled_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-settled-effect-has-selected-state",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "settled_effects",
+                "member_role": "settled_effect"
+              },
+              "proposition_template": {
+                "subject_role": "settled_effect",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "visibility-does-not-precede-settlement",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "visibility_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-does-not-precede-visibility",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-reads-effects",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-records-state",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-visibility-state-current",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_durable_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-branch-declares-visibility-population",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_event",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-visibility-population-empty",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_visibility_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "zero_visibility_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-complete-proof",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "post_visibility_observation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "durable-settlement-completeness-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "durable_effect_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "durable_not_settled_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settlement-population-exactness-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "settled_effect_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "settled_not_durable_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-state-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "selected_settled_state",
+                "operator": "reference:not_member_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "disallowed_settled_state_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "visibility-order-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "visibility_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_visibility_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "observation-order-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "post_visibility_observation"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_observation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-visibility-state-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "observed_durable_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "stale_observation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-visibility-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "failure_visibility_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "failure_visibility_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "zero_visibility_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-durable-effect-population"
+              },
+              {
+                "pattern": "complete-settled-effect-population"
+              },
+              {
+                "pattern": "complete-allowed-settled-state-population"
+              },
+              {
+                "pattern": "complete-failure-visibility-population"
+              },
+              {
+                "pattern": "durable-effects-within-settled-effects"
+              },
+              {
+                "pattern": "settled-effects-within-durable-effects"
+              },
+              {
+                "pattern": "selected-settled-state-allowed"
+              },
+              {
+                "pattern": "each-settled-effect-has-selected-state"
+              },
+              {
+                "pattern": "visibility-does-not-precede-settlement"
+              },
+              {
+                "pattern": "post-observation-does-not-precede-visibility"
+              },
+              {
+                "pattern": "post-observation-reads-effects"
+              },
+              {
+                "pattern": "post-observation-records-state"
+              },
+              {
+                "pattern": "post-visibility-state-current"
+              },
+              {
+                "pattern": "failure-branch-declares-visibility-population"
+              },
+              {
+                "pattern": "failure-visibility-population-empty"
+              },
+              {
+                "pattern": "verification-reads-complete-proof"
+              },
+              {
+                "pattern": "durable-settlement-completeness-verification"
+              },
+              {
+                "pattern": "settlement-population-exactness-verification"
+              },
+              {
+                "pattern": "settled-state-verification"
+              },
+              {
+                "pattern": "visibility-order-verification"
+              },
+              {
+                "pattern": "observation-order-verification"
+              },
+              {
+                "pattern": "post-visibility-state-verification"
+              },
+              {
+                "pattern": "failure-visibility-verification"
+              },
+              {
+                "pattern": "verification-targets-durable-settlement-completeness"
+              },
+              {
+                "pattern": "verification-targets-settlement-population-exactness"
+              },
+              {
+                "pattern": "verification-targets-settled-state"
+              },
+              {
+                "pattern": "verification-targets-visibility-order"
+              },
+              {
+                "pattern": "verification-targets-observation-order"
+              },
+              {
+                "pattern": "verification-targets-post-visibility-state"
+              },
+              {
+                "pattern": "verification-targets-failure-visibility"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-does-not-precede-visibility-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-does-not-precede-visibility-modalities",
+      "weakened_profile_digest": "cb41561ad8698f2ad8d55cd0d0ad4d64ad96865773df0cd9c5f566164610db47",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-reads-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-reads-effects-modalities",
+      "weakened_profile_digest": "eaf0f4eda197ff2003dad9ad5186a41b6c58e7b6323cd001112eb3e56d70259a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-reads-effects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-reads-effects-proposition-operand-0-role",
+      "weakened_profile_digest": "67441b3bb037421d73a8a664aeeb12ebfd9956df384f8fc3dab9b88cca408990",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "durable_effects"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-reads-effects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-reads-effects-proposition-operator",
+      "weakened_profile_digest": "dfbf7a829111412446e76c1aa6f592c535c9208055bbc152da06cc23262b2c8f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:covers"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-reads-effects-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-reads-effects-proposition-subject",
+      "weakened_profile_digest": "6e86876ed9d037fdae3b05cfb9c5126a721369dc174d313c060a75cfed17f8bb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-records-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-records-state-modalities",
+      "weakened_profile_digest": "71702afbbe014133c6456cbe52113386af3f642bd3e39e33485f166a65f2dadf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-records-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-records-state-proposition-operand-0-role",
+      "weakened_profile_digest": "b366a7e9e7e2a5e4dcd7fcde6722b6ffcfac8f907087ef8aa44934b79b7fa846",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-records-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-records-state-proposition-operator",
+      "weakened_profile_digest": "b0f42cd427557a60934a1109bc1020a8a145e2059b5ca0d838aa08349e349529",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-observation-records-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-observation-records-state-proposition-subject",
+      "weakened_profile_digest": "64c7ce864edda4bc1c4f20c340859c68767375d9a86351a2cac6f668c66b32e1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-current-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-current-modalities",
+      "weakened_profile_digest": "bacf89feac7be454df37db3687b70c0c97f0e85c5fe94c6710c8ccce28ff709d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-verification-modalities",
+      "weakened_profile_digest": "bacf89feac7be454df37db3687b70c0c97f0e85c5fe94c6710c8ccce28ff709d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "1f7bf10fb49bbb0ed9dc4d3386c04570b5fec4a92f64ecb45185865d95fab7f2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "5e02d399eedbb2a86f49bf520c9a71d47ccd239d5488c4336bf239e6d30017d4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operands/1/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-verification-proposition-operator",
+      "weakened_profile_digest": "f30e6d5fb7a43547f9ee8f94394656d8af6ab27e09fa6911efcabea8824c96c2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-verification-proposition-subject",
+      "weakened_profile_digest": "1d2fe436e4da403d5ffb6bc51b8c2e06058a63a208bf6e8e75721cf99868dc47",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-post-visibility-state-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-post-visibility-state-verification-verification-methods",
+      "weakened_profile_digest": "3cacbd5915c94bda8d8a305c5f0ca47e6240f77535aabc858fb258d9937d10d2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/18/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-selected-settled-state-allowed-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-selected-settled-state-allowed-modalities",
+      "weakened_profile_digest": "8ef5ffa5adde8825ab11dc5807c46b9fb37a01e42c480b203ea4168dc49269ee",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-effects-within-durable-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settled-effects-within-durable-effects-modalities",
+      "weakened_profile_digest": "51cdf05d632d34bf9967993c0e84008e18da2a6df47e8aeee4bced5e0da01e7a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-state-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settled-state-verification-modalities",
+      "weakened_profile_digest": "8ef5ffa5adde8825ab11dc5807c46b9fb37a01e42c480b203ea4168dc49269ee",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-state-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settled-state-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "c2d083b250ecbf8f6ac9c50decde1be3fdceda9897b561914c75524c5cdc7e64",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-state-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settled-state-verification-proposition-operator",
+      "weakened_profile_digest": "a2ad62f10bb372b282418a977b012856a3c160254ff92cabb0c172c5f5ecbc38",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-state-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settled-state-verification-proposition-subject",
+      "weakened_profile_digest": "d1b737027d557bd8aa499d53b7634b61f2e28b04db5b623f3bfb551ef9ac0537",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settled-state-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settled-state-verification-verification-methods",
+      "weakened_profile_digest": "f959a5f5dd3682f592d72b1ff00265879c9faf9b18649ae25c1226ae2689b477",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-population-exactness-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settlement-population-exactness-verification-modalities",
+      "weakened_profile_digest": "51cdf05d632d34bf9967993c0e84008e18da2a6df47e8aeee4bced5e0da01e7a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-population-exactness-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settlement-population-exactness-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "b09f44cf7152aa23b35f946f6f0a59e80a0abc2a3cae227c918972fd24f6aa3f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-population-exactness-verification-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settlement-population-exactness-verification-proposition-operand-1-role",
+      "weakened_profile_digest": "f9bd732e431c12098baefd8218122a933b6873c4714c7e81f2fa70dfac4a7126",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operands/1/role",
+          "value": "durable_effects"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-population-exactness-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settlement-population-exactness-verification-proposition-operator",
+      "weakened_profile_digest": "1e6a955efc0447b21aa15c339d915882d464b354e1d4124176b8ed6c0fc53c88",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-population-exactness-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settlement-population-exactness-verification-proposition-subject",
+      "weakened_profile_digest": "0731b2ab11bdfc3c39082462bc0ca3bf15b5c414a210ca3de4b1974a6705ef97",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-settlement-population-exactness-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-settlement-population-exactness-verification-verification-methods",
+      "weakened_profile_digest": "7011f0027653758d34c860020bbd7c43381356228534b5cca1bc44fdf3fa8146",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-modalities",
+      "weakened_profile_digest": "768da5f0c24809d8a3b7f29c2108f4ec64a10db1f186fc7249271469515a1036",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-0-role",
+      "weakened_profile_digest": "3f611dcc5575374b0b03740583a6a349150e6059a2c0ff03f0daae6d24fd1f30",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "durable_effects"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-1-role",
+      "weakened_profile_digest": "653dd80f70e7c56aaa5cec1f7254772a8890c28946bfbddb83755d12f735017f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/1/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-10-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-10-role",
+      "weakened_profile_digest": "bdb7a9528b8363661915cc129aafd27a6491cc7d30e80d99d314fb36253448ff",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/10/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-11-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-11-role",
+      "weakened_profile_digest": "9fdef05b924a68641132652fa86b97f458c50fb1850558d5acef0553b03e13a4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/11/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-2-role",
+      "weakened_profile_digest": "0b22dbb1ecd70c5bde01b6cad9424dfc9a57d5a95283d4ed0991e91081ea0285",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/2/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-3-role",
+      "weakened_profile_digest": "61accabc1cc211ec432b137d68323331172b345eff275b6c5f3bf726e7459b60",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/3/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-4-role",
+      "weakened_profile_digest": "ff9688e4bc8160507427e1f715640a9b571910da141688faaae417165d805e23",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/4/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-5-role",
+      "weakened_profile_digest": "50baf241230674bf32cad2eff741b411c9d8c0599923aa015f6970ba49000c46",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/5/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-6-role",
+      "weakened_profile_digest": "870b12d573fa23adb103d5e16857084d24a19dd5b1f7ee457992ae07fa5bd005",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/6/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-7-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-7-role",
+      "weakened_profile_digest": "3e2e10da498db3069245a70968391508f8b37a5443763c0cce4ae8a9a2399597",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/7/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-8-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-8-role",
+      "weakened_profile_digest": "f91bc0d6d1d29ea1a29773946565c361d3539a36bd36e359347cdabb3b534438",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/8/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operand-9-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operand-9-role",
+      "weakened_profile_digest": "b27308c99d07e5db0bb7109eefbc25d26a87fa45f433bb10270ad53f517db820",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/9/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-operator",
+      "weakened_profile_digest": "2b0020ab5fefbf94480adaa2ce898d176132bf00eaeb34f207d725627927a91a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:covers"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-complete-proof-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-verification-reads-complete-proof-proposition-subject",
+      "weakened_profile_digest": "6ef18562aa0015871667bca2f6a356f015a535a7cdd58b218e0872ca1661ef4a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-visibility-does-not-precede-settlement-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-visibility-does-not-precede-settlement-modalities",
+      "weakened_profile_digest": "c64251903196fef8b0ba45b25d155318f3874a2db0d877e1c673a4f4ac823733",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-visibility-order-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-visibility-order-verification-modalities",
+      "weakened_profile_digest": "50b0da3ea73fa8233717eb8fcc33688e4e6c2f7fb1d375795b56097fd878c934",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST_NOT",
+            "SHOULD_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-visibility-order-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-visibility-order-verification-proposition-operand-0-role",
+      "weakened_profile_digest": "4699a600d118a42b8cce5f58f33d475108a0ca41a538e9040cb078295526bc4e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operands/0/role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-visibility-order-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-visibility-order-verification-proposition-operator",
+      "weakened_profile_digest": "3e1ed408359c8ddd75c9d6148a539d17c775115ffd525b0a1e2b02d3431de2f2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operator",
+          "value": "reference:reads"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-visibility-order-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-visibility-order-verification-proposition-subject",
+      "weakened_profile_digest": "ab36dd72c287053eef7e419b09dd9755b81604c3ccc7779418cf9b4c7912597b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/subject_role",
+          "value": "durable_effect_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-visibility-order-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-surface-variations",
+      "variant_id": "claim-visibility-order-verification-verification-methods",
+      "weakened_profile_digest": "d9ff57cb54a868c7e1ff2c6979842ffb20fb1ba91f6b57be8a61316f1ef1014f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "distinct-reference-role-sets",
+      "weakened_profile_digest": "435b580476f916d29a8c0c80d7fe6886ce267c16f93f0d474ec4334d7c1a867a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "falsifier-condition-bindings",
+      "weakened_profile_digest": "5490614581d252be5ec46f8e972af8559a422bb4a0bf8bdb4974be3e410aefa7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/falsifying_proposition_template/applicability_context",
+          "value": {
+            "mode": "unconditional",
+            "operand_roles": []
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/3/applicability_context",
+          "value": {
+            "mode": "unconditional",
+            "operand_roles": []
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "number-roles",
+      "weakened_profile_digest": "f3da07d9b50c4b15c771ee241bbb97c9d829eb3438ec24861d375864e272ae1f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/number_roles/1/maximum",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-binding-patterns",
+      "weakened_profile_digest": "be465522d27d7ff60e11877f05cfbf0a1897c22fa9bb6c8635dc3e4b607109e6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-settled-effect-population",
+              "comparison": "complete_population",
+              "roles": [
+                "settled_effect_population",
+                "settled_effects"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-allowed-settled-state-population",
+              "comparison": "complete_population",
+              "roles": [
+                "allowed_settled_state_population",
+                "allowed_settled_states"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-failure-visibility-population",
+              "comparison": "complete_population",
+              "roles": [
+                "failure_visibility_population",
+                "failure_visibility_events"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "selected-settled-state-allowed",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "selected_settled_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-settled-effect-has-selected-state",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "settled_effects",
+                "member_role": "settled_effect"
+              },
+              "proposition_template": {
+                "subject_role": "settled_effect",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "visibility-does-not-precede-settlement",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "visibility_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-does-not-precede-visibility",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-reads-effects",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-records-state",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-visibility-state-current",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_durable_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-branch-declares-visibility-population",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_event",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-visibility-population-empty",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_visibility_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "zero_visibility_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-complete-proof",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "post_visibility_observation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-state-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "selected_settled_state",
+                "operator": "reference:not_member_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "disallowed_settled_state_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "visibility-order-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "visibility_event",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_visibility_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "observation-order-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "post_visibility_observation"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_observation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-visibility-state-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "observed_durable_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "stale_observation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-visibility-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "failure_visibility_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "failure_visibility_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "zero_visibility_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-settled-state",
+              "role": "verifies",
+              "source_claim_pattern_id": "settled-state-verification",
+              "target_claim_pattern_id": "selected-settled-state-allowed"
+            },
+            {
+              "pattern_id": "verification-targets-visibility-order",
+              "role": "verifies",
+              "source_claim_pattern_id": "visibility-order-verification",
+              "target_claim_pattern_id": "visibility-does-not-precede-settlement"
+            },
+            {
+              "pattern_id": "verification-targets-observation-order",
+              "role": "verifies",
+              "source_claim_pattern_id": "observation-order-verification",
+              "target_claim_pattern_id": "post-observation-does-not-precede-visibility"
+            },
+            {
+              "pattern_id": "verification-targets-post-visibility-state",
+              "role": "verifies",
+              "source_claim_pattern_id": "post-visibility-state-verification",
+              "target_claim_pattern_id": "post-visibility-state-current"
+            },
+            {
+              "pattern_id": "verification-targets-failure-visibility",
+              "role": "verifies",
+              "source_claim_pattern_id": "failure-visibility-verification",
+              "target_claim_pattern_id": "failure-visibility-population-empty"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-settled-state",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "disallowed_settled_state_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-visibility-order",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "premature_visibility_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-observation-order",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "premature_observation_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-post-visibility-state",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "stale_observation_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-failure-visibility",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "failure_visibility_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-settled-effect-population"
+              },
+              {
+                "pattern": "complete-allowed-settled-state-population"
+              },
+              {
+                "pattern": "complete-failure-visibility-population"
+              },
+              {
+                "pattern": "selected-settled-state-allowed"
+              },
+              {
+                "pattern": "each-settled-effect-has-selected-state"
+              },
+              {
+                "pattern": "visibility-does-not-precede-settlement"
+              },
+              {
+                "pattern": "post-observation-does-not-precede-visibility"
+              },
+              {
+                "pattern": "post-observation-reads-effects"
+              },
+              {
+                "pattern": "post-observation-records-state"
+              },
+              {
+                "pattern": "post-visibility-state-current"
+              },
+              {
+                "pattern": "failure-branch-declares-visibility-population"
+              },
+              {
+                "pattern": "failure-visibility-population-empty"
+              },
+              {
+                "pattern": "verification-reads-complete-proof"
+              },
+              {
+                "pattern": "settled-state-verification"
+              },
+              {
+                "pattern": "visibility-order-verification"
+              },
+              {
+                "pattern": "observation-order-verification"
+              },
+              {
+                "pattern": "post-visibility-state-verification"
+              },
+              {
+                "pattern": "failure-visibility-verification"
+              },
+              {
+                "pattern": "verification-targets-settled-state"
+              },
+              {
+                "pattern": "verification-targets-visibility-order"
+              },
+              {
+                "pattern": "verification-targets-observation-order"
+              },
+              {
+                "pattern": "verification-targets-post-visibility-state"
+              },
+              {
+                "pattern": "verification-targets-failure-visibility"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "reference-role-count-bindings",
+      "weakened_profile_digest": "9eec1699f8b30ec1e1c145a6bcdb9e6e32818c2ca4c3644eb8d740f51ab99e6c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_role_count_bindings",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "relation-patterns",
+      "weakened_profile_digest": "84717d715b48e92a22abe7b41cd25bf39d467c622b699b9e8f52f5bc68f14006",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "durable-effects-within-settled-effects",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "durable_effect_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-effects-within-durable-effects",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "settled_effect_population",
+                "operator": "reference:subset_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "selected-settled-state-allowed",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "selected_settled_state",
+                "operator": "reference:member_of",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-settled-effect-has-selected-state",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "settled_effects",
+                "member_role": "settled_effect"
+              },
+              "proposition_template": {
+                "subject_role": "settled_effect",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "settlement_event"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-does-not-precede-visibility",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST_NOT"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "expected-state-complete-against-effects",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "expected_durable_state",
+                "operator": "reference:complete_against",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-reads-effects",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-observation-records-state",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-visibility-state-current",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observed_durable_state",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-branch-declares-visibility-population",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_event",
+                "operator": "reference:includes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-visibility-population-empty",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "failure_visibility_count_signal",
+                "operator": "number:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "zero_visibility_count"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-complete-proof",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settlement_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "post_visibility_observation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_event"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "durable-settlement-completeness-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "durable_effect_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "durable_not_settled_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settlement-population-exactness-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "settled_effect_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "settled_effect_population",
+                "operator": "reference:not_subset_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "settled_not_durable_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "durable_effect_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "settled-state-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "selected_settled_state"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "selected_settled_state",
+                "operator": "reference:not_member_of",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "disallowed_settled_state_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "allowed_settled_state_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "observation-order-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "post_visibility_observation"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "post_visibility_observation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "premature_observation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "visibility_event"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "post-visibility-state-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observed_durable_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "observed_durable_state",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "stale_observation_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "expected_durable_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "failure-visibility-verification",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "failure_visibility_count_signal"
+                  }
+                ]
+              },
+              "falsifying_proposition_template": {
+                "subject_role": "failure_visibility_count_signal",
+                "operator": "number:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "failure_visibility_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "number",
+                    "value_role": "zero_visibility_count"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-durable-settlement-completeness",
+              "role": "verifies",
+              "source_claim_pattern_id": "durable-settlement-completeness-verification",
+              "target_claim_pattern_id": "durable-effects-within-settled-effects"
+            },
+            {
+              "pattern_id": "verification-targets-settlement-population-exactness",
+              "role": "verifies",
+              "source_claim_pattern_id": "settlement-population-exactness-verification",
+              "target_claim_pattern_id": "settled-effects-within-durable-effects"
+            },
+            {
+              "pattern_id": "verification-targets-settled-state",
+              "role": "verifies",
+              "source_claim_pattern_id": "settled-state-verification",
+              "target_claim_pattern_id": "selected-settled-state-allowed"
+            },
+            {
+              "pattern_id": "verification-targets-observation-order",
+              "role": "verifies",
+              "source_claim_pattern_id": "observation-order-verification",
+              "target_claim_pattern_id": "post-observation-does-not-precede-visibility"
+            },
+            {
+              "pattern_id": "verification-targets-post-visibility-state",
+              "role": "verifies",
+              "source_claim_pattern_id": "post-visibility-state-verification",
+              "target_claim_pattern_id": "post-visibility-state-current"
+            },
+            {
+              "pattern_id": "verification-targets-failure-visibility",
+              "role": "verifies",
+              "source_claim_pattern_id": "failure-visibility-verification",
+              "target_claim_pattern_id": "failure-visibility-population-empty"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-durable-settlement-completeness",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "durable_not_settled_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-settlement-population-exactness",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "settled_not_durable_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-settled-state",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "disallowed_settled_state_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-observation-order",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "premature_observation_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-post-visibility-state",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "stale_observation_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-failure-visibility",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "failure_visibility_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-durable-effect-population"
+              },
+              {
+                "pattern": "complete-settled-effect-population"
+              },
+              {
+                "pattern": "complete-allowed-settled-state-population"
+              },
+              {
+                "pattern": "complete-failure-visibility-population"
+              },
+              {
+                "pattern": "durable-effects-within-settled-effects"
+              },
+              {
+                "pattern": "settled-effects-within-durable-effects"
+              },
+              {
+                "pattern": "selected-settled-state-allowed"
+              },
+              {
+                "pattern": "each-settled-effect-has-selected-state"
+              },
+              {
+                "pattern": "post-observation-does-not-precede-visibility"
+              },
+              {
+                "pattern": "expected-state-complete-against-effects"
+              },
+              {
+                "pattern": "post-observation-reads-effects"
+              },
+              {
+                "pattern": "post-observation-records-state"
+              },
+              {
+                "pattern": "post-visibility-state-current"
+              },
+              {
+                "pattern": "failure-branch-declares-visibility-population"
+              },
+              {
+                "pattern": "failure-visibility-population-empty"
+              },
+              {
+                "pattern": "verification-reads-complete-proof"
+              },
+              {
+                "pattern": "durable-settlement-completeness-verification"
+              },
+              {
+                "pattern": "settlement-population-exactness-verification"
+              },
+              {
+                "pattern": "settled-state-verification"
+              },
+              {
+                "pattern": "observation-order-verification"
+              },
+              {
+                "pattern": "post-visibility-state-verification"
+              },
+              {
+                "pattern": "failure-visibility-verification"
+              },
+              {
+                "pattern": "verification-targets-durable-settlement-completeness"
+              },
+              {
+                "pattern": "verification-targets-settlement-population-exactness"
+              },
+              {
+                "pattern": "verification-targets-settled-state"
+              },
+              {
+                "pattern": "verification-targets-observation-order"
+              },
+              {
+                "pattern": "verification-targets-post-visibility-state"
+              },
+              {
+                "pattern": "verification-targets-failure-visibility"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-settled-state-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-allowed-settled-state-population-identity-kinds",
+      "weakened_profile_digest": "1de67d62e2ea496d03823ecd5b7b4cae33794d2eb2d6f7bfff3225ec47148f87",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-settled-state-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-allowed-settled-state-population-types",
+      "weakened_profile_digest": "3dcac036f677132c5386d00558fc73f18a90b13a8d3072927a0287cc202e5d4f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-settled-states-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-allowed-settled-states-identity-kinds",
+      "weakened_profile_digest": "93170c21cff7878adf464489cc3baa45009dec87310e2659499978ec29de1502",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-allowed-settled-states-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-allowed-settled-states-types",
+      "weakened_profile_digest": "1494ecd6ae85dd21d45e885e0cd825b75fb72edc811dc6d0d0d219838952699e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-disallowed-settled-state-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-disallowed-settled-state-condition-types",
+      "weakened_profile_digest": "46ced5a7799dd3e9944e9879d2c1d48242797bf5831d992184d664c28efbe1a9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/19/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-durable-effect-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-durable-effect-population-identity-kinds",
+      "weakened_profile_digest": "0025602f2aa50024d60eff6954b76ba7e7f049794cd6a21d28aace928e56c5ec",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-durable-effect-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-durable-effect-population-types",
+      "weakened_profile_digest": "35461c15397036823dab9471607ebb8f93595c8d0d030fda0f4c08fa60697295",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-durable-effects-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-durable-effects-identity-kinds",
+      "weakened_profile_digest": "3edadce197ee18b7519e9e36fb2e3534c32f8d4ae360fadcfbfc9da3da84b759",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-durable-effects-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-durable-effects-types",
+      "weakened_profile_digest": "2f8e6fe01c93a66e21e13b2dbc637ddd3bc33cb08550af93bf8e14141ba717a5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-durable-not-settled-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-durable-not-settled-condition-types",
+      "weakened_profile_digest": "ab95fd28083d309d3aba33723381019aa565fc322ba3b01f90cfaf14a27df62f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/17/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-expected-durable-state-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-expected-durable-state-identity-kinds",
+      "weakened_profile_digest": "de12601fdeb69a29768d019e723539138af2a1b8a733d13a577c480c06d5f3b5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-expected-durable-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-expected-durable-state-types",
+      "weakened_profile_digest": "3c118ac19178a998722278b758d0b729da0c8e39df48834f211a856a17f043bf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-event-identity-kinds",
+      "weakened_profile_digest": "c085f91febc13b303b712632e43c975faaefc05929259d4a902ecec54dfda5c1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-event-types",
+      "weakened_profile_digest": "ee9f0fe5d42930154e17f4c2ed1bb9f5c63ec7c01579a4acb0e45df658d14850",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-condition-types",
+      "weakened_profile_digest": "fb679430c9de7ddbbf13879ef08900e8d88ae87c2af9978838ceeb849bfb824b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/23/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-count-signal-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-count-signal-identity-kinds",
+      "weakened_profile_digest": "33c1084c559b9b26482f6032032b3662e62d6b9ffb5af21d21f103afe5922656",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-count-signal-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-count-signal-types",
+      "weakened_profile_digest": "9156cce1bc6ec698dc8a812f6522dc448b0970bd3db690be3406bf874a234360",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-events-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-events-identity-kinds",
+      "weakened_profile_digest": "75c4394490a2d724ed5c6ed72244f84856625ea12ce98050c4edbf87cd20f92e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/number_roles/1/maximum",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-events-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-events-types",
+      "weakened_profile_digest": "e038b6898e89bcecac6918b0117d7065108486d66c0ecd5d0dd378d3d89fcaa4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/number_roles/1/maximum",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-population-identity-kinds",
+      "weakened_profile_digest": "f0cf7c304f631f5f5adc6e84809dd067c0eee28ee6e29695254cd676ba9aca2c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-failure-visibility-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-failure-visibility-population-types",
+      "weakened_profile_digest": "202fffa5811ad84b6c27d12c155efbc030a5936f7bc5587668deaa03c52acdb5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-durable-state-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-observed-durable-state-identity-kinds",
+      "weakened_profile_digest": "0ab500ed2858fabe4b05f3f4dc9600ddd310e8a6a6a50a84b8e8274c8fc6cc96",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observed-durable-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-observed-durable-state-types",
+      "weakened_profile_digest": "324aee936d9ac559b2f703ca441759f3646e0e85b73f47a784a427291324807e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-post-visibility-observation-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-post-visibility-observation-identity-kinds",
+      "weakened_profile_digest": "600548c1e4b18d625e8b726c9a06e642f9eab8f7d5942cd09bf9e48c12e64a57",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-post-visibility-observation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-post-visibility-observation-types",
+      "weakened_profile_digest": "2470a56433ccb47e3056d044a4e2aeebddee578882cf6acfe146839449ec81f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-premature-observation-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-premature-observation-condition-types",
+      "weakened_profile_digest": "6a556c45f4799a8d92fbc282b933c5a01d264ecf5f83cac56a6e1bdc5e5acf01",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/21/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-premature-visibility-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-premature-visibility-condition-types",
+      "weakened_profile_digest": "87a53824aed814c8778dc5b77cf0c661eab3e136787e3d6a1dacd46918e33163",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/20/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-selected-settled-state-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-selected-settled-state-identity-kinds",
+      "weakened_profile_digest": "93170c21cff7878adf464489cc3baa45009dec87310e2659499978ec29de1502",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-selected-settled-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-selected-settled-state-types",
+      "weakened_profile_digest": "1494ecd6ae85dd21d45e885e0cd825b75fb72edc811dc6d0d0d219838952699e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-effect-population-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settled-effect-population-identity-kinds",
+      "weakened_profile_digest": "235a706c2b1d9153bd80a9541220bebbb9bfc9deca68fd348f517d74a0674b20",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_identity_kinds",
+          "value": [
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-effect-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settled-effect-population-types",
+      "weakened_profile_digest": "58cd256f3fa0e39a17c901ac66f5c784b4afeb3c048c3fcd2e372393d7e00e80",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-effects-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settled-effects-identity-kinds",
+      "weakened_profile_digest": "3edadce197ee18b7519e9e36fb2e3534c32f8d4ae360fadcfbfc9da3da84b759",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-effects-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settled-effects-types",
+      "weakened_profile_digest": "2f8e6fe01c93a66e21e13b2dbc637ddd3bc33cb08550af93bf8e14141ba717a5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity",
+            "cc:resource",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settled-not-durable-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settled-not-durable-condition-types",
+      "weakened_profile_digest": "4bc83ce9ed29675a2ad9604a13c6c59ecbb3371ad185604e7236ad7addd24cc4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/18/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settlement-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settlement-event-identity-kinds",
+      "weakened_profile_digest": "6a3fee52183aecce9e28e2fd778944d3305bb2d3b7c8639d7039b8c6f877a623",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-settlement-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-settlement-event-types",
+      "weakened_profile_digest": "7b8f75f41fa739bde5b8ce7550dcdcbb3f6435c90ba293d77c8c51b296b1cd5c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-stale-observation-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-stale-observation-condition-types",
+      "weakened_profile_digest": "b785932ffafbbfcc4a4fb4974aca2cf701e57a7c711fe71eec79b53e92f2c113",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/22/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-identity-kinds",
+      "weakened_profile_digest": "ac52bb7494e7b3aa60b29e1fab423f57f5c42d97ba63256d3dc9aa9bafe26f5d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "repository_path",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-verification-types",
+      "weakened_profile_digest": "ba18b5cf42be7a05e8bacd647f8a194e2c8ec60465accaa32e31356cfc514445",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-visibility-event-identity-kinds",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-visibility-event-identity-kinds",
+      "weakened_profile_digest": "c3612a9f86cd931092133203e7d7de27b1f5af2fa1966c69ec94cf8d343588f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_identity_kinds",
+          "value": [
+            "code_symbol",
+            "durable_id",
+            "runtime_parameter",
+            "profile_term"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-visibility-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reference-role-surface-variations",
+      "variant_id": "role-visibility-event-types",
+      "weakened_profile_digest": "06babc4398872dc268f54b36e29d9ea6be549bc0c89315725cd669f010c8ea2d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "aggregate-constraint-variations",
+      "variant_id": "satisfaction-expression",
+      "weakened_profile_digest": "d93f56d17265186f9ef90acdb78afdfce8558fd8f31fe300df0e8d028f446bfc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-durable-effect-population"
+              },
+              {
+                "pattern": "complete-settled-effect-population"
+              },
+              {
+                "pattern": "complete-allowed-settled-state-population"
+              },
+              {
+                "pattern": "complete-failure-visibility-population"
+              },
+              {
+                "pattern": "durable-effects-within-settled-effects"
+              },
+              {
+                "pattern": "settled-effects-within-durable-effects"
+              },
+              {
+                "pattern": "selected-settled-state-allowed"
+              },
+              {
+                "pattern": "each-settled-effect-has-selected-state"
+              },
+              {
+                "pattern": "visibility-does-not-precede-settlement"
+              },
+              {
+                "pattern": "post-observation-does-not-precede-visibility"
+              },
+              {
+                "pattern": "expected-state-complete-against-effects"
+              },
+              {
+                "pattern": "post-observation-reads-effects"
+              },
+              {
+                "pattern": "post-observation-records-state"
+              },
+              {
+                "pattern": "post-visibility-state-current"
+              },
+              {
+                "pattern": "failure-branch-declares-visibility-population"
+              },
+              {
+                "pattern": "failure-visibility-population-empty"
+              },
+              {
+                "pattern": "verification-reads-complete-proof"
+              },
+              {
+                "pattern": "durable-settlement-completeness-verification"
+              },
+              {
+                "pattern": "settlement-population-exactness-verification"
+              },
+              {
+                "pattern": "settled-state-verification"
+              },
+              {
+                "pattern": "visibility-order-verification"
+              },
+              {
+                "pattern": "observation-order-verification"
+              },
+              {
+                "pattern": "post-visibility-state-verification"
+              },
+              {
+                "pattern": "failure-visibility-verification"
+              },
+              {
+                "pattern": "verification-targets-durable-settlement-completeness"
+              },
+              {
+                "pattern": "verification-targets-settlement-population-exactness"
+              },
+              {
+                "pattern": "verification-targets-settled-state"
+              },
+              {
+                "pattern": "verification-targets-visibility-order"
+              },
+              {
+                "pattern": "verification-targets-observation-order"
+              },
+              {
+                "pattern": "verification-targets-post-visibility-state"
+              },
+              {
+                "pattern": "verification-targets-failure-visibility"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

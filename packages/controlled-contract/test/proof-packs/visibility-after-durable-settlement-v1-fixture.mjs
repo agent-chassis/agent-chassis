@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.ordering.visibility-after-durable-settlement/2.0.0/profile.json",
+  "../certification/profiles/proof.ordering.visibility-after-durable-settlement/3.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -95,8 +95,7 @@ function buildVisibilityAfterDurableSettlementFixture({
   role_type_overrides: roleTypeOverrides = {}, identity_overrides: identityOverrides = {},
   number_value_overrides: numberValueOverrides = {}, verification_method: verificationMethod = "test_execution",
   verification_method_overrides: verificationMethodOverrides = {},
-  modality_overrides: modalityOverrides = {}, evaluation_stage: evaluationStage = "pre_dispatch",
-  drop_pattern_ids: dropPatternIds = [], proposition_overrides: propositionOverrides = {},
+  modality_overrides: modalityOverrides = {}, drop_pattern_ids: dropPatternIds = [], proposition_overrides: propositionOverrides = {},
   mutate_contract: mutateContract, mutate_input: mutateInput
 } = {}) {
   const profile = structuredClone(suppliedProfile);
@@ -159,8 +158,7 @@ function buildVisibilityAfterDurableSettlementFixture({
     return source_claim_id && target_claim_id ? [{ relation_id: `rel-${pattern.pattern_id}`,
       role: pattern.role, source_claim_id, target_claim_id }] : [];
   });
-  const input = { input_version: EVALUATION_INPUT_VERSION_V1, evaluation_stage: evaluationStage,
-    reference_bindings: profile.reference_roles.map(({ role }) => ({ role, reference_ids: [...roleIds[role]] })),
+  const input = { input_version: EVALUATION_INPUT_VERSION_V1, reference_bindings: profile.reference_roles.map(({ role }) => ({ role, reference_ids: [...roleIds[role]] })),
     number_bindings: profile.number_roles.map(({ role }) => ({ role, value: numberValues[role] })),
     claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {} };
   mutateContract?.(contract, { claimIdsByPattern, roleIds, numberValues });

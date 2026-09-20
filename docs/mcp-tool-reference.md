@@ -19,7 +19,7 @@ mental-model entry point.
 
 [Detailed dispatch and monitor contract.](mcp-dispatch-runtime-contract.md#launch-and-monitoring)
 
-In the free/local tier, `workspace_agent_run_wait` and `workspace_agent_run_status`
+In the free/local tier, `workspace_agent_run_status`
 may report terminal success while `structured_role_result.valid:false`, because
 `decision` free-tier reviewer/redteam/worker output is prose-only and non-attesting.
 That is expected, non-attesting state — not a failed child run, a failed dispatch,
@@ -37,7 +37,7 @@ See [docs/tool-discovery-tiers.md](tool-discovery-tiers.md) "Registered-Tier
 Exposure And Projection".
 ### Launcher-Owned Host Wiki-MCP Conduit
 
-[Detailed host-server and named-FIFO stdio conduit contract.](mcp-integration.md#transport)
+[Detailed host-server and local socket stdio conduit contract.](mcp-integration.md#transport)
 ### Caller/Session Identity
 
 [Detailed caller/session identity contract.](mcp-dispatch-runtime-contract.md#launch-and-monitoring)
@@ -47,6 +47,30 @@ Exposure And Projection".
 ### MCP Tools
 
 [Runtime blocker/preflight MCP tool details.](mcp-operation-reference.md)
+## Tool Declarations And Input Contracts
+
+Every agent session receives the full `tools/list` payload, so each declaration
+must remain within the enforced per-tool byte budget. The six durable proof
+operations publish the request fields needed for ordinary discovery, atomic
+upsert/remove, query, validation, and exact-candidate verification.
+
+The registration boundary validates the complete `inputSchema` on every call.
+Unknown fields and malformed nested values are rejected before the handler.
+An `advertisedInputSchema`, when present, is only a compact discovery
+projection; it never admits input. `workspace_tools_describe` can return the
+complete projected contract for a named compact declaration.
+
+Contract-level requirements and explicit controlled-acceptance applicability
+are fields on the ordinary obligation-coverage upsert. Query returns their
+saved projection, and explicit proof validation reports their problems.
+Removed response-kind payloads and construction-session shapes are not accepted
+or translated.
+
+Structural projections report whether their constraint coverage is exact or
+partial. Unprojected refinements are named with their request path and reason.
+The shared request-constraint vocabulary remains the owner for declared byte,
+field-combination, and selector rules.
+
 ## Available MCP Tools
 
 [Agent-facing MCP tool profile lists.](mcp-tool-registry-reference.md#available-mcp-tools)
@@ -56,16 +80,19 @@ Exposure And Projection".
 
 ## Code Index Interface Parity
 
-Repo code index MCP tools must expose machine-readable result data in `structuredContent`. The equivalent CLI `code-index` surface must expose the same data as JSON through a stable `--json` mode. The older `sidecar` CLI and MCP tool names remain compatibility aliases in the full tool profile.
+Repo code index MCP tools must expose machine-readable result data in `structuredContent`. The equivalent CLI `code-index` surface must expose the same data as JSON through a stable `--json` mode. The retired `sidecar_*` and `workspace_sidecar_*` MCP names and the `impact-paths`, `graph-impact-paths`, and `graph-impact-diff` CLI commands are not registered.
 
 Repo code index parity comparisons require both MCP and CLI JSON results to
 carry the same trust-envelope fields, including `schema_version`, `source_kind`,
 `canonicality`, `evidence_basis`, `index_head`, `index_tree`, `dirty_state`,
 `dirty_details`, `staleness`, canonical references, and derived evidence.
 
-SCIP symbol navigation parity is exposed through CLI `wiki code-index
-find-references --json` / `wiki code-index definition --json` and MCP
-`workspace_code_index_find_references` / `workspace_code_index_definition`.
+Query parity is exposed through CLI `wiki code-index context-for-path`,
+`impact`, `find-references`, `definition`, `callers`, and `callees` with
+`--json`, and the MCP `workspace_code_index_context_for_path`,
+`workspace_code_index_impact`, `workspace_code_index_find_references`,
+`workspace_code_index_definition`, `workspace_code_index_callers`, and
+`workspace_code_index_callees` routes with `verbose:true`.
 Those tools return derived, non-canonical SCIP evidence only: provider
 descriptor(s), coverage, freshness/dirty-worktree state, and per-result
 `resolution.state` remain part of the machine-readable envelope. When the SCIP

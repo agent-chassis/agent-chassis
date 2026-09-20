@@ -45,6 +45,7 @@ import {
   STDIO_MCP_TRANSCRIPT_ROOT_ENV_VAR,
   resolveStdioMcpTranscriptCaptureRoot
 } from "./stdio-mcp-transcript-capture.mjs";
+import { mcpMetricsServerEnv } from "./mcp-metrics-config.mjs";
 import {
   LAUNCHER_AGENT_SESSION_CONTRACT_FIELDS,
   LAUNCHER_AGENT_SESSION_CONTRACT_REFUSAL_CODES,
@@ -67,9 +68,6 @@ import {
 import {
   serializeLauncherNoCceAuthorityDeclaration
 } from "../../../wiki-mcp/src/lib/launcher-no-cce-authority.mjs";
-import {
-  openWikiMcpCommonProofResolverCapabilityDescriptor
-} from "./wiki-mcp-common-proof-resolver-capability.mjs";
 
 export const STDIO_MCP_COMPLETION_CREDENTIAL_SCHEMA_VERSION =
   LAUNCHER_AGENT_SESSION_CONTRACT_SCHEMA_VERSION;
@@ -334,6 +332,8 @@ function buildServerEnv(input, role, {
 } = {}) {
   const env = {
     ...transcriptCaptureServerEnv(),
+
+    ...mcpMetricsServerEnv(),
     PATH: process.env.PATH ?? "/usr/bin:/bin",
     HOME: process.env.HOME ?? "",
     ...(process.env.USER ? { USER: process.env.USER } : {}),
@@ -989,25 +989,17 @@ export async function createStdioMcpConduitWithTrustedDependencies(input, truste
         directory,
         launcherNoCceAuthorityDeclaration
       );
-      let commonProofResolverFd = null;
       let spawned;
       try {
-        commonProofResolverFd = openWikiMcpCommonProofResolverCapabilityDescriptor({
-          directory,
-          workspaceDir: input.workspaceDir,
-          repositoryAlias: input.workspaceAlias ?? path.basename(input.workspaceDir)
-        });
         spawned = spawnMeasuredServerGeneration(
           trusted.spawnServer, trusted.execPath, [serverPath], {
           cwd: input.workspaceDir, env: generationEnv,
           stdio: ["pipe", "pipe", "pipe", "pipe",
-            authorityFd === null ? "ignore" : authorityFd,
-            commonProofResolverFd],
+            authorityFd === null ? "ignore" : authorityFd],
           detached: false
           });
       } finally {
         if (authorityFd !== null) closeSync(authorityFd);
-        if (commonProofResolverFd !== null) closeSync(commonProofResolverFd);
       }
       const { child, readinessMeasurements } = spawned;
       let stderr = "";

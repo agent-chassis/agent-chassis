@@ -30,17 +30,16 @@ import {
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.operation.forbidden-noninvocation/2.0.0");
+  "test/certification/profiles/proof.operation.forbidden-noninvocation/4.0.0");
 const readJson = async (name) => JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
 
 test("forbidden-operation noninvocation profile is valid and bounded to one declared context", async () => {
   assert.equal(validateProfileSchemaV1(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE), true,
     JSON.stringify(validateProfileSchemaV1.errors));
   assert.deepEqual(validateProfileSemanticsV1(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE), []);
-  assert.deepEqual(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE.evaluation_stages,
-    ["pre_dispatch"]);
+  assert.equal(Object.hasOwn(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(profileDigest(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE),
-    "2bd239cbe18bbbb63db76d21b645713e1cd9de89226438668de654f452be2a07");
+    "d33c7c3eb034b334d4bcda5705c3334a98e408ecf91663b03bab81b60058956d");
   assert.equal((await readJson("evaluation-input.template.json")).reference_bindings.length, 5);
 });
 

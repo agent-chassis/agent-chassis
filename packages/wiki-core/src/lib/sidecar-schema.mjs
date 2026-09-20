@@ -1,7 +1,5 @@
 export const SIDECAR_SCHEMA_VERSION = "repo-code-index.v1";
-export const SIDECAR_ARTIFACT_SCHEMA_VERSION = SIDECAR_SCHEMA_VERSION;
 export const SIDECAR_RESULT_SCHEMA_FIELD = "schema_version";
-export const SIDECAR_ARTIFACT_SCHEMA_FIELD = "artifact_schema_version";
 
 export const SIDECAR_DIRTY_STATE_VALUES = Object.freeze([
   "clean",
@@ -178,34 +176,6 @@ export function isSupportedSidecarSchemaVersion(schemaVersion) {
   return schemaVersion === SIDECAR_SCHEMA_VERSION;
 }
 
-export function isSupportedSidecarArtifactSchema(metadata) {
-  return metadata?.[SIDECAR_ARTIFACT_SCHEMA_FIELD] === SIDECAR_ARTIFACT_SCHEMA_VERSION;
-}
-
-export function classifySidecarArtifactSchema(metadata) {
-  if (metadata == null) {
-    return {
-      compatible: false,
-      staleness: "missing",
-      reason: "artifact_missing"
-    };
-  }
-
-  if (isSupportedSidecarArtifactSchema(metadata)) {
-    return {
-      compatible: true,
-      staleness: "unknown",
-      reason: "schema_compatible"
-    };
-  }
-
-  return {
-    compatible: false,
-    staleness: "rebuild_required",
-    reason: "schema_incompatible"
-  };
-}
-
 export function createSidecarResultEnvelope(overrides = {}) {
   const dirtyDetails = createSidecarDirtyDetails(overrides.dirty_details);
   return {
@@ -285,7 +255,7 @@ function makeFixture({
   dirtyState,
   staleness,
   dirtyDetails = {},
-  artifactSchemaVersion = SIDECAR_ARTIFACT_SCHEMA_VERSION
+  artifactSchemaVersion = "repo-code-store.v5"
 }) {
   return createSidecarResultEnvelope({
     source_kind: "code_index",
@@ -311,7 +281,7 @@ function makeFixture({
     derived_evidence: [
       {
         kind: "index_state",
-        path: ".cache/repo-code-index/index.json",
+        path: ".cache/repo-code-index/graph.sqlite",
         provenance: {
           source_kind: "code_index",
           canonicality: "derived",
@@ -355,7 +325,7 @@ export const SIDECAR_TRUST_ENVELOPE_FIXTURES = deepFreeze({
     dirtyState: "clean",
     staleness: "rebuild_required",
     dirtyDetails: cleanDetails,
-    artifactSchemaVersion: "repo-code-index.v0"
+    artifactSchemaVersion: "repo-code-store.v3"
   }),
   dirty_missing: makeFixture({
     dirtyState: "dirty_worktree",
@@ -376,7 +346,7 @@ export const SIDECAR_TRUST_ENVELOPE_FIXTURES = deepFreeze({
     dirtyState: "dirty_worktree",
     staleness: "rebuild_required",
     dirtyDetails,
-    artifactSchemaVersion: "repo-code-index.v0"
+    artifactSchemaVersion: "repo-code-store.v3"
   })
 });
 

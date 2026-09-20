@@ -44,10 +44,9 @@ import {
 } from "./stable-relation-semantics.mjs";
 import { projectBoundedDiagnostics } from "./bounded-diagnostic-projection.mjs";
 import {
+  TEST_PROOF_PROVIDER_CATALOG,
   resolveTestProofProviderCompatibility
 } from "./test-proof-provider-registry.mjs";
-import { projectStableTestProofCurrentPopulation } from
-  "./test-proof-contract-v1.mjs";
 
 const validateProfileSemanticsV1 = createExpandedProfileSemanticValidator({
   controlledVocabulary: CONTROLLED_VOCABULARY,
@@ -155,6 +154,12 @@ function providerEvidenceDiagnostics(authored, evidence, capability, pointer, _m
   return diagnostics;
 }
 
+function providerObservationMechanism(authored) {
+  if (typeof authored?.observation_mechanism === "string") return authored.observation_mechanism;
+  return TEST_PROOF_PROVIDER_CATALOG.providers.find(({ provider_id: id }) =>
+    id === authored?.provider_id)?.observation_mechanisms[0] ?? null;
+}
+
 function observationDiagnostics(observation, pointer, mechanism) {
   if (!observation) return [diagnostic(
     "test_validity_launcher_observation_missing", pointer
@@ -177,63 +182,37 @@ function observationDiagnostics(observation, pointer, mechanism) {
   return diagnostics;
 }
 
-function inventoryDiagnostics(binding, input) {
-  if (!input.test_inventory) return [diagnostic(
-    "test_validity_inventory_missing", "/stable_evaluation/test_validity/test_inventory"
-  )];
+function inventoryDiagnostics(_binding, input) {
+  const pointer = "/stable_evaluation/test_validity/test_inventory";
+  if (!input.test_inventory) return [diagnostic("test_validity_inventory_missing", pointer)];
   const diagnostics = [];
   const declared = input.test_inventory.declared_test_ids;
   const observed = input.test_inventory.observed_tests;
   const observedIds = observed.map(({ test_id: testId }) => testId);
-  const baseline = input.test_inventory.baseline_executed_test_ids;
-  const coverage = binding.coverage_disposition;
-  const authoredBaselineIds = coverage.items.map(({ test_id: testId }) => testId);
-  const authoredCurrentIds = projectStableTestProofCurrentPopulation(binding);
-  const samePopulation = (left, right) => left.length === right.length &&
-    new Set(left).size === left.length && new Set(right).size === right.length &&
-    left.every((value) => right.includes(value));
   if (!unique(declared)) diagnostics.push(diagnostic(
-    "test_validity_declared_test_duplicate", "/stable_evaluation/test_validity/test_inventory"
+    "test_validity_declared_test_duplicate", pointer
   ));
   if (!unique(observedIds)) diagnostics.push(diagnostic(
-    "test_validity_observed_test_duplicate", "/stable_evaluation/test_validity/test_inventory"
+    "test_validity_observed_test_duplicate", pointer
   ));
-  if (!samePopulation(declared, authoredCurrentIds)) diagnostics.push(diagnostic(
-    "test_validity_authored_inventory_incomplete",
-    "/stable_evaluation/test_validity/test_inventory/declared_test_ids"
-  ));
-  if (!samePopulation(observedIds, authoredCurrentIds)) diagnostics.push(diagnostic(
-    "test_validity_authored_coverage_unobserved",
-    "/stable_evaluation/test_validity/test_inventory/observed_tests"
-  ));
-  const expectedBaseline = coverage.baseline_state === "complete_executed_inventory"
-    ? authoredBaselineIds : [];
-  if (!samePopulation(baseline, expectedBaseline)) diagnostics.push(diagnostic(
-    "test_validity_authored_baseline_incomplete",
-    "/stable_evaluation/test_validity/test_inventory/baseline_executed_test_ids"
-  ));
-  for (const testId of declared) if (!observedIds.includes(testId)) diagnostics.push(diagnostic(
-    "test_validity_declared_test_removed", "/stable_evaluation/test_validity/test_inventory"
-  ));
-  for (const testId of observedIds) if (!declared.includes(testId)) diagnostics.push(diagnostic(
-    "test_validity_undeclared_test_observed", "/stable_evaluation/test_validity/test_inventory"
-  ));
-  for (const item of observed) {
-    if (item.status === "skipped" && baseline.includes(item.test_id)) diagnostics.push(diagnostic(
-      "test_validity_newly_skipped_test", "/stable_evaluation/test_validity/test_inventory"
-    ));
-    if (item.status === "failed") diagnostics.push(diagnostic(
-      "test_validity_observed_test_failed", "/stable_evaluation/test_validity/test_inventory"
-    ));
+  const selection = [...new Set(declared)];
+  if (selection.length !== 1) {
+    diagnostics.push(diagnostic("test_validity_declared_selection_invalid",
+      `${pointer}/declared_test_ids`, { expected_identity: "exactly one selected test" }));
+    return diagnostics;
   }
-  if (coverage.baseline_state === "complete_executed_inventory") {
-    const dispositionIds = coverage.items.map(({ test_id: testId }) => testId);
-    for (const testId of baseline) if (!dispositionIds.includes(testId)) diagnostics.push(
-      diagnostic("test_validity_coverage_undispositioned",
-        "/stable_evaluation/test_validity/test_inventory")
-    );
-  } else if (baseline.length > 0) diagnostics.push(diagnostic(
-    "test_validity_coverage_baseline_conflict", "/stable_evaluation/test_validity/test_inventory"
+  const [selectedTestId] = selection;
+  const selected = observed.filter(({ test_id: testId }) => testId === selectedTestId);
+  if (selected.length === 0) {
+    diagnostics.push(diagnostic("test_validity_selected_test_unobserved",
+      `${pointer}/observed_tests`, { expected_identity: selectedTestId }));
+    return diagnostics;
+  }
+  if (selected.some(({ status }) => status === "skipped")) diagnostics.push(diagnostic(
+    "test_validity_selected_test_skipped", pointer, { expected_identity: selectedTestId }
+  ));
+  if (selected.some(({ status }) => status === "failed")) diagnostics.push(diagnostic(
+    "test_validity_observed_test_failed", pointer, { expected_identity: selectedTestId }
   ));
   return diagnostics;
 }
@@ -265,7 +244,7 @@ function falsifierDiagnostics(binding, input) {
         boundary_kind: falsifier.mutation?.target_kind
       }));
     diagnostics.push(...observationDiagnostics(execution.observation,
-      `${pointer}/observation`, "node_test_structured_events"));
+      `${pointer}/observation`, providerObservationMechanism(falsifier.execution_provider)));
     if (execution.skipped) diagnostics.push(diagnostic(
       "test_validity_falsifier_skipped", `${pointer}/skipped`
     ));
@@ -335,7 +314,7 @@ function traversalDiagnostics(binding, input) {
       boundary_kind: traversal.provider?.boundary_kind
     });
   diagnostics.push(...observationDiagnostics(traversal.observation,
-    `${pointer}/observation`, "node_test_v8_coverage"));
+    `${pointer}/observation`, providerObservationMechanism(authored)));
   if (traversal.instrumented !== true) diagnostics.push(diagnostic(
     "test_validity_traversal_instrumentation_missing", pointer
   ));
@@ -381,7 +360,7 @@ function evaluateNativeTestValidity(contract, input) {
     }));
   diagnostics.push(...observationDiagnostics(input.candidate_execution?.observation,
     "/stable_evaluation/test_validity/candidate_execution/observation",
-    "node_test_structured_events"));
+    providerObservationMechanism(binding.candidate_execution_provider)));
   if (input.candidate_execution?.observed_boundary_id !==
       binding.system_under_test_boundary.boundary_id) diagnostics.push(diagnostic(
     "test_validity_sut_boundary_mismatch", "/stable_evaluation/test_validity"

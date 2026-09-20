@@ -1,0 +1,1218 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.failure.cleanup-noninterference",
+  "profile_version": "4.0.0",
+  "profile_digest": "8336a9179a31578b836572ccfeebd4d45916d2d504ca9ae2e0b31026a5d66b2f",
+  "description": "After one declared failure, cleanup empties the complete declared residue population. A distinct complete protected-resource population is observed through the same bound population identity before failure and after settlement; both complete state populations have the protected-resource cardinality and the after-state population equals the before-state population. A separately selected authority, distinct from the failed attempt's authority, has equal state before and after settlement, is preserved by cleanup, later authorizes a valid attempt, and that attempt returns the expected successful result.",
+  "parameters": [
+    {
+      "name": "failed_attempt",
+      "purpose": "Declare failed attempt for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failed_attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_event",
+      "purpose": "Declare failure event for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failure_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/2",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/claim_patterns/6",
+        "/claim_patterns/7",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_state",
+      "purpose": "Declare failure state for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failure_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "cleanup_operation",
+      "purpose": "Declare cleanup operation for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "cleanup_operation"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/21",
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "settlement_event",
+      "purpose": "Declare settlement event for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "settlement_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/14",
+        "/claim_patterns/15",
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/20",
+        "/claim_patterns/3",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "residue_population",
+      "purpose": "Declare residue population for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "residue_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/21",
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/3",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "residues",
+      "purpose": "Declare residues for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "residues"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_resource_population",
+      "purpose": "Declare protected resource population for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_resource_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/22",
+        "/claim_patterns/5",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/3",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_resources",
+      "purpose": "Declare protected resources for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_resources"
+      ],
+      "refinement_refs": [
+        "/reference_roles/10"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_state_before_population",
+      "purpose": "Declare protected state before population for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_state_before_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/11"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/22",
+        "/claim_patterns/7",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_states_before",
+      "purpose": "Declare protected states before for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_states_before"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_state_after_population",
+      "purpose": "Declare protected state after population for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_state_after_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12",
+        "/claim_patterns/22",
+        "/claim_patterns/8",
+        "/reference_binding_patterns/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_states_after",
+      "purpose": "Declare protected states after for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "protected_states_after"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_authority",
+      "purpose": "Declare failure authority for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failure_authority"
+      ],
+      "refinement_refs": [
+        "/reference_roles/15"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/distinct_reference_role_sets/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "unrelated_authority",
+      "purpose": "Declare unrelated authority for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "unrelated_authority"
+      ],
+      "refinement_refs": [
+        "/reference_roles/16"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/23",
+        "/claim_patterns/24",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authority_state_before",
+      "purpose": "Declare authority state before for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "authority_state_before"
+      ],
+      "refinement_refs": [
+        "/reference_roles/17"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/15",
+        "/claim_patterns/23"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authority_state_after",
+      "purpose": "Declare authority state after for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "authority_state_after"
+      ],
+      "refinement_refs": [
+        "/reference_roles/18"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/14",
+        "/claim_patterns/15",
+        "/claim_patterns/23"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "valid_attempt",
+      "purpose": "Declare valid attempt for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "valid_attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/19"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/24",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "valid_input",
+      "purpose": "Declare valid input for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "valid_input"
+      ],
+      "refinement_refs": [
+        "/reference_roles/20"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/18"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "valid_result",
+      "purpose": "Declare valid result for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "valid_result"
+      ],
+      "refinement_refs": [
+        "/reference_roles/21"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/19",
+        "/claim_patterns/20",
+        "/claim_patterns/24"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "expected_success_result",
+      "purpose": "Declare expected success result for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "expected_success_result"
+      ],
+      "refinement_refs": [
+        "/reference_roles/22"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/20",
+        "/claim_patterns/24"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "cleanup_verification",
+      "purpose": "Declare cleanup verification for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "cleanup_verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/23"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/21",
+        "/distinct_reference_role_sets/5"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_state_verification",
+      "purpose": "Declare protected state verification for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "protected_state_verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/24"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/22",
+        "/distinct_reference_role_sets/5"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authority_verification",
+      "purpose": "Declare authority verification for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "authority_verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/25"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/23",
+        "/distinct_reference_role_sets/5"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "later_authorization_verification",
+      "purpose": "Declare later authorization verification for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "later_authorization_verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/26"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/24",
+        "/distinct_reference_role_sets/5"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "residue_remaining_condition",
+      "purpose": "Declare residue remaining condition for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "residue_remaining_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/27"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/21",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "protected_state_changed_condition",
+      "purpose": "Declare protected state changed condition for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "protected_state_changed_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/28"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/22",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "authority_consumed_condition",
+      "purpose": "Declare authority consumed condition for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "authority_consumed_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/29"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/23",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "later_attempt_failed_condition",
+      "purpose": "Declare later attempt failed condition for proof.failure.cleanup-noninterference. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "later_attempt_failed_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/30"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/24",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "failed_attempt",
+      "kind": "semantic_parameter",
+      "parameter": "failed_attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_event",
+      "kind": "semantic_parameter",
+      "parameter": "failure_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/2",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/claim_patterns/6",
+        "/claim_patterns/7",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_state",
+      "kind": "semantic_parameter",
+      "parameter": "failure_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "cleanup_operation",
+      "kind": "semantic_parameter",
+      "parameter": "cleanup_operation",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/2",
+        "/claim_patterns/21",
+        "/claim_patterns/3",
+        "/claim_patterns/4",
+        "/claim_patterns/5",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "settlement_event",
+      "kind": "semantic_parameter",
+      "parameter": "settlement_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/14",
+        "/claim_patterns/15",
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/20",
+        "/claim_patterns/3",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/1",
+        "/reference_binding_patterns/0",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "before_failure_observation",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/7",
+        "/distinct_reference_role_sets/2"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire before_failure_observation for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.failure.cleanup-noninterference/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "after_settlement_observation",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/14",
+        "/claim_patterns/8",
+        "/distinct_reference_role_sets/2"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire after_settlement_observation for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.failure.cleanup-noninterference/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "residue_population",
+      "kind": "semantic_parameter",
+      "parameter": "residue_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/21",
+        "/claim_patterns/4",
+        "/distinct_reference_role_sets/3",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residues",
+      "kind": "semantic_parameter",
+      "parameter": "residues",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_resource_population",
+      "kind": "semantic_parameter",
+      "parameter": "protected_resource_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/22",
+        "/claim_patterns/5",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/3",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_resources",
+      "kind": "semantic_parameter",
+      "parameter": "protected_resources",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_state_before_population",
+      "kind": "semantic_parameter",
+      "parameter": "protected_state_before_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/22",
+        "/claim_patterns/7",
+        "/claim_patterns/9",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_states_before",
+      "kind": "semantic_parameter",
+      "parameter": "protected_states_before",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_state_after_population",
+      "kind": "semantic_parameter",
+      "parameter": "protected_state_after_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/12",
+        "/claim_patterns/22",
+        "/claim_patterns/8",
+        "/reference_binding_patterns/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_states_after",
+      "kind": "semantic_parameter",
+      "parameter": "protected_states_after",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/3",
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_authority",
+      "kind": "semantic_parameter",
+      "parameter": "failure_authority",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/distinct_reference_role_sets/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "unrelated_authority",
+      "kind": "semantic_parameter",
+      "parameter": "unrelated_authority",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/14",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/23",
+        "/claim_patterns/24",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authority_state_before",
+      "kind": "semantic_parameter",
+      "parameter": "authority_state_before",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/15",
+        "/claim_patterns/23"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authority_state_after",
+      "kind": "semantic_parameter",
+      "parameter": "authority_state_after",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/14",
+        "/claim_patterns/15",
+        "/claim_patterns/23"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "valid_attempt",
+      "kind": "semantic_parameter",
+      "parameter": "valid_attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/24",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "valid_input",
+      "kind": "semantic_parameter",
+      "parameter": "valid_input",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/18"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "valid_result",
+      "kind": "semantic_parameter",
+      "parameter": "valid_result",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/19",
+        "/claim_patterns/20",
+        "/claim_patterns/24"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "expected_success_result",
+      "kind": "semantic_parameter",
+      "parameter": "expected_success_result",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/20",
+        "/claim_patterns/24"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "cleanup_verification",
+      "kind": "semantic_parameter",
+      "parameter": "cleanup_verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/21",
+        "/distinct_reference_role_sets/5"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_state_verification",
+      "kind": "semantic_parameter",
+      "parameter": "protected_state_verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/22",
+        "/distinct_reference_role_sets/5"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authority_verification",
+      "kind": "semantic_parameter",
+      "parameter": "authority_verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/23",
+        "/distinct_reference_role_sets/5"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "later_authorization_verification",
+      "kind": "semantic_parameter",
+      "parameter": "later_authorization_verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/24",
+        "/distinct_reference_role_sets/5"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_remaining_condition",
+      "kind": "semantic_parameter",
+      "parameter": "residue_remaining_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/21",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_state_changed_condition",
+      "kind": "semantic_parameter",
+      "parameter": "protected_state_changed_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/22",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "authority_consumed_condition",
+      "kind": "semantic_parameter",
+      "parameter": "authority_consumed_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/23",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "later_attempt_failed_condition",
+      "kind": "semantic_parameter",
+      "parameter": "later_attempt_failed_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/24",
+        "/distinct_reference_role_sets/6",
+        "/falsifier_condition_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/21",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "protected_resource_count",
+      "kind": "complete_population_count",
+      "parameter": null,
+      "inputs": [
+        "protected_resources",
+        "protected_states_before",
+        "protected_states_after"
+      ],
+      "rule_refs": [
+        "/reference_role_count_bindings/1",
+        "/reference_role_count_bindings/2",
+        "/reference_role_count_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "failed_attempt",
+      "failure_event",
+      "failure_state",
+      "cleanup_operation",
+      "settlement_event",
+      "residue_population",
+      "residues",
+      "protected_resource_population",
+      "protected_resources",
+      "protected_state_before_population",
+      "protected_states_before",
+      "protected_state_after_population",
+      "protected_states_after",
+      "failure_authority",
+      "unrelated_authority",
+      "authority_state_before",
+      "authority_state_after",
+      "valid_attempt",
+      "valid_input",
+      "valid_result",
+      "expected_success_result",
+      "cleanup_verification",
+      "protected_state_verification",
+      "authority_verification",
+      "later_authorization_verification",
+      "residue_remaining_condition",
+      "protected_state_changed_condition",
+      "authority_consumed_condition",
+      "later_attempt_failed_condition"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [
+      "before_failure_observation",
+      "after_settlement_observation"
+    ],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.failure.cleanup-noninterference.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.failure.cleanup-noninterference constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.failure.cleanup-noninterference.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

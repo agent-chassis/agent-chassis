@@ -3,8 +3,8 @@
   "profile_id": "proof.verification.test-validity",
   "profile_version": "4.0.0",
   "profile_digest": "cbb977ab73b18c846ea03b6e71609e7e33343dc7ae23d45a6dd2ad001b61085d",
-  "guarantee": "For one exact post-delivery test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, evaluator, and any required exact-capture root and sources satisfies the guarantee only when the candidate passes, the declared, discovered, and executed test inventories are complete and exactly equal without new skips or unexpected tests, every declared falsifier is detected, required traversal is proven, and no prohibited shortcut is observed. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused.",
-  "guarantee_digest": "ea84e2b5c24b5e546779e2a806beaa03ec72980d62f586f8872928287d32d6b7",
+  "guarantee": "For one exact post-delivery test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, and evaluator satisfies the guarantee only when the candidate passes, the one test the binding's declarative test selector names is discovered, executed, and not skipped, every declared falsifier is present and detected, every required traversal is present and proven, and no prohibited shortcut is observed. No authored baseline inventory participates, and sibling tests observed in the same run neither earn nor withhold credit. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused.",
+  "guarantee_digest": "dc52c637d126bdf7eb292d11aebef9971c775477d589182e91de9558c0a41a43",
   "explicit_exclusions": [
     "authority-grant",
     "coordinator-semantic-judgment",
@@ -14,8 +14,8 @@
   ],
   "certification_population": {
     "positive_case_count": 1,
-    "single_axis_weakening_count": 7
+    "single_axis_weakening_count": 9
   },
-  "corpus_digest": "56c2657e6a80515369bcf09a82ddc6196b56998a330d83f3d728e87deee1fa67",
-  "result_digest": "0393ecddf8726a21894fbd84a8ebcb4c25fe5dd24c59582950dec20f5e5767e3"
+  "corpus_digest": "4b3494b66f9b3bb2a3fe31b811c95582d2a84ccead8834735fac3e5e75963a5f",
+  "result_digest": "9d3f50d28efa577b76624b8b77e2edd817e8969ff86fa76e3f369d0e43ba83c0"
 }

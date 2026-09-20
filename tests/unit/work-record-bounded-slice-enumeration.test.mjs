@@ -16,6 +16,7 @@ import {
   runWorkRecordSummaryWithCompactGate
 } from "../../packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs";
 import { registerWorkRecordReadTools } from "../../packages/wiki-mcp/src/lib/work-record-read-tools.mjs";
+import { getRuntimeBlockerEntry } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { registerWikiCoreTools } from "../../packages/wiki-mcp/src/lib/wiki-core-tools.mjs";
 
 const WORKSPACE_REPO = "agent-chassis/agent-chassis";
@@ -67,7 +68,8 @@ function summaryDriver({ record = trackerRecord(), sourceDigest = SOURCE_DIGEST 
         workspaceDir: WORKSPACE_DIR,
         args,
         getWorkRecordSummary: async () => summaryFixture(),
-        readWorkRecordById: async () => ({ source_digest: sourceDigest, valid: true, record })
+        readWorkRecordById: async () => ({ source_digest: sourceDigest, valid: true, record }),
+        isToolVisible: () => true
       });
     }
   };
@@ -112,12 +114,16 @@ test("all 43 slices are reachable within the declared call budget, each exactly 
   const record = trackerRecord();
   const driver = summaryDriver({ record });
 
-  const compact = await driver.run({ id: RECORD_ID });
-  assert.equal(compact.compact_read.omitted_detail_counts.slices, 42);
+  const lean = await driver.run({ id: RECORD_ID });
+  const enumeration = lean.next_calls.find((entry) => Object.hasOwn(entry.arguments, "slice_offset"));
+  assert.deepEqual(enumeration, {
+    tool: "workspace_work_record_summary",
+    arguments: { repo: WORKSPACE_REPO, unit: RECORD_ID, slice_offset: 0 }
+  });
 
   const collected = [];
   let pageSize = null;
-  let request = { id: RECORD_ID, slice_offset: 0 };
+  let request = enumeration.arguments;
   let guard = 0;
   let lastPage = null;
   while (guard < 50) {
@@ -169,7 +175,7 @@ test("a caller never constructs a slice id: every page comes from the previous p
 
 test("a page whose digest differs reports the mismatch instead of continuing silently", async () => {
   const driver = summaryDriver();
-  const first = await driver.run({ id: RECORD_ID, slice_offset: 0 });
+  const first = await driver.run({ id: RECORD_ID, slice_offset: 0, slice_limit: 3, slice_status: "todo" });
   assert.equal(first.accepted, true);
 
   const moved = summaryDriver({ sourceDigest: "sha256:source-b" });
@@ -179,14 +185,32 @@ test("a page whose digest differs reports the mismatch instead of continuing sil
   });
 
   assert.equal(second.accepted, false);
-  assert.equal(second.reason_code, "compact_read_token_stale_source_digest");
+  assert.equal(second.reason_code, "selected_read_stale_source_digest");
+  const entry = getRuntimeBlockerEntry(second.reason_code);
+  assert.deepEqual([entry.category, entry.actor_recovery, entry.blocking], ["read_disclosure", "caller_retry", false]);
   assert.equal(second.source_digest_matches, false);
   assert.equal(second.expected_source_digest, SOURCE_DIGEST);
   assert.equal(second.source_digest, "sha256:source-b");
   assert.equal(second.slice_page, null, "a mismatched page returns no slices");
+  assert.equal(JSON.stringify(second).includes("token"), false, "the refusal gives no token advice");
 
-  assert.deepEqual(second.next_calls[0].arguments.slice_offset, 0);
-  assert.equal(second.next_calls[0].arguments.expected_source_digest, "sha256:source-b");
+  assert.equal(second.next_calls.length, 1);
+  assert.equal(second.next_calls[0].recommended, true);
+  assert.deepEqual(second.next_calls[0].arguments, {
+    id: RECORD_ID,
+    slice_offset: 0,
+    expected_source_digest: "sha256:source-b",
+    slice_limit: 3,
+    slice_status: ["todo"]
+  });
+
+  const restarted = await moved.run(second.next_calls[0].arguments);
+  assert.equal(restarted.accepted, true);
+  assert.equal(restarted.source_digest_matches, true);
+  assert.equal(restarted.slice_page.offset, 0);
+  assert.deepEqual(restarted.slice_page.status_filter, ["todo"]);
+  assert.ok(restarted.slice_page.slices.length > 0 && restarted.slice_page.slices.length <= 3);
+  assert.ok(restarted.slice_page.slices.every((slice) => slice.status === "todo"));
 });
 
 test("a matching digest continues without complaint", async () => {
@@ -262,12 +286,12 @@ test("an offset past the end is an empty, explicitly-final page rather than an e
   assert.deepEqual(page.next_calls, []);
 });
 
-test("enumeration composes with the compact-first gate: no token, no refusal, not an expensive option", async () => {
+test("enumeration composes with the compact-first gate: no prior read, no refusal, not an expensive option", async () => {
   const driver = summaryDriver();
   const page = await driver.run({ id: RECORD_ID, slice_offset: 0 });
 
   assert.equal(page.accepted, true);
-  assert.notEqual(page.reason_code, "compact_first_required");
+  assert.equal(Object.hasOwn(page, "reason_code"), false);
   assert.equal(Object.hasOwn(page, "blocked_expensive_options"), false);
   assert.equal(driver.calls.length, 1, "the first enumeration call needs no prior compact read");
 });

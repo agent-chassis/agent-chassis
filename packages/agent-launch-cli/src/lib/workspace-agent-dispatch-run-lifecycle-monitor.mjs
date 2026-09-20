@@ -6,9 +6,19 @@ import {
 } from "@agent-chassis/agent-launch-core";
 
 import { statusRefusal } from "./workspace-agent-dispatch-refusal.mjs";
-import { findRunRecord } from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
-import { settleAndProjectRunStatus } from "./workspace-agent-dispatch-run-lifecycle-settlement.mjs";
-import { settleAndProjectAdvisoryProcess } from "./workspace-agent-advisory-result-settlement.mjs";
+import {
+  findRunRecord,
+  selectVisibleRunRecord
+} from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
+import {
+  attachAdvisoryReviewTarget,
+  settleAndProjectRunStatus
+} from "./workspace-agent-dispatch-run-lifecycle-settlement.mjs";
+import {
+  decodeManagedFindingsSourceReference,
+  resolveManagedFindingsSourceFromRecord,
+  settleAndProjectAdvisoryProcess
+} from "./workspace-agent-advisory-result-settlement.mjs";
 
 export function createMonitor(deps = {}) {
   const {
@@ -17,7 +27,8 @@ export function createMonitor(deps = {}) {
     sleep,
     monotonicNow,
     captureSliceReviewTerminalResult = null,
-    settleFormalReviewAttestation = null
+    settleFormalReviewAttestation = null,
+    publishManagedRunResult = null
   } = deps;
 
   const statusSettlementByRecord = new WeakMap();
@@ -27,15 +38,26 @@ export function createMonitor(deps = {}) {
       caller_session_id = null,
       monitor_handle = null,
       run_id = null,
+      attempt_id = null,
       subject = null
     } = input;
 
-    const record = findRunRecord(runs, { run_id, monitor_handle });
+    const subjectSelection = monitor_handle === null && run_id === null && typeof subject === "string"
+      ? selectVisibleRunRecord(runs, { caller_session_id, subject, attempt_id })
+      : null;
+    const record = subjectSelection?.selected ?? findRunRecord(runs, { run_id, monitor_handle });
     if (!record) {
+      const code = subjectSelection?.code === BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH
+        ? BACKEND_REFUSAL_CODES.MONITOR_HANDLE_CALLER_MISMATCH
+        : subjectSelection?.code === "attempt_selection_ambiguous"
+          ? BACKEND_REFUSAL_CODES.LAUNCH_REFUSED
+          : BACKEND_REFUSAL_CODES.MONITOR_HANDLE_UNKNOWN;
       return statusRefusal(
-        BACKEND_REFUSAL_CODES.MONITOR_HANDLE_UNKNOWN,
-        "unknown_run_or_handle",
-        null
+        code,
+        subjectSelection?.code ?? "unknown_run_or_handle",
+        subjectSelection?.candidates?.length > 0
+          ? { attempts: subjectSelection.candidates }
+          : null
       );
     }
     if (caller_session_id && record.caller_session_id !== caller_session_id) {
@@ -63,7 +85,8 @@ export function createMonitor(deps = {}) {
         : settleAndProjectRunStatus(record, {
             clock,
             captureSliceReviewTerminalResult,
-            settleFormalReviewAttestation
+            settleFormalReviewAttestation,
+            publishManagedRunResult
           })).finally(() => {
         if (statusSettlementByRecord.get(record) === settlement) {
           statusSettlementByRecord.delete(record);
@@ -79,6 +102,7 @@ export function createMonitor(deps = {}) {
       caller_session_id = null,
       monitor_handle = null,
       subject = null,
+      attempt_id = null,
       timeout_ms = 60000,
       poll_interval_ms = 5000
     } = input;
@@ -90,7 +114,8 @@ export function createMonitor(deps = {}) {
         caller_session_id,
         monitor_handle,
         run_id: null,
-        subject
+        subject,
+        attempt_id
       });
 
       if (!status || status.accepted !== true) {
@@ -98,7 +123,7 @@ export function createMonitor(deps = {}) {
       }
 
       if (status.terminal) {
-        return {
+        return attachAdvisoryReviewTarget(status, {
           schema_version: WORKSPACE_AGENT_DISPATCH_RUN_WAIT_SCHEMA_VERSION,
           accepted: true,
           timed_out: false,
@@ -115,18 +140,24 @@ export function createMonitor(deps = {}) {
           updated_at: status.updated_at,
           exit: status.exit ?? null,
           final_result: status.final_result ?? null,
+
+          ...(status.final_result_durability === undefined
+            ? {}
+            : {
+                final_result_durability: status.final_result_durability,
+                ...(status.final_result_publication_failure
+                  ? { final_result_publication_failure: status.final_result_publication_failure }
+                  : {})
+              }),
           ...(status.session_contract_required === true
             ? {
                 session_contract_required: true,
                 session_contract: status.session_contract
               }
             : {}),
-          ...(status.validation_evidence
-            ? { validation_evidence: status.validation_evidence }
-            : {}),
 
           ...(status.review_result ? { review_result: status.review_result } : {})
-        };
+        });
       }
 
       const remaining = deadline - monotonicNow();
@@ -160,5 +191,16 @@ export function createMonitor(deps = {}) {
     }
   }
 
-  return { getRunStatus, waitForRunStatus };
+  async function resolveRetainedFindingsSource({ reference, caller_session_id, repository } = {}) {
+    const decoded = decodeManagedFindingsSourceReference(reference);
+    if (decoded === null || decoded.invalid) return Object.freeze({ ok: false, state: "corrupt" });
+    const record = findRunRecord(runs, { run_id: decoded.run, monitor_handle: decoded.monitor });
+    if (!record) return Object.freeze({ ok: false, state: "unavailable" });
+    return resolveManagedFindingsSourceFromRecord(record, reference, {
+      callerSessionId: caller_session_id,
+      repository
+    });
+  }
+
+  return { getRunStatus, waitForRunStatus, resolveRetainedFindingsSource };
 }

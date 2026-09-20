@@ -9,6 +9,19 @@ const DYNAMIC_MODULE_SPECIFIER = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu;
 const IMPORT_META_URL_SPECIFIER =
   /\bnew\s+URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url\s*\)/gu;
 
+export const DECLARED_CLOSURE_BOUNDARIES = Object.freeze([
+  Object.freeze({
+    importer: "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+    specifier: "./validator-population.mjs",
+    reason: "cache_generation_surface"
+  })
+]);
+
+export function isDeclaredClosureBoundary(importerPath, specifier) {
+  return DECLARED_CLOSURE_BOUNDARIES.some((boundary) =>
+    boundary.importer === importerPath && boundary.specifier === specifier);
+}
+
 function localSpecifiers(source) {
   const specifiers = new Set();
   for (const expression of [
@@ -33,7 +46,9 @@ async function executableDependencyClosure(repositoryRoot, executableModule) {
   while (pending.length > 0) {
     const owner = pending.pop();
     const source = await readFile(owner, "utf8");
+    const ownerRelative = path.relative(root, owner).split(path.sep).join("/");
     for (const specifier of localSpecifiers(source)) {
+      if (isDeclaredClosureBoundary(ownerRelative, specifier)) continue;
       const resolved = path.resolve(path.dirname(owner), specifier);
       const relative = path.relative(root, resolved).split(path.sep).join("/");
       if (relative.startsWith("../") || path.isAbsolute(relative)) throw new Error(

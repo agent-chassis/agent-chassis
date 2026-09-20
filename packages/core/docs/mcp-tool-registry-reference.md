@@ -14,7 +14,7 @@ Use the two discovery layers for different questions:
 
 | Question | Authoritative live surface |
 | --- | --- |
-| Which repository-local tools are visible and supported for this session, and what authority, side effects, support posture, documentation, and advertised inputs help select one? | `workspace_tools_list`, `workspace_tools_describe`, and `workspace_tools_query`; see [Tool discovery surfaces](tool-discovery-surfaces.md) |
+| Which repository-local tools are visible and supported for this session, and what authority, side effects, support posture, documentation, and advertised inputs help select one? | `workspace_tools_list` and `workspace_tools_describe`; see [Tool discovery surfaces](tool-discovery-surfaces.md) |
 | What exact request object does a registered MCP tool accept now? | MCP protocol `tools/list`, using that tool's live `inputSchema`; see [Tool input schema publication](mcp-integration.md#tool-input-schema-publication) |
 
 The repository-local descriptor projection is selection metadata. It does not
@@ -42,15 +42,23 @@ dispatch and recovery navigation,
 controlled authoring, and [MCP repository model](mcp-repository-model.md) for
 bounded content retrieval.
 
+The current controlled-contract/proof descriptor contributes exactly six
+operations. The central session-role policy classifies every row exactly once.
+Contract requirements, explicit controlled-acceptance disposition, obligations,
+proof selections, and shared cases use the ordinary obligation-coverage query,
+upsert, and remove routes. Discovery, explicit validation, and verification
+complete the public surface. Findings-only roles retain direct read diagnostics,
+while proof execution keeps its independently dispositioned role grants.
+
 `workspace_work_record_edit` is an orchestrator/operator-only, write-capable
 selection entry. Its live `tools/list` schema is mechanically built from
 `WORK_RECORD_EDIT_FIELD_REGISTRY`; the complete field/action/scope/value/owner
 projection and refusal contract are in [Bounded ordinary authored-field
 editor](mcp-operation-reference.md#bounded-ordinary-authored-field-editor).
 Reviewer, worker, and redteam sessions are denied by
-`session-role-tool-access.json`. The older list-field and task tools remain
-registered compatibility adapters; no scalar setter or CLI-equivalent general
-editor is registered.
+`session-role-tool-access.json`. Task completion is the editor's `task`
+`mark_done` action; no dedicated task setter, scalar setter, or CLI-equivalent
+general editor is registered.
 
 ## Available MCP Resources
 

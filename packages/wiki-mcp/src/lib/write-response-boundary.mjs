@@ -1,14 +1,16 @@
 
 
 import { types as nodeUtilTypes } from "node:util";
+import { serializeWorkRecordDiagnosticValue } from
+  "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 
 const VERBOSE_NEXT_ACTION = "Re-call this tool with verbose:true to inspect suppressed write detail";
 
 export const COMPACT_WRITE_DIAGNOSTIC_LIMITS = Object.freeze({
-  count: 20,
-  message: 512,
-  path: 1024,
-  value: 512
+  count: null,
+  message: null,
+  path: null,
+  value: null
 });
 
 const DIAGNOSTIC_VALUE_SENTINELS = Object.freeze({
@@ -40,6 +42,13 @@ const ALWAYS_KEEP_KEYS = [
   "valid",
   "written",
   "no_op",
+  "publication_state",
+  "diagnostic_count",
+  "failed_fault",
+  "effect_trace",
+  "contract_persisted",
+  "admission_sidecar_publications",
+  "admission_sidecar_cleanup",
   "cleanly_closeable",
   "error_count",
   "record_id",
@@ -67,6 +76,17 @@ const DETAIL_KEY_ALLOWLIST = new Set([
   "operation",
   "source_path_relative"
 ]);
+
+const WHOLE_RECORD_RESULT_KEYS = new Set(["record"]);
+
+function withoutWholeRecord(result) {
+  if (!isPlainObject(result) || ![...WHOLE_RECORD_RESULT_KEYS].some((key) => hasOwn(result, key))) {
+    return result;
+  }
+  const detailed = { ...result };
+  for (const key of WHOLE_RECORD_RESULT_KEYS) delete detailed[key];
+  return detailed;
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -216,7 +236,7 @@ function compactReport(report) {
 }
 
 function isNonTrivialSuppressedValue(key, value) {
-  if (DETAIL_KEY_ALLOWLIST.has(key)) {
+  if (DETAIL_KEY_ALLOWLIST.has(key) || WHOLE_RECORD_RESULT_KEYS.has(key)) {
     return false;
   }
   if (value === null || value === undefined || value === false) {
@@ -246,14 +266,6 @@ function appendVerboseHintIfNeeded(response, result) {
     response.next_action = VERBOSE_NEXT_ACTION;
   }
   return response;
-}
-
-function truncateDiagnosticString(value, key, limit, truncatedFields) {
-  if (typeof value !== "string" || value.length <= limit) {
-    return value;
-  }
-  truncatedFields[key] += 1;
-  return String.prototype.slice.call(value, 0, limit);
 }
 
 function unsupportedDiagnosticValue(type) {
@@ -326,252 +338,20 @@ function projectDiagnosticValue(value) {
   return projection;
 }
 
-function recordValueProjection(valueProjection, projection) {
-  valueProjection.projected_count += 1;
-  valueProjection.depth_limited_count += Number(projection.reasons.depth);
-  valueProjection.entry_limited_count += Number(projection.reasons.entries);
-  valueProjection.size_limited_count += Number(projection.reasons.size);
-  valueProjection.cycle_replaced_count += Number(projection.reasons.cycle);
-  valueProjection.unsupported_replaced_count += Number(projection.reasons.unsupported);
-  valueProjection.accessor_replaced_count += projection.replacements.accessor;
-  valueProjection.proxy_replaced_count += projection.replacements.proxy;
-}
-
-function accessorProjection() {
-  return {
-    projected: DIAGNOSTIC_VALUE_SENTINELS.accessor,
-    reasons: {
-      accessor: true,
-      cycle: false,
-      depth: false,
-      entries: false,
-      proxy: false,
-      size: false,
-      unsupported: true
-    },
-    replacements: { accessor: 1, proxy: 0 },
-    truncated: true
-  };
-}
-
-function countedDiagnosticField(key) {
-  if (key === "message" || key === "summary") {
-    return "message";
-  }
-  return key === "path" || key === "value" ? key : null;
-}
-
-function unsafeContainerResponse(response, reason) {
-  response.diagnostics = [DIAGNOSTIC_VALUE_SENTINELS.container];
-  response.diagnostics_truncation = {
-    truncated: true,
-    total_count: null,
-    returned_count: 1,
-    omitted_count: null,
-    count_known: false,
-    limits: { ...COMPACT_WRITE_DIAGNOSTIC_LIMITS },
-    truncated_fields: { message: 0, path: 0, value: 0 },
-    container_projection: {
-      reason,
-      sentinel: DIAGNOSTIC_VALUE_SENTINELS.container
-    }
-  };
-  response.detail_available = true;
-  if (!response.next_action) {
-    response.next_action = VERBOSE_NEXT_ACTION;
-  }
-  return response;
-}
-
 function enforceCompactDiagnosticBoundary(response) {
   if (!hasOwn(response, "diagnostics")) {
     return response;
   }
 
-  const container = response.diagnostics;
-  const inspection = inspectDiagnosticContainer(container);
-  if (inspection.kind !== "safe") {
-    return unsafeContainerResponse(response, inspection.reason);
+  const complete = serializeWorkRecordDiagnosticValue(response.diagnostics, {
+    path: "diagnostics"
+  });
+  if (!Array.isArray(complete)) {
+    throw new TypeError("diagnostics must be an array");
   }
 
-  const totalCount = inspection.totalCount;
-  const returnedCount = Math.min(totalCount, COMPACT_WRITE_DIAGNOSTIC_LIMITS.count);
-  const truncatedFields = {
-    message: 0,
-    path: 0,
-    value: 0
-  };
-  const valueProjection = {
-    projected_count: 0,
-    depth_limited_count: 0,
-    entry_limited_count: 0,
-    size_limited_count: 0,
-    cycle_replaced_count: 0,
-    unsupported_replaced_count: 0,
-    accessor_replaced_count: 0,
-    proxy_replaced_count: 0
-  };
-  const unsupportedProjection = {
-    projected_entry_count: 0,
-    entry_proxy_replaced_count: 0,
-    accessor_replaced_count: 0,
-    nested_proxy_replaced_count: 0,
-    unsupported_value_replaced_count: 0,
-    missing_entry_replaced_count: 0,
-    indexed_accessor_replaced_count: 0,
-    unsupported_entry_replaced_count: 0
-  };
-  const bounded = [];
-
-  for (let index = 0; index < returnedCount; index += 1) {
-    let indexedDescriptor;
-    try {
-      indexedDescriptor = Object.getOwnPropertyDescriptor(container, String(index));
-    } catch {
-      return unsafeContainerResponse(response, "index_descriptor_unavailable");
-    }
-    if (!indexedDescriptor) {
-      unsupportedProjection.projected_entry_count += 1;
-      unsupportedProjection.missing_entry_replaced_count += 1;
-      Object.defineProperty(bounded, String(index), {
-        configurable: true,
-        enumerable: true,
-        value: DIAGNOSTIC_VALUE_SENTINELS.missingEntry,
-        writable: true
-      });
-      continue;
-    }
-    if (!hasOwn(indexedDescriptor, "value")) {
-      unsupportedProjection.projected_entry_count += 1;
-      unsupportedProjection.indexed_accessor_replaced_count += 1;
-      Object.defineProperty(bounded, String(index), {
-        configurable: true,
-        enumerable: true,
-        value: DIAGNOSTIC_VALUE_SENTINELS.indexedAccessor,
-        writable: true
-      });
-      continue;
-    }
-
-    const entry = indexedDescriptor.value;
-    const extracted = extractDiagnosticDescriptors(entry);
-    if (extracted.kind === "primitive") {
-      unsupportedProjection.projected_entry_count += 1;
-      unsupportedProjection.unsupported_entry_replaced_count += 1;
-      Object.defineProperty(bounded, String(index), {
-        configurable: true,
-        enumerable: true,
-        value: DIAGNOSTIC_VALUE_SENTINELS.entry,
-        writable: true
-      });
-      continue;
-    }
-    if (extracted.kind === "proxy") {
-      unsupportedProjection.projected_entry_count += 1;
-      unsupportedProjection.entry_proxy_replaced_count += 1;
-      Object.defineProperty(bounded, String(index), {
-        configurable: true,
-        enumerable: true,
-        value: DIAGNOSTIC_VALUE_SENTINELS.proxy,
-        writable: true
-      });
-      continue;
-    }
-    if (extracted.kind !== "descriptors") {
-      unsupportedProjection.projected_entry_count += 1;
-      unsupportedProjection.unsupported_entry_replaced_count += 1;
-      Object.defineProperty(bounded, String(index), {
-        configurable: true,
-        enumerable: true,
-        value: DIAGNOSTIC_VALUE_SENTINELS.entry,
-        writable: true
-      });
-      continue;
-    }
-
-    const diagnostic = {};
-    let entryWasUnsupported = false;
-    for (const key of COMPACT_DIAGNOSTIC_FIELD_ALLOWLIST) {
-      const descriptor = extracted.descriptors[key];
-      if (!descriptor) {
-        continue;
-      }
-
-      const projected = hasOwn(descriptor, "value")
-        ? projectDiagnosticValue(descriptor.value)
-        : accessorProjection();
-
-      let fieldValue = projected.projected;
-      const countedField = countedDiagnosticField(key);
-      if (countedField && typeof fieldValue === "string" && !projected.truncated) {
-        fieldValue = truncateDiagnosticString(
-          fieldValue,
-          countedField,
-          COMPACT_WRITE_DIAGNOSTIC_LIMITS[countedField],
-          truncatedFields
-        );
-      } else if (countedField && projected.truncated) {
-        truncatedFields[countedField] += 1;
-      }
-
-      if (projected.reasons.unsupported) {
-        entryWasUnsupported = true;
-        unsupportedProjection.accessor_replaced_count += projected.replacements.accessor;
-        unsupportedProjection.nested_proxy_replaced_count += projected.replacements.proxy;
-        unsupportedProjection.unsupported_value_replaced_count += Number(
-          projected.replacements.accessor === 0 && projected.replacements.proxy === 0
-        );
-      }
-      if (key === "value" && projected.truncated) {
-        recordValueProjection(valueProjection, projected);
-      }
-
-      Object.defineProperty(diagnostic, key, {
-        configurable: true,
-        enumerable: true,
-        value: fieldValue,
-        writable: true
-      });
-    }
-    if (entryWasUnsupported) {
-      unsupportedProjection.projected_entry_count += 1;
-    }
-    Object.defineProperty(bounded, String(index), {
-      configurable: true,
-      enumerable: true,
-      value: diagnostic,
-      writable: true
-    });
-  }
-
-  const omittedCount = totalCount - returnedCount;
-  const hasFieldTruncation =
-    truncatedFields.message > 0 || truncatedFields.path > 0 || truncatedFields.value > 0;
-  const hasUnsupportedProjection = unsupportedProjection.projected_entry_count > 0;
-
-  response.diagnostics = bounded;
-  if (omittedCount === 0 && !hasFieldTruncation && !hasUnsupportedProjection) {
-    return response;
-  }
-
-  response.diagnostics_truncation = {
-    truncated: true,
-    total_count: totalCount,
-    returned_count: returnedCount,
-    omitted_count: omittedCount,
-    limits: { ...COMPACT_WRITE_DIAGNOSTIC_LIMITS },
-    truncated_fields: truncatedFields
-  };
-  if (valueProjection.projected_count > 0) {
-    response.diagnostics_truncation.value_projection = valueProjection;
-  }
-  if (hasUnsupportedProjection) {
-    response.diagnostics_truncation.unsupported_projection = unsupportedProjection;
-  }
-  response.detail_available = true;
-  if (!response.next_action) {
-    response.next_action = VERBOSE_NEXT_ACTION;
-  }
+  response.diagnostics = complete;
+  response.diagnostic_count = complete.length;
   return response;
 }
 
@@ -591,14 +371,14 @@ export function shapeWriteResponse(result, options = {}) {
 
   const isVerbose = Boolean(options?.verbose || result?.verbose);
   if (isVerbose) {
-    return result;
+    return withoutWholeRecord(result);
   }
 
   const ok =
-    result.valid !== undefined
-      ? Boolean(result.valid)
-      : result.ok !== undefined
-        ? Boolean(result.ok)
+    result.ok !== undefined
+      ? Boolean(result.ok)
+      : result.valid !== undefined
+        ? Boolean(result.valid)
         : result.written === true || result.written === "true";
   const hasDiagnosticsProperty = hasOwn(result, "diagnostics");
   const diagnostics = hasDiagnosticsProperty ? result.diagnostics : [];
@@ -709,7 +489,9 @@ export function enforceCompactWriteResponseOkSemantics(response) {
   const boundary = isPlainObject(response) ? { ...response } : {};
   const hasWritten = hasOwn(boundary, "written");
   const hasNoOp = hasOwn(boundary, "no_op");
-  const written = hasWritten ? Boolean(boundary.written) : false;
+  const written = hasWritten
+    ? boundary.written === null ? null : Boolean(boundary.written)
+    : false;
   const noOp = hasNoOp ? Boolean(boundary.no_op) : false;
   const valid = boundary.valid === undefined ? Boolean(written || noOp) : Boolean(boundary.valid);
 
@@ -723,7 +505,7 @@ export function enforceCompactWriteResponseOkSemantics(response) {
     boundary.no_op = noOp;
   }
 
-  if (valid && (written || noOp)) {
+  if (boundary.ok !== false && valid && (written === true || noOp)) {
     boundary.ok = true;
     if (Array.isArray(boundary.diagnostics)) {
       boundary.diagnostics = cloneDiagnostics(boundary.diagnostics);

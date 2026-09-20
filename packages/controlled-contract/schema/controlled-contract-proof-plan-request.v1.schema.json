@@ -24,23 +24,6 @@
       "type": "array", "uniqueItems": true, "maxItems": 256,
       "items": { "$ref": "#/$defs/identifier" }
     },
-    "exact_capture": {
-      "oneOf": [
-        { "type": "null" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "capture_root": { "type": "string", "minLength": 1, "maxLength": 4096 },
-            "contract_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
-            "evaluation_input_path": {
-              "type": "string", "minLength": 1, "maxLength": 4096
-            },
-            "sources": { "type": "object" }
-          }
-        }
-      ]
-    },
     "selected_pack": {
       "type": "object",
       "required": ["profile_id", "profile_version"],
@@ -50,8 +33,7 @@
         "profile_version": { "$ref": "#/$defs/semver" },
         "evaluation_input_path": {
           "type": "string", "minLength": 1, "maxLength": 4096
-        },
-        "exact_capture": { "$ref": "#/$defs/exact_capture" }
+        }
       }
     }
   }

@@ -9,11 +9,10 @@ import {
 } from "../../vocabulary/controlled-contract-vocabulary.v1.mjs";
 
 const PROFILE_ID = "proof.observation.sound-negative";
-const PROFILE_VERSION = "2.0.0";
+const PROFILE_VERSION = "3.0.0";
 const TRANSFORMER_ID = "sound-negative-observation-capture.v1";
 const GRAPH_PROJECTION_ID = "observation-contract";
 const RESULT_REQUIREMENT_ID = "observation-projection";
-const STAGE = "post_delivery";
 const ATTEMPT_SCOPE = Object.freeze({
   mode: "during", operand_roles: ["observation_attempt"]
 });
@@ -32,7 +31,6 @@ function referenceRole(role, allowedTypeTerms, cardinality) {
 function completePopulation(patternId, populationRole, memberRole) {
   return {
     pattern_id: patternId,
-    required_by_stage: STAGE,
     comparison: "complete_population",
     roles: [populationRole, memberRole],
     applicability_context: ATTEMPT_SCOPE
@@ -42,7 +40,6 @@ function completePopulation(patternId, populationRole, memberRole) {
 function requiredBinding(role, maximum = null) {
   return {
     pattern_id: `${role.replaceAll("_", "-")}-binding-required`,
-    required_by_stage: STAGE,
     role_kind: "reference",
     role,
     minimum: 0,
@@ -79,7 +76,6 @@ function association({
 function claim(patternId, kind, propositionTemplate, forEach = null) {
   return {
     pattern_id: patternId,
-    required_by_stage: STAGE,
     claim_kind: kind,
     allowed_modalities: ["MUST"],
     ...(forEach === null ? {} : { for_each: forEach }),
@@ -119,7 +115,6 @@ function verifiedObligation({
     ],
     relation: {
       pattern_id: relationId,
-      required_by_stage: STAGE,
       role: "verifies",
       source_claim_pattern_id: verificationId,
       target_claim_pattern_id: id
@@ -391,7 +386,7 @@ function buildSoundNegativeObservationProfile() {
     ...relationPatterns
   ].map(({ pattern_id: pattern }) => ({ pattern }));
   return {
-    schema_version: "controlled-contract-verification-profile.v1",
+    schema_version: "controlled-contract-verification-profile.v2",
     profile_id: PROFILE_ID,
     profile_version: PROFILE_VERSION,
     contract_schema_version: "controlled-acceptance-contract.v1",
@@ -401,7 +396,6 @@ function buildSoundNegativeObservationProfile() {
     vocabulary_definitions_digest: VOCABULARY_DIGESTS.definitions,
     vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
     verification_falsifier_policy: "controlled_complement_per_target",
-    evaluation_stages: [STAGE],
     reference_roles: referenceRoles,
     number_roles: [
       {
@@ -462,8 +456,7 @@ function buildSoundNegativeObservationEvaluationInput(contract) {
     roles[memberRole] = populationMembers(contract, populationName);
   }
   return {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: STAGE,
+    input_version: "controlled-contract-verification-profile-input.v2",
     reference_bindings: Object.entries(roles).map(([role, reference_ids]) => ({
       role, reference_ids
     })),

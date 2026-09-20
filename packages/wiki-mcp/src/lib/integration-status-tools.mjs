@@ -1,9 +1,15 @@
 
 
-import fs from "node:fs";
 import path from "node:path";
+import { readFileSync } from "node:fs";
+import { loadInitiativeStatusRecords } from
+  "../../../wiki-core/src/lib/initiative-status.mjs";
+import { loadKindRecordById } from
+  "../../../wiki-core/src/lib/kind-record-store.mjs";
 
 const SCHEMA_VERSION = "workspace-integration-status.v1";
+const REFUSAL_SCHEMA_VERSION = "workspace-integration-status-refusal.v1";
+const CANONICAL_WORK_RECORD_FILENAME = /^WK-\d{4}\.json$/u;
 
 const ALLOWED_INPUT_FIELDS = new Set(["repo", "initiative"]);
 const FORBIDDEN_INPUT_FIELDS = [
@@ -36,90 +42,6 @@ function assertIntegrationStatusInput(args) {
   return { repo: supplied.repo, initiative: supplied.initiative.trim().toUpperCase() };
 }
 
-function readInitiativeRelated(workspaceDir, initiative) {
-  const initiativePath = path.join(workspaceDir, "wiki", "initiatives", `${initiative}.md`);
-  if (!fs.existsSync(initiativePath)) {
-    return { source_path_relative: `wiki/initiatives/${initiative}.md`, exists: false, related: [] };
-  }
-  const text = fs.readFileSync(initiativePath, "utf8");
-  const related = [];
-  const match = text.match(/^---\n([\s\S]*?)\n---/);
-  if (match) {
-    let inRelated = false;
-    for (const line of match[1].split(/\r?\n/)) {
-      if (/^\w/.test(line)) {
-        inRelated = line.trim() === "related:";
-        continue;
-      }
-      if (inRelated) {
-        const item = line.match(/^\s*-\s*(WK-\d{4})\s*$/);
-        if (item) related.push(item[1]);
-      }
-    }
-  }
-  return { source_path_relative: `wiki/initiatives/${initiative}.md`, exists: true, related };
-}
-
-function collectWorkRecordRows(workspaceDir, initiative) {
-  const recordsDir = path.join(workspaceDir, "wiki", "work-records");
-  if (!fs.existsSync(recordsDir)) return { rows: [], record_errors: [] };
-  const rows = [];
-  const recordErrors = [];
-  let entries;
-  try {
-    entries = fs.readdirSync(recordsDir).sort();
-  } catch (error) {
-    return {
-      rows,
-      record_errors: [
-        buildWorkRecordError({
-          sourcePathRelative: "wiki/work-records",
-          errorKind: "read_error",
-          error
-        })
-      ]
-    };
-  }
-  for (const entry of entries) {
-    if (!/^WK-\d{4}\.json$/.test(entry)) continue;
-    const sourcePath = path.join(recordsDir, entry);
-    const sourcePathRelative = `wiki/work-records/${entry}`;
-    let record;
-    try {
-      record = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-    } catch (error) {
-      recordErrors.push(buildWorkRecordError({
-        sourcePathRelative,
-        errorKind: error instanceof SyntaxError ? "parse_error" : "read_error",
-        error,
-        id: path.basename(entry, ".json")
-      }));
-      continue;
-    }
-    const related = Array.isArray(record.related) ? record.related : [];
-    if (!related.includes(initiative)) continue;
-    rows.push(buildWorkRecordRow(record, initiative, sourcePathRelative));
-  }
-  return { rows, record_errors: recordErrors };
-}
-
-function buildWorkRecordError({ sourcePathRelative, errorKind, error, id = null }) {
-  const errorCode = error && typeof error === "object" && "code" in error
-    ? String(error.code)
-    : null;
-  const reason = errorKind === "parse_error" && error instanceof Error
-    ? `failed to parse canonical work-record JSON: ${error.message}`
-    : "failed to read canonical work-record inventory";
-  return {
-    id,
-    status: "unknown",
-    source_path_relative: sourcePathRelative,
-    error_kind: errorKind,
-    error_code: errorCode,
-    reason
-  };
-}
-
 function buildWorkRecordRow(record, initiative, sourcePathRelative) {
   const id = typeof record.id === "string"
     ? record.id
@@ -135,33 +57,16 @@ function buildWorkRecordRow(record, initiative, sourcePathRelative) {
   };
 }
 
-function mergeInitiativeAndRecordRows({ initiativeRelated, recordRows, initiative }) {
-  const byId = new Map(recordRows.map((row) => [row.id, row]));
-  for (const id of initiativeRelated.related) {
-    if (byId.has(id)) continue;
-    byId.set(id, {
-      id,
-      title: null,
-      status: "unknown",
-      work_kind: "unknown",
-      source_path_relative: null,
-      expected_branch: `wk/${initiative}/${id}`,
-      slice_count: null
-    });
-  }
-  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
-}
-
 function buildLocalFacts() {
-  const noResolver = "no trusted local resolver is injected for this first read-only status slice";
+  const unsupported = "this operation does not implement this observation; no caller or environment injection is supported; use workspace_coordination_preflight to discover configured runtime capabilities, which does not supply mergeability or publication evidence";
   return {
-    git_tip: { status: "unknown", reason: noResolver },
-    worktree_path: { status: "unknown", reason: noResolver },
-    lease: { status: "not_available", reason: noResolver },
-    quiescence: { status: "not_evaluated", reason: noResolver },
-    detached_merge_workspace: { status: "not_available", reason: noResolver },
-    complete_touched_paths: { status: "unknown", reason: noResolver },
-    mergeability: { status: "not_evaluated", reason: noResolver },
+    git_tip: { status: "unknown", reason: unsupported },
+    worktree_path: { status: "unknown", reason: unsupported },
+    lease: { status: "not_available", reason: unsupported },
+    quiescence: { status: "not_evaluated", reason: unsupported },
+    detached_merge_workspace: { status: "not_available", reason: unsupported },
+    complete_touched_paths: { status: "unknown", reason: unsupported },
+    mergeability: { status: "not_evaluated", reason: unsupported },
     policy_admissibility: {
       status: "not_evaluated",
       authority: "not_available",
@@ -170,25 +75,129 @@ function buildLocalFacts() {
   };
 }
 
-export function buildWorkspaceIntegrationStatus({ workspaceRepo, workspaceDir, initiative }) {
-  const initiativeRelated = readInitiativeRelated(workspaceDir, initiative);
-  const recordInventory = collectWorkRecordRows(workspaceDir, initiative);
-  const workRecords = mergeInitiativeAndRecordRows({
-    initiativeRelated,
-    recordRows: recordInventory.rows,
-    initiative
+function failInitiativeSelection(code, message) {
+  const error = new Error(message);
+  error.name = "WorkspaceIntegrationStatusError";
+  error.code = code;
+  throw error;
+}
+
+function repoRelativePath(workspaceDir, sourcePath) {
+  return path.relative(workspaceDir, sourcePath).split(path.sep).join("/");
+}
+
+function failWorkRecordCensus({ cause, sourcePath, workspaceDir, workspaceRepo, initiative }) {
+  const sourcePathRelative = repoRelativePath(workspaceDir, sourcePath);
+  const causeCode = cause instanceof SyntaxError
+    ? "workspace_integration_status.work_record_json_invalid.v1"
+    : "workspace_integration_status.work_record_read_failed.v1";
+  const action = cause instanceof SyntaxError
+    ? "repair_canonical_work_record_json"
+    : "restore_canonical_work_record_readability";
+  const error = new Error(
+    `canonical work-record census failed at ${sourcePathRelative}`,
+    { cause }
+  );
+  error.name = "WorkspaceIntegrationStatusCensusError";
+  error.code = "workspace_integration_status.work_record_census_failed.v1";
+  error.envelope = {
+    schema_version: REFUSAL_SCHEMA_VERSION,
+    accepted: false,
+    operation: "workspace_integration_status",
+    code: error.code,
+    authority_limb: "mechanical_failure",
+    cause: {
+      code: causeCode,
+      source_path_relative: sourcePathRelative
+    },
+    recovery: {
+      action,
+      source_path_relative: sourcePathRelative,
+      then_call: {
+        name: "workspace_integration_status",
+        arguments: { repo: workspaceRepo, initiative }
+      }
+    }
+  };
+  throw error;
+}
+
+function readCanonicalWorkRecord({
+  sourcePath,
+  workspaceDir,
+  workspaceRepo,
+  initiative
+}) {
+  if (!CANONICAL_WORK_RECORD_FILENAME.test(path.basename(sourcePath))) {
+    return {};
+  }
+  try {
+    return JSON.parse(readFileSync(sourcePath, "utf8"));
+  } catch (cause) {
+    failWorkRecordCensus({ cause, sourcePath, workspaceDir, workspaceRepo, initiative });
+  }
+}
+
+function requireCanonicalInitiative(loaded, initiative) {
+  if (loaded?.classification === "loaded" && loaded.record_kind === "initiative") {
+    return loaded.record;
+  }
+  if (loaded?.classification === "missing") {
+    failInitiativeSelection(
+      "workspace_integration_status.initiative_not_found.v1",
+      `canonical initiative ${initiative} does not exist`
+    );
+  }
+  if (loaded?.classification === "invalid_identity" || loaded?.record_kind !== "initiative") {
+    failInitiativeSelection(
+      "workspace_integration_status.initiative_identity_invalid.v1",
+      "initiative must resolve to one canonical IN-#### JSON identity"
+    );
+  }
+  failInitiativeSelection(
+    "workspace_integration_status.initiative_record_invalid.v1",
+    `canonical initiative ${initiative} is malformed or identity-mismatched`
+  );
+}
+
+export async function buildWorkspaceIntegrationStatus({ workspaceRepo, workspaceDir, initiative }) {
+  const initiativeLoad = await loadKindRecordById({ repoRoot: workspaceDir, id: initiative });
+  requireCanonicalInitiative(initiativeLoad, initiative);
+  const loadedRecords = loadInitiativeStatusRecords({
+    repoRoot: workspaceDir,
+    initiative,
+    readRecord: (sourcePath) => readCanonicalWorkRecord({
+      sourcePath,
+      workspaceDir,
+      workspaceRepo,
+      initiative
+    })
   });
+  const workRecords = loadedRecords.filter((entry) =>
+    CANONICAL_WORK_RECORD_FILENAME.test(path.basename(entry.source_path))
+  ).map((entry) => {
+    const record = entry.record ?? entry.raw;
+    return buildWorkRecordRow(
+      record,
+      initiative,
+      repoRelativePath(workspaceDir, entry.source_path)
+    );
+  }).sort((a, b) => a.id.localeCompare(b.id));
   return {
     schema_version: SCHEMA_VERSION,
     workspaceRepo,
     initiative,
     expected_wk_branch_pattern: `wk/${initiative}/WK-YYYY`,
     sources: {
-      initiative: initiativeRelated,
+      initiative: {
+        source_path_relative: initiativeLoad.source_path.split(path.sep).join("/"),
+        record_kind: initiativeLoad.record_kind,
+        source_digest: initiativeLoad.source_digest
+      },
       work_records: {
-        source_path_glob: "wiki/work-records/WK-*.json",
-        matched_count: recordInventory.rows.length,
-        record_errors: recordInventory.record_errors
+        source_path_glob: "wiki/work-records/WK-[0-9][0-9][0-9][0-9].json",
+        membership_field: "initiative",
+        matched_count: workRecords.length
       }
     },
     work_records: workRecords,
@@ -208,7 +217,7 @@ export function registerIntegrationStatusTools({
     "workspace_integration_status",
     {
       description:
-        "Read-only local coordination status for an initiative. Accepts only server-resolved repo selection plus initiative id; reports short-lived WK refs, related WK rows, and explicit unknown/not-available local facts. It is not branch, policy, review, merge, or promotion authority.",
+        "Read canonical initiative JSON and WK.initiative membership with expected WK refs and explicit unavailable facts. Server resolves repositories. Grants no branch, policy, review or promotion authority.",
       inputSchema: {
         repo: z.string().optional(),
         initiative: z.string()
@@ -219,7 +228,7 @@ export function registerIntegrationStatusTools({
         const input = assertIntegrationStatusInput(args);
         const workspace = resolveWorkspaceRepo(workspaceRepos, input.repo);
         return jsonContent(
-          buildWorkspaceIntegrationStatus({
+          await buildWorkspaceIntegrationStatus({
             workspaceRepo: workspace.repo,
             workspaceDir: workspace.dir,
             initiative: input.initiative

@@ -9,15 +9,24 @@ import { fileURLToPath } from "node:url";
 
 import {
   DEFAULT_SCHEMA_PATH,
-  EXAMPLE_PATH,
-  TOOL_VERSION_ADMITTED_V034,
+  TOOL_VERSION_ADMITTED,
   checkContract,
   checkContractWithProofPack,
   parseArgs,
   usage
 } from "../bin/check-contract.mjs";
-import { NATIVE_CONTRACT_SCHEMA_V034 as NATIVE_CONTRACT_SCHEMA } from
-  "../lib/native-contract-carrier-v034.mjs";
+import {
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  TEST_PROOF_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "../lib/native-contract-carrier-v1.mjs";
+import {
+  NATIVE_CONTRACT_SCHEMA_V1 as NATIVE_CONTRACT_SCHEMA
+} from "../current.mjs";
+import { loadStableContractSchemaV1 } from "../lib/stable-contract-schema-v1.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildFailedAttemptNonconsumptionFixture
 } from "./proof-packs/failed-attempt-nonconsumption-fixture.mjs";
@@ -27,18 +36,35 @@ import {
 
 const execFileAsync = promisify(execFile);
 const cliPath = fileURLToPath(new URL("../bin/check-contract.mjs", import.meta.url));
+const EXAMPLE_PATH = fileURLToPath(new URL(
+  "../examples/minimal-controlled-acceptance-contract.v1.json", import.meta.url));
 const p4Profile = "proof.authorization.failed-attempt-nonconsumption";
 
 function jsonText(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function stabilize(fixture) {
+  const contract = {
+    ...fixture.contract,
+    schema_version: SCHEMA_VERSION_V1,
+    vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1,
+    test_proof_version: TEST_PROOF_VERSION_V1
+  };
+  contract.test_proofs = buildStableTestProofPopulation(contract);
+  return { contract, input: { ...fixture.input,
+    input_version: "controlled-contract-verification-profile-input.v2",
+    stable_evaluation: {} } };
+}
+
 async function writeFixture(directory, fixture) {
+  const stable = stabilize(fixture);
   const contractPath = path.join(directory, "contract.json");
   const evaluationInputPath = path.join(directory, "evaluation-input.json");
   await Promise.all([
-    writeFile(contractPath, jsonText(fixture.contract)),
-    writeFile(evaluationInputPath, jsonText(fixture.input))
+    writeFile(contractPath, jsonText(stable.contract)),
+    writeFile(evaluationInputPath, jsonText(stable.input))
   ]);
   return { contractPath, evaluationInputPath };
 }
@@ -59,9 +85,12 @@ async function runCli(args) {
   }
 }
 
-test("tracked native schema is the executable direct-authoring schema", async () => {
+test("the public API supplies the complete executable direct-authoring schema", async () => {
   const tracked = JSON.parse(await readFile(DEFAULT_SCHEMA_PATH, "utf8"));
-  assert.deepEqual(tracked, NATIVE_CONTRACT_SCHEMA);
+
+  assert.equal(tracked.title, NATIVE_CONTRACT_SCHEMA.title);
+  assert.deepEqual(loadStableContractSchemaV1(), NATIVE_CONTRACT_SCHEMA);
+  assert.equal(typeof NATIVE_CONTRACT_SCHEMA.$defs.test_proof_binding, "object");
   assert.equal("source_text" in tracked.properties, false);
   assert.equal(tracked.properties.claims.minItems, 1);
   assert.match(tracked.properties.residue.description, /never omit/i);
@@ -87,6 +116,8 @@ test("minimal agent-authored contract resolves without a model", async () => {
     authoritative: false,
     proof_pack_verified: false
   });
+  assert.equal(result.schema.path_role, "composition_root_member");
+  assert.equal(result.schema.sha256_scope, "composed_effective_schema");
   assert.equal(result.passed, true);
 });
 
@@ -134,7 +165,8 @@ test("CLI is self-documenting and requires paired profile inputs", () => {
   assert.match(usage(), /performs no prose translation/i);
   assert.match(usage(), /--profile <proof-pack-id>/i);
   assert.match(usage(), /unadmitted/i);
-  assert.match(usage(), /controlled-acceptance-contract\.experimental\.v0\.2\.schema\.json/);
+  assert.match(usage(), /NATIVE_CONTRACT_SCHEMA_V1/);
+  assert.match(usage(), /@agent-chassis\/controlled-contract/);
   assert.throws(() => parseArgs([]), /--input is required/);
   assert.throws(
     () => parseArgs(["--input", "contract.json", "--profile", p4Profile]),
@@ -249,7 +281,7 @@ test("CLI uses one release-certified built-in profile and is deterministic", asy
   assert.equal(first.stderr, "");
   assert.equal(first.stdout, second.stdout);
   const result = JSON.parse(first.stdout);
-  assert.equal(result.tool_version, TOOL_VERSION_ADMITTED_V034);
+  assert.equal(result.tool_version, TOOL_VERSION_ADMITTED);
   assert.equal(result.mode, "proof_pack");
   assert.deepEqual(result.verification_scope, {
     graph_edge_coverage: "assessed",

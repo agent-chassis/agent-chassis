@@ -4,7 +4,7 @@ import {
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest,
   projectSliceReviewReceiptContracts
-} from "@agent-chassis/wiki-core";
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import { validateWorkRecord } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
@@ -12,8 +12,7 @@ import { deepFreezeCanonicalSnapshot } from "./backend-scope-authority-shared.mj
 import { readCanonicalWorkRecord } from "./backend-worker-scope-authority.mjs";
 import { resolveFrozenSliceReviewReceiptContract } from "./backend-slice-review-authority.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
-import { isExactSliceReviewReceiptStoreOccurrence } from
-  "./workspace-agent-dispatch-run-receipt-store.mjs";
+import { resolveAuthenticatedExactSliceDeliveryBase } from "./slice-integration-authorization.mjs";
 
 export const INTEGRATED_DELIVERY_AUTHENTICATION_FAILED_CODE =
   "agent_launch.integrated_delivery.authentication_failed.v1";
@@ -149,8 +148,7 @@ function producerReceiptMatches({ runGit, mainRepo, integrated, reviewed, subjec
       rawDeliveryDelta(runGit, mainRepo, reviewed, "reviewed_delivery_delta_unreadable");
 }
 
-function targetIntegratedDeliveryTransition(frozenReviewUnit, currentProjection, sliceId) {
-  const historical = JSON.parse(frozenReviewUnit.canonical_parent_wk_contract);
+function targetIntegratedDeliveryTransition(historical, currentProjection, sliceId) {
   const historicalIndex = historical.slices.findIndex((entry) => entry?.id === sliceId);
   const liveIndex = currentProjection.slices.findIndex((entry) => entry?.id === sliceId);
   if (historicalIndex < 0 || liveIndex < 0 || historicalIndex !== liveIndex) {
@@ -180,40 +178,23 @@ function targetIntegratedDeliveryTransition(frozenReviewUnit, currentProjection,
   });
 }
 
-function mintProducerAuthenticatedIntegratedDeliveryProof({
+function mintIntegrationAuthenticatedIntegratedDeliveryProof({
   mainRepo,
   subject,
-  frozenReceipt,
-  frozenReviewUnit,
+  historicalRecord,
   currentProjection,
   currentState,
   runGit
 }) {
-  if (!isExactSliceReviewReceiptStoreOccurrence(frozenReceipt)) {
-    integratedDeliveryAuthenticationFailure(
-      "receipt_occurrence_not_producer_owned",
-      "a caller-provided or copied receipt occurrence cannot authenticate delivery authority"
-    );
-  }
   const transition = targetIntegratedDeliveryTransition(
-    frozenReviewUnit,
+    historicalRecord,
     currentProjection,
     currentState.slice_id
   );
   const expectedWkRef =
     `refs/heads/wk/${currentState.initiative}/${currentState.record_id}`;
-  const receiptWkRef = frozenReceipt.worktree_identity?.wk_ref;
-  if (frozenReceipt.unit_address !== subject || frozenReceipt.record_id !== currentState.record_id ||
-      frozenReceipt.slice_id !== currentState.slice_id ||
-      frozenReceipt.initiative !== currentState.initiative ||
-      receiptWkRef !== expectedWkRef ||
-      typeof frozenReceipt.reviewed_sha !== "string" ||
-      typeof frozenReceipt.diff_base_sha !== "string") {
-    integratedDeliveryAuthenticationFailure(
-      "receipt_address_or_identity_mismatch",
-      "the producer receipt cannot authenticate the exact addressed delivery transition"
-    );
-  }
+  const sliceRef =
+    `refs/heads/slice/${currentState.initiative}/${currentState.record_id}/${currentState.slice_id}`;
   const currentW = exactGit(
     runGit,
     mainRepo,
@@ -227,6 +208,40 @@ function mintProducerAuthenticatedIntegratedDeliveryProof({
       "the integration-written delivery cannot be bound to the exact current WK tip"
     );
   }
+  const readSliceDelivery = (reason) => {
+    const sha = exactGit(
+      runGit,
+      mainRepo,
+      ["rev-parse", "--verify", `${sliceRef}^{commit}`],
+      reason,
+      "the retained slice delivery cannot be read from its launcher-owned ref"
+    ).trim();
+    if (!INTEGRATED_DELIVERY_OID_RE.test(sha)) {
+      integratedDeliveryAuthenticationFailure(
+        reason,
+        "the retained slice delivery cannot be read from its launcher-owned ref"
+      );
+    }
+    return sha;
+  };
+  const deliverySha = readSliceDelivery("reviewed_delivery_receipt_unreadable");
+  let deliveryBase = null;
+  try {
+    deliveryBase = resolveAuthenticatedExactSliceDeliveryBase({
+      runGit,
+      mainRepo,
+      subject,
+      deliverySha
+    });
+  } catch {
+    deliveryBase = null;
+  }
+  if (typeof deliveryBase !== "string" || !INTEGRATED_DELIVERY_OID_RE.test(deliveryBase)) {
+    integratedDeliveryAuthenticationFailure(
+      "producer_receipt_delivery_mismatch",
+      "the retained slice delivery is not one exact launcher delivery on its authenticated base"
+    );
+  }
   const integrated = literalCommitIdentity(
     runGit,
     mainRepo,
@@ -236,7 +251,7 @@ function mintProducerAuthenticatedIntegratedDeliveryProof({
   const reviewed = literalCommitIdentity(
     runGit,
     mainRepo,
-    frozenReceipt.reviewed_sha,
+    deliverySha,
     "reviewed_delivery_receipt_unreadable"
   );
   if (!producerReceiptMatches({
@@ -245,7 +260,7 @@ function mintProducerAuthenticatedIntegratedDeliveryProof({
     integrated,
     reviewed,
     subject,
-    reviewedBase: frozenReceipt.diff_base_sha
+    reviewedBase: deliveryBase
   })) {
     integratedDeliveryAuthenticationFailure(
       "producer_receipt_delivery_mismatch",
@@ -270,12 +285,13 @@ function mintProducerAuthenticatedIntegratedDeliveryProof({
     "current_w_reauthentication_failed",
     "the producer proof became stale while its repository facts were authenticated"
   ).trim();
+  const reobservedDelivery = readSliceDelivery("current_w_reauthentication_failed");
   const reobservedRecord = readValidatedCanonicalWorkRecord(mainRepo, currentState.record_id);
   const reobservedProjection = projectSliceReviewReceiptContracts(
     reobservedRecord,
     currentState.slice_id
   ).parent;
-  if (reobservedW !== currentW ||
+  if (reobservedW !== currentW || reobservedDelivery !== deliverySha ||
       canonicalizeWorkRecordJson(reobservedProjection) !==
         canonicalizeWorkRecordJson(currentProjection)) {
     integratedDeliveryAuthenticationFailure(
@@ -529,8 +545,7 @@ function classifyValidatedCanonicalIntegratedSliceState(record, subject) {
 export function classifyCanonicalIntegratedSliceContract(
   mainRepo,
   subject,
-  frozenContract,
-  { authenticateIntegratedDelivery = false } = {}
+  frozenContract
 ) {
   const match = typeof subject === "string" ? subject.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
   if (!match) throw new Error("integrated slice subject is not canonical");
@@ -542,25 +557,11 @@ export function classifyCanonicalIntegratedSliceContract(
   const record = readValidatedCanonicalWorkRecord(mainRepo, match[1]);
   const currentState = classifyValidatedCanonicalIntegratedSliceState(record, subject);
   const currentProjection = projectSliceReviewReceiptContracts(record, match[2]).parent;
-  const integratedDeliveryProof = authenticateIntegratedDelivery
-    ? mintProducerAuthenticatedIntegratedDeliveryProof({
-        mainRepo,
-        subject,
-        frozenReceipt: frozenContract,
-        frozenReviewUnit,
-        currentProjection,
-        currentState,
-        runGit: defaultRunGit
-      })
-    : null;
   const unchanged = compareIntegratedContracts(record, frozenReviewUnit, match[2], currentProjection);
   if (unchanged) {
     return Object.freeze({
       classification: CANONICAL_INTEGRATED_CONTRACT_CLASSIFICATIONS.HISTORICAL_FROZEN_CONTRACT_UNCHANGED,
       current_contract: canonicalizeWorkRecordJson(currentProjection),
-      ...(integratedDeliveryProof === null
-        ? {}
-        : { integrated_delivery_proof: integratedDeliveryProof }),
       ...currentState
     });
   }
@@ -568,9 +569,6 @@ export function classifyCanonicalIntegratedSliceContract(
     classification:
       CANONICAL_INTEGRATED_CONTRACT_CLASSIFICATIONS.CORRECTIVE_CURRENT_CONTRACT_REQUIRES_FRESH_IDENTITY,
     current_contract: canonicalizeWorkRecordJson(currentProjection),
-    ...(integratedDeliveryProof === null
-      ? {}
-      : { integrated_delivery_proof: integratedDeliveryProof }),
     ...currentState
   });
 }
@@ -578,15 +576,34 @@ export function classifyCanonicalIntegratedSliceContract(
 export function authenticateCanonicalIntegratedDeliveryTransition(
   mainRepo,
   subject,
-  frozenReceipt
+  { historicalParentContract } = {}
 ) {
-  const classification = classifyCanonicalIntegratedSliceContract(
+  const match = typeof subject === "string" ? subject.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
+  if (!match) throw new Error("integrated slice subject is not canonical");
+  let historicalRecord = null;
+  try {
+    historicalRecord = JSON.parse(historicalParentContract);
+  } catch {
+    historicalRecord = null;
+  }
+  if (!isPlainObject(historicalRecord) || historicalRecord.id !== match[1] ||
+      !Array.isArray(historicalRecord.slices)) {
+    integratedDeliveryAuthenticationFailure(
+      "addressed_delivery_unit_mismatch",
+      "the historical parent contract cannot address one exact canonical delivery path"
+    );
+  }
+  const record = readValidatedCanonicalWorkRecord(mainRepo, match[1]);
+  const currentState = classifyValidatedCanonicalIntegratedSliceState(record, subject);
+  const currentProjection = projectSliceReviewReceiptContracts(record, match[2]).parent;
+  return mintIntegrationAuthenticatedIntegratedDeliveryProof({
     mainRepo,
     subject,
-    frozenReceipt,
-    { authenticateIntegratedDelivery: true }
-  );
-  return classification.integrated_delivery_proof;
+    historicalRecord,
+    currentProjection,
+    currentState,
+    runGit: defaultRunGit
+  });
 }
 
 export function resolveCanonicalIntegratedSliceState(mainRepo, subject, frozenContract = null) {

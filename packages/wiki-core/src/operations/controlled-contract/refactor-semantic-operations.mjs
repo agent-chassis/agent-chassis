@@ -1,13 +1,16 @@
+import { proofAuthoringCompletenessSummary } from './proof-authoring-source.mjs';
 import { createHash } from "node:crypto";
 
 import {
   ControlledContractToolError,
   assertControlledContractOperationInput,
+  controlledContractContentDigest,
   resolveCanonicalControlledContractCarrierSet
 } from "../../lib/controlled-contract-tools.mjs";
 import { loadControlledContractPackage } from "./package-runtime.mjs";
 import {
   readAcceptanceCoverageCarrier,
+  readCanonicalObligationSource,
   resolveAcceptanceCoverageFacts,
   resolveObligationCoverageFacts
 } from "./acceptance-coverage-facts.mjs";
@@ -17,7 +20,17 @@ import {
 } from "./acceptance-coverage-operations.mjs";
 import { rememberControlledContractRefactorContinuation } from
   "../../lib/controlled-contract-authoring-continuations.mjs";
+import {
+  readControlledContractRefactorResource,
+  readControlledContractRefactorState,
+  retainControlledContractRefactorResource,
+  transitionControlledContractRefactorState
+} from "../../lib/controlled-contract-refactor-staging.mjs";
 import { controlledContractOperation } from "./refusal.mjs";
+import {
+  compileControlledContractRefactorProspectiveProofPlan,
+  effectiveControlledContractRefactorCarriers
+} from "./refactor-proof-plan-compilation.mjs";
 import { CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS } from
   "./semantic-projection-bounds.mjs";
 
@@ -28,7 +41,9 @@ const REFACTOR_SELECTORS = Object.freeze([
   "affected_identity", "carrier", "closure_edge", "correspondence",
   "coverage_conflict", "derived_invalidation", "proof_gap"
 ]);
-const PLAN_SNAPSHOTS = new WeakMap();
+const RETAINED_PLAN_SCHEMA_VERSION = "controlled-contract-refactor-retained-plan.v1";
+const RETAINED_TRANSACTION_SCHEMA_VERSION =
+  "controlled-contract-refactor-retained-transaction.v1";
 
 function canonical(value) {
   if (Array.isArray(value)) return value.map(canonical);
@@ -47,7 +62,7 @@ function fail(code, message, details = {}) {
   throw new ControlledContractToolError(code, message, {
     changed: false,
     limb: "mechanical_failure",
-    owner: "workspace_controlled_contract_refactor_plan",
+    owner: "controlled_contract_refactor_planning",
     ...details
   });
 }
@@ -69,6 +84,15 @@ function currentnessPrecondition(snapshot) {
   return { expected_manifest_digest: snapshot.manifestDigest };
 }
 
+const SNAPSHOT_ABSENT_CARRIER_CODES = Object.freeze(new Set([
+  "acceptance_coverage_canonical_source_unavailable",
+  "acceptance_coverage_source_not_found",
+  "obligation_coverage_source_not_found",
+  "controlled_contract_carrier_not_found",
+  "controlled_contract_proof_plan_missing",
+  "controlled_contract_proof_plan_stale"
+]));
+
 export async function resolveControlledContractRefactorSnapshot(input) {
   const canonicalSet = await resolveCanonicalControlledContractCarrierSet({
     repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null
@@ -85,16 +109,20 @@ export async function resolveControlledContractRefactorSnapshot(input) {
     obligationFacts = await resolveObligationCoverageFacts({
       repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
       selectedUnit: null
-    });
+    }, { allowIncomplete: true });
   } catch (error) {
-    if (!["obligation_coverage_source_not_found",
-      "controlled_contract_carrier_not_found"].includes(error?.code)) throw error;
+
+    if (!SNAPSHOT_ABSENT_CARRIER_CODES.has(error?.code)) throw error;
   }
-  if (obligationFacts?.source?.content !== undefined) carriers.push({
+  const obligationSource = obligationFacts?.source ??
+    await readCanonicalObligationSource({ repoRoot: input.repoRoot,
+      wkId: input.wkId, focus: input.focus ?? null, selectedUnit: null },
+    { optional: true });
+  if (obligationSource?.content !== undefined) carriers.push({
     carrier_kind: "obligation_coverage",
-    content_digest: obligationFacts.source.content_digest,
+    content_digest: obligationSource.content_digest,
     generation_id: generationIdentity(canonicalSet),
-    content: structuredClone(obligationFacts.source.content)
+    content: structuredClone(obligationSource.content)
   });
   let acceptanceFacts = null;
   try {
@@ -103,8 +131,7 @@ export async function resolveControlledContractRefactorSnapshot(input) {
       selectedUnit: null
     }, { requireCarrier: false });
   } catch (error) {
-    if (!["acceptance_coverage_source_not_found",
-      "controlled_contract_carrier_not_found"].includes(error?.code)) throw error;
+    if (!SNAPSHOT_ABSENT_CARRIER_CODES.has(error?.code)) throw error;
   }
   const acceptanceCarrier = acceptanceFacts?.carrier ??
     await readAcceptanceCoverageCarrier({ repoRoot: input.repoRoot,
@@ -148,9 +175,7 @@ function assertExpectedCurrent(input, snapshot) {
     "the requested currentness precondition no longer selects the canonical source",
     { actual_generation: snapshot.generation,
       actual_manifest_digest: snapshot.manifestDigest,
-      recovery: { operation: "workspace_controlled_contract_refactor_plan",
-        arguments: { wk_id: input.wkId, focus: input.focus ?? null,
-          ...currentnessPrecondition(snapshot) } },
+      recovery: null,
       would_break: "plan pages from different generations could be stitched" });
 }
 
@@ -164,14 +189,62 @@ function publicCoveragePlan(plan) {
     conflicts: Object.freeze(plan.entries.map(({ public: row }) => structuredClone(row))) });
 }
 
-function coveragePlans(snapshot, mode, injected) {
+async function coveragePlans(snapshot, mode, injected, input, packageResult,
+  prospectiveCompilation) {
   if (injected !== undefined) return injected;
+  if (prospectiveCompilation !== null && snapshot.canonicalSet) {
+    const request = packageResult.carriers.find(({ carrier_kind: kind }) =>
+      kind === "proof_plan_request") ?? null;
+    const canonicalOverride = {
+      canonicalSet: Object.freeze({ ...snapshot.canonicalSet,
+        generation: prospectiveCompilation.target.generation,
+        manifest_content_digest:
+          prospectiveCompilation.target.manifest_content_digest,
+        manifest_digest: prospectiveCompilation.target.manifest_digest }),
+      contract: Object.freeze({
+        content: prospectiveCompilation.contract.content,
+        content_digest:
+          prospectiveCompilation.contract.prospective_content_digest
+      }),
+      proofPlan: Object.freeze({
+        content: prospectiveCompilation.proof_plan.content,
+        content_digest:
+          prospectiveCompilation.proof_plan.prospective_content_digest
+      }),
+      ...(request === null ? {} : { proofPlanRequest: Object.freeze({
+        content: request.content,
+        content_digest: controlledContractContentDigest(request.content)
+      }) })
+    };
+    let obligationFacts = null;
+    let acceptanceFacts = null;
+    try {
+      obligationFacts = await resolveObligationCoverageFacts({
+        repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
+        selectedUnit: null
+      }, { canonicalOverride, allowIncomplete: true });
+    } catch (error) {
+      if (!["obligation_coverage_source_not_found",
+        "controlled_contract_carrier_not_found"].includes(error?.code)) throw error;
+    }
+    try {
+      acceptanceFacts = await resolveAcceptanceCoverageFacts({
+        repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
+        selectedUnit: null
+      }, { requireCarrier: false, canonicalOverride });
+    } catch (error) {
+      if (!["acceptance_coverage_source_not_found",
+        "controlled_contract_carrier_not_found"].includes(error?.code)) throw error;
+    }
+    return planControlledContractRefactorCoverageRebases({ mode,
+      obligationFacts, acceptanceFacts, prospectiveFacts: true });
+  }
   return planControlledContractRefactorCoverageRebases({ mode,
     obligationFacts: snapshot.obligationFacts,
     acceptanceFacts: snapshot.acceptanceFacts });
 }
 
-function semanticItems(packageResult, plans) {
+function semanticItems(packageResult, plans, prospectiveCompilation = null) {
   const rows = [];
   for (const identity of packageResult.affected_identities) rows.push({
     kind: "affected_identity", stable_id: identity, value: identity
@@ -182,7 +255,8 @@ function semanticItems(packageResult, plans) {
   for (const row of packageResult.closure) rows.push({
     kind: "closure_edge", stable_id: digest(row), value: structuredClone(row)
   });
-  for (const row of packageResult.carriers) rows.push({
+  for (const row of effectiveControlledContractRefactorCarriers(
+    packageResult, prospectiveCompilation)) rows.push({
     kind: "carrier", stable_id: row.carrier_kind, value: structuredClone(row)
   });
   for (const row of packageResult.proof_gaps) rows.push({
@@ -214,7 +288,8 @@ function renameCoverageProspective(packageResult) {
     acceptance: item("acceptance_coverage", "acceptance") });
 }
 
-function snapshotBinding(input, snapshot, packageResult, plans) {
+function snapshotBinding(input, snapshot, packageResult, plans,
+  prospectiveCompilation = null) {
   const coverage = {
     obligation: publicCoveragePlan(plans.obligation),
     acceptance: publicCoveragePlan(plans.acceptance)
@@ -222,8 +297,11 @@ function snapshotBinding(input, snapshot, packageResult, plans) {
   const body = { schema_version: REFACTOR_PLAN_SCHEMA_VERSION,
     wk_id: input.wkId, focus: input.focus ?? null,
     generation: snapshot.generation, manifest_digest: snapshot.manifestDigest,
+    obligation_resolution: proofAuthoringCompletenessSummary(snapshot.obligationFacts ?? {}),
     package_result_digest: packageResult.result_digest,
     package_schema_version: packageResult.schema_version,
+    prospective_compilation_digest: prospectiveCompilation === null
+      ? null : digest(prospectiveCompilation),
     mode: packageResult.mode, correspondence: packageResult.correspondence,
     reason: packageResult.reason, coverage };
   return Object.freeze({ ...body, snapshot_digest: digest(body) });
@@ -264,13 +342,17 @@ function assertCursorBinding(snapshot, payload, selector) {
 }
 
 function planPage(snapshot, { selector = null, offset = 0,
-  pageSize = CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS.page_items } = {}) {
+  pageSize = CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS.page_items,
+  selected = false } = {}) {
   const normalizedSelector = normalizeSelector(selector);
-  const items = selectedItems(snapshot, normalizedSelector);
+  if (selected && normalizedSelector === null) fail(
+    "controlled_contract_refactor_selector_invalid",
+    "retained refactor population requires one explicit semantic selector");
+  const items = selected ? selectedItems(snapshot, normalizedSelector) : snapshot.items;
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > items.length) fail(
     "controlled_contract_refactor_cursor_stale", "plan page offset is invalid",
     { offset, complete_count: items.length, recovery: snapshot.replanCall });
-  const returned = items.slice(offset, offset + pageSize);
+  const returned = selected ? items.slice(offset, offset + pageSize) : [];
   const remaining = items.length - offset - returned.length;
   const cursorBinding = remaining > 0 ? Object.freeze({
     resource_kind: REFACTOR_RESOURCE_KIND,
@@ -280,19 +362,12 @@ function planPage(snapshot, { selector = null, offset = 0,
     offset: offset + returned.length,
     page_size: pageSize
   }) : null;
-  const conflicts = (snapshot.plans.obligation?.entries.length ?? 0) +
-    (snapshot.plans.acceptance?.entries.length ?? 0);
-  let finalAction = null;
-  if (remaining === 0 && normalizedSelector === null) {
-    finalAction = conflicts > 0 && snapshot.finalized !== true
-      ? { operation: "workspace_controlled_contract_refactor_plan",
-          arguments: { plan_identity: snapshot.resourceIdentity,
-            conflict_set_identity: snapshot.conflictSetIdentity,
-            obligation_dispositions: [], acceptance_dispositions: [] },
-          author_semantics: ["obligation_dispositions", "acceptance_dispositions"] }
-      : { operation: "workspace_controlled_contract_refactor_apply",
-          arguments: { continuation: snapshot.applyContinuation } };
-  }
+  const finalAction = null;
+  const collectionCounts = REFACTOR_SELECTORS.map((kind) => Object.freeze({
+    kind,
+    count: snapshot.items.filter((item) => item.kind === kind).length,
+    query: null
+  })).filter(({ count }) => count > 0);
   return Object.freeze({
     schema_version: REFACTOR_PLAN_PAGE_SCHEMA_VERSION,
     resource_kind: REFACTOR_RESOURCE_KIND,
@@ -301,12 +376,13 @@ function planPage(snapshot, { selector = null, offset = 0,
     source: Object.freeze({ wk_id: snapshot.binding.wk_id,
       focus: snapshot.binding.focus, generation: snapshot.binding.generation,
       manifest_digest: snapshot.binding.manifest_digest }),
-    mode: snapshot.binding.mode,
     selector: normalizedSelector,
     counts: Object.freeze({ complete: items.length, returned: returned.length,
       omitted: items.length - returned.length, remaining }),
     items: Object.freeze(structuredClone(returned)),
+    collections: Object.freeze(collectionCounts),
     next_cursor_binding: cursorBinding,
+    obligation_resolution: snapshot.binding.obligation_resolution,
     final_action: finalAction,
     authority: Object.freeze({ authoritative: false, read_only: true,
       grants: Object.freeze([]) })
@@ -314,29 +390,74 @@ function planPage(snapshot, { selector = null, offset = 0,
 }
 
 function makeSnapshot(input, source, packageResult, plans, options = {}) {
-  const binding = snapshotBinding(input, source, packageResult, plans);
-  const items = semanticItems(packageResult, plans);
+  const prospectiveCompilation = options.prospectiveCompilation ?? null;
+  const binding = snapshotBinding(input, source, packageResult, plans,
+    prospectiveCompilation);
+  const items = semanticItems(packageResult, plans, prospectiveCompilation);
   const conflictSetIdentity = digest({
     obligation: plans.obligation?.conflictSetIdentity ?? null,
     acceptance: plans.acceptance?.conflictSetIdentity ?? null,
     snapshot_digest: binding.snapshot_digest
   });
   return {
-    resourceIdentity: digest({ binding, items }), binding, items, plans,
-    packageResult, source, conflictSetIdentity,
+    resourceIdentity: options.resourceIdentity ?? null, binding, items, plans,
+    packageResult, prospectiveCompilation, source, conflictSetIdentity,
     applyContinuation: options.applyContinuation ?? null,
     finalized: options.finalized === true,
-    replanCall: { operation: "workspace_controlled_contract_refactor_plan",
-      arguments: { wk_id: input.wkId, focus: input.focus ?? null,
-        ...currentnessPrecondition(source),
-        mode: structuredClone(input.mode) } }
+    replanCall: null
   };
 }
 
-export function consumeControlledContractRefactorPlanSnapshot(result) {
-  const value = result && typeof result === "object" ? PLAN_SNAPSHOTS.get(result) ?? null : null;
-  if (value !== null) PLAN_SNAPSHOTS.delete(result);
-  return value;
+function retainedPlanPayload(snapshot, packageGeneration) {
+  return {
+    schema_version: RETAINED_PLAN_SCHEMA_VERSION,
+    binding: structuredClone(snapshot.binding),
+    items: structuredClone(snapshot.items),
+    plans: structuredClone(snapshot.plans),
+    package_result: structuredClone(snapshot.packageResult),
+    prospective_compilation: structuredClone(snapshot.prospectiveCompilation),
+    source: { generation: snapshot.source.generation,
+      manifest_digest: snapshot.source.manifestDigest },
+    conflict_set_identity: snapshot.conflictSetIdentity,
+    contract_content_digest: snapshot.packageResult.carriers.find(
+      ({ carrier_kind: kind }) => kind === "contract")?.source_content_digest ??
+      snapshot.source.manifestDigest,
+    package_generation: packageGeneration
+  };
+}
+
+function hydrateRetainedPlan(resource, state = null) {
+  const payload = resource.payload;
+  if (payload.schema_version !== RETAINED_PLAN_SCHEMA_VERSION ||
+      !Array.isArray(payload.items) || !payload.binding || !payload.plans ||
+      !payload.package_result || !Object.hasOwn(payload, "prospective_compilation") ||
+      !payload.source ||
+      typeof payload.conflict_set_identity !== "string") fail(
+    "controlled_contract_refactor_staging_tampered",
+    "retained plan has an invalid semantic shape");
+  return Object.freeze({
+    resourceIdentity: resource.identity,
+    binding: payload.binding,
+    items: payload.items,
+    plans: payload.plans,
+    packageResult: payload.package_result,
+    prospectiveCompilation: payload.prospective_compilation,
+    source: Object.freeze({ generation: payload.source.generation,
+      manifestDigest: payload.source.manifest_digest }),
+    conflictSetIdentity: payload.conflict_set_identity,
+    applyContinuation: state?.continuation ?? null,
+    finalized: state !== null,
+    replanCall: null
+  });
+}
+
+export async function loadControlledContractRefactorPlanSnapshot({ repoRoot, planIdentity }) {
+  const resource = await readControlledContractRefactorResource({ repoRoot,
+    identity: planIdentity, expectedKind: "plan" });
+  if (resource === null) return null;
+  const state = await readControlledContractRefactorState({ repoRoot,
+    identity: planIdentity });
+  return hydrateRetainedPlan(resource, state);
 }
 
 export async function buildControlledContractRefactorPlanOperation(input, {
@@ -356,12 +477,25 @@ export async function buildControlledContractRefactorPlanOperation(input, {
       "controlled_contract_refactor_package_incompatible",
       "loaded controlled-contract package has no stable refactor primitive",
       { would_break: "plan and assessment could select different classifiers" });
-    const preliminaryPlans = coveragePlans(source, input.mode, coveragePlanSet);
     const packageResult = pkg.buildControlledContractRefactorClosure({
       live_carriers: source.liveCarriers, mode: structuredClone(input.mode)
     });
-    const snapshot = makeSnapshot(input, source, packageResult, preliminaryPlans,
-      { applyContinuation });
+    const prospectiveCompilation =
+      await compileControlledContractRefactorProspectiveProofPlan({
+        repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
+        source, packageResult
+      });
+    const preliminaryPlans = await coveragePlans(source, input.mode,
+      coveragePlanSet, input, packageResult, prospectiveCompilation);
+    const packageGeneration = pkg.PACKAGE_VERSION ?? packageResult.schema_version;
+    let snapshot = makeSnapshot(input, source, packageResult, preliminaryPlans,
+      { applyContinuation, prospectiveCompilation });
+    const retained = await retainControlledContractRefactorResource({
+      repoRoot: input.repoRoot,
+      resourceKind: "plan",
+      payload: retainedPlanPayload(snapshot, packageGeneration)
+    });
+    snapshot = Object.freeze({ ...snapshot, resourceIdentity: retained.identity });
     const conflictCount = (preliminaryPlans.obligation?.entries.length ?? 0) +
       (preliminaryPlans.acceptance?.entries.length ?? 0);
     if (conflictCount === 0 && snapshot.applyContinuation === null) {
@@ -372,22 +506,29 @@ export async function buildControlledContractRefactorPlanOperation(input, {
             acceptanceDispositions: [], input
           });
       const issued = await issueApplyContinuation({ input, snapshot, coverage });
-      snapshot.applyContinuation = typeof issued === "string" ? issued : issued.identity;
-      snapshot.finalized = true;
+      const continuation = typeof issued === "string" ? issued : issued.identity;
+      await transitionControlledContractRefactorState({ repoRoot: input.repoRoot,
+        planIdentity: snapshot.resourceIdentity, status: "finalized",
+        transactionIdentity: issued.transaction_identity ?? snapshot.resourceIdentity,
+        continuation });
+      snapshot = Object.freeze({ ...snapshot, applyContinuation: continuation,
+        finalized: true });
     }
     const result = planPage(snapshot);
-    PLAN_SNAPSHOTS.set(result, Object.freeze(snapshot));
     return result;
   });
 }
 
 export async function queryControlledContractRefactorPlan(input, {
-  snapshot,
-  resolveCurrent = snapshot?.source?.resolveCurrent
+  snapshot = null,
+  resolveCurrent = null
 } = {}) {
   return controlledContractOperation(async () => {
-    assertControlledContractOperationInput(input, ["resourceIdentity", "selector",
+    assertControlledContractOperationInput(input, ["repoRoot", "resourceIdentity", "selector",
       "authenticatedCursorPayload"]);
+    snapshot ??= await loadControlledContractRefactorPlanSnapshot({
+      repoRoot: input.repoRoot, planIdentity: input.resourceIdentity
+    });
     if (!snapshot || input.resourceIdentity !== snapshot.resourceIdentity) fail(
       "controlled_contract_refactor_resource_unknown",
       "plan resource identity is unknown or cross-resource",
@@ -395,6 +536,14 @@ export async function queryControlledContractRefactorPlan(input, {
     const selector = normalizeSelector(input.selector ?? null);
     const payload = input.authenticatedCursorPayload;
     assertCursorBinding(snapshot, payload, selector);
+    if (resolveCurrent === null) resolveCurrent = async () => {
+      const currentSet = await resolveCanonicalControlledContractCarrierSet({
+        repoRoot: input.repoRoot, wkId: snapshot.binding.wk_id,
+        focus: snapshot.binding.focus
+      });
+      return { generation: generationIdentity(currentSet),
+        manifestDigest: currentSet.manifest_content_digest ?? null };
+    };
     if (typeof resolveCurrent === "function") {
       const current = await resolveCurrent();
       if (current.generation !== snapshot.source.generation ||
@@ -405,39 +554,54 @@ export async function queryControlledContractRefactorPlan(input, {
           would_break: "query would return detail for a no-longer-current plan" });
     }
     return planPage(snapshot, { selector, offset: payload.offset,
-      pageSize: payload.page_size });
+      pageSize: payload.page_size, selected: true });
   });
 }
 
 async function defaultIssueApplyContinuation({ input, snapshot, coverage }) {
   const pkg = await loadControlledContractPackage();
-  const contract = snapshot.packageResult.carriers.find(
-    ({ carrier_kind: kind }) => kind === "contract");
-  return rememberControlledContractRefactorContinuation({
+  const transaction = await retainControlledContractRefactorResource({
+    repoRoot: input.repoRoot, resourceKind: "finalized_transaction", payload: {
+      schema_version: RETAINED_TRANSACTION_SCHEMA_VERSION,
+      plan_identity: snapshot.resourceIdentity,
+      snapshot_digest: snapshot.binding.snapshot_digest,
+      source: { generation: snapshot.source.generation,
+        manifest_digest: snapshot.source.manifestDigest },
+      package_result: structuredClone(snapshot.packageResult),
+      prospective_compilation: structuredClone(snapshot.prospectiveCompilation),
+      coverage: structuredClone(coverage)
+    }
+  });
+  const continuation = await rememberControlledContractRefactorContinuation({
     repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
-    contractContentDigest: contract?.source_content_digest ??
+    contractContentDigest: snapshot.packageResult.carriers.find(
+      ({ carrier_kind: kind }) => kind === "contract")?.source_content_digest ??
       snapshot.source.manifestDigest,
     packageGeneration: pkg.PACKAGE_VERSION ?? snapshot.packageResult.schema_version,
     source: { generation: snapshot.source.generation,
       manifest_digest: snapshot.source.manifestDigest },
     planIdentity: snapshot.resourceIdentity,
     snapshotDigest: snapshot.binding.snapshot_digest,
-    packageResult: snapshot.packageResult,
-    coverage,
-    sourceLease: { generation: snapshot.source.generation,
-      manifest_digest: snapshot.source.manifestDigest }
+    transactionIdentity: transaction.identity
   });
+  return Object.freeze({ ...continuation, transaction_identity: transaction.identity });
 }
 
 export async function finalizeControlledContractRefactorPlanOperation(input, {
-  snapshot,
-  resolveCurrent = snapshot?.source?.resolveCurrent,
+  snapshot = null,
+  resolveCurrent = null,
   issueApplyContinuation = defaultIssueApplyContinuation
 } = {}) {
   return controlledContractOperation(async () => {
     assertControlledContractOperationInput(input, ["repoRoot", "wkId", "focus",
       "planIdentity", "conflictSetIdentity", "obligationDispositions",
       "acceptanceDispositions"]);
+    snapshot ??= await loadControlledContractRefactorPlanSnapshot({
+      repoRoot: input.repoRoot, planIdentity: input.planIdentity
+    });
+    if (snapshot !== null && input.wkId === undefined) input = Object.freeze({
+      ...input, wkId: snapshot.binding.wk_id, focus: snapshot.binding.focus
+    });
     if (!snapshot || input.planIdentity !== snapshot.resourceIdentity ||
         input.conflictSetIdentity !== snapshot.conflictSetIdentity ||
         input.wkId !== snapshot.binding.wk_id ||
@@ -446,6 +610,14 @@ export async function finalizeControlledContractRefactorPlanOperation(input, {
       "finalization does not bind the exact server-issued plan and conflict set",
       { recovery: snapshot?.replanCall ?? null,
         would_break: "coverage dispositions could settle against another plan" });
+    if (resolveCurrent === null) resolveCurrent = async () => {
+      const currentSet = await resolveCanonicalControlledContractCarrierSet({
+        repoRoot: input.repoRoot, wkId: snapshot.binding.wk_id,
+        focus: snapshot.binding.focus
+      });
+      return { generation: generationIdentity(currentSet),
+        manifestDigest: currentSet.manifest_content_digest ?? null };
+    };
     if (typeof resolveCurrent === "function") {
       const current = await resolveCurrent();
       if (current.generation !== snapshot.source.generation ||
@@ -464,8 +636,11 @@ export async function finalizeControlledContractRefactorPlanOperation(input, {
     const continuationRecord = await issueApplyContinuation({ input, snapshot, coverage });
     const continuation = typeof continuationRecord === "string"
       ? continuationRecord : continuationRecord.identity;
-    snapshot.finalized = true;
-    snapshot.applyContinuation = continuation;
+    await transitionControlledContractRefactorState({ repoRoot: input.repoRoot,
+      planIdentity: snapshot.resourceIdentity, status: "finalized",
+      transactionIdentity: continuationRecord.transaction_identity ??
+        snapshot.resourceIdentity,
+      continuation });
     return Object.freeze({
       schema_version: REFACTOR_PLAN_PAGE_SCHEMA_VERSION,
       resource_kind: REFACTOR_RESOURCE_KIND,
@@ -476,10 +651,7 @@ export async function finalizeControlledContractRefactorPlanOperation(input, {
       counts: Object.freeze({ obligation_dispositions:
         input.obligationDispositions.length, acceptance_dispositions:
         input.acceptanceDispositions.length }),
-      final_action: Object.freeze({
-        operation: "workspace_controlled_contract_refactor_apply",
-        arguments: Object.freeze({ continuation })
-      }),
+      final_action: null,
       authority: Object.freeze({ authoritative: false, grants: Object.freeze([]) })
     });
   });

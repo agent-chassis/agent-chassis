@@ -16,14 +16,14 @@ function usage() {
   controlled-contract-discover-proof-intents
   controlled-contract-discover-proof-intents --query <terms> [--limit <count>]
 
-List mode returns every controlled proof intent. Search mode mechanically
-normalizes case and punctuation, evaluates the complete intrinsic catalog, and
-returns the strongest candidate class before the optional output limit is
-applied: all-token matches when any exist, otherwise explicit partial matches.
-Partial candidates report matched and unmatched terms; zero-overlap queries
-remain no_match. Results include exact scan and truncation facts. Discovery never
-selects, ranks, combines, invokes, or admits a proof pack and accepts no path,
-root, catalog, executable, module, or environment override.`;
+List mode returns every admitted proof-pack candidate. Search normalizes case
+and punctuation and returns all matching candidates in rank order: all-term
+assertion/constraint matches, then partial assertion matches, then navigation
+or exclusion-only matches. The optional limit selects a prefix and results
+report complete match and omission counts; reissue the same query without
+--limit to recover omitted candidates. Zero-overlap queries remain no_match.
+Discovery does not select, combine, invoke or admit proof packs and accepts
+no path, root, catalog, executable, module or environment override.`;
 }
 
 function parseArgs(argv) {

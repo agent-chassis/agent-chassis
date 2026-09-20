@@ -1,15 +1,20 @@
+import { profileDigest } from "../lib/profile-digest.mjs";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import test from "node:test";
 
+import { readFile } from "node:fs/promises";
+
 import {
   AdmittedProofPackError,
   assertAdmittedProofPackSnapshot,
   assertComponentExclusionApplicability,
   loadExactAdmittedProofPack,
-  loadAdmittedProofPack
+  loadAdmittedProofPack,
+  readProofPackCatalog,
+  rebindComponentExclusionApplicability
 } from "../lib/admitted-proof-packs.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -30,15 +35,15 @@ function canonicalDigest(value) {
 
 function buildFixture() {
   const profile = {
-    schema_version: "controlled-contract-test-validity-profile.v1",
+    schema_version: "controlled-contract-verification-profile.v2",
     profile_id: "proof.fixture.applicability",
     profile_version: "1.0.0",
-    evaluation_stages: ["design", "runtime"],
+
     reference_binding_patterns: [{
       pattern_id: "reference-a",
-      required_by_stage: "design"
+
     }],
-    claim_patterns: [{ pattern_id: "claim-a", required_by_stage: "runtime" }],
+    claim_patterns: [{ pattern_id: "claim-a" }],
     relation_patterns: [],
     collection_patterns: [],
     resolver_fact_patterns: [],
@@ -48,13 +53,13 @@ function buildFixture() {
     schema_version: "controlled-contract-admitted-proof-pack.v1",
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
-    profile_digest: canonicalDigest(profile),
+    profile_digest: profileDigest(profile),
     guarantee: "fixture guarantee",
     guarantee_digest: createHash("sha256").update("fixture guarantee").digest("hex"),
     explicit_exclusions: ["exclusion-a", "exclusion-b", "exclusion-c"]
   };
   const companion = {
-    schema_version: "controlled-contract-component-exclusion-applicability.v1",
+    schema_version: "controlled-contract-component-exclusion-applicability.v2",
     profile_id: profile.profile_id,
     profile_version: profile.profile_version,
     profile_digest: admission.profile_digest,
@@ -62,13 +67,13 @@ function buildFixture() {
     components: [
       {
         selector: { kind: "claim", component_id: "claim-a" },
-        evaluation_stage: "runtime",
+
         exclusion_ids: ["exclusion-a", "exclusion-b", "exclusion-c"],
         applicable_exclusion_ids: []
       },
       {
         selector: { kind: "reference_binding", component_id: "reference-a" },
-        evaluation_stage: "design",
+
         exclusion_ids: ["exclusion-a", "exclusion-b", "exclusion-c"],
         applicable_exclusion_ids: ["exclusion-a", "exclusion-b"]
       }
@@ -89,7 +94,7 @@ function assertRefused(value, profile, admission, code =
   );
 }
 
-test("legacy packs have no authenticated applicability fact", () => {
+test("absent companions supply no authenticated applicability fact", () => {
   const { profile, admission } = buildFixture();
   assert.deepEqual(
     assertComponentExclusionApplicability(null, profile, admission),
@@ -128,8 +133,8 @@ test("loader recognizes the upgraded pack and preserves exact applicability subs
   const pack = await loadAdmittedProofPack(
     "proof.design.implementation-readiness"
   );
-  assert.equal(pack.admission_version, 1);
-  assert.equal(pack.profile.profile_version, "2.1.0");
+  assert.equal(pack.admission_version, 3);
+  assert.equal(pack.profile.profile_version, "4.0.0");
   assert.match(pack.component_exclusion_applicability_digest, /^[a-f0-9]{64}$/u);
   assert.deepEqual(pack.component_exclusion_applicability.components.map((component) => [
     component.selector.component_id, component.applicable_exclusion_ids
@@ -141,42 +146,32 @@ test("loader recognizes the upgraded pack and preserves exact applicability subs
   assert.equal(Object.isFrozen(pack), true);
 });
 
-test("exact loader preserves historical 3.0.0 and admits corrected 4.0.0 only by identity", async () => {
-  const pack = await loadExactAdmittedProofPack({
+test("exact loader admits only the current test-validity identity", async () => {
+  const execution = await loadExactAdmittedProofPack({
     profileId: "proof.verification.test-validity",
-    profileVersion: "3.0.0",
-    evaluationStage: "post_delivery"
-  });
-  assert.equal(pack.profile.profile_version, "3.0.0");
-  assert.equal(pack.profile.evaluation_stages.includes("pre_dispatch"), false);
-  assert.equal(pack.evaluation_stage, "post_delivery");
-  assert.equal(pack.test_validity_evaluator.status, "resolved");
-  assert.match(pack.profile_digest, /^[a-f0-9]{64}$/u);
-  assert.match(pack.admission_digest, /^[a-f0-9]{64}$/u);
-  assertAdmittedProofPackSnapshot(pack);
+    profileVersion: "10.0.0",
 
-  const corrected = await loadExactAdmittedProofPack({
-    profileId: "proof.verification.test-validity",
-    profileVersion: "4.0.0",
-    evaluationStage: "post_delivery"
   });
-  assert.equal(corrected.profile.profile_version, "4.0.0");
-  assert.equal(corrected.test_validity_evaluator.implementation_version, "4.0.0");
-  assertAdmittedProofPackSnapshot(corrected);
+  assert.equal(execution.profile.profile_version, "10.0.0");
 
-  await assert.rejects(loadExactAdmittedProofPack({
-    profileId: "proof.verification.test-validity",
-    profileVersion: "9.9.9",
-    evaluationStage: "post_delivery"
-  }), (error) => error.code === "proof_pack_exact_version_unavailable");
+  assert.equal(execution.test_validity_evaluator.implementation_version, "8.0.0");
+  assertAdmittedProofPackSnapshot(execution);
+
+  for (const profileVersion of ["1.0.0", "8.0.0", "9.0.0", "9.9.9"]) {
+    await assert.rejects(loadExactAdmittedProofPack({
+      profileId: "proof.verification.test-validity",
+      profileVersion,
+
+    }), (error) => error.code === "proof_pack_exact_version_not_current", profileVersion);
+  }
   await assert.rejects(loadExactAdmittedProofPack({
     profileId: "../proof.verification.test-validity",
-    profileVersion: "3.0.0",
-    evaluationStage: "post_delivery"
+    profileVersion: "8.0.0",
+
   }), (error) => error.code === "proof_pack_exact_identity_invalid");
 });
 
-test("loader refuses a non-ENOENT companion read and preserves legacy absence", async () => {
+test("loader refuses a non-ENOENT companion read and preserves optional companion absence", async () => {
   const profileId = "proof.atomicity.failure-boundary";
   const moduleUrl = new URL("../lib/admitted-proof-packs.mjs", import.meta.url).href;
   const child = `
@@ -185,7 +180,7 @@ test("loader refuses a non-ENOENT companion read and preserves legacy absence", 
     const originalReadFile = fs.promises.readFile;
     fs.promises.readFile = async (target, ...args) => {
       if (String(target).endsWith(
-        "/${profileId}/2.0.0/component-exclusion-applicability.json"
+        "/${profileId}/4.0.0/component-exclusion-applicability.json"
       )) throw Object.assign(new Error("injected read refusal"), { code: "EACCES" });
       return originalReadFile(target, ...args);
     };
@@ -221,7 +216,7 @@ test("every authenticated identity, component, domain, subset, and ordering muta
     ["admission digest", (value) => { value.admission_digest = "0".repeat(64); }],
     ["component kind", (value) => { value.components[1].selector.kind = "claim"; }],
     ["component id", (value) => { value.components[1].selector.component_id = "claim-a"; }],
-    ["stage", (value) => { value.components[1].evaluation_stage = "runtime"; }],
+
     ["missing exclusion domain member", (value) => {
       value.components[0].exclusion_ids.pop();
     }],
@@ -263,7 +258,7 @@ test("schema-invalid and unsupported companion fields refuse before binding reco
     "proof_pack_component_exclusion_applicability_invalid");
 
   const wrongSchema = clone(fixture.companion);
-  wrongSchema.schema_version = "controlled-contract-component-exclusion-applicability.v2";
+  wrongSchema.schema_version = "controlled-contract-component-exclusion-applicability.v1";
   assertRefused(wrongSchema, fixture.profile, fixture.admission,
     "proof_pack_component_exclusion_applicability_invalid");
 });
@@ -286,4 +281,77 @@ test("callers cannot mint, copy, substitute, or partially construct recognized s
         error.code === "proof_pack_snapshot_unrecognized"
     );
   }
+});
+
+test("every shipped companion is bound to the admission shipped beside it", async () => {
+  const catalog = await readProofPackCatalog();
+  let companions = 0;
+  for (const entry of catalog.packs) {
+    const directory = new URL(`../${entry.path}/`, import.meta.url);
+    const read = async (name) => JSON.parse(
+      await readFile(new URL(name, directory), "utf8")
+    );
+    let companion;
+    try {
+      companion = await read("component-exclusion-applicability.json");
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw error;
+    }
+    companions += 1;
+    const [profile, admission] = await Promise.all([
+      read("profile.json"), read("admission.json")
+    ]);
+
+    assert.deepEqual(
+      rebindComponentExclusionApplicability(companion, profile, admission),
+      companion,
+      `${entry.profile_id} companion is stale against its own admission`
+    );
+  }
+  assert.ok(companions > 0, "no shipped companion was checked");
+});
+
+test("every admitted pack in the published catalog loads", async () => {
+  const catalog = await readProofPackCatalog();
+  const refusals = [];
+  for (const entry of catalog.packs) {
+    try {
+      await loadAdmittedProofPack(entry.profile_id);
+    } catch (error) {
+      refusals.push(`${entry.profile_id}: ${error.code}`);
+    }
+  }
+  assert.deepEqual(refusals, []);
+  assert.equal(catalog.packs.length, 37);
+});
+
+test("rebinding refuses to drop an authored applicability judgment", () => {
+  const { profile, admission, companion } = buildFixture();
+
+  const narrowed = { ...admission, explicit_exclusions: [] };
+  assert.throws(
+    () => rebindComponentExclusionApplicability(companion, profile, narrowed),
+    (error) => error instanceof AdmittedProofPackError &&
+      error.code === "proof_pack_component_exclusion_applicability_binding_mismatch"
+  );
+
+  const withoutClaims = { ...profile, claim_patterns: [] };
+  assert.throws(
+    () => rebindComponentExclusionApplicability(companion, withoutClaims, admission),
+    (error) => error instanceof AdmittedProofPackError &&
+      error.code === "proof_pack_component_exclusion_applicability_binding_mismatch"
+  );
+});
+
+test("exact loading refuses historical definitions and removed classification inputs", async () => {
+  for (const profileVersion of ["2.0.0", "4.0.0"]) {
+    await assert.rejects(loadExactAdmittedProofPack({
+      profileId: "proof.verification.test-validity", profileVersion
+    }), { code: "proof_pack_exact_version_not_current" });
+  }
+  await assert.rejects(loadExactAdmittedProofPack({
+    profileId: "proof.verification.test-validity", profileVersion: "5.0.0",
+    evaluationStage: "pre_dispatch"
+  }), { code: "proof_pack_exact_identity_invalid" });
 });

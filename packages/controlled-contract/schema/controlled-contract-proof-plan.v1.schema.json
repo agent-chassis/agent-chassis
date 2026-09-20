@@ -41,10 +41,7 @@
         "guarantee": { "$ref": "#/$defs/sha256" },
         "adequacy_declaration": { "$ref": "#/$defs/sha256" },
         "adequacy_result": { "$ref": "#/$defs/sha256" },
-        "evaluation_input": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
-        "exact_binding_sources": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
-        "exact_binding_declaration": { "$ref": "#/$defs/sha256" },
-        "exact_binding_certification": { "$ref": "#/$defs/sha256" }
+        "evaluation_input": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
       }
     },
     "evaluation_input": {
@@ -58,29 +55,11 @@
         }
       ]
     },
-    "exact_binding": {
-      "oneOf": [
-        { "type": "null" },
-        {
-          "type": "object",
-          "required": [
-            "capture_root", "contract_path", "evaluation_input_path", "sources"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "capture_root": { "type": "string", "minLength": 1 },
-            "contract_path": { "type": "string", "minLength": 1 },
-            "evaluation_input_path": { "type": "string", "minLength": 1 },
-            "sources": { "type": "object" }
-          }
-        }
-      ]
-    },
     "pack_request": {
       "type": "object",
       "required": [
         "profile_id", "profile_version", "requested_intents", "evaluation_input",
-        "exact_binding", "source_digests"
+        "source_digests"
       ],
       "additionalProperties": false,
       "properties": {
@@ -88,7 +67,6 @@
         "profile_version": { "type": "string", "minLength": 1 },
         "requested_intents": { "$ref": "#/$defs/string_set" },
         "evaluation_input": { "$ref": "#/$defs/evaluation_input" },
-        "exact_binding": { "$ref": "#/$defs/exact_binding" },
         "source_digests": { "$ref": "#/$defs/source_digests" }
       }
     }

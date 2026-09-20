@@ -3,7 +3,8 @@ import { pathToFileURL } from "node:url";
 import {
   buildTestProofFaultModuleSource,
   buildTestProofFaultModuleUrl,
-  validateTestProofModuleFaultConfiguration
+  validateTestProofModuleFaultConfiguration,
+  validateTestProofModuleFaultExportPopulation
 } from
   "./workspace-agent-test-proof-module-fault-contract.mjs";
 
@@ -22,7 +23,7 @@ validateTestProofModuleFaultConfiguration(configuration);
 
 const targetUrl = pathToFileURL(path.resolve(process.cwd(), configuration.module_path)).href;
 const faultUrl = buildTestProofFaultModuleUrl(configuration);
-let exportNames = null;
+let exportPopulation = null;
 
 function substituteFaultModule() {
   return { url: faultUrl, shortCircuit: true };
@@ -30,7 +31,7 @@ function substituteFaultModule() {
 
 export function initialize(data) {
 
-  exportNames = Array.isArray(data?.export_names) ? [...data.export_names] : null;
+  exportPopulation = validateTestProofModuleFaultExportPopulation(data?.observed_exports, configuration);
 }
 
 export async function resolve(specifier, context, nextResolve) {
@@ -45,6 +46,6 @@ export async function load(moduleUrl, context, nextLoad) {
   return {
     format: "module",
     shortCircuit: true,
-    source: buildTestProofFaultModuleSource(configuration, exportNames)
+    source: buildTestProofFaultModuleSource(configuration, exportPopulation)
   };
 }

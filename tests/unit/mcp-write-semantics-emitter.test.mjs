@@ -15,7 +15,6 @@ import { registerControlledContractTools } from "../../packages/wiki-mcp/src/lib
 import { registerKindRecordWriteTools } from "../../packages/wiki-mcp/src/lib/kind-record-write-tools.mjs";
 import { errorContent, jsonContent } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { loadToolDiscoveryDescriptor } from "../../packages/wiki-core/src/lib/tool-discovery.mjs";
-import { WORK_RECORD_CONTRACT_LIST_FIELDS } from "../../packages/wiki-core/src/lib/work-record-contract-edit.mjs";
 import { WORK_RECORD_STATUS_VALUES } from "../../packages/wiki-core/src/lib/work-record-schema-constants.mjs";
 
 const REGISTRATION_MODULES = [
@@ -49,20 +48,13 @@ function registerAllModules(registerTool) {
     runWorkspaceWorkRecordAdmissionRefreshRoute() {
       throw new Error("unexpected admission refresh route invocation");
     },
-    runWorkspaceWorkRecordCleanupDerivedEvidenceRoute() {
-      throw new Error("unexpected cleanup route invocation");
-    },
     constants: {
       WORK_RECORD_STATUS_VALUES,
-      WORK_RECORD_CONTRACT_LIST_FIELDS,
       WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME: "workspace_work_record_set_status",
-      WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME: "workspace_work_record_set_task",
       WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME:
         "workspace_work_record_refresh_admission_metrics",
       WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME:
-        "workspace_work_record_refresh_target_resolution_evidence",
-      WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME:
-        "workspace_work_record_cleanup_derived_evidence"
+        "workspace_work_record_refresh_target_resolution_evidence"
     }
   });
 
@@ -91,26 +83,27 @@ function captureRegistrations() {
   const authored = registerAllModules(() => {});
   const published = new Map();
   const descriptorToolNames = new Set(authored.map(({ name }) => name));
-  const boundary = createRegisterTool({
-    server: {
-      registerTool(name, config) {
-        published.set(name, config);
-      }
-    },
-    toolProfile: "operator",
-    registeredTier: "paid_cce",
-    mcpToolTierRegistrationPolicy: {
-      descriptorLoaded: true,
-      descriptorToolNames,
-      registrationEligibleToolNames: descriptorToolNames,
-      freeLocalToolNames: descriptorToolNames,
-      freeLocalFallbackToolNames: null
-    },
-    toolUsageAuditBoundary: { wrapHandler: (_name, handler) => handler },
-    registeredToolNames: new Set(),
-    structuredLog: () => {}
-  });
-  registerAllModules(boundary);
+  for (const toolProfile of ["operator", "orchestrator", "reviewer", "worker", "redteam"]) {
+    const boundary = createRegisterTool({
+      server: {
+        registerTool(name, config) {
+          published.set(name, config);
+        }
+      },
+      toolProfile,
+      registeredTier: "paid_cce",
+      mcpToolTierRegistrationPolicy: {
+        descriptorLoaded: true,
+        descriptorToolNames,
+        registrationEligibleToolNames: descriptorToolNames,
+        freeLocalToolNames: descriptorToolNames
+      },
+      toolUsageAuditBoundary: { wrapHandler: (_name, handler) => handler },
+      registeredToolNames: new Set(),
+      structuredLog: () => {}
+    });
+    registerAllModules(boundary);
+  }
   return { authored, published };
 }
 
@@ -269,19 +262,21 @@ test("WK-2167: the boundary emits the declared statement exactly once and no rou
   );
 });
 
-test("WK-2167: a route that publishes a write mode declares mode-dependent semantics", () => {
+test("WK-2167: the current editor declares action-dependent list semantics", () => {
   const { authored, published } = captureRegistrations();
   for (const { name, config } of authored) {
     if (config.writeSemantics === undefined) continue;
     const properties = inputPropertyNames(published.get(name)?.inputSchema);
-    const publishesMode = properties.includes("mode");
-    assert.equal(
-      config.writeSemantics === MCP_WRITE_SEMANTICS.REPLACE_OR_APPEND,
-      publishesMode,
-      publishesMode
-        ? `${name} publishes a mode selector, so its declared semantics must be mode-dependent; a ` +
-            "flat replacement statement on a route that also appends is exactly the defect this emitter fixes"
-        : `${name} declares mode-dependent semantics but publishes no mode selector`
-    );
+    assert.equal(properties.includes("mode"), false,
+      `${name} must not publish the retired adapter's mode vocabulary`);
+    if (name === "workspace_work_record_edit") {
+      assert.equal(properties.includes("action"), true);
+      assert.equal(
+        config.writeSemantics,
+        MCP_WRITE_SEMANTICS.ACTION_REPLACE_OR_APPEND
+      );
+      assert.match(published.get(name).description, /append actions add one item/iu);
+      assert.equal(published.get(name).description.includes("mode 'append'"), false);
+    }
   }
 });

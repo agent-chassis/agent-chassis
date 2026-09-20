@@ -1,0 +1,59 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "evaluation_stage": "pre_dispatch",
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "number_bindings": [
+    {
+      "role": "protected_resource_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-f64bab4508d1f721e7bac2c6dbc8669a8f63f369"
+      ],
+      "role": "actor"
+    },
+    {
+      "reference_ids": [
+        "ref-9181d370b50b471b1e806f3e537e80c1ad91e5d0"
+      ],
+      "role": "end_event"
+    },
+    {
+      "reference_ids": [
+        "ref-0d831d98015132170a864cb82474c96505688ee9"
+      ],
+      "role": "interval"
+    },
+    {
+      "reference_ids": [
+        "ref-23d3838f2fb40c8fa62d61c7eaabdc92bebc0c80"
+      ],
+      "role": "protected_resource_population"
+    },
+    {
+      "reference_ids": [
+        "ref-afc37a308c31d18e7461d44d4ed2b8e504df7a4b",
+        "ref-3b1a064bc26cbe174abc51b2ddbfa13d32d4f436"
+      ],
+      "role": "protected_resources"
+    },
+    {
+      "reference_ids": [
+        "ref-f6b8dbd5abfc7e750089c75a5fe377846caa99aa"
+      ],
+      "role": "start_event"
+    },
+    {
+      "reference_ids": [
+        "ref-7d8ab835e2717b760e4bbec6ca2c46a2330403de"
+      ],
+      "role": "verification"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

@@ -14,7 +14,6 @@ import {
   validateOptionalExpectedSourceDigest
 } from "./work-record-write-route-helpers.mjs";
 import { registerWorkRecordWriteTools } from "./work-record-write-tools.mjs";
-import { WORK_RECORD_CONTRACT_LIST_FIELDS } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit.mjs";
 import { WORK_RECORD_STATUS_VALUES } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 
 const FIXTURE_RECORD_PATH = path.resolve("wiki/work-records/WK-1160.json");
@@ -22,14 +21,10 @@ const WORKSPACE_REPO = "agent-chassis";
 const STALE_DIGEST = `sha256:${"0".repeat(64)}`;
 const WORKSPACE_TOOL_CONSTANTS = {
   WORK_RECORD_STATUS_VALUES,
-  WORK_RECORD_CONTRACT_LIST_FIELDS,
   WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME: "workspace_work_record_set_status",
-  WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME: "workspace_work_record_set_task",
   WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME: "workspace_work_record_refresh_admission_metrics",
   WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME:
-    "workspace_work_record_refresh_target_resolution_evidence",
-  WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME:
-    "workspace_work_record_cleanup_derived_evidence"
+    "workspace_work_record_refresh_target_resolution_evidence"
 };
 
 function parseStructuredResponse(result) {
@@ -89,9 +84,6 @@ function createToolRegistry(workspaceDir) {
     runWorkspaceWorkRecordAdmissionRefreshRoute: async () => {
       throw new Error("unexpected refresh route invocation");
     },
-    runWorkspaceWorkRecordCleanupDerivedEvidenceRoute: async () => {
-      throw new Error("unexpected cleanup route invocation");
-    },
     constants: WORKSPACE_TOOL_CONSTANTS
   });
   return tools;
@@ -146,8 +138,8 @@ test("workspace_work_record_set_status refuses a stale expected_source_digest", 
   }
 });
 
-test("workspace_work_record_set_task still works when expected_source_digest is omitted", async () => {
-  const { tempDir } = await createTempWorkspace({
+test("workspace_work_record_edit task mark_done replays a completed task when expected_source_digest is omitted", async () => {
+  const { tempDir, workspaceRecordPath } = await createTempWorkspace({
     mutateRecord: (record) => {
       assert.ok(Array.isArray(record.sections.tasks));
       assert.ok(record.sections.tasks.length > 0);
@@ -156,11 +148,16 @@ test("workspace_work_record_set_task still works when expected_source_digest is 
   });
   try {
     const tools = createToolRegistry(tempDir);
+    assert.equal(tools.has("workspace_work_record_set_task"), false);
     const fixtureRecord = await loadFixtureRecord();
     const taskText = fixtureRecord.sections.tasks[0].text;
-    const response = await tools.get("workspace_work_record_set_task").handler({
+    const before = await readFile(workspaceRecordPath);
+    const response = await tools.get("workspace_work_record_edit").handler({
       repo: WORKSPACE_REPO,
       unit: "WK-1160",
+      kind: "task",
+      field: "sections.tasks",
+      action: "mark_done",
       text: taskText
     });
 
@@ -168,63 +165,34 @@ test("workspace_work_record_set_task still works when expected_source_digest is 
     assert.equal(structured.no_op, true);
     assert.equal(structured.written, false);
     assert.equal(structured.valid, true);
-    assert.equal(structured.status, "done");
+    assert.equal(structured.task.status, "done");
     assert.equal(structured.expected_source_digest, undefined);
     assert.equal(structured.current_source_digest, undefined);
+    assert.deepEqual(await readFile(workspaceRecordPath), before);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test("workspace_work_record_set_status projects the core forge completion refusal without mutation", async () => {
-  const forge = (record) => {
-    record.status = "review";
-    record.completion_policy = "forge_confirmed_merge";
-  };
-  const sliceUnit = `WK-1160#${(await loadFixtureRecord()).slices[0].id}`;
-
-  for (const [name, mutateRecord, unit, refusal] of [
-    ["forge parent done refused", forge, "WK-1160", "forge_confirmed_completion_required"],
-    ["non-forge parent done unchanged", (record) => { record.status = "review"; }, "WK-1160", null],
-    ["forge slice done unchanged", (record) => { forge(record); record.slices[0].status = "review"; }, sliceUnit, null]
-  ]) {
-    const { tempDir, workspaceRecordPath } = await createTempWorkspace({ mutateRecord });
-    try {
-      const before = await readFile(workspaceRecordPath, "utf8");
-      const structured = parseStructuredResponse(
-        await createToolRegistry(tempDir).get("workspace_work_record_set_status").handler({
-          repo: WORKSPACE_REPO,
-          unit,
-          status: "done"
-        })
-      );
-      assert.equal(structured.valid, !refusal, name);
-      assert.equal(structured.written, !refusal, name);
-      assert.equal(structured.no_op, false, name);
-      if (refusal) {
-        assert.equal(structured.diagnostics[0].code, refusal, name);
-        assert.equal(await readFile(workspaceRecordPath, "utf8"), before, name);
-      }
-    } finally {
-      await rm(tempDir, { recursive: true, force: true });
-    }
-  }
-});
-
-test("workspace_work_record_set_task refuses a stale expected_source_digest", async () => {
+test("workspace_work_record_edit task mark_done refuses a stale expected_source_digest", async () => {
   const fixtureRecord = await loadFixtureRecord();
   const taskText = fixtureRecord.sections.tasks[0].text;
-  const { tempDir } = await createTempWorkspace();
+  const { tempDir, workspaceRecordPath } = await createTempWorkspace();
   try {
     const tools = createToolRegistry(tempDir);
-    const response = await tools.get("workspace_work_record_set_task").handler({
+    const before = await readFile(workspaceRecordPath);
+    const response = await tools.get("workspace_work_record_edit").handler({
       repo: WORKSPACE_REPO,
       unit: "WK-1160",
+      kind: "task",
+      field: "sections.tasks",
+      action: "mark_done",
       text: taskText,
       expected_source_digest: STALE_DIGEST
     });
 
     const structured = parseStructuredResponse(response);
+    assert.deepEqual(await readFile(workspaceRecordPath), before);
     assert.equal(structured.valid, false);
     assert.equal(structured.written, false);
     assert.equal(structured.no_op, false);

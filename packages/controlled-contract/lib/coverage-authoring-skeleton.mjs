@@ -209,20 +209,6 @@ function normalize(input) {
       !server.mutation.receiptFedDigestFields.includes("expected_content_digest")) {
     fail("current-carrier mutation state must include expected_content_digest");
   }
-  if (input.surface === "obligation") {
-    closedObject(server.obligation, ["mechanisms", "gapAlternatives",
-      "packComponents", "expectedAuthoringIdentity", "sourceIdentity"],
-    "input.server.obligation");
-    for (const name of ["mechanisms", "gapAlternatives", "packComponents"]) {
-      if (!Array.isArray(server.obligation[name])) fail(
-        `input.server.obligation.${name} must be an array`);
-    }
-    requiredString(server.obligation.expectedAuthoringIdentity,
-      "input.server.obligation.expectedAuthoringIdentity");
-    closedObject(server.obligation.sourceIdentity,
-      Object.keys(server.obligation.sourceIdentity ?? {}),
-      "input.server.obligation.sourceIdentity");
-  }
   const limit = input.inlineByteLimit ?? MAX_INLINE_BYTES;
   if (!Number.isSafeInteger(limit) || limit < 128 || limit > MAX_INLINE_BYTES) {
     fail(`input.inlineByteLimit must be an integer from 128 through ${MAX_INLINE_BYTES}`);
@@ -372,6 +358,15 @@ function selfMeasuredProjection(entries, limit) {
 }
 
 function composeCoverageAuthoringSkeleton(input) {
+  if (input?.surface === "obligation") {
+    throw new CoverageAuthoringSkeletonError(
+      "obligation_coverage_authoring_route_retired",
+      "Author obligation drafts through the current upsert and selected query", {
+        operations: ["workspace_controlled_contract_obligation_coverage_upsert",
+          "workspace_controlled_contract_obligation_coverage_query",
+          "workspace_validate_proof"]
+      });
+  }
   const normalized = normalize(input);
   const requestBytes = bytes(input);
   const decisions = validateDecisions(normalized.surface, normalized.server);

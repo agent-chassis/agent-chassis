@@ -3,7 +3,7 @@
 import {
   canonicalizeWorkRecordJson,
   projectSliceReviewReceiptContracts
-} from "@agent-chassis/wiki-core";
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { defaultRunGit } from "./worktree-substrate.mjs";

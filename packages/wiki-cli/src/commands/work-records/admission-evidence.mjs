@@ -248,7 +248,7 @@ export async function runCleanupDerivedEvidence(argv) {
         "--concurrency <N> bounds the broad sweep's parallel per-record tasks (1..64; default 8 dry-run, 4 write); not valid with --id.\n" +
         "--require-graph-sidecarization exits nonzero if the run reports no graph sidecar updates or no positive reclaim (assertion guard for the WK-0764 validation gate).\n" +
         "Dry-run by default; pass --write to persist pruned records and their WK-named worker-admission and graph sidecars through validated persistence.\n" +
-        "Operator fallback only; agents should use the workspace_work_record_cleanup_derived_evidence MCP route."
+        "Operator diagnosis and recovery only. Current-format admission artifacts are maintained automatically after each confirmed admission-evidence publication for the affected WK; agents have no cleanup step."
     );
     return;
   }

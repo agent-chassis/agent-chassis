@@ -47,18 +47,6 @@ export const TOOL_DISCOVERY_LIST_ENTRY_FIELDS = Object.freeze([
   "task_ids"
 ]);
 
-const TOOL_DISCOVERY_LIST_NEXT_CALLS = Object.freeze([
-  Object.freeze({
-    tool: "workspace_tools_query",
-    recommended: true,
-    target_by: Object.freeze(["task_id", "tool_name"])
-  }),
-  Object.freeze({
-    tool: "workspace_tools_describe",
-    target_by: Object.freeze(["tool_name"])
-  })
-]);
-
 export function filterToolDiscoveryTools(descriptorOrTools, query = {}) {
   const normalizedQuery = normalizeDiscoveryQuery(query);
   const tools = Array.isArray(descriptorOrTools?.tools)
@@ -147,10 +135,6 @@ function prettyJsonBytes(value) {
   return Buffer.byteLength(JSON.stringify(value, null, 2), "utf8");
 }
 
-function cloneToolDiscoveryListNextCalls() {
-  return TOOL_DISCOVERY_LIST_NEXT_CALLS.map((entry) => cloneJson(entry));
-}
-
 export function createBoundedToolDiscoveryListEnvelope(
   baseEnvelope,
   entries,
@@ -161,9 +145,17 @@ export function createBoundedToolDiscoveryListEnvelope(
     byteLimit = TOOL_DISCOVERY_LIST_MAX_BYTES,
     resultField = "results",
     resultByteLimit = TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES,
-    measureResultBytes = null
+    measureResultBytes = null,
+    projectEntry = compactToolDiscoveryListEntry,
+    createNextCalls
   } = {}
 ) {
+
+  if (typeof createNextCalls !== "function") {
+    throw new TypeError(
+      "createBoundedToolDiscoveryListEnvelope requires a createNextCalls(nextOffset) continuation producer"
+    );
+  }
   const normalizedEntries = Array.isArray(entries) ? entries : [];
   const normalizedTotalCount = Number.isInteger(totalCount) && totalCount >= 0
     ? totalCount
@@ -181,6 +173,9 @@ export function createBoundedToolDiscoveryListEnvelope(
     : TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES;
 
   const measure = typeof measureResultBytes === "function" ? measureResultBytes : null;
+  const project = typeof projectEntry === "function"
+    ? projectEntry
+    : compactToolDiscoveryListEntry;
   const base = isObject(baseEnvelope) ? { ...baseEnvelope } : {};
   delete base[resultField];
   for (const field of [
@@ -204,7 +199,7 @@ export function createBoundedToolDiscoveryListEnvelope(
 
   const countLimitedEntries = normalizedEntries
     .slice(normalizedOffset, normalizedOffset + normalizedLimit)
-    .map((entry) => compactToolDiscoveryListEntry(entry));
+    .map((entry) => project(entry));
   const countTruncated = normalizedTotalCount > normalizedOffset + normalizedLimit;
 
   const reachableCount = normalizedEntries.length;
@@ -252,7 +247,11 @@ export function createBoundedToolDiscoveryListEnvelope(
         offset: normalizedOffset,
         has_more: worstCaseContinuation ? false : hasMore,
         next_offset: worstCaseContinuation ? worstCaseNextOffset : advertisedNextOffset,
-        ...(truncated || forceNextCalls ? { next_calls: cloneToolDiscoveryListNextCalls() } : {})
+        ...(truncated || forceNextCalls
+          ? { next_calls: createNextCalls(
+              worstCaseContinuation ? worstCaseNextOffset : advertisedNextOffset
+            ) }
+          : {})
       };
     };
 
@@ -305,11 +304,15 @@ export function createBoundedToolDiscoveryListEnvelope(
   return bounded;
 }
 
-export function rankToolDiscoveryTools(descriptorOrTools, query = {}, { verbose = true } = {}) {
-  const normalizedQuery = normalizeDiscoveryQuery(query);
-  const tools = filterToolDiscoveryTools(descriptorOrTools, normalizedQuery)
+function orderToolDiscoveryTools(descriptorOrTools, normalizedQuery) {
+  return filterToolDiscoveryTools(descriptorOrTools, normalizedQuery)
     .map((tool) => projectToolDiscoveryEntryForTier(tool, normalizedQuery.registered_tier))
     .sort(compareToolEntries);
+}
+
+export function rankToolDiscoveryTools(descriptorOrTools, query = {}, { verbose = true } = {}) {
+  const normalizedQuery = normalizeDiscoveryQuery(query);
+  const tools = orderToolDiscoveryTools(descriptorOrTools, normalizedQuery);
 
   const limited = normalizedQuery.limit != null ? tools.slice(0, normalizedQuery.limit) : tools;
   return limited.map((tool, index) => {
@@ -331,9 +334,7 @@ export function listToolDiscoveryTools(descriptorOrTools, query = {}, options = 
       ? query.offset
       : 0;
 
-  const allTools = filterToolDiscoveryTools(descriptorOrTools, normalizedQuery)
-    .map((tool) => projectToolDiscoveryEntryForTier(tool, normalizedQuery.registered_tier))
-    .sort(compareToolEntries);
+  const allTools = orderToolDiscoveryTools(descriptorOrTools, normalizedQuery);
 
   return createBoundedToolDiscoveryListEnvelope({}, allTools, {
     totalCount: allTools.length,
@@ -342,6 +343,7 @@ export function listToolDiscoveryTools(descriptorOrTools, query = {}, options = 
     byteLimit: options.byteLimit,
     resultByteLimit: options.resultByteLimit,
     measureResultBytes: options.measureResultBytes,
+    createNextCalls: options.createNextCalls,
     resultField: "tools"
   });
 }
@@ -349,9 +351,7 @@ export function listToolDiscoveryTools(descriptorOrTools, query = {}, options = 
 export function describeToolDiscoveryTools(descriptorOrTools, query = {}, options = {}) {
   const verbose = options.verbose === true;
   const normalizedQuery = normalizeDiscoveryQuery(query);
-  const tools = filterToolDiscoveryTools(descriptorOrTools, normalizedQuery)
-    .map((tool) => projectToolDiscoveryEntryForTier(tool, normalizedQuery.registered_tier))
-    .sort(compareToolEntries);
+  const tools = orderToolDiscoveryTools(descriptorOrTools, normalizedQuery);
 
   return tools.map((tool, index) => {
     const entry = verbose ? { ...tool } : compactToolDiscoveryEntry(tool);
@@ -451,10 +451,6 @@ export async function loadToolDiscoveryEnvelope(options = {}) {
     results: rankToolDiscoveryTools(descriptor, query, { verbose }),
     diagnostics: validation.diagnostics
   });
-}
-
-export function queryToolDiscoveryDescriptor(descriptor, query = {}, options = {}) {
-  return rankToolDiscoveryTools(descriptor, query, { verbose: options.verbose === true });
 }
 
 export const TOOL_DOC_REFERENCE_SCOPE_PACKAGE = "package";

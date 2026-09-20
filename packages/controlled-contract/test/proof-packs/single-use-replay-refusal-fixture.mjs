@@ -62,7 +62,7 @@ const at = (mode, ...roles) => ({ mode, operand_roles: roles });
 function pattern(id, kind, modality, subject, operator, applicability, operands, falsifier) {
   const result = {
     pattern_id: id,
-    required_by_stage: "pre_dispatch",
+
     claim_kind: kind,
     allowed_modalities: [modality],
     proposition_template: {
@@ -150,7 +150,7 @@ const relations = [
   ["replay-occurrence-verifies-no-create", "replay-occurrence-verification", "replay-does-not-create-effect"],
   ["replay-effect-verifies-stability", "replay-effect-verification", "effect-state-stable-after-replay"]
 ].map(([pattern_id, source_claim_pattern_id, target_claim_pattern_id]) => ({
-  pattern_id, required_by_stage: "pre_dispatch", role: "verifies",
+  pattern_id, role: "verifies",
   source_claim_pattern_id, target_claim_pattern_id
 }));
 
@@ -176,15 +176,13 @@ const sequenceMembers = [
 
 const collections = [
   {
-    pattern_id: "proof-sequence", required_by_stage: "pre_dispatch",
-    collection_kind: "ordered_sequence", match_mode: "subsequence",
+    pattern_id: "proof-sequence", collection_kind: "ordered_sequence", match_mode: "subsequence",
     candidate_quantifier: "all_covering",
     collection_purpose: "proof_single_use_replay_refusal_sequence",
     member_claim_pattern_ids: sequenceMembers
   },
   {
-    pattern_id: "proof-population", required_by_stage: "pre_dispatch",
-    collection_kind: "closed_set", match_mode: "exact",
+    pattern_id: "proof-population", collection_kind: "closed_set", match_mode: "exact",
     candidate_quantifier: "all_covering",
     collection_purpose: "proof_single_use_replay_refusal_population",
     member_claim_pattern_ids: patterns.map(({ pattern_id }) => pattern_id)
@@ -192,7 +190,7 @@ const collections = [
 ];
 
 const profile = {
-  schema_version: "controlled-contract-verification-profile.v1",
+  schema_version: "controlled-contract-verification-profile.v2",
   contract_schema_version: "controlled-acceptance-contract.v1",
   vocabulary_version: VOCABULARY_VERSION_V1,
   vocabulary_signature_digest: V.signature,
@@ -200,8 +198,8 @@ const profile = {
   vocabulary_definitions_digest: V.definitions,
   vocabulary_complete_digest: V.complete,
   profile_id: "proof.single-use.replay-refusal",
-  profile_version: "2.0.0",
-  evaluation_stages: ["pre_dispatch"],
+  profile_version: "3.0.0",
+
   verification_falsifier_policy: "controlled_complement_per_target",
   reference_roles: Object.entries(roleTypes).map(([role, allowed_type_terms]) => ({
     role, allowed_type_terms,
@@ -326,7 +324,7 @@ function buildFixture({
   };
   const input = {
     input_version: EVALUATION_INPUT_VERSION_V1,
-    evaluation_stage: "pre_dispatch",
+
     reference_bindings: Object.keys(roleTypes).map((role) => ({ role, reference_ids: [refId(role)] })),
     number_bindings: [{ role: "effect_occurrence_count", value: 1 }],
     claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {}

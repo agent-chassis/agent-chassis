@@ -1,0 +1,141 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "atomic-settlement-verification",
+      "claim_id": "claim-batch-preserves-state"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "constituent_effect_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-allowed-settlement-states"
+      ],
+      "role": "allowed_settlement_states"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-compound-operation"
+      ],
+      "role": "compound_operation"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-constituent-effect-population"
+      ],
+      "role": "constituent_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-constituent-effects-1",
+        "ref-atomicity-failure-boundary-constituent-effects-2"
+      ],
+      "role": "constituent_effects"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-earlier-constituent-effect"
+      ],
+      "role": "earlier_constituent_effect"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-earlier-effect-observation"
+      ],
+      "role": "earlier_effect_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-earlier-effect-settled-state"
+      ],
+      "role": "earlier_effect_settled_state"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-failure-boundary"
+      ],
+      "role": "failure_boundary"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-forbidden-partial-state"
+      ],
+      "role": "forbidden_partial_state"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-fully-committed-state"
+      ],
+      "role": "fully_committed_state"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-fully-uncommitted-state"
+      ],
+      "role": "fully_uncommitted_state"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-injected-failure"
+      ],
+      "role": "injected_failure"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-later-constituent-effect"
+      ],
+      "role": "later_constituent_effect"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-later-effect-observation"
+      ],
+      "role": "later_effect_observation"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-later-effect-settled-state"
+      ],
+      "role": "later_effect_settled_state"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-operation-attempt"
+      ],
+      "role": "operation_attempt"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-partial-commit-condition"
+      ],
+      "role": "partial_commit_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-settled-result"
+      ],
+      "role": "settled_result"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-settlement-event"
+      ],
+      "role": "settlement_event"
+    },
+    {
+      "reference_ids": [
+        "ref-atomicity-failure-boundary-verification"
+      ],
+      "role": "verification"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

@@ -20,6 +20,8 @@ import {
 import {
   projectDiagnostic
 } from "@agent-chassis/wiki-core/src/lib/diagnostic-projection.mjs";
+import { serializeWorkRecordDiagnosticValue } from
+  "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
@@ -27,7 +29,7 @@ import {
   CONTROLLED_CONTRACT_ASSESSMENT_COLLECTION_DESCRIPTORS,
   CONTROLLED_CONTRACT_ASSESSMENT_PROJECTION_VOCABULARY,
   assessmentCollectionDescriptor
-} from "@agent-chassis/controlled-contract";
+} from "@agent-chassis/controlled-contract/assessment-collection-descriptors";
 
 export {
   NEXT_CALLS_DESCRIPTOR_VERSION,
@@ -71,6 +73,59 @@ for (const code of [
     );
   }
 }
+
+const SPILLED_ENVELOPE_FIELDS = Object.freeze([
+  "schema_version", "response_spilled", "reason", "inline_byte_limit", "total_bytes",
+  "measurement", "preview", "content_reference"
+]);
+const CONTENT_REFERENCE_FIELDS = Object.freeze([
+  "kind", "ref_id", "media_type", "encoding", "byte_count", "sha256", "read_tool", "range"
+]);
+const CONTENT_REFERENCE_READ_TOOL = "workspace_read_mcp_content_reference";
+
+export const VERIFY_PROOF_SUMMARY_SCHEMA_VERSION = "workspace-verify-proof-summary.v1";
+export const VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION =
+  "workspace-verify-proof-evidence-reference.v1";
+export const VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION = "workspace-verify-proof-aggregate.v1";
+const VERIFY_PROOF_EVIDENCE_RESOURCE_KIND = "verify_proof_evidence";
+const VERIFY_PROOF_EVIDENCE_REFERENCE_FIELDS = Object.freeze([
+  "schema_version", "resource_kind", "item_identity", "evidence_schema_version",
+  "byte_count", "content_reference"
+]);
+const RESULT_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/u;
+
+const SPILL_MEASUREMENT_SCHEMA_VERSION = "mcp-response-spill-measurement.v1";
+
+const COMPLETE_INLINE_RESULT = Symbol("wiki-mcp-complete-inline-result");
+const RETAINED_PAYLOAD_ENCODING = "application/json; charset=utf-8; indent=2";
+const SPILL_MEASUREMENT_FIELDS = Object.freeze([
+  "schema_version", "compared", "complete_frame_bytes", "inline_byte_limit",
+  "retained_payload_bytes", "retained_payload_encoding", "meaning"
+]);
+const SPILL_COMPARISONS = Object.freeze({
+
+  MEASURED: "complete_frame_bytes_exceeded_inline_byte_limit",
+
+  FORCED: "not_compared_retention_forced"
+});
+
+function spillMeasurement({ completeFrameBytes, inlineByteLimit, retainedPayloadBytes }) {
+  return {
+    schema_version: SPILL_MEASUREMENT_SCHEMA_VERSION,
+    compared: completeFrameBytes === null ? SPILL_COMPARISONS.FORCED : SPILL_COMPARISONS.MEASURED,
+    complete_frame_bytes: completeFrameBytes,
+    inline_byte_limit: inlineByteLimit,
+    retained_payload_bytes: retainedPayloadBytes,
+    retained_payload_encoding: RETAINED_PAYLOAD_ENCODING,
+    meaning: "inline admission compares complete_frame_bytes — the whole two-channel " +
+      "CallToolResult, text channel and JSON escaping included — against inline_byte_limit. " +
+      "total_bytes and retained_payload_bytes measure only the persisted payload, which is " +
+      "smaller than the compared frame and is not the quantity admission compared."
+  };
+}
+
+const SPILLED_REASON = "response_exceeds_inline_byte_limit";
+const SPILLED_REF_ID_PREFIX = "resp-";
 const DEFAULT_INLINE_BYTE_LIMIT = 128 * 1024;
 const DEFAULT_PREVIEW_BYTE_LIMIT = 2048;
 const MIN_INLINE_BYTE_LIMIT = 8 * 1024;
@@ -83,6 +138,16 @@ const CONTROLLED_CONTRACT_FORBIDDEN_RESPONSE_KEYS = new Set([
   "content_reference", "raw", "raw_bytes", "carrier_bytes", "proof_bytes",
   "artifact_bytes"
 ]);
+
+const CONTROLLED_CONTRACT_RESERVED_ASSESSMENT_SCHEMA_VERSIONS = Object.freeze(new Set([
+  "controlled-contract-proof-assessment-summary.v1",
+  "controlled-contract-integration-assessment-summary.v1"
+]));
+
+export function isReservedControlledContractAssessmentEnvelope(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) &&
+    CONTROLLED_CONTRACT_RESERVED_ASSESSMENT_SCHEMA_VERSIONS.has(value.schema_version);
+}
 
 function sameJson(left, right) {
   return isDeepStrictEqual(left, right);
@@ -129,21 +194,17 @@ function assertAssessmentSemanticShape(value, toolName) {
     "completeness_exemption", "detail_digest", "result_digest",
     "population_digest", "requirement_digest"
   ];
-  const assertAssessmentEnvelope = (candidate, family) => {
-    const operation = family === "proof"
-      ? "workspace_controlled_contract_assessment_query"
-      : "workspace_controlled_contract_integration_test_design_query";
+  const assertAssessmentEnvelope = (candidate) => {
     if (typeof candidate.assessment_identity !== "string" ||
         !/^[A-Za-z0-9_-]{43}$/u.test(candidate.assessment_identity) ||
-        candidate.supported_next_call !== operation ||
+        candidate.supported_next_call !== null ||
         removedAssessmentFields.some((field) => Object.hasOwn(candidate, field))) {
       throw new Error(`${toolName ?? "controlled-contract route"} produced an invalid assessment envelope`);
     }
   };
-  if (value?.schema_version === "controlled-contract-proof-assessment-summary.v1" ||
-      value?.schema_version === "controlled-contract-integration-assessment-summary.v1") {
+  if (isReservedControlledContractAssessmentEnvelope(value)) {
     const family = value.family;
-    assertAssessmentEnvelope(value, family);
+    assertAssessmentEnvelope(value);
     const descriptors = CONTROLLED_CONTRACT_ASSESSMENT_COLLECTION_DESCRIPTORS[family];
     const keys = value.counts && typeof value.counts === "object"
       ? Object.keys(value.counts) : [];
@@ -163,7 +224,7 @@ function assertAssessmentSemanticShape(value, toolName) {
     assertTypedContinuation(value, toolName);
   }
   if (value?.schema_version === "controlled-contract-assessment-semantic-page.v1") {
-    assertAssessmentEnvelope(value, value.family);
+    assertAssessmentEnvelope(value);
     if (!assessmentCollectionDescriptor(value.family, value.collection)) {
       throw new Error(`${toolName ?? "controlled-contract route"} produced an undeclared assessment collection`);
     }
@@ -211,10 +272,97 @@ function assertAssessmentSemanticShape(value, toolName) {
   }
 }
 
-export function assertNoControlledContractRawResponse(value, { toolName = null } = {}) {
+function hasExactKeys(value, keys) {
+  return value !== null && typeof value === "object" && !Array.isArray(value) &&
+    sameJson(Object.keys(value).sort(), [...keys].sort());
+}
+
+function isPositiveSafeInteger(value) {
+  return Number.isSafeInteger(value) && value > 0;
+}
+
+export function isLosslessMcpSpillDelivery(result) {
+  if (result === null || typeof result !== "object" || Array.isArray(result)) return false;
+  const envelope = result.structuredContent;
+  if (!isSpilledEnvelope(envelope) || !hasExactKeys(envelope, SPILLED_ENVELOPE_FIELDS) ||
+      !contentMirrorsStructuredContent(result.content, envelope)) {
+    return false;
+  }
+  const { preview, content_reference: reference } = envelope;
+  const previewFields = preview?.omitted === true ? ["text", "bytes", "omitted"] : ["text", "bytes"];
+  if (envelope.reason !== SPILLED_REASON ||
+      !isPositiveSafeInteger(envelope.inline_byte_limit) ||
+      !isPositiveSafeInteger(envelope.total_bytes) ||
+      !isMintedSpillMeasurement(envelope.measurement, envelope) ||
+      !hasExactKeys(preview, previewFields) || typeof preview.text !== "string" ||
+      !Number.isSafeInteger(preview.bytes) || preview.bytes < 0) {
+    return false;
+  }
+  return isMintedContentReference(reference, envelope.total_bytes);
+}
+
+function isMintedSpillMeasurement(measurement, envelope) {
+  if (!hasExactKeys(measurement, SPILL_MEASUREMENT_FIELDS)) return false;
+  const framed = measurement.compared === SPILL_COMPARISONS.MEASURED;
+  return measurement.schema_version === SPILL_MEASUREMENT_SCHEMA_VERSION &&
+    (framed || measurement.compared === SPILL_COMPARISONS.FORCED) &&
+    (framed
+      ? isPositiveSafeInteger(measurement.complete_frame_bytes) &&
+        measurement.complete_frame_bytes > envelope.inline_byte_limit
+      : measurement.complete_frame_bytes === null) &&
+    measurement.inline_byte_limit === envelope.inline_byte_limit &&
+    measurement.retained_payload_bytes === envelope.total_bytes &&
+    measurement.retained_payload_encoding === RETAINED_PAYLOAD_ENCODING &&
+    typeof measurement.meaning === "string" && measurement.meaning.length > 0;
+}
+
+function isMintedContentReference(reference, totalBytes) {
+  return hasExactKeys(reference, CONTENT_REFERENCE_FIELDS) &&
+    reference.kind === CONTENT_REFERENCE_KIND &&
+    typeof reference.ref_id === "string" &&
+    reference.ref_id.startsWith(SPILLED_REF_ID_PREFIX) &&
+    REF_ID_PATTERN.test(reference.ref_id) &&
+    reference.media_type === "application/json" && reference.encoding === "utf8" &&
+    isPositiveSafeInteger(totalBytes) && reference.byte_count === totalBytes &&
+    typeof reference.sha256 === "string" && /^[a-f0-9]{64}$/u.test(reference.sha256) &&
+    reference.read_tool === CONTENT_REFERENCE_READ_TOOL &&
+    hasExactKeys(reference.range, ["offset", "length", "max_length"]) &&
+    reference.range.offset === 0 &&
+    isPositiveSafeInteger(reference.range.length) &&
+    isPositiveSafeInteger(reference.range.max_length) &&
+    reference.range.length <= reference.range.max_length &&
+    reference.range.length <= totalBytes;
+}
+
+export function isVerifyProofEvidenceReference(value) {
+  return hasExactKeys(value, VERIFY_PROOF_EVIDENCE_REFERENCE_FIELDS) &&
+    value.schema_version === VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION &&
+    value.resource_kind === VERIFY_PROOF_EVIDENCE_RESOURCE_KIND &&
+    typeof value.item_identity === "string" && RESULT_DIGEST_PATTERN.test(value.item_identity) &&
+    value.evidence_schema_version === VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION &&
+    isMintedContentReference(value.content_reference, value.byte_count);
+}
+
+export function assertNoControlledContractRawResponse(
+  value,
+  { toolName = null, losslessDelivery = false } = {}
+) {
+  if (losslessDelivery === true && isLosslessMcpSpillDelivery(value)) return value;
   const seen = new Set();
-  const visit = (candidate) => {
-    if (candidate === null || typeof candidate !== "object" || seen.has(candidate)) return;
+  const visit = (candidate, parent = null, key = null) => {
+    if (candidate === null || typeof candidate !== "object") return;
+
+    if (candidate.schema_version === VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION) {
+      if (losslessDelivery !== true || key !== "evidence" ||
+          parent?.schema_version !== VERIFY_PROOF_SUMMARY_SCHEMA_VERSION) {
+        throw new Error(`${toolName ?? "controlled-contract route"} produced a forbidden content-reference envelope`);
+      }
+      if (!isVerifyProofEvidenceReference(candidate)) {
+        throw new Error(`${toolName ?? "controlled-contract route"} produced a malformed verify-proof evidence reference`);
+      }
+      return;
+    }
+    if (seen.has(candidate)) return;
     seen.add(candidate);
     assertAssessmentSemanticShape(candidate, toolName);
     if (candidate.schema_version === REFACTOR_ITEM_REFERENCE_SCHEMA_VERSION) {
@@ -229,11 +377,11 @@ export function assertNoControlledContractRawResponse(value, { toolName = null }
         candidate.schema_version === SPILLED_RESPONSE_SCHEMA_VERSION) {
       throw new Error(`${toolName ?? "controlled-contract route"} produced a forbidden content-reference envelope`);
     }
-    for (const [key, nested] of Object.entries(candidate)) {
-      if (CONTROLLED_CONTRACT_FORBIDDEN_RESPONSE_KEYS.has(key)) {
-        throw new Error(`${toolName ?? "controlled-contract route"} produced forbidden raw response field ${key}`);
+    for (const [nestedKey, nested] of Object.entries(candidate)) {
+      if (CONTROLLED_CONTRACT_FORBIDDEN_RESPONSE_KEYS.has(nestedKey)) {
+        throw new Error(`${toolName ?? "controlled-contract route"} produced forbidden raw response field ${nestedKey}`);
       }
-      visit(nested);
+      visit(nested, candidate, nestedKey);
     }
   };
   visit(value);
@@ -635,13 +783,16 @@ function buildPreview(buffer, previewByteLimit) {
   };
 }
 
-function persistSpilledPayload(jsonText, { env = process.env, config = null } = {}) {
+function persistSpilledPayload(
+  jsonText,
+  { env = process.env, config = null, completeFrameBytes = null } = {}
+) {
   const resolvedConfig = config ?? getResponseSpillConfig(env);
   const bytes = Buffer.from(jsonText, "utf8");
 
   mkdirSync(resolvedConfig.stateDir, { recursive: true, mode: 0o700 });
   const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const refId = `resp-${Date.now()}-${process.pid}-${randomUUID()}`;
+  const refId = `${SPILLED_REF_ID_PREFIX}${Date.now()}-${process.pid}-${randomUUID()}`;
   const absolutePath = referencePathForId(resolvedConfig.stateDir, refId);
   const metadataPath = metadataPathForId(resolvedConfig.stateDir, refId);
   writeFileSync(absolutePath, bytes, { mode: 0o600 });
@@ -662,9 +813,15 @@ function persistSpilledPayload(jsonText, { env = process.env, config = null } = 
   return {
     schema_version: SPILLED_RESPONSE_SCHEMA_VERSION,
     response_spilled: true,
-    reason: "response_exceeds_inline_byte_limit",
+    reason: SPILLED_REASON,
     inline_byte_limit: resolvedConfig.inlineByteLimit,
     total_bytes: bytes.byteLength,
+
+    measurement: spillMeasurement({
+      completeFrameBytes,
+      inlineByteLimit: resolvedConfig.inlineByteLimit,
+      retainedPayloadBytes: bytes.byteLength
+    }),
     preview: buildPreview(bytes, resolvedConfig.previewByteLimit),
     content_reference: {
       kind: CONTENT_REFERENCE_KIND,
@@ -673,7 +830,7 @@ function persistSpilledPayload(jsonText, { env = process.env, config = null } = 
       encoding: "utf8",
       byte_count: bytes.byteLength,
       sha256,
-      read_tool: "workspace_read_mcp_content_reference",
+      read_tool: CONTENT_REFERENCE_READ_TOOL,
       range: {
         offset: 0,
         length: Math.min(resolvedConfig.maxReferenceReadBytes, bytes.byteLength),
@@ -703,6 +860,162 @@ export function persistControlledContractRefactorItemReference({
   });
 }
 
+export function persistVerifyProofEvidenceReference({ evidence, evidenceIdentity },
+  { env = process.env } = {}) {
+  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence) ||
+      evidence.schema_version !== VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION ||
+      typeof evidenceIdentity !== "string" || !RESULT_DIGEST_PATTERN.test(evidenceIdentity) ||
+      evidence.result_digest !== evidenceIdentity) {
+    throw new TypeError("verify-proof evidence persistence requires one digest-bound aggregate");
+  }
+  const canonical = canonicalizeStructuredPayload(evidence);
+  if (canonical === null) throw new TypeError("verify-proof evidence must be JSON");
+  const config = getResponseSpillConfig(env);
+  let persisted;
+  try {
+    persisted = persistSpilledPayload(canonical.jsonText, { env, config });
+  } catch (cause) {
+    const refusal = buildSpillPersistenceRefusal({
+      totalBytes: Buffer.byteLength(canonical.jsonText, "utf8"),
+      cause,
+      config,
+      core: canonical.value,
+      isError: false
+    });
+    return Object.freeze({
+      status: "refused",
+      result: boundTerminalEnvelopeResult(refusal, { isError: true, config })
+    });
+  }
+  return Object.freeze({
+    status: "persisted",
+    reference: Object.freeze({
+      schema_version: VERIFY_PROOF_EVIDENCE_REFERENCE_SCHEMA_VERSION,
+      resource_kind: VERIFY_PROOF_EVIDENCE_RESOURCE_KIND,
+      item_identity: evidenceIdentity,
+      evidence_schema_version: VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION,
+      byte_count: persisted.total_bytes,
+      content_reference: Object.freeze(persisted.content_reference)
+    })
+  });
+}
+
+export const VERIFY_PROOF_CACHED_RECORD_SCHEMA_VERSION = "workspace-verify-proof-cached-record.v1";
+export const VERIFY_PROOF_CACHED_RECORD_CODES = Object.freeze({
+  UNAVAILABLE: "verify_proof_cache.record_unavailable.v1",
+  CORRUPT: "verify_proof_cache.record_corrupt.v1"
+});
+const VERIFY_PROOF_CACHED_RECORD_KINDS = Object.freeze({
+  aggregate: VERIFY_PROOF_EVIDENCE_SCHEMA_VERSION,
+  refusal: "workspace-verify-proof-refusal.v1"
+});
+
+function cachedRecordFailure(code, reason) {
+  return Object.assign(new Error(`cached verifier record is ${reason}`), { code, details: { reason } });
+}
+
+export function persistVerifyProofCachedRecord({ kind, record, recordIdentity }, { stateDir, env = process.env }) {
+  if (!Object.hasOwn(VERIFY_PROOF_CACHED_RECORD_KINDS, kind) || record === null ||
+      typeof record !== "object" || Array.isArray(record) ||
+      record.schema_version !== VERIFY_PROOF_CACHED_RECORD_KINDS[kind] ||
+      typeof recordIdentity !== "string" || !RESULT_DIGEST_PATTERN.test(recordIdentity) ||
+      (kind === "aggregate" && record.result_digest !== recordIdentity) ||
+      typeof stateDir !== "string" || !path.isAbsolute(stateDir)) {
+    throw new TypeError("cached verifier persistence requires one identified record and an absolute durable directory");
+  }
+  const envelope = { schema_version: VERIFY_PROOF_CACHED_RECORD_SCHEMA_VERSION, kind,
+    record_identity: recordIdentity, record };
+  const canonical = canonicalizeStructuredPayload(envelope);
+  if (canonical === null) throw new TypeError("cached verifier record must be JSON");
+  const persisted = persistSpilledPayload(canonical.jsonText, {
+    config: { ...getResponseSpillConfig(env), stateDir }
+  });
+  return Object.freeze({
+    kind,
+    record_identity: recordIdentity,
+    ref_id: persisted.content_reference.ref_id,
+    sha256: persisted.content_reference.sha256,
+    byte_count: persisted.total_bytes
+  });
+}
+
+export function readVerifyProofCachedRecord({ ref_id: refId, sha256, byte_count: byteCount,
+  kind, record_identity: recordIdentity }, { stateDir }) {
+  let absolutePath;
+  try {
+    absolutePath = referencePathForId(stateDir, refId);
+  } catch {
+    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "addressed by an invalid reference");
+  }
+  let bytes;
+  try {
+    bytes = readFileSync(absolutePath);
+  } catch {
+    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.UNAVAILABLE, "not readable");
+  }
+  if (bytes.byteLength !== byteCount ||
+      createHash("sha256").update(bytes).digest("hex") !== sha256) {
+    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "not the recorded bytes");
+  }
+  let envelope;
+  try {
+    envelope = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "not JSON");
+  }
+  if (!hasExactKeys(envelope, ["schema_version", "kind", "record_identity", "record"]) ||
+      envelope.schema_version !== VERIFY_PROOF_CACHED_RECORD_SCHEMA_VERSION ||
+      envelope.kind !== kind || envelope.record_identity !== recordIdentity ||
+      envelope.record?.schema_version !== VERIFY_PROOF_CACHED_RECORD_KINDS[kind] ||
+      (kind === "aggregate" && envelope.record.result_digest !== recordIdentity)) {
+    throw cachedRecordFailure(VERIFY_PROOF_CACHED_RECORD_CODES.CORRUPT, "bound to another identity");
+  }
+  return envelope.record;
+}
+
+export const RUN_VALIDATION_INVENTORY_REFERENCE_SCHEMA_VERSION =
+  "workspace-run-validation-inventory-reference.v1";
+export const RUN_VALIDATION_INVENTORY_SCHEMA_VERSION =
+  "workspace-run-validation-test-inventory.v1";
+const RUN_VALIDATION_INVENTORY_RESOURCE_KIND = "run_validation_test_inventory";
+
+export function persistRunValidationInventoryReference({ inventory, inventoryIdentity },
+  { env = process.env } = {}) {
+  if (inventory === null || typeof inventory !== "object" || Array.isArray(inventory) ||
+      inventory.schema_version !== RUN_VALIDATION_INVENTORY_SCHEMA_VERSION ||
+      typeof inventoryIdentity !== "string" || !RESULT_DIGEST_PATTERN.test(inventoryIdentity) ||
+      inventory.inventory_digest !== inventoryIdentity) {
+    throw new TypeError("run-validation inventory persistence requires one digest-bound inventory");
+  }
+  const canonical = canonicalizeStructuredPayload(inventory);
+  if (canonical === null) throw new TypeError("run-validation inventory must be JSON");
+  const config = getResponseSpillConfig(env);
+  let persisted;
+  try {
+    persisted = persistSpilledPayload(canonical.jsonText, { env, config });
+  } catch (cause) {
+    return Object.freeze({
+      status: "refused",
+      refusal: Object.freeze({
+        code: SPILL_PERSISTENCE_FAILED_CODE,
+        cause_code: typeof cause?.code === "string" ? cause.code : null,
+        total_bytes: Buffer.byteLength(canonical.jsonText, "utf8")
+      })
+    });
+  }
+  return Object.freeze({
+    status: "persisted",
+    reference: Object.freeze({
+      schema_version: RUN_VALIDATION_INVENTORY_REFERENCE_SCHEMA_VERSION,
+      resource_kind: RUN_VALIDATION_INVENTORY_RESOURCE_KIND,
+      item_identity: inventoryIdentity,
+      inventory_schema_version: RUN_VALIDATION_INVENTORY_SCHEMA_VERSION,
+      byte_count: persisted.total_bytes,
+      content_reference: Object.freeze(persisted.content_reference)
+    })
+  });
+}
+
 function dropEnvelopePreview(envelope) {
   if (
     envelope === null ||
@@ -717,7 +1030,7 @@ function dropEnvelopePreview(envelope) {
 
 function canonicalTerminalEnvelopeFields(envelope) {
   const fields = isSpilledEnvelope(envelope)
-    ? ["schema_version", "response_spilled", "reason", "inline_byte_limit", "total_bytes", "preview", "content_reference"]
+    ? SPILLED_ENVELOPE_FIELDS
     : ["schema_version", "code", "response_spilled", "reason", "inline_byte_limit", "total_bytes", "cause_diagnostic", "cause_diagnostic_redactions"];
   return Object.fromEntries(
     fields
@@ -765,8 +1078,8 @@ function coreResultDisclosure(core, isError) {
 
 function buildSpillPersistenceRefusal({ totalBytes, cause, config, core = null, isError = false }) {
   const coreResult = coreResultDisclosure(core, isError);
-  const diagnostic = projectDiagnostic(cause, {
-    fieldPrefix: "mcp_response.spill_failure_cause"
+  const diagnostic = serializeWorkRecordDiagnosticValue(cause, {
+    path: "mcp_response.spill_failure_cause"
   });
   return {
     schema_version: RESPONSE_REFUSAL_SCHEMA_VERSION,
@@ -788,18 +1101,20 @@ function buildSpillPersistenceRefusal({ totalBytes, cause, config, core = null, 
         "mcp_response.core_operation_outcome": coreResult.outcome
       }
     }),
-
-    cause_diagnostic: diagnostic.value,
-    cause_diagnostic_redactions: diagnostic.redactions
+    cause_diagnostic: diagnostic,
+    cause_diagnostic_redactions: []
   };
 }
 
-function spillOrRefuse(canonicalValue, { isError = false, env = process.env, config }) {
+function spillOrRefuse(
+  canonicalValue,
+  { isError = false, env = process.env, config, completeFrameBytes = null }
+) {
   const jsonText = JSON.stringify(canonicalValue, null, 2);
   let envelope;
 
   try {
-    envelope = persistSpilledPayload(jsonText, { env, config });
+    envelope = persistSpilledPayload(jsonText, { env, config, completeFrameBytes });
   } catch (cause) {
     const refusal = buildSpillPersistenceRefusal({
       totalBytes: Buffer.byteLength(jsonText, "utf8"),
@@ -817,23 +1132,34 @@ function spillOrRefuse(canonicalValue, { isError = false, env = process.env, con
 
 function shapeStructuredResult(
   payload,
-  { isError = false, env = process.env, config = null, forceSpill = false } = {}
+  {
+    isError = false,
+    env = process.env,
+    config = null,
+    forceSpill = false,
+    comparedCompleteFrameBytes = null
+  } = {}
 ) {
   const resolvedConfig = config ?? getResponseSpillConfig(env);
   const canonical = canonicalizeStructuredPayload(payload);
   if (!canonical) {
     return null;
   }
+
+  let completeFrameBytes = comparedCompleteFrameBytes;
   if (!forceSpill) {
     const inline = buildTwoChannelResult(canonical, { isError });
-    if (serializedResultBytes(inline) <= resolvedConfig.inlineByteLimit) {
+    completeFrameBytes = serializedResultBytes(inline);
+    if (completeFrameBytes <= resolvedConfig.inlineByteLimit) {
       return inline;
     }
     if (isSpilledEnvelope(canonical.value) || isTerminalResponseRefusalEnvelope(canonical.value)) {
       return boundTerminalEnvelopeResult(canonical.value, { isError, config: resolvedConfig });
     }
   }
-  return spillOrRefuse(canonical.value, { isError, env, config: resolvedConfig });
+  return spillOrRefuse(canonical.value, {
+    isError, env, config: resolvedConfig, completeFrameBytes
+  });
 }
 
 export function readSpilledMcpContentReference({ ref_id, offset = 0, length = null }, { env = process.env } = {}) {
@@ -932,6 +1258,16 @@ export function jsonContent(data, { env = process.env, forceSpill = false } = {}
   return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
 }
 
+export function completeInlineJsonContent(data, { env = process.env } = {}) {
+  const canonical = canonicalizeStructuredPayload(data);
+  if (!canonical) {
+    return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
+  }
+  const result = buildTwoChannelResult(canonical, { isError: false });
+  Object.defineProperty(result, COMPLETE_INLINE_RESULT, { value: true });
+  return result;
+}
+
 export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
     return result;
@@ -941,6 +1277,10 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   }
   const payload = result.structuredContent;
   if (payload === undefined) {
+    return result;
+  }
+  if (result[COMPLETE_INLINE_RESULT] === true &&
+      contentMirrorsStructuredContent(result.content, payload)) {
     return result;
   }
   const config = getResponseSpillConfig(env);
@@ -957,7 +1297,13 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   }
   const inline = buildTwoChannelResult(canonical, { isError });
   const completeInline = { ...result, ...inline };
-  if (serializedResultFits(completeInline, config.inlineByteLimit)) {
+  let completeFrameBytes = null;
+  try {
+    completeFrameBytes = serializedResultBytes(completeInline);
+  } catch {
+
+  }
+  if (completeFrameBytes !== null && completeFrameBytes <= config.inlineByteLimit) {
     return completeInline;
   }
   if (isSpilledEnvelope(canonical.value) || isTerminalResponseRefusalEnvelope(canonical.value)) {
@@ -968,7 +1314,8 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
     isError,
     env,
     config,
-    forceSpill: true
+    forceSpill: true,
+    comparedCompleteFrameBytes: completeFrameBytes
   });
   if (!shaped) {
     return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });

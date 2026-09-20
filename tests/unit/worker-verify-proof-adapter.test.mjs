@@ -7,7 +7,7 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-verify-proof-capability.mjs";
 import {
   buildWorkerDeclaredTestSuccess,
-  projectWorkerProofExecutionReadiness
+  projectWorkerProofBindingPopulation
 } from "../../packages/wiki-mcp/src/lib/worker-declared-test-tool.mjs";
 
 const TARGET = "tests/worker-proof.test.mjs";
@@ -78,50 +78,54 @@ test("worker adapter inherits target confinement and arbitrary-process refusal",
   }), (error) => error.code === "agent_launch.verify_proof.input_invalid.v1");
 });
 
-test("worker returns ordinary validation before proof when runtime identity is nonready", () => {
-  const readiness = projectWorkerProofExecutionReadiness({
-    wkId: "WK-2458",
+test("worker projects the declarative selector of every bound proof and nothing executed", () => {
+  const binding = {
+    test_proof_id: "test-proof-worker",
+    verification_claim_id: VERIFICATION,
+    test_selector: { name: "worker proof passes", nesting: 1 }
+  };
+  const population = projectWorkerProofBindingPopulation({
     verificationIds: [VERIFICATION],
-    selection: { bindings: [{
-      verification_claim_id: VERIFICATION,
-      coverage_disposition: {
-        baseline_state: "complete_executed_inventory",
-        items: [
-          { test_id: `test-${"a".repeat(64)}`, disposition: "preserved" },
-          { test_id: `test-${"b".repeat(64)}`, disposition: "preserved" }
-        ]
-      }
-    }] }
+    selection: { bindings: [binding] }
   });
-  assert.equal(readiness.status, "not_ready");
-  assert.equal(readiness.authority_limb, "mechanical_failure");
-  assert.equal(readiness.bindings[0].reason, "missing_selection");
-  assert.equal(readiness.bindings[0].candidate_total, 2);
-  assert.deepEqual(readiness.bindings[0].complete_retrieval.arguments, {
-    wk_id: "WK-2458", verification_ids: [VERIFICATION]
-  });
+  assert.deepEqual(population, { status: "complete", bindings: [{
+    verification_id: VERIFICATION,
+    test_proof_id: "test-proof-worker",
+    test_selector: { name: "worker proof passes", nesting: 1 }
+  }] });
+  assert.equal(Object.isFrozen(population.bindings[0]), true);
+  assert.equal(JSON.stringify(population).includes("test_id"), false);
+
+  assert.equal(projectWorkerProofBindingPopulation({
+    verificationIds: [VERIFICATION], selection: { bindings: [] }
+  }), null);
+  assert.equal(projectWorkerProofBindingPopulation({
+    verificationIds: [VERIFICATION], selection: { bindings: [binding, binding] }
+  }), null);
+  assert.equal(projectWorkerProofBindingPopulation({
+    verificationIds: [VERIFICATION, "claim-other"], selection: { bindings: [binding] }
+  }), null);
 
   const result = buildWorkerDeclaredTestSuccess({
     workspaceRepo: "agent-chassis/agent-chassis",
     assignedUnit: "WK-2458#SLICE-003",
     authorizedTargets: [TARGET],
     verificationIds: [VERIFICATION],
-    proofExecutionReadiness: readiness,
     result: { ran: true, ok: true },
     target: TARGET
   });
   assert.equal(result.ran, true);
   assert.equal(result.ok, true);
-  assert.equal(result.proof_execution_readiness.status, "not_ready");
   assert.equal(Object.hasOwn(result, "test_proof_runtime_evidence"), false);
-  assert.throws(() => buildWorkerDeclaredTestSuccess({
+  assert.equal(Object.hasOwn(result, "proof_execution_readiness"), false);
+  const withEvidence = buildWorkerDeclaredTestSuccess({
     workspaceRepo: "agent-chassis/agent-chassis",
     assignedUnit: "WK-2458#SLICE-003",
     authorizedTargets: [TARGET],
     verificationIds: [VERIFICATION],
-    proofExecutionReadiness: readiness,
     testProofRuntimeEvidence: [],
     result: { ran: true, ok: true },
     target: TARGET
-  }), /cannot carry proof evidence/u);
+  });
+  assert.deepEqual(withEvidence.test_proof_runtime_evidence, []);
 });

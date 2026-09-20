@@ -2,6 +2,7 @@
 
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import {
+  findSliceById,
   projectWorkRecordCompactOmissions,
   WORK_RECORD_COMPACT_SMALL_RESPONSE_MAX_BYTES,
   WORK_RECORD_SLICE_PAGE_MAX_LIMIT,
@@ -13,11 +14,25 @@ import {
   projectWorkRecordSlicePage,
   WORK_RECORD_SLICE_PAGE_SCHEMA_VERSION
 } from "@agent-chassis/wiki-core/src/lib/work-record-bounded-projections.mjs";
+import {
+  buildSelectedRecordMemberCall,
+  projectSelectedRecordMember,
+  SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS
+} from "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
+import {
+  WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS,
+  WORK_RECORD_ENTRY_METADATA_PAGE_MAX
+} from "@agent-chassis/wiki-core/src/lib/work-record-entry-schema.mjs";
+import { SHA256_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
+  loadKindRecordById as loadCanonicalKindRecordById,
+  loadKindRecordByPath as loadCanonicalKindRecordByPath
+} from "@agent-chassis/wiki-core/src/lib/kind-record-store.mjs";
 import { throwSelectedIdentityError } from "./work-record-selected-detail-projection.mjs";
+import { publishWorkRecordReadPayload } from "./work-record-read-navigation.mjs";
 import { buildNextCall } from "./mcp-response.mjs";
 
 export const COMPACT_READ_SCHEMA_VERSION = "work-record-compact-read-gate.v1";
-export const COMPACT_READ_REFUSAL_SCHEMA_VERSION = "work-record-compact-read-refusal.v1";
 
 export const SUMMARY_TOOL_FAMILY = "workspace_work_record_summary";
 export const GET_RECORD_TOOL_FAMILY = "workspace_get_record";
@@ -35,6 +50,12 @@ export function responseSizeMetadata(value) {
     bytes,
     class: bytes < 8192 ? "small" : bytes < 32768 ? "medium" : "large"
   };
+}
+
+function readPageIdentity(recordId, context) {
+  const identity = context?.identity_argument;
+  if (isObject(identity) && Object.keys(identity).length > 0) return { ...identity };
+  return { path: context?.path ?? `wiki/work-records/${recordId}.json` };
 }
 
 const SURFACE_ADAPTERS = Object.freeze({
@@ -81,8 +102,14 @@ const SURFACE_ADAPTERS = Object.freeze({
     reviewSliceRows: () => [],
     observedSliceTotal: (detail) => firstInteger(detail?.slice_counts?.total),
     observedReviewSliceTotal: () => null,
-    compactFirstCall: (recordId, context) => ({ path: context.path }),
-    sliceCall: (recordId, sliceId, context) => ({ path: context.path, selected_slice: sliceId }),
+
+    compactFirstCall: (recordId, context) => ({ ...readPageIdentity(recordId, context) }),
+    sliceCall: (recordId, sliceId, context) => {
+      const identity = readPageIdentity(recordId, context);
+
+      if (typeof identity.unit === "string") return { unit: `${recordId}#${sliceId}` };
+      return { ...identity, selected_slice: sliceId };
+    },
 
     enumerationTool: SUMMARY_TOOL_FAMILY,
     enumerationCall: (recordId) => ({ id: recordId, slice_offset: 0 }),
@@ -157,7 +184,6 @@ export function detailAvailableVia({ toolFamily, resourceKind = "work_record", o
 }
 
 const NON_DISCRIMINATING_ARGUMENTS = new Set([
-  "compact_read_token",
   "repo",
   "profile",
   "extensionNamespaces"
@@ -341,73 +367,33 @@ export function selectedResources({ adapter, selector, recordId }) {
 export function buildContinuationMetadata({
   toolFamily = SUMMARY_TOOL_FAMILY,
   compactResult,
-  compactToken,
   selector,
   args = {},
   record = null,
-  omissions = null,
-  compactFirstRecovery = false
+  omissions = null
 }) {
   const adapter = surfaceAdapter(toolFamily);
   const recordId = compactResult?.record_id ?? null;
-  const context = { path: args?.path ?? `wiki/work-records/${recordId}.json` };
+  const context = { path: args?.path ?? `wiki/work-records/${recordId}.json`,
+    ...(isObject(selector?.identity_argument) ? { identity_argument: selector.identity_argument } : {}) };
   const withheld = omissions ?? projectOmissions({ toolFamily, compactResult, record });
   const { next_calls: nextCalls, coverage } = buildNextCalls({
     adapter,
     recordId,
     omissions: withheld,
     originCallArguments: originArguments({ adapter, args, selector, recordId, context }),
-    context,
-    compactFirstRecovery
+    context
   });
 
   return {
     schema_version: COMPACT_READ_SCHEMA_VERSION,
     source_digest: compactResult?.source_digest ?? null,
-    compact_read_token: compactToken,
     response_size: responseSizeMetadata(compactResult),
     omitted_detail_counts: omittedDetailCounts(withheld),
     detail_available_via: detailAvailableVia({ toolFamily: adapter.toolFamily, omissions: withheld }),
     selected_resources: selectedResources({ adapter, selector, recordId }),
     next_calls: nextCalls,
     next_calls_coverage: coverage
-  };
-}
-
-export function buildRefusal({
-  toolFamily = SUMMARY_TOOL_FAMILY,
-  compactResult,
-  blockedOptions,
-  tokenDecision,
-  selector,
-  args = {},
-  record = null,
-  omissions = null
-}) {
-  const continuation = buildContinuationMetadata({
-    toolFamily,
-    compactResult,
-    compactToken: null,
-    selector,
-    args,
-    record,
-    omissions,
-    compactFirstRecovery: true
-  });
-  return {
-    schema_version: COMPACT_READ_REFUSAL_SCHEMA_VERSION,
-    tool: toolFamily,
-    accepted: false,
-    blocked_expensive_options: blockedOptions,
-    reason_code: tokenDecision.reason_code === RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING
-      ? RUNTIME_BLOCKER_CODES.COMPACT_FIRST_REQUIRED
-      : tokenDecision.reason_code,
-    response_size_risk: continuation.response_size,
-    source_digest: compactResult?.source_digest ?? null,
-    detail_available_via: continuation.detail_available_via,
-    selected_resources: continuation.selected_resources,
-    next_calls: continuation.next_calls,
-    next_calls_coverage: continuation.next_calls_coverage
   };
 }
 
@@ -462,7 +448,7 @@ export function buildSliceEnumerationDigestMismatch({
     schema_version: WORK_RECORD_SLICE_PAGE_SCHEMA_VERSION,
     tool: toolFamily,
     accepted: false,
-    reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_STALE_SOURCE_DIGEST,
+    reason_code: RUNTIME_BLOCKER_CODES.SELECTED_READ_STALE_SOURCE_DIGEST,
     record_id: recordId,
     source_digest: sourceDigest,
     expected_source_digest: expectedSourceDigest,
@@ -499,10 +485,16 @@ export function workRecordDetailSelectorSchemaShape(z, toolFamily) {
         "Return only slices with this status (or one of these statuses). The page reports the " +
           "filtered and unfiltered totals side by side."
       ),
+
     expected_source_digest: () => z.string().optional()
       .describe(
-        "The source_digest the previous page returned. A page whose digest differs reports the " +
-          "mismatch instead of continuing against a record that changed mid-enumeration."
+        (toolFamily === SUMMARY_TOOL_FAMILY
+          ? "A source_digest a prior read returned, for a slice enumeration (with slice_offset, " +
+            "slice_limit or slice_status) or an ordinary_field read. "
+          : "The source_digest a prior slice page returned; requires slice_offset, slice_limit or " +
+            "slice_status. ") +
+          "A differing digest reports the mismatch instead of continuing against a changed record. " +
+          "A member read pins member.expected_source_digest instead; not combinable with member."
       )
   };
   const shape = {};
@@ -524,6 +516,10 @@ export async function runSelectedRecordContractFields({
   const loaded = typeof readWorkRecordById === "function"
     ? await readWorkRecordById({ dir: workspaceDir, id: recordId })
     : null;
+  return projectLoadedRecordContractFields({ toolFamily, recordId, loaded });
+}
+
+export function projectLoadedRecordContractFields({ toolFamily, recordId, loaded }) {
   const record = loaded?.record ?? null;
   if (!isObject(record) || loaded?.valid === false || record.id !== recordId) {
     throwSelectedIdentityError(toolFamily);
@@ -564,6 +560,10 @@ export async function runSliceEnumeration({
   const loaded = typeof readWorkRecordById === "function"
     ? await readWorkRecordById({ dir: workspaceDir, id: recordId })
     : null;
+  return projectLoadedSliceEnumeration({ toolFamily, recordId, request, loaded });
+}
+
+export function projectLoadedSliceEnumeration({ toolFamily, recordId, request, loaded }) {
   const record = loaded?.record ?? null;
   if (!isObject(record) || loaded?.valid === false) {
     throwSelectedIdentityError(toolFamily);
@@ -592,4 +592,124 @@ export async function runSliceEnumeration({
       status: request.status
     })
   });
+}
+
+const MAX_MEMBER_REFUSAL_DIAGNOSTICS = 5;
+
+export function selectedRecordMemberSchema(z) {
+  return z.object({
+    path: z.array(z.union([z.string(), z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)]))
+      .max(SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS),
+    offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+    limit: z.number().int().positive().max(WORK_RECORD_ENTRY_METADATA_PAGE_MAX).optional(),
+    length: z.number().int().positive().max(WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS).optional(),
+    expected_source_digest: z.string().regex(SHA256_PATTERN).optional()
+  }).strict().optional().describe(
+    "One canonical member by exact path (object keys as strings, array indexes as integers; [] is the record " +
+      "or selected slice): a bounded page of its immediate members (limit at most " +
+      `${WORK_RECORD_ENTRY_METADATA_PAGE_MAX}) or one exact string range. member.expected_source_digest pins ` +
+      "the source_digest a member read returned; returned calls carry it. Combines with no other selection: " +
+      "include_body, ordinary_field, details, selected_record, slice enumeration or top-level " +
+      "expected_source_digest."
+  );
+}
+
+function memberRefusal({ recordId, sourceDigest = null, diagnostics, extra = {}, nextCalls = [] }) {
+  return publishWorkRecordReadPayload({
+    ok: false,
+    valid: false,
+    record_id: recordId,
+    source_digest: sourceDigest,
+    diagnostics: diagnostics.slice(0, MAX_MEMBER_REFUSAL_DIAGNOSTICS),
+    ...extra,
+    next_calls: nextCalls
+  });
+}
+
+export async function runSelectedRecordMember({
+  toolFamily,
+  workspaceRepo,
+  workspaceDir,
+  recordId,
+  workRecord = true,
+  sliceId = null,
+  identity,
+  member,
+  readWorkRecordById,
+  loadKindRecordById = loadCanonicalKindRecordById,
+  loadKindRecordByPath = loadCanonicalKindRecordByPath
+}) {
+
+  const unitNamesSlice = typeof identity?.unit === "string" && identity.unit.includes("#");
+  const buildCall = (selector) => buildSelectedRecordMemberCall({
+    tool: toolFamily,
+    repository: workspaceRepo,
+    identity,
+    selectedSlice: toolFamily === SUMMARY_TOOL_FAMILY || unitNamesSlice ? null : sliceId,
+    member: selector
+  });
+  const loaded = workRecord
+    ? await readWorkRecordById({ dir: workspaceDir, id: recordId })
+    : toolFamily === GET_RECORD_TOOL_FAMILY
+      ? await loadKindRecordById({ repoRoot: workspaceDir, id: identity.id })
+      : await loadKindRecordByPath({ repoRoot: workspaceDir, sourcePath: identity.path.replace(/^\.\//u, "") });
+  const record = loaded?.record ?? null;
+  if (!isObject(record) || loaded?.valid !== true) {
+    const diagnostics = Array.isArray(loaded?.diagnostics) ? loaded.diagnostics : [];
+    if (diagnostics.length === 0) throwSelectedIdentityError(toolFamily);
+    return memberRefusal({
+      recordId: loaded?.record_id ?? recordId,
+      sourceDigest: loaded?.source_digest ?? null,
+      diagnostics
+    });
+  }
+  if (workRecord && record.id !== recordId) throwSelectedIdentityError(toolFamily);
+  const sourceDigest = loaded.source_digest ?? null;
+  const root = sliceId === null ? record : findSliceById(record, sliceId);
+  if (!root) {
+    return memberRefusal({ recordId: record.id, sourceDigest, diagnostics: [{
+      code: "missing_slice",
+      severity: "error",
+      message: `Selected slice ${sliceId} does not exist on ${record.id}`,
+      path: "selected_slice"
+    }] });
+  }
+
+  if (member.expected_source_digest !== undefined && member.expected_source_digest !== sourceDigest) {
+    return memberRefusal({
+      recordId: record.id,
+      sourceDigest,
+      diagnostics: [{
+        code: "stale_source_digest",
+        severity: "error",
+        authority_limb: "mechanical",
+        message: "canonical generation changed since the pinned member page",
+        path: "member.expected_source_digest"
+      }],
+      extra: { expected_source_digest: member.expected_source_digest, current_source_digest: sourceDigest },
+      nextCalls: [buildCall({ path: member.path })]
+    });
+  }
+  const projected = projectSelectedRecordMember({
+    value: root,
+    member,
+    sourceDigest,
+    envelope: {
+      ok: true,
+      record_id: record.id,
+      ...(sliceId === null ? {} : { selected_slice: sliceId }),
+      source_digest: sourceDigest
+    },
+    buildCall
+  });
+  if (!projected.ok) {
+    const recovery = projected.diagnostic.recovery_member_path;
+    return memberRefusal({
+      recordId: record.id,
+      sourceDigest,
+      diagnostics: [projected.diagnostic],
+      nextCalls: Array.isArray(recovery) ? [buildCall({ path: recovery })] : []
+    });
+  }
+  return publishWorkRecordReadPayload(projected.result);
 }

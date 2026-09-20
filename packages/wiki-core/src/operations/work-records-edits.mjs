@@ -1,13 +1,13 @@
 
 
 import path from "node:path";
+import { selectTaskBySelector } from "../lib/work-record-task-selection.mjs";
 import { cloneJson, isObject, parseDispatchUnitAddress } from "./work-records-shared.mjs";
 import { writeValidatedWorkRecord } from "./work-records-store-io.mjs";
 import {
   WORK_RECORD_CLOSURE_FIELD_NAMES,
   WORK_RECORD_STATUS_VALUES,
   computeWorkRecordSourceDigest,
-  isForgeConfirmedMergePolicy,
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
@@ -50,6 +50,22 @@ function resolveEffectiveExpectedSourceDigest(expectedSourceDigest, loadedSource
   return loadedSourceDigest || null;
 }
 
+function loadedSourceDigestRefusal(expectedSourceDigest, loadedSourceDigest) {
+  if (expectedSourceDigest === null || expectedSourceDigest === undefined) {
+    return null;
+  }
+  if (typeof expectedSourceDigest === "string" &&
+      expectedSourceDigest === loadedSourceDigest) {
+    return null;
+  }
+  return {
+    code: "stale_source_digest",
+    severity: "error",
+    message: "source digest does not match the current on-disk record",
+    path: "expected_source_digest"
+  };
+}
+
 function createInvalidWorkRecordEditResult({ recordId = null, unit = null, diagnostics = [] } = {}) {
   return {
     record_id: recordId,
@@ -83,6 +99,7 @@ function createWorkRecordEditResult({
   canonicalRecordPath = null,
   currentSourceDigest = null,
   expectedSourceDigest = undefined,
+  publicationState = undefined,
   record = loaded?.record ?? null
 } = {}) {
   const result = {
@@ -93,7 +110,7 @@ function createWorkRecordEditResult({
     source_digest: sourceDigest,
     diagnostics: diagnostics || [],
     valid: Boolean(valid),
-    written: Boolean(written),
+    written: written === null ? null : Boolean(written),
     no_op: Boolean(noOp),
     changed_fields: Array.isArray(changedFields) ? changedFields : [],
     status,
@@ -101,6 +118,10 @@ function createWorkRecordEditResult({
     canonical_record_path: canonicalRecordPath || null,
     policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(record)
   };
+
+  if (publicationState !== undefined) {
+    result.publication_state = publicationState;
+  }
 
   if (expectedSourceDigest !== undefined) {
     result.expected_source_digest = expectedSourceDigest;
@@ -165,6 +186,8 @@ function createEditRefusalResult({ loaded, unit, code, message, fieldPath }) {
     canonicalRecordPath: loaded?.canonical_record_path || null
   });
 }
+
+const COMPOSED_CLOSURE_COMPLETION_STATUS = "done";
 
 async function loadEditableWorkRecordByUnit({ dir = ".", unitAddress, recordStore = null } = {}) {
   const targetDir = path.resolve(String(dir));
@@ -309,6 +332,26 @@ export async function setWorkRecordStatusByUnit({
     });
   }
 
+  const statusDigestRefusal = loadedSourceDigestRefusal(
+    expectedSourceDigest,
+    loaded.source_digest || null
+  );
+  if (statusDigestRefusal) {
+    return createWorkRecordEditResult({
+      loaded,
+      selectedUnit: requestedUnit.unit,
+      sourceDigest: loaded.source_digest || null,
+      diagnostics: [statusDigestRefusal],
+      valid: false,
+      written: false,
+      noOp: false,
+      changedFields: [],
+      expectedSourceDigest,
+      currentSourceDigest: loaded.source_digest || null,
+      canonicalRecordPath: loaded.canonical_record_path || null
+    });
+  }
+
   if (target.status === normalizedStatus) {
     return createStatusEditNoopResult({
       loaded,
@@ -316,21 +359,6 @@ export async function setWorkRecordStatusByUnit({
       sourceDigest: loaded.source_digest || null,
       currentStatus: target.status,
       sourcePath
-    });
-  }
-
-  if (
-    requestedUnit.unit.kind === "work_item" &&
-    normalizedStatus === "done" &&
-    isForgeConfirmedMergePolicy(loaded.record)
-  ) {
-    return createEditRefusalResult({
-      loaded,
-      unit: requestedUnit.unit,
-      code: "forge_confirmed_completion_required",
-      message:
-        "completion_policy forge_confirmed_merge requires forge-confirmed closeout; ordinary status mutation cannot set done",
-      fieldPath: "status"
     });
   }
 
@@ -379,7 +407,8 @@ export async function setWorkRecordStatusByUnit({
     sourceDigest: writeResult.source_digest || sourceDigest,
     diagnostics: writeResult.diagnostics,
     valid: writeResult.valid,
-    written: Boolean(writeResult.written),
+
+    written: writeResult.written ?? null,
     noOp: false,
     changedFields: [fieldPath, "updated"],
     status: normalizedStatus,
@@ -387,101 +416,9 @@ export async function setWorkRecordStatusByUnit({
     canonicalRecordPath: writeResult.canonical_record_path || getWorkRecordPath(path.resolve(String(dir)), updatedRecord.id),
     currentSourceDigest: writeResult.current_source_digest || null,
     expectedSourceDigest,
+    publicationState: writeResult.publication_state ?? null,
     record: updatedRecord
   });
-}
-
-function selectTaskBySelector({ tasks, text, index }) {
-  if (text !== undefined && index !== undefined) {
-    return {
-      ok: false,
-      issue: {
-        code: "ambiguous_task_selector",
-        message: "set-task accepts --text or --index, not both",
-        path: "tasks"
-      }
-    };
-  }
-
-  if (text === undefined && index === undefined) {
-    return {
-      ok: false,
-      issue: {
-        code: "missing_task_selector",
-        message: "set-task requires --text <task text> or --index <n>",
-        path: "tasks"
-      }
-    };
-  }
-
-  if (!tasks) {
-    return {
-      ok: false,
-      issue: {
-        code: "missing_tasks",
-        message: "selected unit has no tasks array",
-        path: "sections.tasks"
-      }
-    };
-  }
-
-  if (index !== undefined) {
-    const normalizedIndex = typeof index === "number" ? String(index) : String(index || "").trim();
-    if (!/^(0|[1-9][0-9]*)$/.test(normalizedIndex)) {
-      return {
-        ok: false,
-        issue: {
-          code: "invalid_task_index",
-          message: `Task index must be a zero-based integer: ${normalizedIndex}`,
-          path: "index"
-        }
-      };
-    }
-    const numericIndex = Number(normalizedIndex);
-    if (numericIndex < 0 || numericIndex >= tasks.length) {
-      return {
-        ok: false,
-        issue: {
-          code: "missing_task",
-          message: `Task index ${numericIndex} does not exist`,
-          path: "index"
-        }
-      };
-    }
-    return { ok: true, index: numericIndex };
-  }
-
-  const normalizedText = String(text || "").trim();
-  const matches = tasks
-    .map((task, taskIndex) => ({ task, taskIndex }))
-    .filter(
-      ({ task }) =>
-        isObject(task) && typeof task.text === "string" && task.text.trim() === normalizedText
-    );
-
-  if (matches.length === 0) {
-    return {
-      ok: false,
-      issue: {
-        code: "missing_task",
-        message: `No task matches text: ${normalizedText}`,
-        path: "text"
-      }
-    };
-  }
-
-  if (matches.length > 1) {
-    return {
-      ok: false,
-      issue: {
-        code: "ambiguous_task",
-        message: `Multiple tasks match text: ${normalizedText}`,
-        path: "text"
-      }
-    };
-  }
-
-  return { ok: true, index: matches[0].taskIndex };
 }
 
 export async function setWorkRecordTaskByUnit({
@@ -494,7 +431,8 @@ export async function setWorkRecordTaskByUnit({
   status = undefined,
   tasks: replacementTasks = undefined,
   expectedSourceDigest = null,
-  recordStore = null
+  recordStore = null,
+  writeWorkRecord = writeValidatedWorkRecord
 } = {}) {
   const loadedResult = await loadEditableWorkRecordByUnit({
     dir,
@@ -507,21 +445,16 @@ export async function setWorkRecordTaskByUnit({
   }
 
   const { loaded, requestedUnit, target, sourcePath } = loadedResult;
-  if (
-    expectedSourceDigest !== null &&
-    expectedSourceDigest !== undefined &&
-    expectedSourceDigest !== loaded.source_digest
-  ) {
+  const taskDigestRefusal = loadedSourceDigestRefusal(
+    expectedSourceDigest,
+    loaded.source_digest || null
+  );
+  if (taskDigestRefusal) {
     return createWorkRecordEditResult({
       loaded,
       selectedUnit: requestedUnit.unit,
       sourceDigest: loaded.source_digest || null,
-      diagnostics: [{
-        code: "stale_source_digest",
-        severity: "error",
-        message: "source digest does not match the current on-disk record",
-        path: "expected_source_digest"
-      }],
+      diagnostics: [taskDigestRefusal],
       valid: false,
       written: false,
       noOp: false,
@@ -604,7 +537,8 @@ export async function setWorkRecordTaskByUnit({
       changedField: prefixSelectedUnitField(requestedUnit.unit, "sections.tasks"),
       task: { index: appendedIndex, text: appendedText, status: "todo" },
       expectedSourceDigest,
-      recordStore
+      recordStore,
+      writeWorkRecord
     });
   }
 
@@ -703,7 +637,8 @@ export async function setWorkRecordTaskByUnit({
       status: updatedTask.status
     },
     expectedSourceDigest,
-    recordStore
+    recordStore,
+    writeWorkRecord
   });
 }
 
@@ -715,7 +650,8 @@ async function persistTaskEdit({
   changedField,
   task,
   expectedSourceDigest,
-  recordStore
+  recordStore,
+  writeWorkRecord
 }) {
   updatedRecord.updated = todayDateString();
 
@@ -745,29 +681,34 @@ async function persistTaskEdit({
     loaded.source_digest
   );
 
-  const writeResult = await writeValidatedWorkRecord({
+  const writeResult = await writeWorkRecord({
     dir,
     record: updatedRecord,
     expectedSourceDigest: effectiveExpectedSourceDigest,
     recordStore
   });
 
-  return createWorkRecordEditResult({
+  const result = createWorkRecordEditResult({
     loaded,
     selectedUnit: requestedUnit.unit,
-    sourceDigest: writeResult.source_digest || sourceDigest,
+    sourceDigest: writeResult.publication_state === "not_published"
+      ? writeResult.current_source_digest ?? null : writeResult.source_digest,
     diagnostics: writeResult.diagnostics,
     valid: writeResult.valid,
-    written: Boolean(writeResult.written),
+    written: writeResult.written,
     noOp: false,
-    changedFields: [changedField, "updated"],
-    status: task.status,
-    task,
+    changedFields: writeResult.written === true ? [changedField, "updated"] : [],
+    status: writeResult.written === true ? task.status : null,
+    task: writeResult.written === true ? task : null,
     canonicalRecordPath: writeResult.canonical_record_path || getWorkRecordPath(path.resolve(String(dir)), updatedRecord.id),
     currentSourceDigest: writeResult.current_source_digest || null,
     expectedSourceDigest,
     record: updatedRecord
   });
+  for (const field of ["ok", "publication_state", "diagnostic_count", "failed_fault", "effect_trace"]) {
+    if (Object.hasOwn(writeResult, field)) result[field] = writeResult[field];
+  }
+  return result;
 }
 
 function todayDateString() {
@@ -864,6 +805,7 @@ export async function setWorkRecordClosureByUnit({
   unitAddress,
   closurePatch = null,
   closure_patch = null,
+  status = null,
   expectedSourceDigest = null,
   recordStore = null
 } = {}) {
@@ -895,6 +837,29 @@ export async function setWorkRecordClosureByUnit({
           severity: "error",
           message: patchCheck.issue.message,
           path: patchCheck.issue.path
+        }
+      ]
+    });
+  }
+
+  const requestedStatus =
+    status === null || status === undefined
+      ? null
+      : typeof status === "string"
+        ? status.trim()
+        : status;
+  if (requestedStatus !== null && requestedStatus !== COMPOSED_CLOSURE_COMPLETION_STATUS) {
+    return createInvalidSetClosureResult({
+      recordId: requestedUnit.recordId,
+      unit: requestedUnit.unit,
+      diagnostics: [
+        {
+          code: "invalid_status",
+          severity: "error",
+          message:
+            `closure composition accepts only status ${COMPOSED_CLOSURE_COMPLETION_STATUS}; ` +
+            `received: ${status}`,
+          path: "status"
         }
       ]
     });
@@ -974,8 +939,30 @@ export async function setWorkRecordClosureByUnit({
   const changedKeys = Object.keys(patchInput).filter(
     (key) => JSON.stringify(currentClosureObject[key]) !== JSON.stringify(nextClosure[key])
   );
+  const currentStatus = typeof target.status === "string" ? target.status : null;
+  const statusChangeRequested = requestedStatus !== null && currentStatus !== requestedStatus;
 
-  if (!changedKeys.length) {
+  const closureDigestRefusal = loadedSourceDigestRefusal(
+    expectedSourceDigest,
+    loaded.source_digest || null
+  );
+  if (closureDigestRefusal) {
+    return {
+      ...loaded,
+      selected_unit: requestedUnit.unit,
+      valid: false,
+      written: false,
+      no_op: false,
+      changed_fields: [],
+      status: currentStatus,
+      expected_source_digest: expectedSourceDigest,
+      current_source_digest: loaded.source_digest || null,
+      diagnostics: [...loaded.diagnostics, closureDigestRefusal],
+      policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(loaded.record)
+    };
+  }
+
+  if (!changedKeys.length && !statusChangeRequested) {
     return {
       ...loaded,
       selected_unit: requestedUnit.unit,
@@ -983,12 +970,18 @@ export async function setWorkRecordClosureByUnit({
       written: false,
       no_op: true,
       changed_fields: [],
+      status: currentStatus,
       record: updatedRecord,
       policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(updatedRecord)
     };
   }
 
-  target.sections.closure = nextClosure;
+  if (changedKeys.length) {
+    target.sections.closure = nextClosure;
+  }
+  if (statusChangeRequested) {
+    target.status = requestedStatus;
+  }
   updatedRecord.updated = todayDateString();
 
   const effectiveExpectedSourceDigest = resolveEffectiveExpectedSourceDigest(
@@ -1008,6 +1001,9 @@ export async function setWorkRecordClosureByUnit({
       ? `slices[${requestedUnit.unit.slice_id}].sections.closure`
       : "sections.closure";
   const changedFields = changedKeys.map((key) => `${prefix}.${key}`);
+  if (statusChangeRequested) {
+    changedFields.push(prefixSelectedUnitField(requestedUnit.unit, "status"));
+  }
   changedFields.push("updated");
 
   return {
@@ -1018,12 +1014,15 @@ export async function setWorkRecordClosureByUnit({
     record: updatedRecord,
     source_digest: writeResult.source_digest,
     valid: writeResult.valid,
-    written: Boolean(writeResult.written),
+
+    written: writeResult.written ?? null,
     no_op: false,
     changed_fields: changedFields,
     canonical_record_path:
       writeResult.canonical_record_path || getWorkRecordPath(targetDir, updatedRecord.id),
     closure: nextClosure,
+
+    status: writeResult.written && statusChangeRequested ? requestedStatus : currentStatus,
     policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(updatedRecord)
   };
 }

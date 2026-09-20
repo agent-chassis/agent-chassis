@@ -1,92 +1,61 @@
+import { ordinaryRecoveryCall } from "./work-record-ordinary-field-read.mjs";
 
-
-import { setWorkRecordTaskByUnit } from
-  "@agent-chassis/wiki-core/src/operations/work-records.mjs";
 import {
-  editWorkRecordByUnit,
-  editWorkRecordContractByUnit
+  editWorkRecordByUnit
 } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
+import { WORK_RECORD_EDIT_FIELD_REGISTRY } from
+  "@agent-chassis/wiki-core/src/lib/work-record-contract-edit.mjs";
 import {
-  WORK_RECORD_CONTRACT_LIST_FIELDS,
-  WORK_RECORD_EDIT_FIELD_REGISTRY,
-  WORK_RECORD_LIST_FIELD_WRITE_MODES
-} from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit.mjs";
-import { WORK_RECORD_EDIT_SPECIALIZED_FIELD_OWNERS } from
-  "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-operations.mjs";
-import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
+  MCP_WRITE_SEMANTICS,
+  projectMcpCallableOwnerIssues
+} from "./register-tool.mjs";
+import {
+  createWorkRecordEditInputContract,
+  projectWorkRecordEditInputFailure,
+  createWorkRecordTaskIndexSchema
+} from "./work-record-edit-input-contract.mjs";
+import { isLosslessMcpSpillDelivery } from "./mcp-response.mjs";
+import {
+  workRecordEditInputFailureNextCalls
+} from "./work-record-edit-input-guidance-delivery.mjs";
+import { compactGenerationTransition } from "./work-record-write-route-helpers.mjs";
 export const WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME = "workspace_work_record_edit";
-function commonShape(z) {
-  return {
+function createWorkRecordEditAdvertisedInputSchema(z) {
+  return z.object({
     repo: z.string().optional(),
     unit: z.string(),
     expected_source_digest: z.string().optional(),
-    verbose: z.boolean().optional()
-  };
-}
-function indexSchema(z) {
-  return z.union([z.number().int().nonnegative(), z.string().regex(/^(0|[1-9][0-9]*)$/)]);
-}
-function stringSchemaForRegistry(z, schema) {
-  if (Array.isArray(schema?.enum)) return z.enum(schema.enum);
-  let value = z.string();
-  if (schema?.trim) value = value.trim();
-  if (schema?.min_length) value = value.min(schema.min_length);
-  if (schema?.max_utf8_bytes) value = value.refine((item) => Buffer.byteLength(item, "utf8") <= schema.max_utf8_bytes);
-  return value;
-}
-function editVariant(z, entry, action, selector = null) {
-  const shape = {
-    ...commonShape(z),
-    kind: z.literal(entry.kind),
-    field: z.literal(entry.field),
-    action: z.literal(action)
-  };
-  if (entry.kind === "scalar") {
-    shape.value = stringSchemaForRegistry(z, entry.value_schema);
-  } else if (entry.kind === "list") {
-    shape.value = action === "append" ? z.string() : z.array(z.string());
-  } else if (action === "append_todo") {
-    shape.value = z.string().trim().min(1);
-  } else {
-    shape[selector] = selector === "index" ? indexSchema(z) : z.string().trim().min(1);
-    if (action === "replace_text") shape.value = z.string().trim().min(1);
-  }
-  return z.object(shape).strict();
-}
-function semanticRefusalVariant(z, field) {
-  return z.object({
-    ...commonShape(z),
-    kind: z.literal("scalar"),
-    field: z.literal(field),
-    action: z.literal("replace"),
-    value: z.string()
-  }).strict();
+    verbose: z.boolean().optional(),
+    kind: z.string(),
+    field: z.string(),
+    action: z.string(),
+    value: z.unknown().optional(),
+    text: z.string().optional(),
+    index: createWorkRecordTaskIndexSchema(z).optional()
+  }).strict().describe(
+    "Compact informational declaration. The server enforces the complete closed " +
+    "registry-derived union. Retrieve a usable example and targeted field guidance with " +
+    "workspace_tools_describe({tool_name:\"workspace_work_record_edit\"}); add verbose:true " +
+    "there to recover the complete enforced schema."
+  );
 }
 
-export function createWorkRecordEditInputSchema(z) {
-  const variants = [];
-  const seen = new Set();
-  for (const entry of WORK_RECORD_EDIT_FIELD_REGISTRY.filter(({ facade }) => facade)) {
-    for (const action of entry.actions) {
-      const selectors = entry.kind === "task" && action !== "append_todo"
-        ? ["text", "index"]
-        : [null];
-      for (const selector of selectors) {
-        const identity = `${entry.kind}:${entry.field}:${action}:${selector ?? "none"}`;
-        if (seen.has(identity)) continue;
-        seen.add(identity);
-        variants.push(editVariant(z, entry, action, selector));
-      }
+function taskReadContinuation(args, result) {
+  const continuation = ordinaryRecoveryCall(args);
+  const index = result?.task?.index;
+  return {
+    ...continuation,
+    arguments: {
+      ...continuation.arguments,
+      ...(Number.isInteger(index)
+        ? { ordinary_field: { field: "sections.tasks", index, member: "text" } }
+        : {}),
+      expected_source_digest: result?.source_digest ?? null
     }
-  }
-  for (const field of WORK_RECORD_EDIT_SPECIALIZED_FIELD_OWNERS.flatMap(
-    ({ prefixes }) => prefixes
-  )) {
-    variants.push(semanticRefusalVariant(z, field));
-  }
-  return z.union(variants);
+  };
 }
-function shapeContractResponse(dependencies, workspaceRepo, result, verbose) {
+
+function shapeContractResponse(dependencies, workspaceRepo, result, verbose, args = null) {
   const response = dependencies.shapeWriteResponse(
     dependencies.createCompactContractEditResponse(workspaceRepo, result),
     { verbose: Boolean(verbose) }
@@ -94,8 +63,19 @@ function shapeContractResponse(dependencies, workspaceRepo, result, verbose) {
   return {
     ...response,
     changed_fields: Array.isArray(result?.changed_fields) ? result.changed_fields : [],
-    ...(result?.task ? { task: result.task } : {}),
-    generation_transition: result?.generation_transition ?? null
+
+    ...(result?.task
+      ? { task: verbose ? result.task : { index: result.task.index, status: result.task.status } }
+      : {}),
+    ...(verbose || args?.field !== "sections.tasks" || !result?.valid
+      ? {}
+      : { next_calls: [taskReadContinuation(args, result)] }),
+    generation_transition: verbose
+      ? result?.generation_transition ?? null
+      : compactGenerationTransition(
+        result?.generation_transition ?? null,
+        response.selected_unit ?? result?.selected_unit ?? null
+      )
   };
 }
 function invalidDigestResult(operation, digest, diagnostic) {
@@ -116,51 +96,67 @@ function invalidDigestResult(operation, digest, diagnostic) {
 }
 export function registerWorkRecordTaskAndGeneralEditTools(dependencies) {
   const { registerTool, workspaceRepos, z, jsonContent, errorContent,
-    resolveWorkspaceRepo, shapeWriteResponse, createCompactWorkRecordEditResponse,
-    validateOptionalExpectedSourceDigest, constants } = dependencies;
-  registerTool(
-    constants.WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME,
-    {
-      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
-      description:
-        "Compatibility adapter that marks one WK or slice task done by exact text or zero-based index through setWorkRecordTaskByUnit. Use workspace_work_record_edit for replacement or append.",
-      inputSchema: z.object({
-        ...commonShape(z),
-        text: z.string().optional(),
-        index: indexSchema(z).optional()
-      }).strict()
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digest = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
-        if (!digest.ok) {
-          return jsonContent(shapeWriteResponse(
-            createCompactWorkRecordEditResponse(workspace.repo, invalidDigestResult(
-              "set_task", args.expected_source_digest, digest.diagnostic
-            )),
-            { verbose: Boolean(args.verbose) }
-          ));
-        }
-        const result = await setWorkRecordTaskByUnit({ dir: workspace.dir,
-          unitAddress: args.unit, action: "mark_done", text: args.text,
-          index: args.index, expectedSourceDigest: digest.value });
-        return jsonContent(shapeWriteResponse(
-          createCompactWorkRecordEditResponse(workspace.repo, result),
-          { verbose: Boolean(args.verbose) }
-        ));
-      } catch (error) {
-        return errorContent(error);
-      }
+    resolveWorkspaceRepo, validateOptionalExpectedSourceDigest } = dependencies;
+  const editorContractOptions = dependencies.workRecordEditInputContractOptions ?? {};
+  const editorContract = createWorkRecordEditInputContract(z, editorContractOptions);
+  const projectEditorInputFailure = async ({ args, validationError, tool }) => {
+    const failure = projectWorkRecordEditInputFailure({
+      args,
+      validationError,
+      contract: editorContract,
+      ...editorContractOptions
+    });
+    const captured = jsonContent(failure.raw_failure, { forceSpill: true });
+    if (!isLosslessMcpSpillDelivery(captured)) {
+      return { terminal_result: captured };
     }
-  );
+    const {
+      buildDispatchContinuation,
+      requestSchemaAuthorityForRegistration
+    } = await import("./dispatch-tool-helpers.mjs");
+    const requestSchemaAuthority = requestSchemaAuthorityForRegistration(registerTool);
+    const buildDescribeContinuation = (argumentsValue, successFact) =>
+      buildDispatchContinuation({
+        tool: "workspace_tools_describe",
+        arguments: argumentsValue,
+        successPredicate: { fact: successFact, operator: "is_true" },
+        requestSchemaAuthority
+      });
+    const contentReference = captured.structuredContent.content_reference;
+    return {
+      projection: projectMcpCallableOwnerIssues({
+        ownerId: "WORK_RECORD_EDIT_FIELD_REGISTRY",
+        tool,
+        issues: failure.diagnostics,
+        ownerResult: {
+          written: false,
+          raw_validation_failure: {
+            captured: true,
+            content_reference: contentReference,
+            reassembly:
+              "follow next_offset to eof, concatenate decoded base64 bytes, then decode UTF-8"
+          }
+        }
+      }),
+      next_calls: workRecordEditInputFailureNextCalls({
+        field: failure.field,
+        scope: failure.scope,
+        contentReference,
+        buildContinuation: buildDescribeContinuation
+      })
+    };
+  };
   registerTool(
     WORKSPACE_WORK_RECORD_EDIT_TOOL_NAME,
     {
-      writeSemantics: MCP_WRITE_SEMANTICS.REPLACE_OR_APPEND,
+      writeSemantics: MCP_WRITE_SEMANTICS.ACTION_REPLACE_OR_APPEND,
       description:
-        "Edit one registry-declared ordinary scalar, list, or task field on a canonical WK or slice. Closed schemas, configured repositories, complete-record validation, no-op replay, and CAS protection apply; semantic fields use their specialized owners.",
-      inputSchema: createWorkRecordEditInputSchema(z)
+        "Edit one ordinary WK/slice field with registry schemas, full-record validation, replay and CAS. Enrolled summary, why_it_matters, agent_notes and task-text values require {text}, {ref}, or flat nonempty {parts}; refs resolve exactly under the writer lock. Use workspace_tools_describe with this tool_name for targeted field guidance and bounded inventory. Semantic fields use specialized owners.",
+      inputSchema: editorContract.schema,
+      advertisedInputSchema: createWorkRecordEditAdvertisedInputSchema(z),
+      inputContractUnprojectedConstraints:
+        editorContract.requestFacts.unprojected_constraints,
+      inputValidationErrorProjector: projectEditorInputFailure
     },
     async (args) => {
       try {
@@ -171,57 +167,24 @@ export function registerWorkRecordTaskAndGeneralEditTools(dependencies) {
             dependencies,
             workspace.repo,
             invalidDigestResult("edit_work_record", args.expected_source_digest, digest.diagnostic),
-            args.verbose
+            args.verbose,
+            args
           ));
         }
         const { repo, unit, expected_source_digest, verbose, ...edit } = args;
-        const result = await editWorkRecordByUnit({ dir: workspace.dir,
+        const result = await (dependencies.editWorkRecordByUnit ?? editWorkRecordByUnit)({ dir: workspace.dir,
+          repository: workspace.repo,
           unitAddress: unit, edit, expectedSourceDigest: digest.value,
           verbose: Boolean(verbose) });
-        return jsonContent(shapeContractResponse(
-          dependencies, workspace.repo, result, verbose
-        ));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
-}
-export function registerWorkRecordListFieldCompatibilityTool(dependencies) {
-  const { registerTool, workspaceRepos, z, jsonContent, errorContent,
-    resolveWorkspaceRepo, validateOptionalExpectedSourceDigest } = dependencies;
-  registerTool(
-    "workspace_work_record_set_list_field",
-    {
-      description:
-        "Compatibility adapter over registry-declared setListField entries. replace writes the supplied list; append adds one absent entry. Use workspace_work_record_edit for the complete ordinary-field vocabulary.",
-      writeSemantics: MCP_WRITE_SEMANTICS.REPLACE_OR_APPEND,
-      inputSchema: z.object({
-        ...commonShape(z),
-        field: z.enum(WORK_RECORD_CONTRACT_LIST_FIELDS),
-        values: z.array(z.union([z.string(), z.record(z.unknown())])),
-        mode: z.enum(WORK_RECORD_LIST_FIELD_WRITE_MODES).optional()
-      }).strict()
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digest = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
-        if (!digest.ok) {
-          return jsonContent(shapeContractResponse(
-            dependencies,
-            workspace.repo,
-            invalidDigestResult("set_list_field", args.expected_source_digest, digest.diagnostic),
-            args.verbose
-          ));
+        const response = shapeContractResponse(dependencies, workspace.repo, result, verbose, args);
+        const selectedEntry = WORK_RECORD_EDIT_FIELD_REGISTRY.find((entry) =>
+          entry.facade && entry.field === edit.field);
+        if ((edit.field === "sections.tasks" ||
+            selectedEntry?.value_schema?.entry_content === true) &&
+            result.diagnostics?.some(issue => issue.code === "stale_source_digest")) {
+          response.next_calls = [ordinaryRecoveryCall(args)];
         }
-        const result = await editWorkRecordContractByUnit({ dir: workspace.dir,
-          unitAddress: args.unit, operation: "set_list_field",
-          params: { field: args.field, values: args.values, mode: args.mode ?? "replace" },
-          expectedSourceDigest: digest.value, verbose: Boolean(args.verbose) });
-        return jsonContent(shapeContractResponse(
-          dependencies, workspace.repo, result, args.verbose
-        ));
+        return jsonContent(response);
       } catch (error) {
         return errorContent(error);
       }

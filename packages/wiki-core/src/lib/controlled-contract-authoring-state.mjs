@@ -1,28 +1,27 @@
 import {
   VERIFICATION_BUNDLE_VOCABULARY,
   buildStableTestProofBindingTemplate,
-  buildVerificationBundleTemplate,
-  classifyStableTestProofRuntimeReadiness
+  buildVerificationBundleTemplate
 } from "@agent-chassis/controlled-contract";
 
 const DIGEST_PATTERN = /^(?:sha256:)?[0-9a-f]{64}$/;
 
 export const CONTROLLED_CONTRACT_AUTHORING_TOOLS = Object.freeze({
-  state: "workspace_controlled_contract_authoring_state",
-  skeleton: "workspace_controlled_proof_authoring_skeleton",
-  continuation: "workspace_controlled_contract_authoring_continue",
+  state: "workspace_controlled_contract_obligation_coverage_query",
+  skeleton: "proof_authoring_skeleton",
+  continuation: "contract_authoring_continuation",
   intentDiscovery: "workspace_controlled_proof_intents_discover",
-  packSelection: "workspace_controlled_proof_packs_select",
-  planBuild: "workspace_controlled_proof_plan_build",
-  assessment: "workspace_controlled_contract_assess",
-  authoringDescription: "workspace_controlled_contract_authoring_describe",
-  testProofDescription: "workspace_controlled_test_proof_authoring_describe",
-  testProofQuery: "workspace_controlled_test_proof_query",
-  testProofPatch: "workspace_controlled_test_proof_patch",
-  verificationBundlePatch: "workspace_controlled_verification_bundle_patch",
-  carrierQuery: "workspace_controlled_contract_carrier_query",
-  packBindingsInspect: "workspace_controlled_proof_pack_bindings_inspect",
-  proofGraphContinue: "workspace_controlled_contract_proof_graph_continue"
+  packSelection: "proof_pack_selection",
+  planBuild: "proof_plan_construction",
+  assessment: "contract_assessment",
+  authoringDescription: "carrier_authoring_description",
+  testProofDescription: "native_test_proof_description",
+  testProofQuery: "native_test_proof_query",
+  testProofPatch: "native_test_proof_patch",
+  verificationBundlePatch: "verification_bundle_patch",
+  carrierQuery: "carrier_query",
+  packBindingsInspect: "proof_pack_binding_inspection",
+  proofGraphContinue: "proof_graph_publication"
 });
 
 export const CONTROLLED_CONTRACT_PROOF_AUTHORING_CONTINUATION = Object.freeze({
@@ -85,7 +84,15 @@ function deepFreeze(value) {
 }
 
 function call(tool, arguments_) {
-  return Object.freeze({ tool, arguments: Object.freeze(arguments_) });
+  if (tool.startsWith("workspace_")) {
+    return Object.freeze({ tool, arguments: Object.freeze(arguments_) });
+  }
+  return Object.freeze({
+    capability: tool,
+    status: "retired_public_workflow",
+    arguments: Object.freeze(arguments_),
+    recovery: null
+  });
 }
 
 function identityArguments(wkId, focus) {
@@ -197,8 +204,7 @@ function selectedPackRecoveryCall({ wkId, focus, recovery }) {
   if (semanticInput === null) return null;
 
   const action = {
-    tool: CONTROLLED_CONTRACT_AUTHORING_TOOLS.skeleton,
-    arguments: {
+    ...call(CONTROLLED_CONTRACT_AUTHORING_TOOLS.skeleton, {
       ...identityArguments(wkId, focus),
       selected_pack: {
         profile_id: recovery.selected_pack.profile_id,
@@ -206,48 +212,13 @@ function selectedPackRecoveryCall({ wkId, focus, recovery }) {
       },
       requested_intents: structuredClone(recovery.requested_intents),
       ...semanticInput
-    }
+    })
   };
   if (Array.isArray(recovery.author_semantics) &&
       recovery.author_semantics.length > 0) {
     action.author_semantics = structuredClone(recovery.author_semantics);
   }
   return boundedAction(action);
-}
-
-function proofExecutionReadiness(contract, authoringIdentity) {
-  const proofs = Array.isArray(contract?.test_proofs) ? contract.test_proofs : [];
-  const projected = proofs.map((binding) => {
-    const readiness = classifyStableTestProofRuntimeReadiness(binding);
-    const candidates = readiness.current_test_ids.slice(0, MAX_DISCLOSED_IDENTITIES);
-    const queryArguments = {
-      wk_id: authoringIdentity.wk_id,
-      ...(authoringIdentity.focus === null ? {} : { focus: authoringIdentity.focus }),
-      verification_ids: [binding.verification_claim_id]
-    };
-    return Object.freeze({
-      verification_id: binding.verification_claim_id,
-      status: readiness.status,
-      reason: readiness.reason,
-      selected_test_id: readiness.selected_test_id,
-      candidate_test_ids: Object.freeze(candidates),
-      candidate_total: readiness.candidate_total,
-      candidate_test_ids_omitted: readiness.candidate_total - candidates.length,
-      complete_retrieval: call(
-        CONTROLLED_CONTRACT_AUTHORING_TOOLS.testProofQuery,
-        queryArguments
-      )
-    });
-  }).sort((left, right) => left.verification_id.localeCompare(right.verification_id));
-  const bounded = projected.slice(0, MAX_DISCLOSED_IDENTITIES);
-  return Object.freeze({
-    status: projected.every(({ status }) => status === "ready") ? "ready" : "not_ready",
-    authority: "non_authorizing_evidence",
-    admissibility_effect: "none",
-    bindings: Object.freeze(bounded),
-    binding_total: projected.length,
-    bindings_omitted: projected.length - bounded.length
-  });
 }
 
 function authoringEvidence(carriers) {
@@ -259,18 +230,18 @@ function authoringEvidence(carriers) {
     ({ residue_id: identity }) => identity));
   const intents = Array.isArray(request?.requested_intents)
     ? request.requested_intents : [];
-  const readiness = contract === null ? null
-    : proofExecutionReadiness(contract, carriers.authoring_identity);
+  const declaredProofCount = Array.isArray(contract?.test_proofs)
+    ? contract.test_proofs.length : 0;
   return Object.freeze({
     residue_count: residue.length,
     residue_identities: Object.freeze(residueIdentities.identities),
     residue_identities_omitted: residueIdentities.omitted,
     selected_pack_count: selectedPacks(carriers).length,
     requested_intent_count: intents.length,
-    ...(readiness === null ? {} : { proof_execution_readiness: readiness }),
+    declared_test_proof_count: declaredProofCount,
+    execution_evidence: "owned_by_workspace_verify_proof",
     non_authorizing_evidence: Object.freeze([
-      ...(residue.length > 0 ? ["residue"] : []),
-      ...(readiness === null ? [] : ["proof_execution_readiness"])
+      ...(residue.length > 0 ? ["residue"] : [])
     ])
   });
 }
@@ -325,15 +296,19 @@ function verificationBundleAction({
 function verificationGraphRequired({ wkId, focus, carriers, requirements }) {
   const identities = requirements.map(({ verification_id: identity }) => identity).sort();
   const [selected] = identities;
-  const observed = new Map(requirements.map(({ verification_id: identity,
-    observed_method: method }) => [identity, method ?? null]));
-  const action = verificationBundleAction({
+  const byIdentity = new Map(requirements.map((requirement) =>
+    [requirement.verification_id, requirement]));
+  const requirement = byIdentity.get(selected) ?? null;
+
+  const admissibility = requirement?.bundle_admissibility ?? null;
+  const admissible = admissibility === null || admissibility.admissible === true;
+  const action = admissible ? verificationBundleAction({
     wkId,
     focus,
     contract: carrierContent(carriers.contract),
     expectedContentDigest: carriers.contract.content_digest,
     verificationId: selected
-  });
+  }) : null;
   const bounded = boundedIdentities(identities);
   return response({
     stage: "verification_graph_required",
@@ -343,10 +318,17 @@ function verificationGraphRequired({ wkId, focus, carriers, requirements }) {
       count: bounded.total,
       omitted_identity_count: bounded.omitted,
       addressed_verification_id: selected,
-      observed_method: observed.get(selected) ?? null,
-      required_method: "test_execution"
+      observed_method: byIdentity.get(selected)?.observed_method ?? null,
+      required_method: "test_execution",
+      continuation_admissible: admissible,
+      ...(admissible ? {} : {
+        reason_code: admissibility.reason_code,
+        failed_admissibility_check: admissibility.failed_check
+      })
     }),
-    nextCall: action
+    ...(action === null
+      ? { stopCondition: admissibility.reason_code }
+      : { nextCall: action })
   });
 }
 
@@ -425,12 +407,9 @@ function stableTestProofRequired({ wkId, focus, carriers, requirements }) {
   });
 }
 
-function replacementStateCall(wkId, focus, continuation = null) {
+function replacementStateCall(wkId, focus) {
   return call(CONTROLLED_CONTRACT_AUTHORING_TOOLS.state,
-    {
-      ...identityArguments(wkId, focus),
-      ...(continuation === null ? {} : { continuation })
-    });
+    { unit: wkId, ...(focus === null || focus === undefined ? {} : { focus }) });
 }
 
 function refusal(reasonCode, wkId, focus, details = {}, continuation = null) {

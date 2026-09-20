@@ -7,6 +7,7 @@ import {
   filterToolDiscoveryTools,
   loadToolDiscoveryDescriptor
 } from "../../../wiki-core/src/lib/tool-discovery.mjs";
+import { registeredToolRequestContracts } from "./registered-tool-request-contracts.mjs";
 import { trimmed } from "./server-composition-helpers.mjs";
 import {
   parseToolProfile,
@@ -23,7 +24,9 @@ export function registerToolRouterTools({
   errorContent,
   sessionRole = null,
   registeredTier = null,
-  loadDescriptor = loadToolDiscoveryDescriptor
+  loadDescriptor = loadToolDiscoveryDescriptor,
+
+  requestContracts = registeredToolRequestContracts(registerTool)
 }) {
   function resolveSessionRole() {
     if (typeof sessionRole === "string" && sessionRole.trim()) {
@@ -45,7 +48,8 @@ export function registerToolRouterTools({
       shouldExposeTool(role, toolName));
     return {
       completeDescriptor,
-      descriptor: { ...completeDescriptor, tools }
+      descriptor: { ...completeDescriptor, tools },
+      requestContracts
     };
   }
 
@@ -53,7 +57,7 @@ export function registerToolRouterTools({
     WORKSPACE_TOOL_ROUTER_RECOMMEND_TOOL_NAME,
     {
       description:
-        "Compact read-only advisory guidance for which repo tool to call first for a task. Matched output preserves one executable recommendation. Ambiguous output returns bounded ranked clarification choices, exact candidate counts, and an executable complete-set continuation when bounded display omits candidates. Unknown output returns either bounded executable recovery or an explicit no-supported-route stop. candidate_view=complete is only the router-specific continuation for retrieving the complete task-selected ambiguity set; it grants no operation authority.",
+        "Read-only tool guidance: a contract-checked match or its missing fields, counted clarification choices with complete-set continuation, or explicit recovery/no-route. Follow emitted candidate_view=complete for omitted choices. Grants no operation authority.",
       inputSchema: z
         .object({
           task_description: z.string().optional(),

@@ -461,75 +461,6 @@ function selectedEnvelopeIdentityMatches(value, expected) {
   return validateRecognizedIdentityTree(roots, expected);
 }
 
-export function projectSelectedSummaryResult(fullSummaryResult, requestedIdentity) {
-  if (!selectedEnvelopeIdentityMatches(fullSummaryResult, requestedIdentity)) return null;
-  const selectedUnitSourceProperty = ownDataProperty(fullSummaryResult, "selected_unit");
-  if (
-    !selectedUnitSourceProperty.present ||
-    selectedUnitSourceProperty.value === INVALID_DATA_PROPERTY ||
-    !selectedUnitIdentityMatches(selectedUnitSourceProperty.value, requestedIdentity)
-  ) {
-    return null;
-  }
-  const selectedUnit = projectSelectedUnit(selectedUnitSourceProperty.value);
-
-  const summaryProperty = ownDataProperty(fullSummaryResult, "summary");
-  let selectedUnitSource = null;
-  if (summaryProperty.present && summaryProperty.value !== null) {
-    if (summaryProperty.value === INVALID_DATA_PROPERTY || !isObject(summaryProperty.value)) {
-      return null;
-    }
-    const selectedSummaryProperty = ownDataProperty(
-      summaryProperty.value,
-      "selected_unit_summary"
-    );
-    if (selectedSummaryProperty.present) {
-      if (
-        selectedSummaryProperty.value === INVALID_DATA_PROPERTY ||
-        (selectedSummaryProperty.value !== null && !isObject(selectedSummaryProperty.value))
-      ) {
-        return null;
-      }
-      selectedUnitSource = selectedSummaryProperty.value;
-    }
-  }
-
-  if (selectedUnitSource !== null) {
-    const id = requiredDataProperty(selectedUnitSource, "id");
-    if (
-      id === INVALID_DATA_PROPERTY ||
-      !exactIdentityStringMatches(id, requestedIdentity.slice_id) ||
-      !validateRecognizedIdentityTree([selectedUnitSource], requestedIdentity)
-    ) {
-      return null;
-    }
-  }
-  const selectedUnitSummary = selectedUnitSource === null
-    ? null
-    : projectSelectedWorkRecordUnit(selectedUnitSource);
-  if (selectedUnitSource !== null && selectedUnitSummary === null) return null;
-  const recordId = requiredDataProperty(fullSummaryResult, "record_id");
-  const valid = ownDataProperty(fullSummaryResult, "valid");
-  const result = {
-    record_id: recordId,
-    valid: valid.value === true && selectedUnitSummary !== null,
-    selected_unit: selectedUnit,
-    summary: selectedUnitSummary
-  };
-
-  if (selectedUnitSummary === null) {
-    result.diagnostics = [
-      {
-        code: "missing_slice",
-        severity: "error",
-        message: `Selected slice ${requestedIdentity.slice_id} does not exist on the selected record`,
-        path: "unit"
-      }
-    ];
-  }
-  return validateCompletedProjectionIdentity(result, requestedIdentity) ? result : null;
-}
-
 function copyGraphScalar(result, source, field, predicate = () => true) {
   const property = ownDataProperty(source, field);
   if (!property.present) return true;
@@ -663,10 +594,39 @@ function projectGraphImpactSummaryRef(value) {
   return result;
 }
 
+function projectReplayData(value, depth = 0) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return { valid: true, value };
+  if (typeof value === "number") return Number.isFinite(value) ? { valid: true, value } : { valid: false };
+  if (typeof value !== "object" || depth > 64) return { valid: false };
+  const isArray = Array.isArray(value);
+  const prototype = Object.getPrototypeOf(value);
+  if (isArray ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null) {
+    return { valid: false };
+  }
+  const result = isArray ? [] : {};
+  for (const [field, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+    if (isArray && field === "length") continue;
+    if (!descriptor.enumerable) continue;
+    if (!Object.hasOwn(descriptor, "value")) return { valid: false };
+    const projected = projectReplayData(descriptor.value, depth + 1);
+    if (!projected.valid) return { valid: false };
+    result[field] = projected.value;
+  }
+  return { valid: true, value: result };
+}
+
 function projectPublicGraphEntry(value, envelope) {
   if (!isObject(value)) return null;
   const result = {};
   if (!copyGraphIdentityFields(result, value)) return null;
+  for (const field of ["graph_snapshot", "graph_impact"]) {
+    const property = ownDataProperty(value, field);
+    if (!property.present) continue;
+    if (property.value === INVALID_DATA_PROPERTY) return null;
+    const projected = projectReplayData(property.value);
+    if (!projected.valid) return null;
+    result[field] = projected.value;
+  }
   for (const field of [
     "replay_detail_available",
     "query_kind",

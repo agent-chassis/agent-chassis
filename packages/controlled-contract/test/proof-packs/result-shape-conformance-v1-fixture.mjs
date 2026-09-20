@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const RESULT_SHAPE_CONFORMANCE_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.result-shape.conformance/2.0.0/profile.json",
+  "../certification/profiles/proof.result-shape.conformance/3.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -250,7 +250,7 @@ function buildResultShapeConformanceFixture({
 
   const input = {
     input_version: EVALUATION_INPUT_VERSION_V1,
-    evaluation_stage: "pre_dispatch",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role,
       reference_ids: [...roleIds[role]]

@@ -4,12 +4,120 @@
 Part of the [MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md),
 which remains the canonical entry page. This page carries the canonical text for
 durable managed-run process identity, subject-addressed restart convergence, and
-process-local monitoring versus restart-stable receipt authority.
+process-local monitoring versus restart-stable result authority.
 
 Sibling pages: [launch and admission](mcp-dispatch-launch-and-admission.md),
 [terminal review](mcp-dispatch-terminal-review.md),
 [slice integration](mcp-dispatch-slice-integration.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
+
+## One-call closeout with forge-owned completion and truthful check results
+
+Closing a WK is one call. Recording the closure or the status transition, and the
+generated-view and lint work that transition requires, are mechanics of that same
+request rather than a chore handed back to the caller.
+
+- **One explicit request, one canonical write.** `workspace_work_record_set_closure`
+  accepts an optional explicit `status: "done"`. Supplied, the authored closure
+  patch and that final transition are composed into a single validated canonical
+  write through the same CAS, persistence and completion-policy owners, so a stale
+  digest, an invalid field or a persistence conflict leaves neither of them
+  applied. Omitted, the same route records closure information and changes no
+  status: authoring closure and completing a unit stay distinct requests.
+  Completion is never inferred from authored prose, a completing slice never
+  closes its parent, and `workspace_work_record_set_status` remains the route for
+  a status change on its own.
+
+- **One call, one executor.** A closeout mutation that lands runs
+  `generateAndLint` once, against the workspace it just wrote, and reports that
+  executor's actual result. `generateAndLint` remains the sole executor of those
+  checks; the closeout route decides only when they apply. A completed check
+  emits no follow-up generate/lint instruction, and no second report is authored.
+- **Not every transition has something to check.** When nothing was written, when
+  what was written is invalid, or when the transition is not a closeout one, the
+  checks do not apply and the result says which of those it was instead of
+  running anything.
+- **No canonical mutation, no checks.** A valid request that changes no canonical
+  bytes leaves the repository in exactly the state its last verification already
+  observed. It preserves those bytes and their digest, executes zero post-write
+  checks, and reports them as not run; only a mutation that actually changed the
+  canonical record runs `generateAndLint`, and it runs it exactly once.
+- **Input validation precedes classification.** A malformed expected digest, a
+  digest that does not match the loaded record, or an invalid field is answered
+  before the request is classified, so a stale or malformed assertion can never
+  ride an otherwise identical unchanged request to a reported success. Storage's
+  under-lock compare-and-set remains the authority over a race that lands between
+  the read and the write.
+- **Uncertainty stays uncertain.** Where canonical publication could not be
+  established, the result says so. It is never degraded into a write that was not
+  applied, a rollback, or a safe retry.
+- **Results are truthful, including the bad ones.** A lint that ran and failed is
+  reported as a failing lint with its exact error and warning totals. An executor
+  that could not run at all is reported as not run, with its own cause code, and
+  never as a passing check. Neither claims the completed write was rolled back:
+  the record was written, that stays true, and the result says so.
+- **Nothing is invented.** No waiver, accepted risk, follow-on, disposition or
+  proof credit is added by a closeout call, and unknown effects stay unknown.
+- **Ordinary completion and forge confirmation have distinct authority.**
+  An ordinary status or composed closure/status write must not be refused solely
+  because the record has `completion_policy: forge_confirmed_merge` and the
+  requested status is `done`. This applies to both edit composition and shared
+  validated persistence. Completion policy is enforced only through an actual
+  returned CCE decision; absent a decision, mechanically valid writes proceed.
+  Schema, CAS, identity, integrity and publication checks remain in force, and
+  each refusal identifies its mechanical failure or returned policy decision.
+  Marking a record `done` supplies no evidence that a forge merge occurred.
+- **Forge confirmation remains authenticated.** The trusted forge helper retains
+  its exact candidate, pull-request head and mergeability checks, two
+  work-record-only closeout commits, confirmed merge and exact reconciliation.
+  An unconfirmed merge remains unconfirmed regardless of local record status;
+  reconciliation failure after a confirmed merge remains typed partial success.
+  Ordinary edits neither invoke those operations nor manufacture their evidence.
+  Non-forge and operator-authorized direct-`main` paths require no fabricated
+  candidate, forge or proof dependency.
+- **A bounded result still leads to the whole one.** A run with more findings
+  than the compact preview reports exact totals and names its own complete
+  retrieval, preserving every error class and its selected evidence. No internal
+  task or hidden helper is needed to continue.
+- **The original result is retained, not replayed.** A closeout call asks its
+  executor for the complete result, not a default page of it, and retains the
+  complete permitted receipt once through the same response owner an oversized
+  result already uses. The bounded frame carries that retained answer's
+  authenticated content reference in `full_result`, and
+  `workspace_read_mcp_content_reference` reads it back. Retrieval is a read: it
+  performs no second write and runs no second check. Re-calling the mutation is
+  never the route to the detail, because the mutation has already landed and
+  repeating it is a no-op that runs nothing and returns no findings. The
+  generator's own target directory and build never appear in what is retained or
+  returned.
+- **A retained original that could not be kept is disclosed.** When retention
+  fails, the call still reports exactly the effects it had and the checks it ran,
+  and says the original detail is unavailable. It never advertises a reference
+  that cannot be read, and it never converts a transport failure into a claim
+  about the write.
+- **An unknown publication stays unknown.** Where storage could not establish
+  canonical publication, the response says so and keeps the cause: `written` is
+  null, `publication_state` is `unknown`, and the closeout half reports
+  `publication_unknown` without running checks over an indeterminate tree. It is
+  never reported as a write that was not applied, a rollback, or a safe retry,
+  and the caller is told to inspect the canonical record rather than repeat the
+  write.
+
+## Settlement runs no proof verification
+
+Delivery settlement, finalization, restart recovery and every
+`workspace_agent_run_status` observation execute no proof verification. The
+lifecycle result and checkpoint carry no verification outcome. A managed
+worker's explicit `workspace_verify_proof` calls are retained for its attempt
+in the attempt journal and read by observation, as described in
+[MCP Operation Reference](mcp-operation-reference.md#recorded-managed-worker-proof-verification).
+They add no commit, integration, review or completion gate.
+
+Final-slice settlement may prepare an authenticated terminal candidate, but that
+preparation and subsequent cold recovery also execute no product validation or
+proof attempt. They preserve candidate identity, materialization, dependency
+integrity, and existing evidence bindings only. A coordinator requests any new
+verification separately through the explicit verification operation.
 
 ## Durable managed-run process identity
 
@@ -50,6 +158,43 @@ deliberately LEAVES the record pending, so the unit reads as a partial
 publication and refuses the next dispatch rather than admitting a second worker
 beside a process the launcher cannot address.
 
+Startup settlement distinguishes a terminal run outcome from positive evidence
+that the child process has terminated. The shared supervisor exposes one current
+callable observation which latches only when it receives an `exit` or `close`
+event, or when the child already has a populated `exitCode` or `signalCode`.
+Readiness rejection, timeout, an `error` event, an attempted signal, and an
+unreadable pid can make the run outcome terminal but do not prove process death.
+A real termination event arriving after such a synthetic outcome still latches
+the observation. Provenance and conduit wrappers carry the same callable fact;
+they do not create a family-specific liveness decision.
+
+The run lifecycle samples that observation before either probing the supervised
+handle or binding managed identity. Confirmed termination alone uses the wrapped
+terminal probe, captures the result and typed conduit disposition, retires the
+pending identity, settles the reservation, and then registers the terminal run.
+A live or indeterminate startup is not probed at this boundary: its outer process
+identity must bind before registration. If binding throws, including after an
+exit races with the bind, pending identity and reservation remain protective and
+the launch refuses; the race grants no retry or retirement authority.
+
+Confirmed termination still registers the failed terminal run when pending
+identity discard fails. The original startup or readiness cause remains primary,
+while the discard failure is additive and reports the retained pending identity
+and reservation. If discard succeeds but reservation release fails, the same
+terminal run is registered with additive release residue and truthful retained
+reservation state. Discard, release, and conduit cleanup each have one settlement
+owner and run at most once. The generic launcher-owned no-output cause is
+`probe_terminal_without_final_result` for both startup and later monitoring.
+
+Only a registered run publishes a non-null top-level `run_id` and
+`monitor_handle`. A refused backend response that carries a nested managed-WK
+allocation preserves that allocation unchanged for lifecycle diagnosis, but its
+top-level run and monitor identifiers are null because no process-local monitor
+was registered. Conduit diagnostics preserve stable typed codes and validated
+lifecycle tokens; producer-classified private `message` and raw `detail` fields
+are omitted with field-specific `launcher_private_state` signals. This statement
+does not classify or suppress arbitrary captured child output.
+
 Liveness comes only from the existing non-reusable identity oracle. A changed
 `boot_id` proves the prior boot ended and is an unconditional dead verdict; a
 recycled pid for the exact persisted tuple is a dead verdict by `starttime`
@@ -79,6 +224,34 @@ that disagrees on the worker run id, launch ref, retry id, or assigned unit is a
 typed binding mismatch that fails closed through the existing recovery refusal,
 never a silently absent record.
 
+The retry id in a managed worker's execution tuple is the retry id of its
+launcher-private provisioning pair, not a dispatch-side constant. A reissued
+slice attempt is provisioned with the prior attempt's retry id plus one, so its
+execution tuple carries that nonzero value. Before spawn, the launcher derives the
+pending publication tuple from the pair it prepared for this launch, through the
+same canonical constructor, and requires the pair's retry id to equal the
+prepared attempt's. If the launch re-settles its provisioning because the WK tip
+moved, the re-settled pair must derive the same tuple or the launch refuses before
+spawn. That one tuple is then used for:
+
+- the pending process-identity record and its sandbox binding;
+- the `pending_published` journal binding;
+- terminal-result publication;
+- lifecycle-failure journaling, where the backend re-derives the tuple from the
+  launcher-owned pair for the monitored run instead of accepting one from the
+  monitor route;
+- the post-worker lifecycle's binding lookup and host integration hand-off;
+- proven-death assessment and retirement;
+- cold recovery, which requires the retained pair to derive exactly the journal's
+  execution tuple.
+
+A lifecycle without a composed launcher binding resolver selects its pair
+through the durable recovery owner by launch ref and subject, so no lookup
+assumes retry zero. Proof-verification recording keeps deriving from the worker's
+slice binding, which now agrees with the retained tuple for any retry. Any
+disagreement in subject, launch ref, worker run id, binding run ids, or retry id
+refuses. Reviewer process identity is unchanged and uses retry id zero.
+
 Every durable read is a closed schema. Exact top-level keys, schema version,
 state, tuple shape and scalar types, role, both process identities, the
 `published_at` shape, and the kill shape are all validated before a record is
@@ -98,8 +271,11 @@ partially published, ambiguous, unreadable, tuple-mismatched, and unresolved
 states all refuse; a record reused across launcher tuples is a binding mismatch,
 not a near-enough match. A proven-dead no-commit attempt may be retired for a
 later implementation retry. A committed slice is never relaunched or resumed
-through this attempt gate: its canonical `review` state and exact committed
-target admit the reviewer directly.
+through this attempt gate. When the retained binding pair's slice ref carries a
+delivery that trusted Git shows is not yet contained in the binding's accumulated
+WK ref, the refusal names `workspace_integrate_committed_slice`; canonical slice
+status, including a coordinator reopen, is not an input to that routing, and a
+delivery the WK ref already contains is not routed to integration.
 
 The reservation is what makes same-subject exclusion atomic rather than
 check-then-act: two concurrent dispatches mint different run ids, so a
@@ -129,13 +305,13 @@ tuple-bound, so an older attempt can never retire or supersede a newer one; it
 releases that attempt's subject reservation, which is what keeps a unit from
 being permanently locked by the attempt that succeeded on it; and the retired
 record remains on disk carrying its reason, verdict, and evidence. A committed
-attempt whose review or integration is unresolved keeps its record, as does an
-attempt recovered after a restart until its exact-slice review resolves.
+attempt whose integration is unresolved keeps its record, as does an attempt
+recovered after a restart until its integration resolves.
 
 A slice whose ref never advanced may use the proven-dead no-commit retirement
 authorization above so the unit converges to a retryable state. That path is
-disjoint from committed review and cannot prepare a review surface, integrate,
-mint acceptance, or launch a replacement worker itself.
+disjoint from committed delivery and cannot integrate, mint acceptance, or
+launch a replacement worker itself.
 
 Within that retirement path a genuinely absent retained attempt and a typed
 tuple-resolution failure are distinct answers, and neither may be reported as
@@ -151,13 +327,119 @@ recovery absence. Either way the exact slice ref is unmoved, no candidate is
 constructed, no integration or retirement call runs, and no canonical record is
 written.
 
-Preserving that internal distinction grants no new public diagnostic authority
-and does not change the lifecycle disclosure boundary. A tuple-resolution
-failure is not a branded closed lifecycle failure carrier, so what
-`workspace_agent_run_status` and `workspace_agent_run_wait` publish for it is
-unchanged: the same fixed generic lifecycle failure code and message every
-unbranded lifecycle rejection already publishes, with no raw exception code,
-message, or detail projected onto the public envelope.
+Preserving that internal distinction grants no new public classification
+authority. A tuple-resolution failure is not a branded closed lifecycle failure
+carrier, so `workspace_agent_run_status` classifies it with the generic
+lifecycle failure code and message. Its typed code, message, detail, and stack
+are published as the failure's evidence (see
+[post-worker lifecycle failure reporting](#post-worker-lifecycle-failure-reporting)).
+
+### Subject-addressed restart convergence
+
+One pure owner beside the attempt-journal reducer projects attempts and selects
+by canonical subject, optional exact backend run id, and immutable journal
+prefix. Admission and observation consume that owner. The CLI retains storage,
+partition locking, authenticated binding recovery, and liveness probes. The
+current unreleased attempt owns the reservation; released historical attempts
+are observation-only. Plural plausible attempts refuse as ambiguous rather than
+selecting by time. A reservation with no execution binding remains
+pending/indeterminate, and an unknown observation never authorizes relaunch.
+
+Cold managed observation is limited to exact implementation slices. It requires
+the existing journal tuple and authenticated retained binding pair, preserves
+typed mismatch, corruption, stale, unsupported, indeterminate, and unavailable
+diagnostics, and never fabricates a missing terminal report. After an observer
+restart, an unreleased attempt's post-worker lifecycle continues under that
+re-authenticated binding pair; a status the recovery did not select, or one naming
+another attempt, gains no binding. Findings runs keep their process-local
+observation contract and are not reconstructed from receipts.
+
+#### Recovered child status derives from the retained result
+
+A retained report never implies success. The recovered child status is derived
+from the `result_mode` classification the launcher already made and already
+bound into the retained result; cold observation consumes that classification
+and never reclassifies, never asserts a status literal, and never infers one
+from the mere existence of a report. Because `result_mode` lives inside
+`result`, and the retained result event's `result_digest` covers `result`, the
+classification is already inside the existing authenticated binding. No journal
+payload, digest, or schema changes for this derivation.
+
+The mapping is complete over the result-mode vocabulary:
+
+| Result mode | Recovered child status |
+| --- | --- |
+| `structured_result` | succeeded |
+| `configured_structure_invalid` | succeeded |
+| `runtime_failure` | failed |
+| `confinement_failure` | failed |
+| `legacy_completion` | unavailable |
+| `identity_unresolved` | unavailable |
+| `missing_output` | unavailable |
+| `neutral_prose` | unavailable (unreachable: its branch gates on the terminal-review roles, and result publication refuses non-worker records) |
+
+`configured_structure_invalid` is the ordinary outcome of a successful worker
+whose role result does not parse. It is the common case and is not a failure
+signal. No child-influenced mode discriminates success from failure: the choice
+between `structured_result` and `configured_structure_invalid` is decided by
+parsing the child's own final-result text and both project success, while the
+failure limbs key on launcher-owned record status, which a child cannot write.
+
+An absent or unreadable result-mode fact projects a typed unavailable child
+outcome, never success and never proven death. That outcome is projection-side
+vocabulary requiring no journal payload: it carries a reason from the closed,
+capability-shaped set `outcome_facts_unobserved` (no outcome fact was
+established) and `outcome_facts_unreadable` (a fact is present but its
+owner-produced envelope does not validate). No reason names a writer
+generation. Because the launcher run-status vocabulary has no member meaning
+"not established" and a recovered status is published verbatim, an unavailable
+outcome asserts no status at all rather than borrowing one.
+
+A non-success cold outcome publishes `child_terminal` and `terminal` as true —
+the launcher publishes a result event only for a terminal worker, so child
+terminality is established independently of the outcome — with `settled`
+decided by the observing call as usual, no `lifecycle_resolution`, and no
+`next_action`. The managed post-worker lifecycle is role- and status-keyed
+rather than hot/cold-keyed, so it does not apply to a child that did not
+succeed, exactly as for a hot failed worker. Cold is thereby made to agree with
+hot; this projection is not created here. Disambiguating that absent resolution
+between "no managed lifecycle applies" and "the managed lifecycle cannot advance
+because the child failed" is a separate closure story and is not done here.
+
+The retained result's bytes, tuple attribution, and durability reporting are
+unchanged by the derivation. `started_at`, `updated_at`, and `exit` remain
+absent from a recovered status because the journal records no timestamps and no
+exit envelope; that is honest absence, and nothing the journal does hold is
+dropped.
+
+### Process-local monitoring versus restart-stable result authority
+
+The existing single in-process runs map remains the hot observation and caller-
+visibility owner. Crash recovery reads the subject journal only after that owner
+cannot resolve the request. The journal adds exactly two informational events:
+
+- `run_result_recorded: {dispatch_tuple, result_digest, result}`
+- `lifecycle_failure_recorded: {dispatch_tuple, invocation_id, failure}`
+
+They use the existing frozen attempt values, canonicalization, partition lock,
+and crash-durable publication path. They may be appended to an authenticated
+historical attempt without reopening it and never alter lifecycle transitions,
+current-attempt election, liveness, reservation or release, integration, or
+action authority. Result and failure replay is byte-idempotent and conflicting
+payloads refuse.
+
+The result event contains the complete normalized managed-worker report,
+including original response and existing provenance and write-scope evidence.
+Capture is synchronous; publication precedes any claim of crash durability and
+precedes post-worker settlement consumption. Publication failure remains
+explicit while hot captured bytes stay retryable. Lifecycle failures receive one
+invocation id at the shared invocation seam and are recorded once per actual
+failed invocation. A retained failure that a later request does not re-attempt —
+because the producing owner's correction condition is unchanged — records no
+further event, so the journal keeps one event per real attempt. Retry facts
+themselves are never journaled and are never read back from the journal:
+historical diagnostics are not retry authority. Exact totals and snapshot-paged complete history derive from
+committed events; the five-entry process-local preview remains only a cache.
 
 ### Independent findings action boundary
 
@@ -216,7 +498,7 @@ the requested operation. Any local recovery must identify that exact mechanical
 failure and its supported retry or repair route. It must not infer a lifecycle
 transition from status text or replace, supplement, or reinterpret recovery
 returned by CCE. A monitor-bound instruction to retry
-`workspace_agent_run_status` with the same handle and exact subject after an
+`workspace_agent_run_status` with the exact subject and optional attempt id after an
 incomplete launcher-retirement step is mechanical recovery; advice to activate a
 parent, integrate a slice, remediate findings, or redispatch solely because of a
 status tuple is policy and is not launcher-owned.
@@ -227,6 +509,42 @@ evidence rather than gates for a current execution generation. Under
 and grants no lifecycle authority. Public projections preserve the exact owning
 boundary: CCE policy recovery is forwarded without local invention, while a
 mechanical refusal reports only its exact launcher-owned recovery.
+
+### Post-worker delivery without built-in review
+
+Review is not a built-in step of the managed post-worker lifecycle. When
+observation finds a terminal implementation worker whose authenticated slice ref
+carries a committed delivery (a nonempty delta or a server-minted same-tree
+child), the lifecycle requests canonical committed-slice integration for that
+exact subject through the launcher-owned writable host route. It resolves no
+review unit, prepares or freezes no review surface, binds no review context,
+writes no review status of its own, never parks the run awaiting review, and
+returns no reviewer-dispatch request or review continuation. The closed-input
+commit's own decision delivery transition is unchanged.
+
+The integration route re-derives and authenticates the exact target — the
+server-minted delivery chain, write-scope containment, bound base, ref CAS, and
+record CAS — and applies configured CCE policy exactly as it does for an explicit
+coordinator request (see [CCE policy boundary](#cce-policy-and-local-mechanical-recovery-boundary)
+and [slice integration](mcp-dispatch-slice-integration.md)). With no configured
+gate it follows decision free-substrate behavior. A refusal, including a
+configured CCE denial, leaves the run unresolved at `pre-integration` with its
+typed lifecycle failure retained, moves no ref or status, and is retried by later
+observation; it never becomes review.
+
+A successful integration finalizes the run. The final implementation slice's
+record CAS moves the canonical parent WK to `review`, which the finalized result
+reports as `wk_transitioned_to_review: true`; that coordinator handoff is where
+the lifecycle ends. Repeated `workspace_agent_run_status` observation replays the
+settled result without a second integration, and restart reconstruction recovers
+the already-integrated delivery through the durable continuation without
+re-integrating or dispatching anything.
+
+Review of a delivery, a slice, or a whole WK remains available only as an
+explicit coordinator `workspace_agent_dispatch` of a reviewer or redteam unit.
+This repository's own contributor workflow may require those reviews; that
+requirement is coordinator process, not a launcher prerequisite (see
+[Enforcement Model](enforcement-model.md#contributor-review-is-not-consuming-repository-integration-authority)).
 
 The separate `workspace_integrate_committed_slice` operation may integrate that
 committed slice into the accumulated WK tip. Reviewer and redteam results remain
@@ -239,7 +557,22 @@ If no CCE gate is configured, the operation follows decision free-substrate beha
 and reports its non-audit posture. If a gate is configured, missing, unavailable,
 malformed, unratified, denied, or target-mismatched CCE evidence refuses before ref
 or status mutation. Review completion itself never calls or authorizes integration.
-When the WK becomes terminal and quiescent, the runtime freezes repository
+When worker redispatch instead encounters an existing committed delivery, the
+dispatch refusal does not launch another worker and does not route through a
+mandatory reviewer. Its callable recovery names
+`workspace_integrate_committed_slice` with the canonical slice subject. That is
+only a next request: the integration operation independently re-derives the exact
+target and applies its existing CAS and configured CCE checks, so the refusal does
+not claim integration is authorized or successful. If integration succeeds,
+remaining already-dispositioned remediation may be implemented in a follow-up
+slice of the same WK. The dispatch response never creates that slice, integrates
+automatically, or redispatches a worker.
+When the final integration completes and the canonical record declares a
+findings-only terminal review unit — the repository's explicit selection of the
+terminal review workflow — the lifecycle prepares the terminal publication
+candidate that an explicitly dispatched terminal review and forge handoff later
+recover. A record that declares none constructs no candidate and requires no
+review unit. To prepare the candidate the runtime freezes repository
 identity plus the launcher-bound base `B` of the persistent WK lifecycle
 (propagated from the WK identity binding's `base_sha`, base_ref `main`) and the
 accumulated WK tip `W`; constructs the deterministic squash candidate `C` such
@@ -250,12 +583,12 @@ directly with `rev-parse <W>^{tree}` and `C` is created with `commit-tree` — n
 materializes a separate private mode-0700 full detached checkout. The WK ref and
 worktree remain assembly state and are not the terminal review checkout.
 
-The runtime verifies the complete `B/W/C/tree/parent/ref/checkout` binding,
+The runtime verifies the complete `B/W/C/tree/parent/ref/checkout` binding and
 runs every canonical whole-WK validation against `C` in the read-only reviewer
-composition, then binds the final findings-only reviewer to `C` with `B` as diff base (`B..C`). Public
-`workspace_run_validation` input remains exactly `{unit,target}`; candidate,
-checkout, dependency, process, environment, argument, and ref authority is
-launcher-resolved. Reviewer result consumption rechecks the same frozen
+composition. It binds no reviewer: an explicitly dispatched terminal reviewer
+recovers `C` and is bound to it with `B` as diff base (`B..C`). No
+public MCP route runs that validation; candidate, checkout, dependency, process,
+environment, argument, and ref authority is launcher-resolved. Reviewer result consumption rechecks the same frozen
 contract and candidate binding. Validation and reviewer output are advisory;
 passing evidence does not admit and failing evidence does not veto integration.
 A result belongs only to that exact cycle;
@@ -367,7 +700,9 @@ fixed unknown form. Neither form returns Git arguments, stdout, stderr, exceptio
 or subprocess prose, arbitrary fields or strings, names, stacks, causes,
 credentials or other secrets, filesystem paths, environment content, caller
 fields, or unvalidated object IDs or refs. No internal error instance crosses the
-projection boundary.
+projection boundary. The post-worker lifecycle publishes this projection as
+classification only; the original exception accompanies it as evidence
+(see [post-worker lifecycle failure reporting](#post-worker-lifecycle-failure-reporting)).
 
 Shape is validation, never provenance. The terminal-candidate runtime records the
 exact error identities it originates in one module-private `WeakMap`, together
@@ -442,119 +777,225 @@ contract change. The change supplies no retry, fallback, cleanup, publication,
 review, lifecycle, policy, or CCE authority and does not alter the exact `C/B/W`
 candidate contract or its existing authority boundaries.
 
-### Exact-slice materialization failure disclosure
+### Post-worker lifecycle failure reporting
 
-A post-worker lifecycle rejection publishes one generic pair on
-`slice_lifecycle`: code `agent_launch.slice_lifecycle.failed.v1` and message
-`post-worker slice lifecycle invocation failed`. That pair is fixed at the seam
-and is never derived from the value that was thrown, so an unbranded rejection
-discloses nothing. It is also, on its own, undiagnosable: a managed run whose
-exact-slice review preparation refuses can stay nonterminal across arbitrarily
-many polls while the identity of the failing predicate is discarded.
+A post-worker lifecycle rejection publishes two separate things on
+`slice_lifecycle`: a closed classification and the unredacted evidence of what
+was thrown. The evidence is complete only when its `thrown.capture_failures`
+list is empty; anything the encoder could not capture is listed there.
+
+The classification is `error_code`, `error_message`, and, where a seam supplies
+them, `candidate_failure`, `continuation_failure`, and `failure_cause`. A
+rejection at a named lifecycle seam publishes that seam's code and fixed message
+(below). Any other rejection publishes the generic pair: code
+`agent_launch.slice_lifecycle.failed.v1` and message
+`post-worker slice lifecycle invocation failed`. The classification is selected
+by the seam, by launcher-private brands, and by identity attribution. It is never
+selected by reading the thrown value.
+
+The evidence is `slice_lifecycle.evidence`. Every failure envelope carries it,
+and a compact `evidence_summary` travels with it (operation, value type, name,
+code, message, and the number of capture failures). Evidence is captured at the
+originating boundary, before any wrapping. It is never redacted, and nothing is
+dropped without a `capture_failures` entry:
+
+- `operation` names where the failure was observed: `seam:<seam>` for a named
+  seam, `post_worker_slice_lifecycle_invocation` for any other rejection.
+  `seam` repeats the seam, or is `null`.
+- `thrown` is the encoding of the original value
+  (`agent_launch.diagnostic_evidence.v1`). An `Error` keeps its constructor,
+  `name`, `message`, `stack`, every other own property (`code`, `detail`,
+  `errno`, ...), and its `cause` chain. Any other value is encoded by type.
+  Non-JSON values are tagged with `$type`: `undefined`, non-finite numbers,
+  `bigint`, `symbol`, `function`, `Date`, `Map`, and `Set`. A repeated or cyclic
+  object becomes `{ "$ref": "<path of its first occurrence>" }`. A plain-object
+  key that begins with `$` is escaped with one more `$`. Every own key,
+  including `__proto__`, stays an own key of the encoding.
+- `thrown.capture_failures` lists every inspection that itself threw — a getter,
+  a proxy trap, a prototype probe — with its path, step, and the error's name,
+  message, and stack. The failing value is encoded as
+  `{ "$type": "capture_failed" }`. If the encoder itself fails, the evidence
+  carries `evidence_capture_failure` instead of `thrown`.
+- The 256-level depth budget bounds ONE encoded value, not the capture. A
+  subtree deeper than that is re-rooted: the parent holds
+  `{ "$type": "deep_segment", "segment": N, "continues_at": "<path>" }` and the
+  subtree is encoded with a fresh budget as `thrown.segments[N]`, which may
+  itself continue. `value` plus `segments` is therefore the complete input, and
+  no `capture_failures` entry is produced, because nothing was lost. A repeat or
+  a cycle becomes a `$ref` before it can be segmented twice, so the continuation
+  terminates.
+- The encoder (`packages/agent-launch-cli/src/lib/diagnostic-evidence.mjs`) has
+  no dependencies, so any producer captures evidence without importing another
+  owner.
+
+A closed lifecycle failure carrier holds the same evidence on `evidence`. It
+also exposes it as `detail.evidence`, the slot restart recovery reports as
+`recovery_failure.detail`. Its `stack` is its own header, the seam, and then
+`Caused by:` followed by the original stack, so the wrapper never replaces the
+origin.
+
+Producers keep their facts at the point of failure:
+
+- The backend integration owner keeps the thrown error's reason, `detail`, and
+  captured evidence on every non-integrated result. That includes an admission
+  refusal such as `trusted_commit_scope_mismatch` with its offending paths,
+  checked write scope, reviewed and base commits, and counts. It also keeps the
+  evidence of a retained-context recovery failure that fell through to fresh
+  admission (`retained_recovery_evidence`), and the evidence of a failed CCE
+  authorization call.
+- The launcher-composed direct adapter forwards the complete non-integrated
+  result, not only its nested refusal.
+- The lifecycle's own refusals carry the facts they were decided on: bound and
+  expected identities, Git arguments, status, and stderr. A missing delivery also
+  carries why the exact retirement could not be established. A continuation
+  mismatch carries each mismatched field with its actual and expected value.
+- A retirement exception during delivery finalization is kept as
+  `cleanup.managed_identity_retirement.evidence`.
+- A failure-history publication failure is kept as
+  `failure_history_durability.publication_result`.
+- Restart recovery keeps its `recovery_failure` code, message, and detail, and
+  adds the complete original exception as `recovery_failure.evidence`.
+- Lifecycle-failure journaling that cannot derive the attempt's execution tuple
+  refuses with its existing `attempt_binding_mismatch` code and `cause_code`,
+  plus the derivation failure's `evidence`.
+- The `workspace_agent_run_status` exception boundary keeps its existing rendered
+  `error_message` (including a producer's declared-sensitive redactions) and adds
+  the thrown value itself as `blocker.detail.evidence`, unredacted.
+
+The failure is recorded once per invocation, at the shared invocation seam,
+however many callers observe it. The same envelope, evidence included, is
+published on `slice_lifecycle` and journaled as that invocation's durable
+`lifecycle_failure_recorded` event. `workspace_agent_run_status` with
+`detail: { kind: "failure_history" }` returns those journaled envelopes. The
+bounded retained-failure ring (`latest_failure`, `retained_failures`) is a
+preview: it keeps the classification and the `evidence_summary`, not the full
+evidence. A response too large to inline is spilled like any other tool
+response. Its complete content is read back through
+`workspace_read_mcp_content_reference`.
+
+Evidence is diagnostic content only. Nothing in it selects a code, a
+`failure_cause`, a phase, terminality, `next_action`, retry, or any integration,
+continuation, or policy outcome. A thrown value or refusal that claims success,
+authority, or a classification is published as evidence and classified exactly
+as before. The explicit `workspace_integrate_committed_slice` route is unchanged:
+it returns an integration refusal with its typed code, reason, and public blocker.
 
 #### Seam-keyed lifecycle failure codes
 
-`error_code` on `slice_lifecycle` is read by `workspace_agent_run_status` and
-`workspace_agent_run_wait`, and a rejection at one of the phased body's BRANDED
+`error_code` on `slice_lifecycle` is read by `workspace_agent_run_status`, and a
+rejection at one of the phased body's BRANDED
 dependency seams publishes that seam's own stable code and fixed message instead
 of the generic pair:
 
 | Seam | `error_code` | `error_message` |
 | --- | --- | --- |
 | terminal candidate preparation | `agent_launch.slice_lifecycle.terminal_candidate_preparation_failed.v1` | `post-worker terminal candidate preparation failed` |
-| terminal candidate validation | `agent_launch.slice_lifecycle.terminal_candidate_validation_failed.v1` | `post-worker terminal candidate validation failed` |
 | committed-slice integration continuation | `agent_launch.slice_lifecycle.committed_slice_integration_continuation_failed.v1` | `post-worker committed slice integration continuation failed` |
-| frozen review-context binding | `agent_launch.slice_lifecycle.frozen_review_context_binding_failed.v1` | `post-worker frozen review context binding failed` |
 | managed-worker identity retirement | `agent_launch.slice_lifecycle.managed_worker_identity_retirement_failed.v1` | `post-worker managed worker identity retirement failed` |
+| lifecycle binding resolution | `agent_launch.slice_lifecycle.lifecycle_binding_resolution_failed.v1` | `post-worker lifecycle binding resolution failed` |
+| slice delivery inspection | `agent_launch.slice_lifecycle.slice_delivery_inspection_failed.v1` | `post-worker slice delivery inspection failed` |
+| integrated slice reconciliation | `agent_launch.slice_lifecycle.integrated_slice_reconciliation_failed.v1` | `post-worker integrated slice reconciliation failed` |
+| committed-slice integration | `agent_launch.slice_lifecycle.committed_slice_integration_failed.v1` | `post-worker committed slice integration failed` |
 
 A code is a property of the SEAM the phased body names, never of the value that
 was thrown: the same code is published for a typed refusal and for an arbitrary
-throwable, and nothing is classified, matched, stringified, probed, or read to
-select one. Both published fields come from a fixed per-seam table, so
-`error_message_truncated` stays `false` and no library, syscall, credential,
-path, or environment text can reach either field. The nested closed
-`candidate_failure` projection described above accompanies the two
-terminal-candidate seams only; the other three publish no nested projection.
+throwable, and nothing is classified or matched to select one. Both
+classification fields come from a fixed per-seam table, so
+`error_message_truncated` stays `false`; the original message is in the
+evidence. The nested closed `candidate_failure` projection described above
+accompanies the terminal-candidate preparation seam only. The integration-continuation
+seam alone may publish the closed `continuation_failure` fact described below.
+The four pre-integration seams alone publish the closed `failure_cause`
+described below.
 
-The integration-continuation seam is reached from two phases — restart recovery
-and the parked slice-review phase — and both publish the SAME code, because they
-are one dependency boundary and the envelope's own `phase` already distinguishes
-them.
+The pre-integration seams cover the launcher-owned binding resolution and the
+lifecycle's exact subject and WK-ref checks over it; each resolution of the
+launcher-bound slice tip; the read-only integrated-slice reconciler; and the
+host-delegated committed-slice integration, whether the adapter rejects or
+returns a refusal. Each seam wraps only its dependency call. A rejection raised
+by what the lifecycle later decides about a successful result is not rebranded.
 
-THE GENERIC PAIR STILL GOVERNS EVERY UNBRANDED REJECTION. It is unchanged for
-every other rejection the lifecycle can raise, including the exact-slice review
-surface preparation, the lifecycle's own typed refusals, and any value a branded
-seam's dependency did not itself reject with. Nothing about terminality, the
-`next_action`, attempt accounting, the bounded retained-failure ring, or the
-additive `postcheck_mismatch_field` and `materialization_failure` discriminators
-changes: those two discriminators are computed on the unbranded branch, and their
-producing surface is deliberately not one of the branded seams.
+The integration-continuation seam is reached from restart recovery and from a
+retried pre-integration attempt, and both publish the SAME code, because they are
+one dependency boundary and the envelope's own `phase` already distinguishes them.
 
-An AUTHENTICATED exact-slice materialization refusal therefore additionally
-carries the closed
-`agent_launch.slice_review_materialization_failure_projection.v1` contract as
-`slice_lifecycle.materialization_failure`. This is OBSERVABILITY ONLY. It grants
-no authority, performs no retry, reconciliation, materialization, mutation,
-cleanup, review, integration, or status change, and it changes nothing else about
-the response: the outer code and message, the truncation flag, the top-level
-`next_action`, terminality, attempt accounting, and the bounded retained-failure
-ring are all exactly as before, and concurrent waiters still share the single
-recorded failure of one lifecycle attempt. The pre-existing additive
-`postcheck_mismatch_field` discriminator is unchanged and coexists with it.
+That seam alone may additionally publish the closed, non-authorizing
+`slice_lifecycle.continuation_failure` fact. Its only value is
+`{ "reason": "completed_integration_write_scope_mismatch" }`: the live backend
+authenticated a successful integration of this worker's exact delivery, but that
+integration was admitted under a different write scope from the worker's retained
+binding, so the original monitor does not consume it (see
+[slice integration](mcp-dispatch-slice-integration.md)). The fact is selected only
+by a launcher-private brand on the refusal the continuation owner mints. A
+caller-built error with the same code, reason or property, a proxy around the
+real refusal, and every other throwable publish no fact; their content is in the
+evidence. The publication re-gate rebuilds the fact from its closed vocabulary
+and strips anything else. The fact grants no retry, recovery, integration or
+completion authority, and it leaves terminality, `next_action`, attempt
+accounting and the retained-failure ring unchanged.
 
-The projection has exactly the five enumerable keys `schema_version`, `kind`,
-`code`, `message`, and `detail`:
+#### Pre-integration failure cause
 
-```json
-{
-  "schema_version": "agent_launch.slice_review_materialization_failure_projection.v1",
-  "kind": "slice_review_materialization_failure",
-  "code": "<one stable agent_launch.slice_review_materialization.* code>",
-  "message": "exact-slice review materialization refused",
-  "detail": {
-    "predicate": "<one closed refusal reason, or null>",
-    "field": null,
-    "pseudoref": null,
-    "config_key": null,
-    "config_scope": null,
-    "suffix_depth": null,
-    "traversal_bound": null,
-    "git_exit_status": null
-  }
-}
-```
+A pre-integration seam also publishes `slice_lifecycle.failure_cause`. It always
+has exactly these keys: `kind`, `reason`, `diagnostic_code`, `diagnostic_kind`,
+and `public_blocker_code`. Each `kind` fills them as follows:
 
-`message` is fixed for every code. `detail` always carries all eight keys, `null`
-where the refusal does not supply one, and each admitted value is either a member
-of a frozen vocabulary the launcher already owns — the postcheck bound-state
-budget for `field`, the refused sequencer pseudorefs for `pseudoref`, the
-constant-null compatibility fields `config_key`/`config_scope`, the closed
-refusal-reason allowlist for `predicate` — or a small integer inside a fixed
-range (`suffix_depth` and `traversal_bound` within the historical-delivery
-traversal bound, `git_exit_status` in 0 through 255). Producer detail outside that
-vocabulary has no key to arrive under. The bounded shape exists so callers get
-stable, task-relevant refusal facts without arbitrary producer detail; it is not
-a least-disclosure or confidentiality policy.
+| `kind` | Meaning | Populated fields |
+| --- | --- | --- |
+| `unexpected_exception` | The dependency rejected with a value the lifecycle did not produce. The seam code identifies the operation; the value itself is in the evidence. | all `null` |
+| `lifecycle_refusal` | The lifecycle itself refused at this seam. | `reason` is one of the closed reasons below |
+| `integration_refusal` | The committed-slice integration was refused. | `reason`, `diagnostic_code`, `diagnostic_kind`, `public_blocker_code` from the integration owner's registration; all `null` for an unregistered refusal |
 
-Nothing else is part of this schema. Stacks, `cause`, arbitrary throwable properties,
-filesystem or worktree paths, repository contents, index entries, `git status`
-porcelain, Git stdout, Git stderr, Git argument vectors, environment values,
-receipts, credentials, tokens, identities, and reservations are all absent by
-construction rather than by scrubbing, and the projection is reconstructed field
-by field at both the launcher primitive and the dispatch publication boundary.
+The closed `lifecycle_refusal` reasons are:
 
-Classification is structural, never based on `Error.message` text. A
-value qualifies only if it was constructed by the launcher's own
-`SliceReviewMaterializationError` (private brand plus `instanceof`), owns that
-exact class name, owns a message carrying the module's exact refusal prefix, owns
-a code inside the closed `SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES` set, and
-owns a plain-object detail if it has one at all. The message is read only after
-those checks pass, and only as an exact member lookup in the closed predicate
-allowlist; an unrecognized reason yields `predicate: null` rather than any
-producer or caller text. Name-only, code-only, plain-object, prototype-shaped,
-proxy-wrapped, out-of-taxonomy, malformed-detail, unknown, and unrelated values
-all fail at least one conjunct and keep producing the byte-stable generic failure
-with no nested projection.
+- For binding resolution: `provisioning_binding_incomplete`,
+  `worker_subject_binding_mismatch`, and `wk_binding_mismatch`.
+- For delivery inspection: `git_command_failed` (the Git call reported
+  failure) and `git_object_unresolved` (it answered no valid object id).
+
+A seam publishes only the reasons it declares. Any other value at that seam
+publishes `unexpected_exception`, including a lifecycle refusal made for a
+different seam and a closed carrier from another seam.
+
+The call site selects the cause, or reads it from an identity attribution. The
+lifecycle's own Git and binding helpers record that attribution privately when
+they create their refusal errors. The seam looks it up by object identity. A
+copied, proxied, or lookalike error has no attribution.
+
+Integration refusal classification comes only from the backend integration owner
+(`workspace-agent-dispatch-backend-integration.mjs`). When it classifies a
+non-integrated result, it registers a projection for that exact result object
+and its nested refusal:
+
+- `reason` is the producer's own reason string.
+- `diagnostic_code` is the source code, but only if it belongs to the owner's
+  closed integration diagnostic vocabulary. That vocabulary covers slice
+  integration, CCE policy refusal, committed-slice admission, backend
+  unavailability, and current-binding codes. Any other code is `null`.
+- `diagnostic_kind` is the refusal's existing CCE classification,
+  `returned_cce_policy_decision` or `configured_cce_evidence_failure`, when
+  present.
+- `public_blocker_code` is the owner's existing public blocker classification.
+
+The lifecycle does not reclassify anything: it looks up the refusal its host
+adapter returned by identity. A refusal that did not come from this owner in this
+process — copied, serialized, proxied, or caller-built — is classified with all
+four fields `null`. Its content is still published whole as evidence.
+
+Every publication path rebuilds `failure_cause` field by field from these
+vocabularies, and the retained-failure ring does the same. A widened or
+inconsistent value is reduced to its closed fields. A hostile or unrecognized
+value is removed. `failure_cause` grants no retry, recovery, integration, or
+completion authority.
+
+THE GENERIC PAIR STILL CLASSIFIES EVERY OTHER REJECTION. It applies to the
+lifecycle's own typed refusals outside the named seams — missing delivery,
+tuple-resolution failure, continuation mismatch, recovered-state refusals — and
+to any rejection thrown outside the seams (including a copied or proxied
+carrier). Those envelopes carry no `failure_cause`; their typed code, message,
+detail, stack, and cause are in the evidence. Nothing about terminality,
+`next_action`, attempt accounting, retry behavior, or the bounds of the
+retained-failure ring changes.
 
 ## Managed server process-invariant fail-stop
 
@@ -653,11 +1094,10 @@ depend on the shared [crash-durable state substrate](mcp-dispatch-runtime-contra
 
 ## Subject-partitioned attempt journal
 
-`work record` replaced the cross-store managed-worker reservation with one
-subject-partitioned, digest-chained attempt journal. This section states the
-authority, transition, release, and failure boundaries that replaced it. It does
-not change the `work record` crash-durable publication or liveness authority: that
-substrate remains the mechanism owner and interprets no field written here.
+Managed-worker reservations use one subject-partitioned, digest-chained attempt
+journal. This section describes its event bindings, reservation transitions,
+release, and failure boundaries. The crash-durable publisher and existing
+liveness oracle retain their separate responsibilities.
 
 ### Ownership
 
@@ -686,12 +1126,26 @@ reservation whose unreadable tail can block unrelated subjects. A damaged
 partition blocks exactly its own subject.
 
 Every event binds the schema version, repository, exact subject, launcher-minted
-attempt tuple, monotonically contiguous sequence, prior-event digest, the exact
-canonical contract-generation digest, the exact accumulated WK tip, a closed
-event kind and payload, and its own digest. Generation and WK tip are frozen at
-`reservation_claimed` and must be repeated identically by every later event for
-that attempt. An unknown version, an extra key, a sequence gap, a chain break, a
-content-tampered digest, or a binding mismatch refuses that partition only.
+attempt tuple, monotonically contiguous sequence, prior-event digest,
+`generation_digest`, `wk_tip`, a closed event kind and payload, and its own
+digest. The two identity fields are frozen at `reservation_claimed` and repeated
+identically by every later event for that attempt. An unknown version, an extra
+key, a sequence gap, a chain break, a content-tampered digest, or a binding
+mismatch refuses that partition only.
+
+The production dispatch path claims the reservation before resolving the
+attempt's contract generation and accumulated WK tip. Its reservation adapter
+therefore fills `generation_digest` with `reservation-generation:<reservationId>`
+and `wk_tip` with `reservation-tip:<reservationId>`. These values identify the
+reservation; they are not a canonical contract digest or Git commit. The journal
+tuple also initially names the reservation, with launch ref
+`managed-run-subject-reservation`, run ID equal to the reservation ID, and retry
+ID zero. That reservation tuple is not the execution tuple and keeps retry id
+zero. The launcher attaches the execution tuple, with the provisioning pair's
+retry id, in the `pending_published` payload without replacing the frozen event
+tuple or identity fields. Historical events are not rewritten. The adapter
+can freeze explicitly supplied generation and tip values, but the current
+dispatch caller supplies neither.
 
 ### Retired mechanisms
 
@@ -747,10 +1201,22 @@ subject from a running launcher.
 
 ### Staleness
 
-An attempt whose frozen generation digest or accumulated WK tip is no longer
-current is historical. It authorizes no new spawn, delivery adoption, integration
-intent, terminal candidate, or publication, but it retains any possibly live
-execution reservation until exact authenticated release proof arrives.
+The reducer can compare frozen identities with the optional
+`currentGenerationDigest` and `currentWkTip` inputs. A supplied value that differs
+marks the attempt stale and prevents it from authorizing further work while
+retaining its reservation until exact authenticated release proof arrives. The
+production reservation adapter supplies neither input, so its journal reduction
+does not establish canonical contract-generation or WK-tip freshness.
+
+Managed implementation dispatch separately resolves, persists, and verifies the
+actual contract generation through the existing provisioning owner. After scope
+settlement and pending identity publication, the launcher independently
+authenticates the current WK tip and revalidates the allocated transition before
+invoking the executor. These checks do not rewrite the reservation journal's
+frozen identities. See [Controlled-contract generation is an implementation
+pre-execution gate](mcp-dispatch-runtime-contract.md#controlled-contract-generation-is-an-implementation-pre-execution-gate)
+for the generation and execution-binding contract. Integration, terminal
+candidate construction, and publication retain their own authority checks.
 
 ### The attempt-scoped supervisor
 

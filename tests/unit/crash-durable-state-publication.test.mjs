@@ -15,6 +15,7 @@ import {
   createAsyncEffects,
   createSyncEffects,
   planLogicalAppend,
+  planPreparedReplacement,
   planReplacement,
   runCrashDurablePlanAsync,
   runCrashDurablePlanSync
@@ -196,6 +197,42 @@ test("a logical append is a serialized copy-on-write publication of the complete
   );
 });
 
+test("a prepared replacement publishes the caller's closed file without rewriting it", async (t) => {
+  const dirs = [];
+  t.after(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+  const preparedBytes = Buffer.from([0x53, 0x51, 0x4c, 0x00, 0xff, 0x01]);
+  for (const boundary of [null, CRASH_DURABLE_FAULTS.FILE_SYNCED,
+    CRASH_DURABLE_FAULTS.TARGET_PUBLISHED, CRASH_DURABLE_FAULTS.DIRECTORY_SYNCED]) {
+    const dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "prepared-publication-")));
+    dirs.push(dir);
+    const targetPath = seedPriorTarget(dir);
+    const privatePath = path.join(dir, ".candidate-owned");
+    writeFileSync(privatePath, preparedBytes);
+    const plan = planPreparedReplacement({ targetPath, privatePath });
+    assert.deepEqual(plan.steps.map((entry) => entry.effect), [
+      CRASH_DURABLE_EFFECTS.SYNC_FILE,
+      CRASH_DURABLE_EFFECTS.PUBLISH_RENAME,
+      CRASH_DURABLE_EFFECTS.SYNC_DIRECTORY
+    ], "no create or write step can recreate or truncate the prepared file");
+    const result = await runCrashDurablePlanAsync(plan,
+      createAsyncEffects({ faultInjector: injectorFor(boundary) }));
+    const renamed = result.trace.some((entry) =>
+      entry.effect === CRASH_DURABLE_EFFECTS.PUBLISH_RENAME && entry.outcome === "ok");
+    if (boundary === null || boundary === CRASH_DURABLE_FAULTS.DIRECTORY_SYNCED) {
+      assert.equal(renamed, true, `${boundary}: the completed-effect trace records the rename`);
+      assert.deepEqual(readFileSync(targetPath), preparedBytes, `${boundary}: prepared bytes are published intact`);
+    } else {
+      assert.equal(renamed, false, `${boundary}: no rename effect completed`);
+      assert.equal(readFileSync(targetPath, "utf8"), PRIOR_BYTES, `${boundary}: the prior target is untouched`);
+      assert.equal(existsSync(privatePath), false, `${boundary}: only the owned private file is discarded`);
+    }
+  }
+  assert.throws(() => planPreparedReplacement({ targetPath: "/tmp/a/graph.sqlite",
+    privatePath: "/tmp/b/candidate.sqlite" }), /sibling/u);
+});
+
 test("the plan is immutable and performs no I/O of its own", () => {
   const plan = planReplacement({
     targetPath: "/tmp/x/target.json",
@@ -255,8 +292,9 @@ test("promoting the helper into wiki-core adds no package, dependency edge, or c
 
   assert.deepEqual(
     Object.keys(wikiCore.dependencies ?? {}).sort(),
-    ["@agent-chassis/controlled-contract", "@vscode/tree-sitter-wasm", "ajv", "protobufjs", "web-tree-sitter"],
-    "wiki-core's dependency set is unchanged by this promotion"
+    ["@agent-chassis/controlled-contract", "@bufbuild/protobuf", "@scip-code/scip",
+      "@vscode/tree-sitter-wasm", "ajv", "protobufjs", "web-tree-sitter"],
+    "wiki-core's dependency set gains nothing from this promotion"
   );
 
   assert.ok(

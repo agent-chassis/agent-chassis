@@ -18,7 +18,7 @@ function forgeRefusal({ code, decidingFacts, observedFacts, carried = null }) {
     carried
   });
 }
-const description = "Request exact terminal-candidate publication through the host forge executor. Reviewer/redteam evidence is advisory: clean output does not authorize and findings do not veto. CCE owns configured policy; invalid evidence fails closed, while no gate uses DEC-0133 free-substrate posture. Orchestrator/operator only. Input is a workspace alias and record-level assigned_unit. The server derives candidate, base, record, materialization, remote, branch, and PR. Cold recovery accepts only a mechanically authenticated current-v2 candidate ref; absent or inconsistent facts fail closed. Candidate construction occurs only in the hot post-worker lifecycle. Landing movement does not invalidate review or block unchanged candidate publication; forge and CCE own merge readiness. Exact branch and PR state recovers without duplication. Credentials and raw process output never enter requests or results.";
+const description = "Publish the exact reviewed terminal candidate through the host forge. Server derives refs and PR; retries recover idempotently. Reviews are advisory; CCE owns policy. Cold recovery requires an authenticated current candidate. Orchestrator/operator only.";
 export function registerForgeHandoffRoute(ctx) {
   const { registerTool, workspaceRepos, z, jsonContent, resolveWorkspaceRepo, invokeWkForgeHandoffAdapter } = ctx;
   registerTool(WK_FORGE_HANDOFF_TOOL_NAME, {
@@ -58,8 +58,8 @@ export function registerForgeHandoffRoute(ctx) {
         forge_handoff: outcome.forge_handoff, blocker: null });
       const refusal = outcome && typeof outcome.refusal === "object" && outcome.refusal !== null
         ? outcome.refusal : {};
-      const publicCode = mapBackendRefusalToDispatchCode(refusal.code) ??
-        DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
+
+      const publicCode = mapBackendRefusalToDispatchCode(refusal.code);
       return jsonContent(buildBlockedDispatchResult({
         blockerCode: publicCode,
         reason: typeof refusal.reason === "string" ? refusal.reason : "wk_forge_handoff_refused",
@@ -82,12 +82,13 @@ export function registerForgeHandoffRoute(ctx) {
       }));
     } catch (error) {
       return jsonContent(buildBlockedDispatchResult({
-        blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+
+        blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
         reason: "dispatch_tool_exception",
         detail: buildDispatchToolExceptionDetail(WK_FORGE_HANDOFF_TOOL_NAME, error),
 
         refusal: forgeRefusal({
-          code: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+          code: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
           decidingFacts: [
             { field: "forge_handoff.route_completed", value: false }
           ],

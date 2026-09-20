@@ -1,12 +1,17 @@
 
 
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   createWriteStream,
   fstatSync,
   lstatSync,
   mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
   writeFileSync
 } from "node:fs";
 import os from "node:os";
@@ -21,9 +26,8 @@ import {
 import {
   STDIO_MCP_READY_FD
 } from "./stdio-mcp-conduit-contract.mjs";
-import {
-  WIKI_MCP_COMMON_PROOF_RESOLVER_FD
-} from "./wiki-mcp-common-proof-resolver-capability.mjs";
+import { measureControlledAuthoringJourney } from
+  "./controlled-authoring-journey-measurement.mjs";
 
 export const STDIO_MCP_TRANSCRIPT_SCHEMA_VERSION = "launcher-stdio-mcp-transcript.v2";
 export const STDIO_MCP_TRANSCRIPT_CAPTURE_BOUNDARY = "stdio-mcp-conduit-generation-spawn";
@@ -36,9 +40,153 @@ const FORWARDED_SIGNALS = Object.freeze(["SIGTERM", "SIGINT", "SIGHUP"]);
 const MAX_RECORDED_CAPTURE_ERRORS = 32;
 const AUXILIARY_DESCRIPTORS = Object.freeze([
   Object.freeze({ fd: STDIO_MCP_READY_FD, optional: false }),
-  Object.freeze({ fd: LAUNCHER_NO_CCE_AUTHORITY_FD, optional: true }),
-  Object.freeze({ fd: WIKI_MCP_COMMON_PROOF_RESOLVER_FD, optional: false })
+  Object.freeze({ fd: LAUNCHER_NO_CCE_AUTHORITY_FD, optional: true })
 ]);
+
+function localEvidenceDigest(value) {
+  return `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+}
+
+export const STDIO_MCP_SERVER_SOURCE_CENSUS_SCHEMA_VERSION = "stdio-mcp-server-source-census.v1";
+export const STDIO_MCP_SERVER_SOURCE_CENSUS_LIMITS = Object.freeze({
+  max_files: 50_000,
+  max_bytes: 2 * 1024 * 1024 * 1024
+});
+
+function readJsonObject(file) {
+  try {
+    const value = JSON.parse(readFileSync(file, "utf8"));
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function isWithin(parent, child) {
+  const relative = path.relative(parent, child);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function selectSourceCensus(entrypoint) {
+  let nearestPackage = null;
+  for (let directory = path.dirname(entrypoint); ; directory = path.dirname(directory)) {
+    const manifest = readJsonObject(path.join(directory, "package.json"));
+    if (manifest !== null) {
+      nearestPackage ??= directory;
+      const workspaces = Array.isArray(manifest.workspaces) ? manifest.workspaces : null;
+      if (workspaces !== null && workspaces.every((entry) => typeof entry === "string" &&
+          !entry.includes("*") && !path.isAbsolute(entry))) {
+        const members = workspaces.map((entry) => path.resolve(directory, entry)).sort();
+        const rootFiles = ["package.json", "package-lock.json"].map((name) => path.join(directory, name));
+        if (members.some((member) => isWithin(member, entrypoint))) {
+          return { kind: "workspace_packages", root: directory,
+            directories: members, files: rootFiles };
+        }
+
+        return { kind: "workspace_packages_and_entrypoint", root: directory,
+          directories: members, files: [...rootFiles, entrypoint] };
+      }
+    }
+    if (path.dirname(directory) === directory) break;
+  }
+  if (nearestPackage !== null) {
+    return { kind: "package", root: nearestPackage, directories: [nearestPackage], files: [] };
+  }
+  return { kind: "entrypoint_file", root: path.dirname(entrypoint), directories: [],
+    files: [entrypoint] };
+}
+
+function unavailableSource(reason, observedAt, extra = {}) {
+  return Object.freeze({ schema_version: STDIO_MCP_SERVER_SOURCE_CENSUS_SCHEMA_VERSION,
+    state: "unavailable", reason, observed_at: observedAt, ...extra });
+}
+
+export function observeStdioMcpServerSource({ entrypoint, cwd = process.cwd(),
+  now = () => new Date(), limits = STDIO_MCP_SERVER_SOURCE_CENSUS_LIMITS } = {}) {
+  const observedAt = now().toISOString();
+  if (typeof entrypoint !== "string" || entrypoint.length === 0) {
+    return unavailableSource("entrypoint_missing", observedAt);
+  }
+  let resolvedEntrypoint;
+  try {
+    resolvedEntrypoint = realpathSync(path.resolve(cwd, entrypoint));
+    if (!lstatSync(resolvedEntrypoint).isFile()) {
+      return unavailableSource("entrypoint_not_regular_file", observedAt);
+    }
+  } catch (error) {
+    return unavailableSource("entrypoint_unreadable", observedAt, { code: error?.code ?? null });
+  }
+  const census = selectSourceCensus(resolvedEntrypoint);
+  const records = [];
+  let bytes = 0;
+  const addFile = (absolute, { optional = false } = {}) => {
+    const relative = path.relative(census.root, absolute).split(path.sep).join("/");
+    let stats;
+    try {
+      stats = lstatSync(absolute);
+    } catch (error) {
+      if (optional && error?.code === "ENOENT") return;
+      throw error;
+    }
+    if (stats.isSymbolicLink()) {
+      records.push(`L\0${relative}\0${readlinkSync(absolute)}`);
+    } else if (stats.isFile()) {
+      bytes += stats.size;
+      if (records.length >= limits.max_files || bytes > limits.max_bytes) {
+        throw Object.assign(new Error("source census bound exceeded"),
+          { code: "census_bound_exceeded" });
+      }
+      const content = readFileSync(absolute);
+      records.push(`F\0${relative}\0${content.length}\0${
+        createHash("sha256").update(content).digest("hex")}`);
+    }
+  };
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })
+      .sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))) {
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== "node_modules") walk(absolute);
+      } else {
+        addFile(absolute);
+      }
+    }
+  };
+  try {
+    for (const directory of census.directories) walk(directory);
+    for (const file of census.files) addFile(file, { optional: census.kind === "workspace_packages" });
+  } catch (error) {
+    return unavailableSource(error?.code === "census_bound_exceeded"
+      ? "census_bound_exceeded" : "census_unreadable", observedAt,
+    { kind: census.kind, code: typeof error?.code === "string" ? error.code : null });
+  }
+  records.sort();
+  const contentDigest = `sha256:${createHash("sha256")
+    .update(`${STDIO_MCP_SERVER_SOURCE_CENSUS_SCHEMA_VERSION}\n${census.kind}\n${records.join("\n")}`)
+    .digest("hex")}`;
+  return Object.freeze({ schema_version: STDIO_MCP_SERVER_SOURCE_CENSUS_SCHEMA_VERSION,
+    state: "observed", reason: null, kind: census.kind, observed_at: observedAt,
+    entry_count: records.length, byte_count: bytes, content_digest: contentDigest });
+}
+
+export function settleStdioMcpServerSourceObservation(before, after) {
+  const common = { schema_version: STDIO_MCP_SERVER_SOURCE_CENSUS_SCHEMA_VERSION,
+    observed_before_spawn_at: before?.observed_at ?? null,
+    observed_after_close_at: after?.observed_at ?? null };
+  if (before?.state !== "observed" || after?.state !== "observed") {
+    return Object.freeze({ ...common, state: "unavailable",
+      reason: before?.state !== "observed" ? before?.reason ?? "not_observed"
+        : after?.reason ?? "not_observed",
+      kind: before?.kind ?? after?.kind ?? null, content_digest: null });
+  }
+  if (before.content_digest !== after.content_digest || before.kind !== after.kind) {
+    return Object.freeze({ ...common, state: "changed", reason: "source_changed_during_session",
+      kind: before.kind, content_digest: null });
+  }
+  return Object.freeze({ ...common, state: "stable", reason: null, kind: before.kind,
+    entry_count: before.entry_count, byte_count: before.byte_count,
+    content_digest: before.content_digest });
+}
 
 function launcherUid() {
   return typeof process.getuid === "function" ? process.getuid() : null;
@@ -138,7 +286,8 @@ export async function runStdioMcpTranscriptCapture({
   errorOutput = process.stderr,
   env = process.env,
   cwd = process.cwd(),
-  now = () => new Date()
+  now = () => new Date(),
+  modelTokenObservation = null
 } = {}) {
   const captureErrors = [];
   const noteCaptureError = (stage, error) => {
@@ -176,6 +325,13 @@ export async function runStdioMcpTranscriptCapture({
       stdio.push("ignore");
       if (!optional) noteCaptureError(`auxiliary_fd_${fd}_unavailable`, error);
     }
+  }
+
+  let sourceBefore;
+  try {
+    sourceBefore = observeStdioMcpServerSource({ entrypoint: serverArgs[0], cwd, now });
+  } catch (error) {
+    sourceBefore = unavailableSource("census_observation_failed", now().toISOString());
   }
 
   const child = spawn(execPath, serverArgs, { cwd, env, stdio, detached: false });
@@ -276,6 +432,38 @@ export async function runStdioMcpTranscriptCapture({
   for (const [signal, forward] of forwarders) process.off(signal, forward);
   await Promise.all([endStream(requestSink), endStream(responseSink), endStream(stderrSink)]);
 
+  let sourceAfter;
+  try {
+    sourceAfter = observeStdioMcpServerSource({ entrypoint: serverArgs[0], cwd, now });
+  } catch (error) {
+    sourceAfter = unavailableSource("census_observation_failed", now().toISOString());
+  }
+  const serverSource = settleStdioMcpServerSourceObservation(sourceBefore, sourceAfter);
+
+  let journeyMeasurement = null;
+  if (evidenceOpen) {
+    try {
+      journeyMeasurement = measureControlledAuthoringJourney({
+        requestBytes: readFileSync(path.join(sessionDirectory, "request.bin")),
+        responseBytes: readFileSync(path.join(sessionDirectory, "response.bin")),
+        evidenceIdentity: {
+          run_id: path.basename(sessionDirectory), side: "observed",
+          journey: "stdio_mcp_session", task_identity: localEvidenceDigest({
+            capture_boundary: STDIO_MCP_TRANSCRIPT_CAPTURE_BOUNDARY,
+            server_entrypoint: serverArgs[0] ?? null }),
+          source: { identity: localEvidenceDigest({ execPath, serverArgs }),
+            ...(serverSource.content_digest === null
+              ? {} : { content_digest: serverSource.content_digest }) },
+          runtime: { identity: `node:${process.version}` },
+          configuration: { identity: localEvidenceDigest({ cwd,
+            capture_schema: STDIO_MCP_TRANSCRIPT_SCHEMA_VERSION }) }
+        },
+        modelTokenObservation
+      });
+    } catch (error) {
+      noteCaptureError("journey_measurement", error);
+    }
+  }
   const complete = evidenceOpen && captureErrors.length === 0;
   writeSession({
     ...baseState(),
@@ -286,7 +474,9 @@ export async function runStdioMcpTranscriptCapture({
     request_bytes: requestTee.bytes,
     response_bytes: responseTee.bytes,
     server_stderr_bytes: stderrTee.bytes,
-    capture_errors: [...captureErrors]
+    capture_errors: [...captureErrors],
+    server_source: serverSource,
+    controlled_authoring_journey: journeyMeasurement
   });
 
   return {
@@ -297,7 +487,8 @@ export async function runStdioMcpTranscriptCapture({
     requestBytes: requestTee.bytes,
     responseBytes: responseTee.bytes,
     serverStderrBytes: stderrTee.bytes,
-    captureErrors: [...captureErrors]
+    captureErrors: [...captureErrors],
+    serverSource
   };
 }
 

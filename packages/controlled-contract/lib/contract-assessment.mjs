@@ -11,41 +11,18 @@ import {
   writeFile
 } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
 
 import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { checkContract } from "../bin/check-contract.mjs";
 import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
-import { captureExactBoundAssessmentInputsV1 } from "./exact-binding-assessment.mjs";
-import { projectedEvaluationEnvelopeFor } from "./exact-binding-capture.mjs";
-import {
-  createGraphSelectionTrace,
-  evaluateProjectedEvaluationBinding,
-  hasTrustedProjectedSelection
-} from "./projected-evaluation-binding.mjs";
-import {
-  assertCapturedExactBindingResult,
-  exactBindingSupplementContext,
-  semanticDeclarationDiagnostics
-} from "./exact-binding.mjs";
 import { resolveClosedPopulationV1 } from "./population-semantics-v1.mjs";
-import { canonicalDigest as exactCanonicalDigest }
-  from "./exact-binding-common.mjs";
 import {
-  VOCABULARY_DIGESTS,
-  VOCABULARY_VERSION
-} from "./vocabulary-v1.mjs";
-import {
-  StableVerificationError,
-  evaluateVerificationProfileV1
-} from "./verification-profile-v1.mjs";
+  evaluateAdmittedPack,
+  matchedProfileCoveredClaims
+} from "./selected-pack-claim-participation.mjs";
 import { profileDigest } from "./profile-digest.mjs";
 import {
-  registerAssessmentSupplementContext
-} from "./lossless-supplement-context.mjs";
-import {
   compactAssessmentOutput,
-  evaluateAdmittedTestValidity,
   markdownAssessment
 } from "./test-proof-assessment.mjs";
 
@@ -68,11 +45,6 @@ const LOSSLESS_FILES = Object.freeze([
   "structural.full.json",
   "admitted-proof.full.json",
   "proof-pack-admission.full.json",
-  "manifest.json"
-]);
-const EXACT_BOUND_LOSSLESS_FILES = Object.freeze([
-  ...LOSSLESS_FILES.slice(0, -1),
-  "exact-binding.full.json",
   "manifest.json"
 ]);
 const assessmentImplementationSource = await readFile(
@@ -336,20 +308,52 @@ function collectDiagnostics(structural, evaluation, bindings) {
   ));
 }
 
-function coveredClaims(evaluation) {
-  const patternsByClaim = new Map();
-  for (const result of evaluation?.pattern_results ?? []) {
-    if (result.pattern_kind !== "claim" || result.status !== "satisfied") continue;
-    for (const claimId of result.matched_ids ?? []) {
-      const patternIds = patternsByClaim.get(claimId) ?? [];
-      patternIds.push(result.pattern_id);
-      patternsByClaim.set(claimId, patternIds);
+function assessmentStages({ contract, evaluationInput, evaluation, diagnostics,
+  structure, admissionValid, profileDiscrimination }) {
+  const runtimeDiagnostic = ({ source, detail }) =>
+    source === "admitted_profile_evaluation" &&
+    (detail.code?.startsWith("test_validity_") ||
+      /^\/stable_evaluation(?:\/test_validity(?:\/|$)|$)/u.test(
+        detail.pointer ?? detail.field ?? ""));
+  const witnesses = evaluationInput?.stable_evaluation?.test_validity;
+  const expectedProofs = evaluation?.stable_evaluation?.test_validity_evaluated === true ||
+    diagnostics.some(runtimeDiagnostic) ? contract.test_proofs ?? [] : [];
+  const expected = expectedProofs.length;
+  const supplied = Array.isArray(witnesses) ? witnesses.length : 0;
+  const absent = evaluation !== null && expected > 0 &&
+    (witnesses === undefined || Array.isArray(witnesses) && witnesses.length === 0);
+  const validEvaluation = evaluation?.input_valid === true &&
+    evaluation.contract_valid === true && evaluation.profile_valid === true &&
+    evaluation.omitted_count === 0;
+  const classified = diagnostics.map((diagnostic) => {
+    const { detail } = diagnostic;
+    return { ...diagnostic, assessment_stage: runtimeDiagnostic(diagnostic)
+      ? absent && validEvaluation &&
+        detail.code === "test_validity_witness_population_incomplete"
+        ? "execution_pending" : "execution_evidence"
+      : "authoring" };
+  });
+  const pending = classified.filter(({ assessment_stage: stage }) =>
+    stage === "execution_pending").length;
+
+  const patternsComplete = (evaluation?.pattern_results?.length ?? 0) > 0 &&
+    evaluation.pattern_results.every(({ status }) => status === "satisfied");
+  const complete = structure === "proven" && admissionValid &&
+    (profileDiscrimination === "proven" ||
+      pending > 0 && pending === classified.length && patternsComplete);
+  return {
+    diagnostics: classified,
+    stage_assessment: {
+      authoring_state: evaluation === null ? "not_assessed"
+        : complete ? "complete" : "incomplete",
+      execution_gap_count: pending,
+      expected_witness_count: expected,
+      supplied_witness_count: supplied,
+      missing_witness_count: expectedProofs.filter(
+        ({ test_proof_id: id }) => !Array.isArray(witnesses) ||
+          !witnesses.some((witness) => witness?.test_proof_id === id)).length
     }
-  }
-  return [...patternsByClaim.entries()].map(([claimId, patternIds]) => ({
-    claim_id: claimId,
-    pattern_ids: [...new Set(patternIds)].sort(compareCodeUnits)
-  })).sort((left, right) => compareCodeUnits(left.claim_id, right.claim_id));
+  };
 }
 
 function verifiedEdges(contract) {
@@ -625,7 +629,7 @@ function reviewActions(grounding, reviewSignals) {
   return actions;
 }
 
-function requiredNextEvidence({ structure, profileDiscrimination, exactBinding, categories,
+function requiredNextEvidence({ structure, profileDiscrimination, categories,
   exclusions, residue, diagnostics, contract }) {
   const required = [];
   const structuralDiagnostics = diagnostics.filter(({ source }) =>
@@ -641,7 +645,16 @@ function requiredNextEvidence({ structure, profileDiscrimination, exactBinding, 
     description: "Resolve the reported schema, carrier, or decomposition diagnostics without a more specific mechanical mapping.",
     requiredBindings: ["controlled_contract"]
   }));
-  if (profileDiscrimination === "not_proven") required.push(action({
+  const runtimeDiagnostics = diagnostics.filter(({ assessment_stage: stage }) =>
+    stage === "execution_pending" || stage === "execution_evidence");
+  if (runtimeDiagnostics.length > 0) required.push(action({
+    code: "test_validity_runtime_evidence_required",
+    description: "Resolve the current candidate, observed test inventory and exact runtime-pack prerequisites through the runtime owner, then obtain authenticated candidate, falsifier and traversal observations. Requirements and coverage mappings cannot supply executed evidence.",
+    requiredBindings: ["current_execution_candidate", "runtime_test_inventory", "runtime_proof_evidence"]
+  }));
+  if (profileDiscrimination === "not_proven" &&
+      (runtimeDiagnostics.length === 0 || diagnostics.some(
+        ({ assessment_stage: stage }) => stage === "authoring"))) required.push(action({
     code: "admitted_profile_remediation",
     description: "Supply a satisfied evaluation under a current release-certified proof pack.",
     requiredBindings: ["immutable_proof_pack", "evaluation_input"]
@@ -650,11 +663,6 @@ function requiredNextEvidence({ structure, profileDiscrimination, exactBinding, 
     code: "admitted_profile_assessment",
     description: "Run an admitted, adequacy-verified proof profile against the controlled graph.",
     requiredBindings: ["immutable_proof_pack", "evaluation_input"]
-  }));
-  if (exactBinding === "not_proven") required.push(action({
-    code: "exact_binding_remediation",
-    description: "Supply every declared exact-binding source and satisfy each captured content or identity relation.",
-    requiredBindings: ["exact_binding_sources", "deterministic_capture"]
   }));
   if (categories.outside_selected_profile.length > 0) required.push(action({
     code: "mandatory_claims_outside_profile",
@@ -683,138 +691,12 @@ function requiredNextEvidence({ structure, profileDiscrimination, exactBinding, 
   return [...new Map(required.map((entry) => [canonicalJson(entry), entry])).values()];
 }
 
-function overallCode(structure, profileDiscrimination, exactBinding, residueStatus) {
-  const axes = [
-    `structure_${structure}`,
-    `profile_${profileDiscrimination}`
-  ];
-  if (exactBinding !== "not_applicable") axes.push(`exact_binding_${exactBinding}`);
+function overallCode(structure, profileDiscrimination, residueStatus) {
   return [
-    ...axes,
+    `structure_${structure}`,
+    `profile_${profileDiscrimination}`,
     `residue_${residueStatus}`
   ].join("__");
-}
-
-function expectedExactBindingContext(pack, contract, evaluationInput) {
-  return {
-    contract_digest: exactCanonicalDigest(contract),
-    profile_digest: profileDigest(pack.profile),
-    evaluation_input_digest: exactCanonicalDigest(evaluationInput),
-    vocabulary_version: VOCABULARY_VERSION,
-    vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
-    admission_digest: pack.admission_digest,
-    exact_binding_declaration_digest: pack.exact_binding_declaration_digest,
-    exact_binding_certification_digest: pack.exact_binding_certification_digest
-  };
-}
-
-function coverageShape(coverage) {
-  return canonicalJson({
-    role: coverage.role,
-    projection: coverage.projection,
-    population_id: coverage.population_id ?? null,
-    projection_id: coverage.projection_id ?? null
-  });
-}
-
-function declarationBindingDiagnostics(pack, result) {
-  if (result === null || result.satisfaction !== "satisfied") return [];
-  const diagnostics = [];
-
-  for (const detail of semanticDeclarationDiagnostics(pack.declaration ?? {})) {
-    diagnostics.push({
-      code: "exact_binding_declaration_result_mismatch",
-      field: "declaration.schema",
-      declaration_diagnostic_code: detail.code
-    });
-  }
-  const mismatch = (field, requirementId) => diagnostics.push({
-    code: "exact_binding_declaration_result_mismatch",
-    field,
-    ...(requirementId === undefined ? {} : { requirement_id: requirementId })
-  });
-
-  for (const [field, expected] of [
-    ["declaration.profile_id", pack.profile?.profile_id],
-    ["declaration.profile_version", pack.profile?.profile_version],
-    ["declaration.profile_digest", profileDigest(pack.profile)]
-  ]) {
-    const actual = pack.declaration?.[field.slice("declaration.".length)];
-    if (actual !== expected) mismatch(field);
-  }
-  const declared = new Map((pack.declaration?.requirements ?? []).map(
-    (requirement) => [requirement.requirement_id, requirement]
-  ));
-  const captured = new Map((result.bindings ?? []).map(
-    (binding) => [binding.requirement_id, binding]
-  ));
-  for (const requirementId of captured.keys()) {
-    if (!declared.has(requirementId)) mismatch("requirements", requirementId);
-  }
-  for (const [requirementId, requirement] of declared) {
-    const binding = captured.get(requirementId);
-    if (!binding) {
-      mismatch("requirements", requirementId);
-      continue;
-    }
-    if (binding.binding_kind !== requirement.binding_kind) {
-      mismatch("binding_kind", requirementId);
-    }
-
-    if (requirement.expected_content_sha256 !== undefined &&
-        requirement.expected_content_sha256 !== binding.content_sha256) {
-      mismatch("expected_content_sha256", requirementId);
-    }
-    const declaredCoverage = requirement.role_coverage.map(coverageShape).sort();
-    const capturedCoverage = binding.role_coverage.map(coverageShape).sort();
-    if (canonicalJson(declaredCoverage) !== canonicalJson(capturedCoverage)) {
-      mismatch("role_coverage", requirementId);
-    }
-  }
-  const capturedRelations = new Map((result.relation_results ?? []).map(
-    (relation) => [relation.relation_id, relation]
-  ));
-  for (const relation of pack.declaration?.relations ?? []) {
-    const observed = capturedRelations.get(relation.relation_id);
-    if (!observed || observed.operator !== relation.operator) {
-      mismatch("relations");
-      continue;
-    }
-    const declaredOperands = relation.operator === "deterministic_projection"
-      ? canonicalJson({
-          transformer_id: relation.transformer_id,
-          source_requirement_ids: relation.source_requirement_ids,
-          result_requirement_id: relation.result_requirement_id
-        })
-      : canonicalJson({ requirement_ids: relation.requirement_ids });
-    const observedOperands = relation.operator === "deterministic_projection"
-      ? canonicalJson({
-          transformer_id: observed.transformer_id,
-          source_requirement_ids: observed.source_requirement_ids,
-          result_requirement_id: observed.result_requirement_id
-        })
-      : canonicalJson({ requirement_ids: observed.requirement_ids });
-    if (declaredOperands !== observedOperands) mismatch("relations");
-  }
-  for (const relationId of capturedRelations.keys()) {
-    if (!(pack.declaration?.relations ?? []).some(
-      ({ relation_id: id }) => id === relationId
-    )) mismatch("relations");
-  }
-  return diagnostics;
-}
-
-function exactBindingDiagnostics(pack, contract, evaluationInput, result) {
-  if (result === null) return [];
-  assertCapturedExactBindingResult(result);
-  const expected = expectedExactBindingContext(pack, contract, evaluationInput);
-  return Object.entries(expected).flatMap(([field, value]) =>
-    result.context?.[field] === value ? [] : [{
-      field: `exact_binding.context.${field}`,
-      expected: value,
-      actual: result.context?.[field] ?? null
-    }]
-  );
 }
 
 function assertAssessmentValid(assessment) {
@@ -831,12 +713,10 @@ function projectContractAssessment({
   structuralResult,
   structuralInputSource,
   evaluationInput = null,
-  proofPack = null,
-  exactBindingResult = null,
-  exactBindingSources = null
+  proofPack = null
 }) {
-  if (!["structural_only", "admitted_profile", "exact_bound_profile"].includes(mode)) {
-    throw new Error("mode must be structural_only, admitted_profile, or exact_bound_profile");
+  if (!["structural_only", "admitted_profile"].includes(mode)) {
+    throw new Error("mode must be structural_only or admitted_profile");
   }
   if (sha256Bytes(canonicalJson(ASSESSMENT_SCHEMA)) !==
       sha256Bytes(canonicalJson(JSON.parse(assessmentSchemaText)))) {
@@ -855,25 +735,11 @@ function projectContractAssessment({
   if (canonicalJson(parsedStructuralInput) !== canonicalJson(contract)) {
     throw new Error("structural result source and supplied contract value differ");
   }
-  if (mode === "structural_only" &&
-      (evaluationInput !== null || proofPack !== null || exactBindingResult !== null ||
-        exactBindingSources !== null)) {
+  if (mode === "structural_only" && (evaluationInput !== null || proofPack !== null)) {
     throw new Error("structural_only mode rejects proof-profile inputs");
   }
-  if (mode !== "structural_only" &&
-      (!evaluationInput || !proofPack)) {
+  if (mode !== "structural_only" && (!evaluationInput || !proofPack)) {
     throw new Error("admitted_profile mode requires evaluation input and proof pack admission");
-  }
-  if (mode === "admitted_profile" && proofPack?.admission_version === 2) {
-    throw new Error("v2 proof packs require exact capture inputs and exact_bound_profile mode");
-  }
-  if (mode === "admitted_profile" && exactBindingSources !== null) {
-    throw new Error("admitted_profile mode rejects exact-binding sources");
-  }
-  if (mode === "exact_bound_profile" &&
-      (proofPack?.admission_version !== 2 || !exactBindingResult ||
-        !exactBindingSources)) {
-    throw new Error("exact_bound_profile requires a v2 pack and captured exact-binding result");
   }
 
   const contractSnapshot = clone(contract);
@@ -882,77 +748,24 @@ function projectContractAssessment({
   const evaluationInputSnapshot = evaluationInput === null ? null : clone(evaluationInput);
   const contractDigest = canonicalDigest(normalizeContractForIdentity(contractSnapshot));
   const assessmentSchemaDigest = canonicalDigest(ASSESSMENT_SCHEMA);
-  const selectionTrace = mode === "exact_bound_profile"
-    ? createGraphSelectionTrace() : null;
-  let evaluation = null;
-  if (mode !== "structural_only") try {
-    evaluation = pack.profile.schema_version === "controlled-contract-test-validity-profile.v1"
-      ? evaluateAdmittedTestValidity({
-          contract: clone(contractSnapshot),
-          evaluationInput: clone(evaluationInputSnapshot),
-          proofPack: pack
-        })
-      : evaluateVerificationProfileV1({
-          contract: clone(contractSnapshot),
-          profile: clone(pack.profile),
-          evaluation_input: clone(evaluationInputSnapshot)
-        }, selectionTrace === null ? {} : { graphSelectionSink: selectionTrace.sink });
-  } catch (error) {
-    if (!(error instanceof StableVerificationError)) throw error;
-    evaluation = {
-      satisfaction: "invalid",
-      profile: null,
-      admission: null,
-      diagnostics: clone(error.details?.diagnostics?.diagnostics ?? [{
-        code: error.code, message: error.message
-      }])
-    };
-  }
+
+  const evaluation = mode === "structural_only" ? null : evaluateAdmittedPack({
+    contract: contractSnapshot,
+    evaluationInput: evaluationInputSnapshot,
+    proofPack: pack
+  });
   const bindings = mode !== "structural_only"
     ? bindingDiagnostics(pack, evaluation)
     : [];
   const admissionValid = mode !== "structural_only" && bindings.length === 0;
   const structure = structureAxis(structuralSnapshot);
-  const exactBindings = mode === "exact_bound_profile"
-    ? [
-      ...exactBindingDiagnostics(
-        pack, contractSnapshot, evaluationInputSnapshot, exactBindingResult
-      ),
-      ...declarationBindingDiagnostics(pack, exactBindingResult)
-    ]
-    : [];
-  const projectedEnvelope = mode === "exact_bound_profile"
-    ? projectedEvaluationEnvelopeFor(exactBindingResult) : null;
-  const projectedEvaluation = mode === "exact_bound_profile"
-    ? evaluateProjectedEvaluationBinding({
-        declaredOptIn: pack.declaration?.projected_evaluation_binding ?? null,
-        envelope: projectedEnvelope,
-        exactBindingResult,
-        expectedContext: expectedExactBindingContext(
-          pack, contractSnapshot, evaluationInputSnapshot
-        ),
-        contract: contractSnapshot,
-        profile: pack.profile,
-        evaluation,
-        trace: selectionTrace.snapshot()
-      })
-    : { applicable: false, diagnostics: [] };
-  const exactBinding = mode === "exact_bound_profile"
-    ? exactBindings.length === 0 &&
-        bindings.length === 0 &&
-        projectedEvaluation.diagnostics.length === 0 &&
-        exactBindingResult.provenance?.capture_verified === true &&
-        exactBindingResult.satisfaction === "satisfied"
-      ? "proven"
-      : "not_proven"
-    : "not_applicable";
   const profileDiscrimination = mode === "structural_only"
     ? "not_assessed"
     : admissionValid && structure === "proven" &&
-        evaluation.satisfaction === "satisfied" && exactBinding !== "not_proven"
+        evaluation.satisfaction === "satisfied"
       ? "proven"
       : "not_proven";
-  const covered = coveredClaims(evaluation);
+  const covered = matchedProfileCoveredClaims(evaluation);
   const edges = verifiedEdges(contractSnapshot);
   const categories = mandatoryClaimCategories(contractSnapshot, covered, edges);
   const exclusions = proofExclusions(pack);
@@ -960,14 +773,23 @@ function projectContractAssessment({
     ? sortByKey(contractSnapshot.residue.map(clone), "residue_id")
     : [];
   const residueStatus = residueAxis(residue);
-  const diagnostics = [
+  const rawDiagnostics = [
     ...collectDiagnostics(structuralSnapshot, evaluation, bindings),
-    ...exactBindings.map((detail) => ({ source: "assessment_binding", detail })),
-    ...projectedEvaluation.diagnostics.map((detail) => ({
-      source: "assessment_binding",
-      detail: { ...detail, field: "exact_binding.projected_evaluation" }
-    }))
+
+    ...(profileDiscrimination === "proven" ? [] :
+      (evaluation?.pattern_results ?? []).filter(({ status }) =>
+        ["unsatisfied", "indeterminate"].includes(status)).map((result) => ({
+        source: "admitted_profile_evaluation",
+        detail: { code: "assessment_pattern_not_satisfied",
+          pattern_id: result.pattern_id, pattern_kind: result.pattern_kind,
+          status: result.status }
+      })))
   ];
+  const { diagnostics, stage_assessment: stageAssessment } = assessmentStages({
+    contract: contractSnapshot, evaluationInput: evaluationInputSnapshot,
+    evaluation, diagnostics: rawDiagnostics, structure, admissionValid,
+    profileDiscrimination
+  });
   const grounding = repositoryGrounding(contractSnapshot);
   const reviewSignals = collectionReviewSignals(structuralSnapshot);
 
@@ -978,8 +800,6 @@ function projectContractAssessment({
     ? null
     : canonicalValue(clone(evaluation));
   const normalizedAdmission = pack === null ? null : canonicalValue(clone(pack.admission));
-  const normalizedExactBinding = exactBindingResult === null
-    ? null : canonicalValue(clone(exactBindingResult));
   const sourceDigests = {
     contract: contractDigest,
     evaluation_input: evaluationInputSnapshot === null
@@ -994,11 +814,6 @@ function projectContractAssessment({
     adequacy_result: pack === null
       ? null
       : pack.admission.certification.adequacy_result_digest,
-    ...(mode === "exact_bound_profile" ? {
-      exact_binding_sources: exactCanonicalDigest(exactBindingSources),
-      exact_binding_declaration: pack.exact_binding_declaration_digest,
-      exact_binding_certification: pack.exact_binding_certification_digest
-    } : {}),
     structural_schema: structuralSnapshot.schema.sha256,
     assessment_schema: assessmentSchemaDigest,
     assessment_format: canonicalDigest(ASSESSMENT_FORMAT)
@@ -1010,10 +825,7 @@ function projectContractAssessment({
       : canonicalDigest(normalizedEvaluation),
     proof_pack_admission: normalizedAdmission === null
       ? null
-      : canonicalDigest(normalizedAdmission),
-    ...(mode === "exact_bound_profile" ? {
-      exact_binding: canonicalDigest(normalizedExactBinding)
-    } : {})
+      : canonicalDigest(normalizedAdmission)
   };
   const assessmentIdentity = canonicalDigest({
     assessment_schema_version: ASSESSMENT_SCHEMA_VERSION,
@@ -1028,26 +840,17 @@ function projectContractAssessment({
     schema_version: ASSESSMENT_SCHEMA_VERSION,
     assessment_identity: assessmentIdentity,
     structure,
+    stage_assessment: stageAssessment,
     profile_discrimination: profileDiscrimination,
-    ...(mode === "exact_bound_profile" ? { exact_binding: exactBinding } : {}),
     assessment_scope: "planning",
     residue_status: residueStatus,
     authority: "non_authoritative",
-    overall_code: overallCode(
-      structure, profileDiscrimination, exactBinding, residueStatus
-    ),
+    overall_code: overallCode(structure, profileDiscrimination, residueStatus),
     verification_scope: {
       graph_edge_coverage: "assessed",
       proof_plan_discrimination: admissionValid
         ? "assessed_by_admitted_profile"
-        : "not_assessed",
-      ...(mode === "exact_bound_profile" ? {
-        exact_binding_capture: "assessed_by_deterministic_capture",
-        projected_evaluation_binding: projectedEvaluation.applicable
-          ? (projectedEvaluation.diagnostics.length === 0
-            ? "bound_to_deterministic_projection" : "not_bound")
-          : "not_declared"
-      } : {})
+        : "not_assessed"
     },
     categorical_limits: {
       omitted_obligations: "The checker cannot discover an obligation omitted from the authored contract.",
@@ -1073,7 +876,6 @@ function projectContractAssessment({
     required_next_evidence: requiredNextEvidence({
       structure,
       profileDiscrimination,
-      exactBinding,
       categories,
       exclusions,
       residue,
@@ -1087,8 +889,7 @@ function projectContractAssessment({
     },
     lossless_report: {
       content_reference: contentReference,
-      files: [...(mode === "exact_bound_profile"
-        ? EXACT_BOUND_LOSSLESS_FILES : LOSSLESS_FILES)]
+      files: [...LOSSLESS_FILES]
     }
   };
   assertAssessmentValid(assessment);
@@ -1116,36 +917,9 @@ function projectContractAssessment({
     proofPackAdmission: reportEnvelope(
       "proof_pack_release_admission",
       normalizedAdmission
-    ),
-    exactBinding: reportEnvelope(
-      "exact_binding_capture",
-      normalizedExactBinding,
-      { exact_binding: exactBinding }
     )
   };
-  const projected = deepFreeze({ assessment: clone(assessment), reports: clone(reports) });
-  if (mode === "exact_bound_profile" &&
-      hasTrustedProjectedSelection(projectedEvaluation) &&
-      exactBindings.length === 0 && bindings.length === 0 &&
-      exactBindingResult.provenance?.capture_verified === true) {
-    const exactSupplementContext = exactBindingSupplementContext({
-      result: exactBindingResult,
-      declaration: pack.declaration,
-      declarationDigest: pack.exact_binding_declaration_digest,
-      sourceSet: exactBindingSources
-    });
-    registerAssessmentSupplementContext(projected, deepFreeze({
-      contract: clone(contractSnapshot),
-      evaluation_input: clone(evaluationInputSnapshot),
-      proof_pack: clone(pack),
-      exact_binding_declaration: exactSupplementContext.declaration,
-      exact_binding_result: exactSupplementContext.result,
-      exact_binding_sources: exactSupplementContext.source_set,
-      projected_envelope: projectedEnvelope,
-      projected_evaluation: projectedEvaluation
-    }));
-  }
-  return projected;
+  return deepFreeze({ assessment: clone(assessment), reports: clone(reports) });
 }
 
 async function readJsonSource(filePath, label) {
@@ -1188,52 +962,6 @@ async function assessContractFiles({
   return projected;
 }
 
-async function assessExactBoundContractFiles({
-  captureRoot,
-  contractPath,
-  profileId,
-  evaluationInputPath,
-  exactBindingSources
-}) {
-  const proofPack = await loadAdmittedProofPack(profileId);
-  if (proofPack.admission_version !== 2) throw new Error(
-    "exact capture inputs may be used only with a v2 exact-bound proof pack"
-  );
-  const captured = await captureExactBoundAssessmentInputsV1({
-    contractPath,
-    evaluationInputPath,
-    profileId,
-    exactBindingSources
-  }, {
-    captureRoot: path.resolve(captureRoot),
-    proofPack,
-    vocabularyIdentity: {
-      version: VOCABULARY_VERSION,
-      complete_digest: VOCABULARY_DIGESTS.complete
-    }
-  });
-  const temporary = await mkdtemp(path.join(os.tmpdir(), "cc-exact-assessment-"));
-  try {
-    const snapshotPath = path.join(temporary, "contract.json");
-    await writeFile(snapshotPath, captured.contractSource, { flag: "wx" });
-    const structuralResult = await checkContract(snapshotPath);
-    const projected = projectContractAssessment({
-      mode: "exact_bound_profile",
-      contract: captured.contract,
-      structuralResult,
-      structuralInputSource: captured.contractSource,
-      evaluationInput: captured.evaluationInput,
-      proofPack,
-      exactBindingResult: captured.exactBindingResult,
-      exactBindingSources: captured.exactBindingSources
-    });
-    PUBLISHABLE_ASSESSMENTS.add(projected);
-    return projected;
-  } finally {
-    await rm(temporary, { recursive: true, force: true });
-  }
-}
-
 async function assessStructuralContractFile({ inputPath }) {
   const resolvedInput = path.resolve(inputPath);
   const firstContractSource = await readJsonSource(resolvedInput, "controlled contract");
@@ -1261,9 +989,6 @@ function assessmentManifestFor(projected) {
     ["admitted-proof.full.json", canonicalJson(reports.admittedProof)],
     ["proof-pack-admission.full.json", canonicalJson(reports.proofPackAdmission)]
   ];
-  if (assessment.lossless_report.files.includes("exact-binding.full.json")) {
-    entries.push(["exact-binding.full.json", canonicalJson(reports.exactBinding)]);
-  }
   const files = new Map(entries);
   return deepFreeze({
     manifest_version: ASSESSMENT_MANIFEST_VERSION,
@@ -1287,9 +1012,6 @@ function bundleBytes(projected) {
     ["admitted-proof.full.json", canonicalJson(reports.admittedProof)],
     ["proof-pack-admission.full.json", canonicalJson(reports.proofPackAdmission)]
   ]);
-  if (assessment.lossless_report.files.includes("exact-binding.full.json")) {
-    files.set("exact-binding.full.json", canonicalJson(reports.exactBinding));
-  }
   const manifest = assessmentManifestFor(projected);
   files.set("manifest.json", canonicalJson(manifest));
   return files;
@@ -1458,10 +1180,8 @@ export {
   ASSESSMENT_SCHEMA_VERSION,
   ASSESSMENT_TOOL_VERSION,
   AssessmentArtifactError,
-  EXACT_BOUND_LOSSLESS_FILES,
   LOSSLESS_FILES,
   assessContractFiles,
-  assessExactBoundContractFiles,
   assessStructuralContractFile,
   bundleBytes,
   canonicalDigest,

@@ -12,7 +12,8 @@ import {
 const INTEGRATION_LIMBS = [
   "backend_unavailable",
   "validation_failure",
-  "operator_recovery_needed"
+  "agent_launch.slice_integration.cce_policy_refused.v1",
+  "agent_launch.slice_integration.classification_unavailable.v1"
 ];
 
 test("committed-slice integration uses exact public recovery limbs", () => {
@@ -36,7 +37,12 @@ test("integration taxonomy documents launcher ownership without diagnostic infer
   assert.doesNotMatch(notes, /AGENTS\.md|DEC-0164|review receipt|reviewer result|disposition/iu);
   assert.deepEqual(
     entries.map((entry) => entry.category),
-    ["backend", "validation", "operator_recovery"]
+    ["backend", "validation", "role_policy", "validation"]
+  );
+
+  assert.doesNotMatch(
+    getRuntimeBlockerEntry("operator_recovery_needed").consumer_notes,
+    /committed-slice integration route/iu
   );
   assert.equal(RUNTIME_BLOCKER_DESCRIPTOR.owner, "IN-0016");
 });

@@ -3,8 +3,6 @@ import {
   deriveControlledContractAuthoringState,
   projectControlledContractAuthoringRefusal
 } from "./controlled-contract-authoring-state.mjs";
-import { projectControlledContractAuthoringState } from
-  "./controlled-contract-authoring-projections.mjs";
 import { deriveWorkRecordTestProofBindingFacts } from
   "./work-record-test-proof-bindings.mjs";
 import {
@@ -115,13 +113,19 @@ export async function deriveCanonicalControlledContractAuthoringStateImpl({
     selectedPackEvaluationInputs, verificationRequirements, packageGeneration,
     publishedGenerationExact
   });
-  return projectControlledContractAuthoringState(state, { request });
+
+  return state;
 }
+
+import {
+  projectControlledContractContinuationAdmissibility,
+  resolveControlledContractVerificationBundleAdmissibility
+} from "../operations/controlled-contract/continuation-admissibility.mjs";
 
 const TEST_PROOF_REQUIRED_FIELDS = Object.freeze([
   "test_proof_id", "verification_claim_id", "system_under_test_boundary",
   "observable_result", "candidate_execution_provider", "falsifiers",
-  "traversal_provider", "coverage_disposition", "prohibited_shortcuts"
+  "traversal_provider", "test_selector", "prohibited_shortcuts"
 ]);
 
 async function deriveAuthoringVerificationRequirements({ repoRoot, wkId, contract }) {
@@ -150,12 +154,20 @@ async function deriveAuthoringVerificationRequirements({ repoRoot, wkId, contrac
     const claim = claims.get(verificationId);
     const observedMethod = claim?.kind === "verification"
       ? claim.verification_method ?? null : null;
-    if (!claim || observedMethod !== "test_execution") return Object.freeze({
-      verification_id: verificationId,
-      observed_method: observedMethod,
-      required_method: "test_execution",
-      state: "verification_graph_required"
-    });
+    if (!claim || observedMethod !== "test_execution") {
+
+      const admissibility = resolveControlledContractVerificationBundleAdmissibility({
+        contract: contract.content, verificationId, pkg: packageApi
+      });
+      return Object.freeze({
+        verification_id: verificationId,
+        observed_method: observedMethod,
+        required_method: "test_execution",
+        state: "verification_graph_required",
+        bundle_admissibility:
+          projectControlledContractContinuationAdmissibility(admissibility)
+      });
+    }
     const proof = proofs.get(verificationId);
     const missingFields = proof
       ? TEST_PROOF_REQUIRED_FIELDS.filter((field) => !Object.hasOwn(proof, field))
@@ -163,7 +175,7 @@ async function deriveAuthoringVerificationRequirements({ repoRoot, wkId, contrac
       : TEST_PROOF_REQUIRED_FIELDS.map((field) => `/test_proof/${field}`);
     if (proof && missingFields.length === 0) {
       try {
-        packageApi.resolveStableTestProofProviderBindings(proof);
+
         const selected = packageApi.queryStableTestProofBindings({
           contract: contract.content, verificationIds: [verificationId]
         });

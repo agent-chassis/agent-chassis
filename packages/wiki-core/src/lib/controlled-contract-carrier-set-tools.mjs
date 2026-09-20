@@ -160,10 +160,15 @@ export async function deriveControlledContractProofPlanBinding(input) {
 }
 
 export async function deriveCanonicalControlledContractAuthoringState(input) {
-  const projected = await deriveCanonicalControlledContractAuthoringStateImpl(
+  const semanticState = await deriveCanonicalControlledContractAuthoringStateImpl(
     input,
     authoringDependencies()
   );
+
+  if (input.internalComposition === "design_workbench") return semanticState;
+  const projected = projectControlledContractAuthoringState(semanticState, {
+    request: input.request ?? null
+  });
   if (!input.proofPackAuthoring || projected.stage !== "proof_authoring_required") {
     return projected;
   }

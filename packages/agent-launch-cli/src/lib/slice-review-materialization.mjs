@@ -536,6 +536,21 @@ function refuseIndexState(message, detail = null, cause = null) {
   fail(SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED, message, detail, cause);
 }
 
+function assertHistoricalCommitParent(value) {
+  return assertOid(value, "historical commit parent",
+    SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED);
+}
+
+function assertLauncherOwnedWkCommit(value) {
+  return assertOid(value, "launcher-owned WK fork commit",
+    SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED);
+}
+
+function assertLauncherOwnedWkTree(value) {
+  return assertOid(value, "launcher-owned WK fork tree",
+    SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED);
+}
+
 async function literalObjectType(runGit, gitContext, oid, cache) {
   if (cache.has(oid)) return cache.get(oid);
   const result = await runGit({
@@ -568,7 +583,7 @@ function parseLiteralDeliveryCommit(raw, oid) {
   const code = SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED;
   return Object.freeze({
     tree: assertOid(treeLine.slice(LITERAL_TREE_HEADER.length), "historical commit tree", code),
-    parent: assertOid(parentLine.slice(LITERAL_PARENT_HEADER.length), "historical commit parent", code),
+    parent: assertHistoricalCommitParent(parentLine.slice(LITERAL_PARENT_HEADER.length)),
     message
   });
 }
@@ -596,20 +611,58 @@ async function resolveFixedWkFork(runGit, gitContext, binding) {
     args: [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options, "show-ref", "--verify", "--hash", ref]
   });
   if (target?.ok !== true) return null;
-  const sha = assertOid(String(target.stdout ?? "").trim(), "launcher-owned WK fork commit",
-    SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED);
+  const sha = assertLauncherOwnedWkCommit(String(target.stdout ?? "").trim());
   if (await literalObjectType(runGit, gitContext, sha, new Map()) !== "commit") {
     refuseIndexState("the launcher-owned WK fork ref does not name a commit", { ref });
   }
-  const tree = assertOid(await gitOutput(runGit, gitContext,
+  const tree = assertLauncherOwnedWkTree(await gitOutput(runGit, gitContext,
     [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options, "rev-parse", "--verify", `${sha}^{tree}`], {
       code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED,
       message: "could not resolve the launcher-owned WK fork tree"
-    }), "launcher-owned WK fork tree", SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED);
+    }));
   if (await literalObjectType(runGit, gitContext, tree, new Map()) !== "tree") {
     refuseIndexState("the launcher-owned WK fork tree object is missing or is not a tree", { ref });
   }
   return Object.freeze({ ref, sha, tree });
+}
+
+async function resolveAccumulatedReviewBase({
+  runGit,
+  gitContext,
+  binding,
+  reviewedSha,
+  fixedFork
+}) {
+  if (fixedFork === null) return null;
+  const wkRef = `refs/heads/${binding.base_ref}`;
+  const options = {
+    code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED,
+    message: "could not resolve the launcher-owned WK fork tree"
+  };
+  const wkTipSha = assertLauncherOwnedWkCommit(await gitOutput(runGit, gitContext,
+    [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options,
+      "rev-parse", "--verify", `${wkRef}^{commit}`], options));
+  if (await literalObjectType(runGit, gitContext, wkTipSha, new Map()) !== "commit") {
+    refuseIndexState("the launcher-owned WK fork ref does not name a commit", { ref: wkRef });
+  }
+  const fixedForkBase = await gitOutput(runGit, gitContext,
+    [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options,
+      "merge-base", fixedFork.sha, wkTipSha], options);
+  if (fixedForkBase !== fixedFork.sha) {
+    refuseIndexState("the authenticated suffix reached an invalid launcher-owned WK fork terminal", {
+      depth: 0
+    });
+  }
+  const sha = assertHistoricalCommitParent(await gitOutput(runGit, gitContext,
+    [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options,
+      "merge-base", wkTipSha, reviewedSha], options));
+  const tree = assertLauncherOwnedWkTree(await gitOutput(runGit, gitContext,
+    [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options,
+      "rev-parse", "--verify", `${sha}^{tree}`], options));
+  if (await literalObjectType(runGit, gitContext, tree, new Map()) !== "tree") {
+    refuseIndexState("the launcher-owned WK fork tree object is missing or is not a tree", { ref: wkRef });
+  }
+  return Object.freeze({ ref: wkRef, ref_sha: wkTipSha, sha, tree });
 }
 
 async function authenticateHistoricalDeliveryIndexTree({
@@ -634,6 +687,13 @@ async function authenticateHistoricalDeliveryIndexTree({
     refuseIndexState("historical index authentication requires a canonical managed slice subject");
   }
   const fixedFork = await resolveFixedWkFork(runGit, gitContext, binding);
+  const accumulatedReviewBase = await resolveAccumulatedReviewBase({
+    runGit,
+    gitContext,
+    binding,
+    reviewedSha,
+    fixedFork
+  });
   const types = new Map();
   const commits = new Map();
   const visited = new Set();
@@ -662,7 +722,28 @@ async function authenticateHistoricalDeliveryIndexTree({
       return Object.freeze({
         historical_sha: cursor,
         historical_tree: fixedFork.tree,
-        suffix_depth: depth
+        suffix_depth: depth,
+        authority_refs: Object.freeze([
+          Object.freeze({ ref: fixedFork.ref, sha: fixedFork.sha })
+        ])
+      });
+    }
+
+    if (accumulatedReviewBase !== null && cursor === accumulatedReviewBase.sha &&
+        ordinaryIndexTree === accumulatedReviewBase.tree) {
+      if (depth === 0) {
+        refuseIndexState("the authenticated suffix reached an invalid launcher-owned WK fork terminal", {
+          depth
+        });
+      }
+      return Object.freeze({
+        historical_sha: cursor,
+        historical_tree: accumulatedReviewBase.tree,
+        suffix_depth: depth,
+        authority_refs: Object.freeze([
+          Object.freeze({ ref: fixedFork.ref, sha: fixedFork.sha }),
+          Object.freeze({ ref: accumulatedReviewBase.ref, sha: accumulatedReviewBase.ref_sha })
+        ])
       });
     }
     let commit = commits.get(cursor);
@@ -694,7 +775,12 @@ async function authenticateHistoricalDeliveryIndexTree({
           object: commit.tree
         });
       }
-      return Object.freeze({ historical_sha: cursor, historical_tree: commit.tree, suffix_depth: depth });
+      return Object.freeze({
+        historical_sha: cursor,
+        historical_tree: commit.tree,
+        suffix_depth: depth,
+        authority_refs: Object.freeze([])
+      });
     }
     cursor = commit.parent;
   }
@@ -703,7 +789,7 @@ async function authenticateHistoricalDeliveryIndexTree({
   });
 }
 
-async function assertHistoricalRecoveryStillBound(runGit, before, ordinaryIndexTree) {
+async function assertHistoricalRecoveryStillBound(runGit, before, ordinaryIndexTree, recovery) {
   const options = {
     code: SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.INDEX_STATE_REFUSED,
     message: "could not re-prove the bound review surface before historical index reconciliation"
@@ -713,8 +799,16 @@ async function assertHistoricalRecoveryStillBound(runGit, before, ordinaryIndexT
     ["rev-parse", "--verify", `${before.sliceRef}^{commit}`], options);
   const headSha = await gitOutput(runGit, before.gitContext, ["rev-parse", "--verify", "HEAD^{commit}"], options);
   const indexTree = await gitOutput(runGit, before.gitContext, ["write-tree"], options);
+  let authorityRefMoved = false;
+  for (const authority of recovery.authority_refs) {
+    const authorityRefSha = await gitOutput(runGit, before.gitContext,
+      [...HISTORICAL_DELIVERY_INDEX_RECOVERY.literal_object_read_options,
+        "show-ref", "--verify", "--hash", authority.ref], options);
+    if (authorityRefSha !== authority.sha) authorityRefMoved = true;
+  }
   if (symbolicHead !== before.headSymbolicRef || sliceSha !== before.reviewedSha ||
-      headSha !== before.headSha || indexTree !== ordinaryIndexTree) {
+      headSha !== before.headSha || indexTree !== ordinaryIndexTree ||
+      authorityRefMoved) {
     refuseIndexState(
       "the bound slice ref, HEAD, or ordinary index moved during historical index authentication"
     );
@@ -814,8 +908,9 @@ export async function prepareSliceReviewSurface({
       baseTree: before.baseTree,
       ordinaryIndexTree,
       binding: before.binding
-    });
-    await assertHistoricalRecoveryStillBound(runGit, before, ordinaryIndexTree);
+    }).then((recovery) => assertHistoricalRecoveryStillBound(
+      runGit, before, ordinaryIndexTree, recovery
+    ));
   }
   if (ordinaryIndexTree !== before.reviewedTree) {
     if (existsSync(indexLock)) {

@@ -4,610 +4,22 @@ import { shapeWriteResponse } from "./write-response-boundary.mjs";
 import { resolveWorkspaceRepo } from "./workspace-repo-resolution.mjs";
 import { jsonContent } from "./mcp-response.mjs";
 import { REGISTERED_TIER_FREE_LOCAL } from "./tool-profile.mjs";
+import { getRuntimeBlockerEntry, RUNTIME_BLOCKER_CODES } from
+  "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import {
-  getRuntimeBlockerEntry,
-  RUNTIME_BLOCKER_CODES
-} from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-import {
-  refreshWorkRecordAdmissionDerivedEvidenceById,
   evaluateWorkRecordAdmissionDerivedEvidence
-} from "@agent-chassis/wiki-core";
+} from "@agent-chassis/wiki-core/src/lib/work-record-admission.mjs";
 import {
-  cleanupWorkRecordDerivedEvidenceOperation
-} from "@agent-chassis/wiki-core/src/operations/work-record-derived-evidence-cleanup.mjs";
-import {
-  readyWorkRecordSliceByUnit
-} from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
-import {
-  loadWorkRecordById
-} from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
-import {
-  computeWorkRecordSourceDigest
-} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
-import {
-  computeReviewedUnitSourceDigest
-} from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
+  refreshWorkRecordAdmissionDerivedEvidenceById
+} from "@agent-chassis/wiki-core/src/operations/work-records-admission-evidence.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
-import {
-  projectWorkRecordTestProofValidation
-} from "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
-import {
-  projectNextActionScalar,
-  validateNextCalls
-} from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
-
-import {
-  classifyMechanicalRuntimeBlocker
-} from "./dispatch-tools/runtime-blocker-classifier.mjs";
+import { projectNextActionScalar, validateNextCalls } from
+  "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+import { validateWorkerAdmissionRecoveryResult } from
+  "@agent-chassis/wiki-core/src/lib/node-engine-worker-admission-recovery.mjs";
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
-}
-
-const READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION =
-  "ready-slice-structural-readiness.v1";
-const READY_SLICE_BLOCKER_CODE = "work_record_readiness_failure";
-const READY_SLICE_PROVENANCE_VALUES = new Set([
-  "authored_record",
-  "derived_normalizer",
-  "derived_code_graph",
-  "derived_diff",
-  "derived_policy_pack",
-  "unavailable",
-  "not_applicable"
-]);
-const READY_SLICE_VERIFICATION_METHOD_VALUES = new Set([
-  "inspection",
-  "analysis",
-  "demonstration",
-  "test_execution",
-  "audit",
-  "proof"
-]);
-const READY_SLICE_TARGET_KIND_VALUES = new Set([
-  "function",
-  "method",
-  "class",
-  "module",
-  "export",
-  "test_case",
-  "schema_field",
-  "docs_section",
-  "config_key",
-  "other"
-]);
-const READY_SLICE_TARGET_OPERATION_VALUES = new Set([
-  "create",
-  "modify",
-  "delete",
-  "inspect"
-]);
-const READY_SLICE_ACTIVITY_KIND_VALUES = new Set([
-  "requirements_analysis",
-  "design_contract",
-  "implementation_new",
-  "implementation_modify",
-  "implementation_remove",
-  "verification_test_authoring",
-  "verification_test_modification",
-  "validation_runtime_check",
-  "documentation",
-  "migration_contract",
-  "coordination_record",
-  "configuration"
-]);
-const READY_SLICE_ARTIFACT_KIND_VALUES = new Set([
-  "production_code_module",
-  "production_code_export",
-  "unit_test",
-  "integration_test",
-  "operational_test",
-  "property_test",
-  "regression_test",
-  "fixture_corpus",
-  "cli_entrypoint",
-  "launcher_wrapper",
-  "mcp_tool_surface",
-  "schema_contract",
-  "policy_rule",
-  "protocol_doc",
-  "reference_doc",
-  "wiki_record_canonical",
-  "wiki_projection_generated",
-  "build_or_config"
-]);
-const READY_SLICE_GRANULARITY_VALUES = new Set([
-  "file",
-  "module",
-  "function",
-  "method",
-  "class",
-  "export",
-  "test_case",
-  "schema_field",
-  "docs_section",
-  "config_key",
-  "record"
-]);
-
-function hasOwn(value, key) {
-  return Object.prototype.hasOwnProperty.call(value ?? {}, key);
-}
-
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isNonemptyString(value) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function isStrictProvenance(value, allowedKeys) {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  return Object.keys(value).every(
-    (key) =>
-      allowedKeys.has(key) &&
-      (value[key] === null || READY_SLICE_PROVENANCE_VALUES.has(value[key]))
-  );
-}
-
-function isCanonicalReadySliceCriterion(value) {
-  if (isNonemptyString(value)) {
-    return true;
-  }
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  const allowed = new Set([
-    "text",
-    "verification_method",
-    "evidence_target",
-    "facet_provenance"
-  ]);
-  if (
-    !Object.keys(value).every((key) => allowed.has(key)) ||
-    !isNonemptyString(value.text)
-  ) {
-    return false;
-  }
-  if (
-    hasOwn(value, "verification_method") &&
-    value.verification_method !== null &&
-    !READY_SLICE_VERIFICATION_METHOD_VALUES.has(value.verification_method)
-  ) {
-    return false;
-  }
-  if (
-    hasOwn(value, "evidence_target") &&
-    value.evidence_target !== null &&
-    typeof value.evidence_target !== "string"
-  ) {
-    return false;
-  }
-  return (
-    !hasOwn(value, "facet_provenance") ||
-    isStrictProvenance(
-      value.facet_provenance,
-      new Set(["text", "verification_method", "evidence_target"])
-    )
-  );
-}
-
-function isCanonicalRepositoryPath(value) {
-  if (!isNonemptyString(value) || value !== value.trim()) {
-    return false;
-  }
-  const segments = value.split("/");
-  return !(
-    value.startsWith("./") ||
-    value.startsWith("/") ||
-    value.startsWith("~") ||
-    /^[A-Za-z]:/u.test(value) ||
-    value.includes("\\") ||
-    value.includes("\0") ||
-    segments.some((segment) => !segment || segment === "." || segment === "..")
-  );
-}
-
-function isCanonicalReadySliceTarget(value) {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  const allowed = new Set([
-    "path",
-    "name",
-    "kind",
-    "operation",
-    "activity_kind",
-    "artifact_kind",
-    "granularity",
-    "optional",
-    "facet_provenance"
-  ]);
-  if (
-    !Object.keys(value).every((key) => allowed.has(key)) ||
-    !isCanonicalRepositoryPath(value.path) ||
-    !isNonemptyString(value.name) ||
-    !READY_SLICE_TARGET_KIND_VALUES.has(value.kind) ||
-    !READY_SLICE_TARGET_OPERATION_VALUES.has(value.operation)
-  ) {
-    return false;
-  }
-  for (const [field, values] of [
-    ["activity_kind", READY_SLICE_ACTIVITY_KIND_VALUES],
-    ["artifact_kind", READY_SLICE_ARTIFACT_KIND_VALUES],
-    ["granularity", READY_SLICE_GRANULARITY_VALUES]
-  ]) {
-    if (hasOwn(value, field) && value[field] !== null && !values.has(value[field])) {
-      return false;
-    }
-  }
-  if (hasOwn(value, "optional") && typeof value.optional !== "boolean") {
-    return false;
-  }
-  return (
-    !hasOwn(value, "facet_provenance") ||
-    isStrictProvenance(
-      value.facet_provenance,
-      new Set([
-        "path",
-        "name",
-        "kind",
-        "operation",
-        "activity_kind",
-        "artifact_kind",
-        "granularity",
-        "optional"
-      ])
-    )
-  );
-}
-
-function scalarCheck(unit, field, check, pathValue) {
-  let status;
-  if (!hasOwn(unit, field)) {
-    status = "missing";
-  } else if (typeof unit[field] !== "string") {
-    status = "mismatch";
-  } else if (unit[field].trim().length === 0) {
-    status = "empty";
-  } else {
-    status = "ready";
-  }
-  return { check, status, path: pathValue };
-}
-
-function arrayCheck(unit, field, check, pathValue, predicate = isNonemptyString) {
-  let status;
-  if (!hasOwn(unit, field)) {
-    status = "missing";
-  } else if (!Array.isArray(unit[field])) {
-    status = "mismatch";
-  } else if (unit[field].length === 0) {
-    status = "empty";
-  } else if (!unit[field].every(predicate)) {
-    status = "mismatch";
-  } else {
-    status = "ready";
-  }
-  return { check, status, path: pathValue };
-}
-
-function nestedArrayCheck(unit, parentField, field, check, pathValue, predicate) {
-  const parent = unit?.[parentField];
-  let status;
-  if (!isPlainObject(parent) || !hasOwn(parent, field)) {
-    status = "missing";
-  } else if (!Array.isArray(parent[field])) {
-    status = "mismatch";
-  } else if (parent[field].length === 0) {
-    status = "empty";
-  } else if (!parent[field].every(predicate)) {
-    status = "mismatch";
-  } else {
-    status = "ready";
-  }
-  return { check, status, path: pathValue };
-}
-
-function acceptanceValidationCheck(unit) {
-  const check = "acceptance_validation_nonempty";
-  const pathValue = "acceptance.validation";
-  const acceptance = unit?.acceptance;
-  if (!isPlainObject(acceptance) || !hasOwn(acceptance, "validation")) {
-    return { check, status: "missing", path: pathValue };
-  }
-  const section = acceptance.validation;
-  if (Array.isArray(section) && section.length === 0) {
-    return { check, status: "empty", path: pathValue };
-  }
-  const projection = projectWorkRecordTestProofValidation({
-    selectedUnit: { acceptance: { validation: section } },
-    path: pathValue
-  });
-  return {
-    check,
-    status: projection.status === "valid" ? "ready" : "mismatch",
-    path: pathValue
-  };
-}
-
-function shapingTupleCheck(unit) {
-  const check = "shaping_tuple_consistent";
-  const pathValue = "dispatch_intent";
-  if (!hasOwn(unit, "work_kind") || !hasOwn(unit, "dispatch_intent")) {
-    return { check, status: "missing", path: pathValue };
-  }
-  const roles = {
-    implementation: "worker",
-    review: "reviewer",
-    redteam: "redteam"
-  };
-  const intent = unit.dispatch_intent;
-  const status =
-    isPlainObject(intent) &&
-    roles[unit.work_kind] !== undefined &&
-    intent.intended_agent_role === roles[unit.work_kind] &&
-    intent.target_unit === "slice" &&
-    typeof intent.requires_graph_impact === "boolean" &&
-    typeof intent.requires_escalation === "boolean"
-      ? "ready"
-      : "mismatch";
-  return { check, status, path: pathValue };
-}
-
-function notApplicable(check, pathValue) {
-  return { check, status: "not_applicable", path: pathValue };
-}
-
-function readinessBlockers(checks) {
-  return checks.flatMap((entry) => {
-    if (!["missing", "empty", "mismatch", "error"].includes(entry.status)) return [];
-    const classification = classifyMechanicalRuntimeBlocker({
-      producer: "authored_readiness",
-      condition: "named_contract_defect",
-      named_defect: {
-        check: entry.check,
-        status: entry.status,
-
-        path: entry.path
-      }
-    });
-    return [
-      {
-        code: classification.code,
-        check: entry.check,
-        status: entry.status,
-        path: entry.path,
-        authority_limb: classification.authority_limb,
-        cause: classification.cause,
-        actor_recovery: classification.actor_recovery,
-
-        next_action: readySliceBlockerNextAction(entry)
-      }
-    ];
-  });
-}
-
-function readySliceBlockerNextAction({ check, status, path: pathValue }) {
-  const location = typeof pathValue === "string" && pathValue.length > 0
-    ? pathValue
-    : "the selected slice contract";
-  if (status === "missing") {
-    return `Add the required ${check} content at ${location} on the selected slice, then re-run workspace_work_record_ready_slice`;
-  }
-  if (status === "empty") {
-    return `Populate ${location} — the ${check} check found it present but empty — then re-run workspace_work_record_ready_slice`;
-  }
-  return `Correct ${location} so the ${check} check is consistent, then re-run workspace_work_record_ready_slice`;
-}
-
-export function projectReadySliceStructuralReadiness({
-  record,
-  selectedUnit,
-  coreResult,
-  computeSourceDigest = computeWorkRecordSourceDigest,
-  computeReviewedDigest = computeReviewedUnitSourceDigest
-}) {
-  if (
-    !isPlainObject(record) ||
-    !isPlainObject(selectedUnit) ||
-    selectedUnit.kind !== "slice" ||
-    !/^WK-[0-9]{4}$/.test(selectedUnit.record_id ?? "") ||
-    !/^SLICE-[0-9]{3}$/.test(selectedUnit.slice_id ?? "") ||
-    selectedUnit.address !== `${selectedUnit.record_id}#${selectedUnit.slice_id}` ||
-    record.id !== selectedUnit.record_id
-  ) {
-    throw new Error("persisted selected unit is unavailable");
-  }
-  const matches = Array.isArray(record.slices)
-    ? record.slices.filter((slice) => slice?.id === selectedUnit.slice_id)
-    : [];
-  if (matches.length !== 1) {
-    throw new Error("persisted selected unit is ambiguous");
-  }
-  const unit = matches[0];
-  const sourceDigest = computeSourceDigest(record);
-  const reviewedUnitDigest = computeReviewedDigest({
-    record,
-    slice_id: selectedUnit.slice_id
-  });
-  if (
-    !/^sha256:[0-9a-f]{64}$/.test(sourceDigest ?? "") ||
-    !/^sha256:[0-9a-f]{64}$/.test(reviewedUnitDigest ?? "")
-  ) {
-    throw new Error("persisted digest projection failed");
-  }
-
-  const checks = [
-    scalarCheck(unit, "title", "title_nonempty", "title"),
-    arrayCheck(unit, "read_scope", "read_scope_nonempty", "read_scope"),
-    arrayCheck(unit, "repo_paths", "repo_paths_nonempty", "repo_paths"),
-    nestedArrayCheck(
-      unit,
-      "acceptance",
-      "criteria",
-      "acceptance_criteria_nonempty",
-      "acceptance.criteria",
-      isCanonicalReadySliceCriterion
-    ),
-    acceptanceValidationCheck(unit),
-    shapingTupleCheck(unit)
-  ];
-
-  if (unit.work_kind === "implementation") {
-    checks.push(
-      arrayCheck(
-        unit,
-        "write_scope",
-        "implementation_write_scope_nonempty",
-        "write_scope"
-      ),
-      arrayCheck(
-        unit,
-        "expected_edit_targets",
-        "implementation_expected_edit_targets_nonempty",
-        "expected_edit_targets",
-        isCanonicalReadySliceTarget
-      ),
-      notApplicable("findings_only_write_scope_empty", "write_scope")
-    );
-  } else if (unit.work_kind === "review" || unit.work_kind === "redteam") {
-    let findingsStatus;
-    if (!hasOwn(unit, "write_scope")) {
-      findingsStatus = "missing";
-    } else if (!Array.isArray(unit.write_scope) || unit.write_scope.length > 0) {
-      findingsStatus = "mismatch";
-    } else {
-      findingsStatus = "ready";
-    }
-    checks.push(
-      notApplicable("implementation_write_scope_nonempty", "write_scope"),
-      notApplicable(
-        "implementation_expected_edit_targets_nonempty",
-        "expected_edit_targets"
-      ),
-      {
-        check: "findings_only_write_scope_empty",
-        status: findingsStatus,
-        path: "write_scope"
-      }
-    );
-  } else {
-    throw new Error("persisted work_kind is outside ready-slice shaping");
-  }
-
-  const blockers = readinessBlockers(checks);
-  return {
-    schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
-    selected_unit: {
-      kind: "slice",
-      address: selectedUnit.address,
-      record_id: selectedUnit.record_id,
-      slice_id: selectedUnit.slice_id
-    },
-    contract_persisted: true,
-    written: Boolean(coreResult?.written),
-    no_op: !Boolean(coreResult?.written),
-    source_digest: sourceDigest,
-    reviewed_unit_digest: reviewedUnitDigest,
-    generation_transition: coreResult?.generation_transition ?? null,
-    structurally_complete: blockers.length === 0,
-    checks,
-    blockers
-  };
-}
-
-function projectionFailureClassification() {
-  return classifyMechanicalRuntimeBlocker({
-    producer: "operator_recovery",
-    condition: "runtime_materialization_failed",
-    detail: { issue: "ready_slice_structural_projection_failed" }
-  });
-}
-
-function projectionFailureReadySliceResult(coreResult) {
-  const check = { check: "projection_internal", status: "error", path: null };
-  const classification = projectionFailureClassification();
-  return {
-    schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
-    selected_unit: {
-      kind: "slice",
-      address: coreResult.selected_unit.address,
-      record_id: coreResult.selected_unit.record_id,
-      slice_id: coreResult.selected_unit.slice_id
-    },
-    contract_persisted: true,
-    written: Boolean(coreResult.written),
-    no_op: Boolean(coreResult.no_op),
-    source_digest: coreResult.source_digest,
-    reviewed_unit_digest: coreResult.reviewed_unit_digest,
-    generation_transition: coreResult.generation_transition ?? null,
-    structurally_complete: false,
-    checks: [check],
-    blockers: [
-      {
-        code: classification.code,
-        ...check,
-        authority_limb: classification.authority_limb,
-        cause: classification.cause,
-        actor_recovery: classification.actor_recovery,
-        next_action:
-          "Re-run workspace_work_record_ready_slice; if the structural projection keeps failing, report the runtime failure to the operator. The contract is already persisted — do not revise it for this blocker."
-      }
-    ]
-  };
-}
-
-export async function runWorkspaceWorkRecordReadySliceRoute({
-  workspaceRepos,
-  args,
-  dependencies = {}
-}) {
-  const resolveWorkspace =
-    dependencies.resolveWorkspaceRepo ?? resolveWorkspaceRepo;
-  const runCore =
-    dependencies.readyWorkRecordSliceByUnit ?? readyWorkRecordSliceByUnit;
-  const loadPersisted =
-    dependencies.loadWorkRecordById ?? loadWorkRecordById;
-  const projectStructural =
-    dependencies.projectReadySliceStructuralReadiness ??
-    projectReadySliceStructuralReadiness;
-  const workspace = resolveWorkspace(workspaceRepos, args.repo);
-  const { repo: _repo, ...request } = args;
-  const coreResult = await runCore({ dir: workspace.dir, request });
-
-  if (coreResult?.contract_persisted !== true) {
-    return jsonContent(coreResult);
-  }
-
-  try {
-    const loaded = await loadPersisted({
-      dir: workspace.dir,
-      id: coreResult.selected_unit.record_id
-    });
-    if (
-      !loaded?.record ||
-      loaded.diagnostics?.some((diagnostic) => diagnostic?.severity === "error")
-    ) {
-      throw new Error("persisted record reload failed");
-    }
-    return jsonContent(
-      projectStructural({
-        record: loaded.record,
-        selectedUnit: coreResult.selected_unit,
-        coreResult,
-        computeSourceDigest:
-          dependencies.computeWorkRecordSourceDigest ?? computeWorkRecordSourceDigest,
-        computeReviewedDigest:
-          dependencies.computeReviewedUnitSourceDigest ?? computeReviewedUnitSourceDigest
-      })
-    );
-  } catch {
-    return jsonContent(projectionFailureReadySliceResult(coreResult));
-  }
 }
 
 export { shapeWriteResponse };
@@ -631,6 +43,35 @@ function attachStaleSourceDigestRetry(response, result) {
   return response;
 }
 
+export function projectPublicationOutcome(result) {
+  return {
+    written: result?.written === null ? null : Boolean(result?.written),
+    ...(Object.prototype.hasOwnProperty.call(result ?? {}, "publication_state")
+      ? { publication_state: result.publication_state }
+      : {})
+  };
+}
+
+export function compactGenerationTransition(transition, selectedUnit = undefined) {
+  if (transition === null || typeof transition !== "object" || Array.isArray(transition)) {
+    return transition ?? null;
+  }
+  const compact = { ...transition };
+  const sameJson = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  if (Object.hasOwn(compact, "before_purpose") && Object.hasOwn(compact, "after_purpose") &&
+      sameJson(compact.before_purpose, compact.after_purpose)) {
+    delete compact.before_purpose;
+    delete compact.after_purpose;
+    compact.purpose_unchanged = true;
+  }
+  if (selectedUnit !== undefined && selectedUnit !== null &&
+      compact.selected_unit !== null && sameJson(compact.selected_unit, selectedUnit)) {
+    delete compact.selected_unit;
+    compact.selected_unit_is_receipt_unit = true;
+  }
+  return compact;
+}
+
 export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
   const response = {
     workspaceRepo,
@@ -638,7 +79,7 @@ export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
     selected_unit: result?.selected_unit ?? null,
     source_digest: result?.source_digest ?? null,
     valid: Boolean(result?.valid),
-    written: Boolean(result?.written),
+    ...projectPublicationOutcome(result),
     no_op: Boolean(result?.no_op),
     generation_transition: result?.generation_transition ?? null,
     changed_fields: Array.isArray(result?.changed_fields) ? result.changed_fields : [],
@@ -655,7 +96,6 @@ export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
   return attachStaleSourceDigestRetry(response, result);
 }
 
-const COMPACT_VALIDATE_DISPATCH_REASONS_LIMIT = 5;
 const WRITE_ROUTE_VERBOSE_NEXT_ACTION = "Re-call this tool with verbose:true to inspect suppressed write detail";
 
 const NODE_ENGINE_ADMISSIBILITY_NEXT_ACTIONS = Object.freeze({
@@ -720,10 +160,6 @@ export function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchab
       return "Dispatch implementation worker via workspace_agent_dispatch (accepted escalation active)";
     case "tracker_not_dispatchable":
       return "Select a specific slice for dispatch (tracker records are not dispatched directly)";
-    case "missing_target_resolution_evidence":
-      return "Run workspace_work_record_refresh_target_resolution_evidence to generate required evidence";
-    case "missing_graph_impact":
-      return "Run workspace_code_index_graph_impact_paths to generate graph impact evidence";
     case "multi_cluster":
       return "Split write_scope into smaller single-cluster slices or select an existing single-cluster slice";
     case "critical_blast_radius_requires_escalation":
@@ -738,9 +174,15 @@ export function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchab
       return "Fix work-record validation errors reported in reasons and re-validate";
     case "missing_write_scope":
       return "Define write_scope on this work item before dispatch";
+    case "controlled_acceptance_disposition_missing":
+    case "controlled_acceptance_incomplete":
+    case "controlled_acceptance_proof_posture_invalid":
+      return "Query the parent WK proof-authoring state, then correct it through workspace_controlled_contract_obligation_coverage_upsert";
 
     case "work_record_readiness_failure":
       return "Correct the exact contract defect the refusal names (its check, status, and path), then re-validate";
+    case "worker_scope_path_refused":
+      return "Correct the declared scope path worker_scope_preflight.refusal names (field, path, component, cause), then re-validate";
     default:
       return `Resolve blocking issue: ${decisionCode}`;
   }
@@ -761,11 +203,14 @@ export function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, d
       return "Fix work-record validation errors reported in reasons and re-validate";
     case "missing_write_scope":
       return "Define write_scope on this work item before dispatch";
+    case "controlled_acceptance_disposition_missing":
+    case "controlled_acceptance_incomplete":
+    case "controlled_acceptance_proof_posture_invalid":
+      return "Query the parent WK proof-authoring state, then correct it through workspace_controlled_contract_obligation_coverage_upsert";
     case "work_record_readiness_failure":
       return "Correct the exact contract defect the refusal names (its check, status, and path), then re-validate";
-
-    case "missing_graph_impact":
-      return "Re-run workspace_validate_dispatch — its default graph resolver rebuilds the live dependency graph on use for graph-bearing implementation units — or build the code-index graph locally with the free CLI (`npm run wiki -- code-index build`, then `npm run wiki -- code-index graph-impact-paths`), then re-validate";
+    case "worker_scope_path_refused":
+      return "Correct the declared scope path worker_scope_preflight.refusal names (field, path, component, cause), then re-validate";
 
     default:
       return "Resolve structural dispatch-readiness issues reported in reasons";
@@ -781,19 +226,26 @@ export function createCompactValidateDispatchResponse(
   const reasons = Array.isArray(readiness?.reasons) ? readiness.reasons : [];
   const clusters = Array.isArray(readiness?.clusters) ? readiness.clusters : [];
   const response = {
+    schema_version: readiness?.schema_version ?? null,
     workspaceRepo,
     record_id: readiness?.record_id ?? null,
     unit: readiness?.unit ?? null,
     dispatch_role: readiness?.dispatch_role ?? null,
     dispatchable: readiness?.dispatchable ?? false,
     decision_code: readiness?.decision_code ?? null,
-    reasons: reasons.slice(0, COMPACT_VALIDATE_DISPATCH_REASONS_LIMIT),
-    ...(isFreeLocal
-      ? {}
-      : {
-          blast_radius_level: readiness?.blast_radius?.level ?? null,
-          cluster_count: clusters.length
-        }),
+    reasons,
+    reasons_total: reasons.length,
+    blast_radius_level: readiness?.blast_radius?.level ?? null,
+    blast_radius: readiness?.blast_radius ?? null,
+    cluster_count: clusters.length,
+    clusters,
+    accepted_escalations: Array.isArray(readiness?.accepted_escalations)
+      ? readiness.accepted_escalations : [],
+    canonical_refs: Array.isArray(readiness?.canonical_refs) ? readiness.canonical_refs : [],
+    derived_evidence: Array.isArray(readiness?.derived_evidence) ? readiness.derived_evidence : [],
+    validation_hints: Array.isArray(readiness?.validation_hints) ? readiness.validation_hints : [],
+    recovery: readiness?.recovery ?? null,
+    state: readiness?.state ?? null,
     next_action: isFreeLocal
       ? nextActionForFreeLocalDecisionCode(
           readiness?.decision_code ?? null,
@@ -807,6 +259,15 @@ export function createCompactValidateDispatchResponse(
           readiness?.admissibility ?? null
         )
   };
+  if (readiness?.controlled_acceptance_state !== undefined) {
+    response.controlled_acceptance_state = projectControlledAcceptanceReadiness(
+      readiness.controlled_acceptance_state, readiness?.unit?.address ?? readiness?.record_id ?? null);
+  }
+  for (const field of [
+    "axis_refusal", "controlled_acceptance_refusal", "controlled_acceptance_recovery", "worker_scope_preflight"
+  ]) {
+    if (readiness?.[field] !== undefined) response[field] = readiness[field];
+  }
 
   const structuredNextCalls = Array.isArray(readiness?.next_calls)
     ? readiness.next_calls
@@ -825,20 +286,19 @@ export function createCompactValidateDispatchResponse(
     }
   }
 
-  if (isFreeLocal) {
-    return response;
-  }
-
   if (readiness?.dispatchable !== true && readiness?.state?.graph_auto_recoverable === true) {
     response.auto_recoverable = true;
-    if (!descriptorAuthoritativeNextAction) {
-      response.next_action =
-        "Dispatch worker via workspace_agent_dispatch; admission auto-generates graph-impact evidence";
-    }
   }
 
+  if (readiness?.graph_impact_failure) {
+    response.graph_impact_failure = readiness.graph_impact_failure;
+    response.graph_impact_failure_code = readiness.graph_impact_failure.code;
+  }
+
+  if (isFreeLocal) return response;
+
   if (readiness && typeof readiness === "object" && readiness.admissibility) {
-    response.admissibility = readiness.admissibility;
+    response.admissibility = projectValidatedAdmissionRecovery(readiness.admissibility);
     if (readiness.structural_readiness) {
       response.structural_readiness = readiness.structural_readiness;
     }
@@ -847,10 +307,59 @@ export function createCompactValidateDispatchResponse(
   return response;
 }
 
+const CONTROLLED_ACCEPTANCE_FIELDS = Object.freeze([
+  "schema_version", "wk_id", "state", "generation", "mechanically_complete", "disposition",
+  "population", "definition_readiness", "recovery"
+]);
+const CONTROLLED_ACCEPTANCE_SEMANTIC_FIELDS = Object.freeze([
+  "schema_version", "wk_id", "state", "source_current", "source_currentness",
+  "posture_valid", "posture_disposition", "generation", "manifest_content_digest", "record_source_digest",
+  "mechanically_complete", "dimension_count", "dimensions", "incomplete_row_count", "actionable_row_count",
+  "non_actionable_row_count", "terminal_gaps", "repair", "execution_evidence_owner", "saved_applications",
+  "ordinary_authoring_readiness", "proof_authoring_diagnostics", "assessment", "admission"
+]);
+function selectFields(value, fields) {
+  if (!value || typeof value !== "object") return value ?? null;
+  return Object.fromEntries(fields.filter((field) => Object.hasOwn(value, field))
+    .map((field) => [field, value[field]]));
+}
+function projectOrdinaryAuthoringReadiness(value, unit) {
+  if (!value || typeof value !== "object") return value ?? null;
+  const { declarations, ...projected } = value;
+  if (Array.isArray(declarations)) projected.declaration_details = { omitted_count: declarations.length,
+    calls: [{ tool: "workspace_controlled_contract_obligation_coverage_query", arguments: { unit } },
+      { tool: "workspace_validate_proof", arguments: { unit } }] };
+  return projected;
+}
+function projectControlledAcceptanceReadiness(value, unit) {
+  if (!value || typeof value !== "object") return value ?? null;
+  const semantic = selectFields(value.semantic, CONTROLLED_ACCEPTANCE_SEMANTIC_FIELDS);
+  if (semantic && Object.hasOwn(semantic, "ordinary_authoring_readiness"))
+    semantic.ordinary_authoring_readiness = projectOrdinaryAuthoringReadiness(
+      semantic.ordinary_authoring_readiness, unit);
+  return { ...selectFields(value, CONTROLLED_ACCEPTANCE_FIELDS), semantic };
+}
+function projectValidatedAdmissionRecovery(admissibility) {
+  const projected = { ...admissibility }; delete projected.recovery;
+  if (!Object.hasOwn(admissibility, "recovery_validation")) return projected;
+  const validation = validateWorkerAdmissionRecoveryResult(
+    admissibility.recovery_validation,
+    { expectedProjectionMode: "bounded_current_decision_recovery" }
+  );
+  return {
+    ...projected,
+    recovery_validation: validation,
+    recovery_diagnostic: validation.diagnostic,
+    ...(validation.diagnostic_carrier === undefined ? {} : {
+      recovery_diagnostic_carrier: validation.diagnostic_carrier
+    })
+  };
+}
+
 export function createCompactContractEditResponse(workspaceRepo, result) {
   const response = {
     workspaceRepo,
-    ok: Boolean(result?.valid),
+    ok: result?.ok === undefined ? Boolean(result?.valid) : Boolean(result.ok),
     operation: result?.operation ?? null,
     record_id: result?.record_id ?? null,
     selected_unit: result?.selected_unit ?? null,
@@ -858,20 +367,27 @@ export function createCompactContractEditResponse(workspaceRepo, result) {
     canonical_record_path: result?.canonical_record_path ?? null,
     source_digest: result?.source_digest ?? null,
     valid: Boolean(result?.valid),
-    written: Boolean(result?.written),
+    ...projectPublicationOutcome(result),
     no_op: Boolean(result?.no_op),
     changed_fields: Array.isArray(result?.changed_fields) ? result.changed_fields : [],
     diagnostics: Array.isArray(result?.diagnostics) ? result.diagnostics : [],
     next_action: result?.next_action ?? null
   };
+  for (const key of [
+    "diagnostic_count",
+    "failed_fault",
+    "effect_trace",
+    "admission_sidecar_publications",
+    "admission_sidecar_cleanup"
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(result ?? {}, key)) {
+      response[key] = result[key];
+    }
+  }
 
   if (Object.prototype.hasOwnProperty.call(result ?? {}, "expected_source_digest")) {
     response.expected_source_digest = result.expected_source_digest ?? null;
     response.current_source_digest = result.current_source_digest ?? null;
-  }
-
-  if (result && Object.prototype.hasOwnProperty.call(result, "record")) {
-    response.record = result.record;
   }
 
   return attachStaleSourceDigestRetry(response, result);
@@ -1398,217 +914,4 @@ export async function runWorkspaceWorkRecordAdmissionRefreshRoute({
   );
 
   return attachSelectedUnitToSpillDescriptor(response, selectedUnit);
-}
-
-export const WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME =
-  "workspace_work_record_cleanup_derived_evidence";
-
-function cleanupReportHasSuppressedDetail(report) {
-  return Boolean(
-    report &&
-      typeof report === "object" &&
-      !Array.isArray(report) &&
-      ((Array.isArray(report.removed_entries) && report.removed_entries.length > 0) ||
-        Object.prototype.hasOwnProperty.call(report, "verbose"))
-  );
-}
-
-function hasCleanupVerboseDetail(result, report) {
-  return Boolean(
-    cleanupReportHasSuppressedDetail(report) ||
-      result?.canonical_record_path ||
-      (Array.isArray(result?.diagnostics) && result.diagnostics.length > 0)
-  );
-}
-
-export function createWorkspaceWorkRecordCleanupToolResult({
-  workspaceRepo,
-  selectedUnit = null,
-  result = null,
-  selector = null,
-  verbose = false
-} = {}) {
-  const diagnostics = Array.isArray(result?.diagnostics) ? result.diagnostics.map((entry) => ({ ...entry })) : [];
-  const firstErrorDiagnostic = diagnostics.find((entry) => entry && entry.severity === "error") || null;
-  const report = result?.report ?? null;
-  const mode = report?.mode ?? result?.mode ?? (result?.written ? "apply" : "plan");
-  const changed = Boolean(report?.changed);
-  const written = Boolean(result?.written);
-
-  const noOp = !changed && !firstErrorDiagnostic;
-  let status;
-  if (firstErrorDiagnostic) {
-    status = "refused";
-  } else if (written) {
-    status = "pruned";
-  } else if (noOp) {
-    status = "no_op";
-  } else {
-    status = mode === "apply" ? "not_written" : "planned";
-  }
-
-  if (verbose) {
-    return {
-      workspaceRepo,
-      status,
-      mode,
-      verbose: true,
-      record_id: result?.record_id ?? selectedUnit?.record_id ?? null,
-      selected_unit: selectedUnit,
-      changed,
-      written,
-      valid: Boolean(result?.valid),
-      no_op: noOp,
-      report,
-      source_digest: result?.source_digest ?? null,
-
-      use_as_expected_source_digest: result?.use_as_expected_source_digest ?? null,
-      expected_source_digest: result?.expected_source_digest ?? null,
-      current_source_digest: result?.current_source_digest ?? null,
-      canonical_record_path: result?.canonical_record_path ?? null,
-      diagnostics,
-      refusal: firstErrorDiagnostic
-        ? {
-            code: firstErrorDiagnostic.code,
-            message: firstErrorDiagnostic.message,
-            path: firstErrorDiagnostic.path ?? null
-          }
-        : null,
-      selector
-    };
-  }
-
-  const compactReport = report ? { ...report } : null;
-  if (compactReport) {
-    delete compactReport.removed_entries;
-    delete compactReport.verbose;
-  }
-
-  const response = {
-    workspaceRepo,
-    status,
-    mode,
-    verbose: false,
-    record_id: result?.record_id ?? selectedUnit?.record_id ?? null,
-    selected_unit: selectedUnit,
-    changed,
-    written,
-    valid: Boolean(result?.valid),
-    no_op: noOp,
-    report: compactReport,
-    source_digest: result?.source_digest ?? null,
-    use_as_expected_source_digest: result?.use_as_expected_source_digest ?? null,
-    expected_source_digest: result?.expected_source_digest ?? null,
-    current_source_digest: result?.current_source_digest ?? null,
-    refusal: firstErrorDiagnostic
-      ? {
-          code: firstErrorDiagnostic.code,
-          message: firstErrorDiagnostic.message,
-          path: firstErrorDiagnostic.path ?? null
-        }
-      : null
-  };
-
-  if (hasCleanupVerboseDetail(result, report)) {
-    attachWriteRouteVerboseHint(response);
-  }
-
-  return response;
-}
-
-export async function runWorkspaceWorkRecordCleanupDerivedEvidenceRoute({ workspaceRepos, args }) {
-  const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-  const verbose = Boolean(args.verbose);
-  const write = Boolean(args.write);
-  const mode = write ? "apply" : "plan";
-  const selectedInput = typeof args.unit === "string" && args.unit.trim().length > 0 ? args.unit.trim() : null;
-  const selectedId = typeof args.id === "string" && args.id.trim().length > 0 ? args.id.trim() : null;
-
-  if (!selectedInput && !selectedId) {
-    return jsonContent(
-      createWorkspaceWorkRecordCleanupToolResult({
-        workspaceRepo: workspace.repo,
-        verbose,
-        result: {
-          mode,
-          valid: false,
-          written: false,
-          diagnostics: [
-            {
-              code: "invalid_record",
-              severity: "error",
-              message: `${WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME} requires unit or id`,
-              path: "unit"
-            }
-          ]
-        },
-        selector: null
-      })
-    );
-  }
-
-  if (selectedInput && selectedId && selectedInput !== selectedId) {
-    return jsonContent(
-      createWorkspaceWorkRecordCleanupToolResult({
-        workspaceRepo: workspace.repo,
-        verbose,
-        selectedUnit: parseWorkRecordUnitAddress(selectedInput),
-        result: {
-          mode,
-          valid: false,
-          written: false,
-          diagnostics: [
-            {
-              code: "invalid_record",
-              severity: "error",
-              message: "unit and id must match when both are supplied",
-              path: "unit"
-            }
-          ]
-        },
-        selector: selectedInput
-      })
-    );
-  }
-
-  const selector = selectedInput || selectedId;
-  const selectedUnit = parseWorkRecordUnitAddress(selector);
-  const expectedSourceDigest = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null, {
-    path: "expected_source_digest"
-  });
-  if (!expectedSourceDigest.ok) {
-    return jsonContent(
-      createWorkspaceWorkRecordCleanupToolResult({
-        workspaceRepo: workspace.repo,
-        verbose,
-        selectedUnit,
-        result: {
-          mode,
-          valid: false,
-          written: false,
-          diagnostics: [expectedSourceDigest.diagnostic],
-          expected_source_digest: args.expected_source_digest ?? null
-        },
-        selector
-      })
-    );
-  }
-
-  const result = await cleanupWorkRecordDerivedEvidenceOperation({
-    dir: workspace.dir,
-    id: selectedUnit?.record_id ?? selector,
-    write,
-    verbose,
-    expected_source_digest: expectedSourceDigest.value
-  });
-
-  return jsonContent(
-    createWorkspaceWorkRecordCleanupToolResult({
-      workspaceRepo: workspace.repo,
-      verbose,
-      selectedUnit,
-      result,
-      selector
-    })
-  );
 }

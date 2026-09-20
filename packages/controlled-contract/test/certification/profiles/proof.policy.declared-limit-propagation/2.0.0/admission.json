@@ -18,49 +18,10 @@
   ],
   "certification": {
     "method": "executable_semantic_adequacy",
-    "adequacy_declaration_digest": "5321a4f0a736cac177ab512e6022c7cd94504e67e1be862cf00807996b737cd5",
-    "adequacy_result_digest": "6035865b8464e895e169163aa9ce4fba85df498b0f01a4523c078f4eac875b6a",
+    "adequacy_declaration_digest": "c154721ef817be16d42446b232ed8bb22ae014d34fff20ba5ff8f9ce86546012",
+    "adequacy_result_digest": "dd617df89406a07d9420522b5f521bba63f4ceac26b97d525ce61b6b54252e71",
     "executable_control_count": 25,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0
-  },
-  "exact_binding": {
-    "declaration_digest": "fb72a62a86126378fce8d8ad4b738bf3cb6b4f04777a58c2d4523d9bf93a0994",
-    "certification_result_digest": "fabcac68b202d8a20b206d94b947d0f543e98ff8dd2a555c216501b14c6db98d",
-    "executable_control_count": 22,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection",
-      "distinct_source_descriptor"
-    ],
-    "corpus_id": "proof-policy-guidance-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "b47e3034b1b8220fed3cf38dc80b18d02208b76ce915f4b30528751fe49eb990",
-    "passed_control_ids": [
-      "admission-substitution",
-      "association-substitution",
-      "certification-substitution",
-      "declaration-source-order-substitution",
-      "declaration-substitution",
-      "evaluation-input-substitution",
-      "positive-exact-binding",
-      "profile-association-binding-omission",
-      "profile-cardinality-weakening",
-      "profile-complete-population-omission",
-      "profile-falsifier-omission",
-      "profile-mechanism-omission",
-      "profile-relation-omission",
-      "profile-satisfaction-weakening",
-      "profile-stage-weakening",
-      "profile-substitution",
-      "profile-verification-method-weakening",
-      "projected-evaluation-opt-in-removal",
-      "projection-result-substitution",
-      "result-as-source-splice",
-      "source-role-swap",
-      "source-substitution"
-    ]
   }
 }

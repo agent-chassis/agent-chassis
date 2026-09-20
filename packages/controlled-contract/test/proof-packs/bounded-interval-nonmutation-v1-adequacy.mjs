@@ -5,7 +5,7 @@ import { buildBoundedIntervalNonmutationFixture, findClaim, findProposition, ref
 import { DOMAINS, MUTATIONS, executeBoundedIntervalNonmutation,
   boundedIntervalNonmutationGuaranteeSatisfied } from "./bounded-interval-nonmutation-v1-harness.mjs";
 const BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE_DIGEST =
-  "8c6a652caed365b0e92292de52fa932fc6cd52b2d7de03c8c15758f616d8689b";
+  "937e729ac57add4eb1db4d3f459be576d261a329825589ca7bc6e212d21e55c7";
 const BOUNDED_INTERVAL_NONMUTATION_V1_GUARANTEE_DIGEST =
   "939c6810e54a1ca2b6174e13bdd12bebec13f923159f57cd7ee6c752b4e42fee";
 const EXCLUSIONS = ["actions-outside-the-declared-interval", "delete-or-create-unless-represented-as-write-or-mutation",

@@ -1,0 +1,75 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "mutation-prohibition-verification",
+      "claim_id": "claim-tools-reject-unsafe-recovery"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "protected_effect_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-attempt"
+      ],
+      "role": "attempt"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-authority"
+      ],
+      "role": "authority"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-operation"
+      ],
+      "role": "operation"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-protected-effect-population"
+      ],
+      "role": "protected_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-protected-interval"
+      ],
+      "role": "protected_interval"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-refusal"
+      ],
+      "role": "refusal"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-subject"
+      ],
+      "role": "subject"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-authorization-refusal-before-effects-protected-effects-1",
+        "ref-authorization-refusal-before-effects-protected-effects-2"
+      ],
+      "role": "protected_effects"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

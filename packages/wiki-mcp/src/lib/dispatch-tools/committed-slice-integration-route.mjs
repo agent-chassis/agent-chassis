@@ -1,7 +1,7 @@
 import { DISPATCH_BLOCKER_CODES } from "../dispatch-tool-constants.mjs";
 import { buildDispatchToolExceptionDetail } from "../dispatch-tool-helpers.mjs";
 
-const description = "Request exact committed-slice integration as an orchestrator continuation. A zero-delta slice succeeds idempotently with empty_delivery:true and leaves the WK ref unchanged. Reviewer/redteam results are advisory evidence only: clean output does not authorize and findings do not veto. Finding dispositions are request facts, not authority. CCE alone owns any configured organization-policy decision; paid-tier presence alone configures no gate. Without a configured gate the server uses DEC-0133 free-substrate posture. A configured gate fails closed on missing, unavailable, malformed, unratified, denied, or target-mismatched CCE evidence. Input is closed to repo alias, canonical slice subject, and advisory dispositions. The server rejects authority carriers, re-derives the exact target, and performs CAS-safe idempotent integration exactly once.";
+const description = "Integrate an exact committed slice idempotently under CAS; zero delta leaves the WK ref unchanged. Orchestrator continuation. Reviews/dispositions are advisory. Only configured CCE policy gates admission; invalid configured-gate evidence refuses.";
 
 function closedAuthorityInputSchema(zod, schema, allowedFields) {
   if (typeof schema?.catchall !== "function" || typeof schema?.superRefine !== "function") {
@@ -56,9 +56,10 @@ function projectTypedIntegrationBlocker(result, refusal) {
     result?.public_blocker_code ?? result?.blocker_code ??
     result?.classification?.blocker_code ?? result?.classification;
   const publicBlockerCodes = new Set(Object.values(DISPATCH_BLOCKER_CODES));
+
   return typeof classification === "string" && publicBlockerCodes.has(classification)
     ? classification
-    : DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
+    : DISPATCH_BLOCKER_CODES.SLICE_INTEGRATION_CLASSIFICATION_UNAVAILABLE;
 }
 
 function buildIntegrationRefusalResult({ blockerCode, reason, detail = null }) {
@@ -159,7 +160,7 @@ export function registerCommittedSliceIntegrationRoute(ctx) {
       }));
     } catch (error) {
       return jsonContent(buildIntegrationRefusalResult({
-        blockerCode: DISPATCH_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+        blockerCode: DISPATCH_BLOCKER_CODES.HANDLER_EXCEPTION,
         reason: "dispatch_tool_exception",
         detail: buildDispatchToolExceptionDetail(committedSliceIntegrationToolName, error)
       }));

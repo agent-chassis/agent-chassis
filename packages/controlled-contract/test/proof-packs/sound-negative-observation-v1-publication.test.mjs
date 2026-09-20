@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+
+import { buildStableTestProofPopulation } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { TEST_PROOF_VERSION_V1 } from "../../lib/native-contract-carrier-v1.mjs";
 import test from "node:test";
 
 import {
@@ -19,14 +22,20 @@ import {
 
 const intentId = "controlled-proof-intent.sound-negative-observation";
 const profileId = "proof.observation.sound-negative";
-const profileVersion = "2.0.0";
+const profileVersion = "3.0.0";
 
 function fixture() {
   const source = buildSoundNegativeObservationSources({
     conclusion: "absent", sourceCount: 2, observationCount: 2,
     domain: "sound-negative-publication"
   });
-  const contract = JSON.parse(source.projectionBytes.toString("utf8"));
+  const projected = JSON.parse(source.projectionBytes.toString("utf8"));
+
+  const contract = {
+    ...projected,
+    test_proof_version: TEST_PROOF_VERSION_V1,
+    test_proofs: buildStableTestProofPopulation(projected)
+  };
   return {
     contract,
     evaluationInput: buildSoundNegativeObservationEvaluationInput(contract)
@@ -85,5 +94,4 @@ test("published admission binds semantic adequacy and exact certification", asyn
   assert.equal(pack.admission.certification.executable_control_count, 34);
   assert.equal(pack.admission.certification.negative_fixture_count, 0);
   assert.equal(pack.admission.certification.coverage_witness_count, 0);
-  assert.equal(pack.admission.exact_binding.executable_control_count, 15);
 });

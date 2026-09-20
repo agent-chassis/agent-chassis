@@ -73,8 +73,10 @@ export async function walkMarkdownFiles(rootDir) {
   return files.sort((left, right) => left.localeCompare(right));
 }
 
-export async function readMarkdownPage(targetDir, filePath) {
-  const markdown = await readFile(filePath, "utf8");
+export function parseMarkdownPage(targetDir, filePath, markdown) {
+  if (typeof markdown !== "string") {
+    throw new TypeError("parseMarkdownPage requires Markdown text");
+  }
   const frontmatter = extractFrontMatter(markdown);
   const body = extractMarkdownBody(markdown);
   const titleMatch = body.match(/^#\s+(.+)$/m);
@@ -97,4 +99,9 @@ export async function readMarkdownPage(targetDir, filePath) {
     backlinks,
     markdownLinks
   };
+}
+
+export async function readMarkdownPage(targetDir, filePath) {
+  const markdown = await readFile(filePath, "utf8");
+  return parseMarkdownPage(targetDir, filePath, markdown);
 }

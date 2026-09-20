@@ -32,7 +32,7 @@ const controlledContractRoot = path.resolve(
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.readiness.before-success/2.0.0"
+  "certification/profiles/proof.readiness.before-success/3.0.0"
 );
 
 async function readJson(name) {

@@ -110,6 +110,15 @@ export const MODEL_REGISTRY = Object.freeze([
     })
   ]),
   Object.freeze([
+    "gpt-6-astra",
+    Object.freeze({
+      app: "codex",
+      backend: "codex",
+      codex_profile: "orchestrator",
+      default_effort: "high"
+    })
+  ]),
+  Object.freeze([
     "fable",
     Object.freeze({
       app: "claude",

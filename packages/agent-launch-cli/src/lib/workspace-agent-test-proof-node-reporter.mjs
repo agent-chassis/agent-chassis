@@ -3,8 +3,13 @@ import { writeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { captureTestFailureDiagnostic } from
+  "./workspace-agent-test-proof-error-diagnostic.mjs";
+
 const SCHEMA_VERSION = "workspace-agent-test-proof-node-events.v1";
 const EVENT_TYPES = new Set(["test:coverage", "test:fail", "test:pass", "test:summary"]);
+const RUNTIME_NODE_EVENT_TYPES = new Set(["test:enqueue", "test:dequeue", "test:start", "test:pass",
+  "test:fail", "test:complete"]);
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -73,7 +78,52 @@ function errorCodes(error, result = new Set(), seen = new Set()) {
   return result;
 }
 
-function projectEvent(event) {
+function recordRuntimeNode(nodes, event) {
+  if (!RUNTIME_NODE_EVENT_TYPES.has(event?.type)) return;
+  const data = event.data;
+  if (typeof data?.file !== "string" || !Number.isSafeInteger(data.testId)) return;
+  const key = `${data.file}\u0000${data.testId}`;
+  const fact = { name: data.name, nesting: data.nesting, parent_id: data.parentId,
+    type: data.type ?? data.details?.type ?? null };
+  const prior = nodes.get(key);
+  if (prior === undefined) {
+    nodes.set(key, fact);
+    return;
+  }
+  if (prior.conflict === true || prior.name !== fact.name || prior.nesting !== fact.nesting ||
+      prior.parent_id !== fact.parent_id ||
+      (prior.type !== null && fact.type !== null && prior.type !== fact.type)) {
+    nodes.set(key, { conflict: true });
+    return;
+  }
+  if (prior.type === null) prior.type = fact.type;
+}
+
+function ancestorTestIds(nodes, data, file) {
+  if (typeof data?.file !== "string" || !Number.isSafeInteger(data.testId) ||
+      !Number.isSafeInteger(data.parentId) ||
+      nodes.get(`${data.file}\u0000${data.testId}`)?.conflict === true) return null;
+  const ancestors = [];
+  const visited = new Set([data.testId]);
+  let parentId = data.parentId;
+  for (;;) {
+    const node = nodes.get(`${data.file}\u0000${parentId}`);
+    if (node === undefined) return ancestors;
+    if (node.conflict === true || visited.has(parentId) ||
+        !Number.isSafeInteger(node.parent_id)) return null;
+    visited.add(parentId);
+    if (node.type === "test") {
+      const id = stableRuntimeTestIdFromParts({ file,
+        name: typeof node.name === "string" ? node.name : null,
+        nesting: Number.isInteger(node.nesting) ? node.nesting : null });
+      if (id === null) return null;
+      ancestors.unshift(id);
+    }
+    parentId = node.parent_id;
+  }
+}
+
+function projectEvent(event, nodes) {
   if (!EVENT_TYPES.has(event?.type)) return null;
   if (event.type === "test:coverage") {
     const cwd = event.data?.summary?.workingDirectory ?? process.cwd();
@@ -112,19 +162,25 @@ function projectEvent(event) {
     name,
     file,
     nesting,
+    ancestor_test_ids: ancestorTestIds(nodes, event.data, file),
     status: event.data?.skip !== undefined ? "skipped"
       : event.data?.todo !== undefined ? "todo"
         : event.type === "test:fail" ? "failed" : "passed",
     ...(event.type === "test:fail"
-      ? { error_codes: [...errorCodes(event.data?.details?.error)].sort() }
+      ? {
+          error_codes: [...errorCodes(event.data?.details?.error)].sort(),
+          failure_diagnostic: captureTestFailureDiagnostic(event.data?.details?.error)
+        }
       : {})
   };
 }
 
 export default async function* launcherTestProofReporter(source) {
   const events = [];
+  const nodes = new Map();
   for await (const event of source) {
-    const projected = projectEvent(event);
+    recordRuntimeNode(nodes, event);
+    const projected = projectEvent(event, nodes);
     if (projected !== null) events.push(projected);
   }
   const payload = { schema_version: SCHEMA_VERSION, events };

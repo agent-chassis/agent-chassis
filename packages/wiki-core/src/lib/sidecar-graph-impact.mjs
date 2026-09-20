@@ -1,36 +1,29 @@
-import { access } from "node:fs/promises";
 import path from "node:path";
 
+import { createSidecarResultEnvelope } from "./sidecar-schema.mjs";
+import { loadCanonicalState, resolveContractContext } from "./wiki.mjs";
 import {
-  SIDECAR_ARTIFACT_SCHEMA_VERSION,
-  createSidecarResultEnvelope
-} from "./sidecar-schema.mjs";
-import {
-  discoverSidecarGitState,
-  getSidecarIndexStatus,
-  resolveSidecarArtifactPath,
-  runSidecarGit
-} from "./sidecar-status.mjs";
+  SidecarGraphIndexUnbuildableError
+} from "./sidecar-graph-impact-artifact.mjs";
+import { runSidecarGit } from "./sidecar-status.mjs";
 import { joinSidecarPathsToCanonicalRecords } from "./sidecar-joins.mjs";
 import {
   SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS,
   asStringList,
   cloneJson,
+  pageKindForPath,
   provenance,
   uniqueStrings,
   validateImpactPath
 } from "./sidecar-graph-impact-shared.mjs";
-import {
-  artifactIdentityMatches,
-  classifyReadSidecarGraphArtifact,
-  loadCanonicalRecords,
-  readArtifact,
-  rebuildGraphIndexAtHead,
-  SidecarGraphIndexUnbuildableError,
-  sourcePathsFromArtifact
-} from "./sidecar-graph-impact-artifact.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
-import { resolveSidecarRepositoryIdentity } from "./sidecar-artifact-query-cache.mjs";
+import { resolveSidecarRepositoryIdentity } from "./sidecar-repository-identity.mjs";
+import { ensureSidecarIndex, SidecarIndexEnsureError } from "./sidecar-ensure.mjs";
+import {
+  resolveCommittedSidecarSnapshot,
+  sameGraphSnapshot
+} from "./sidecar-committed-preparation.mjs";
+import { readSidecarGraphSelection } from "./sidecar-store.mjs";
 import { projectSelectedUnitGraphBearingPaths } from "./work-record-dispatch-graph-projection.mjs";
 import { collectDirtyGraphOverlay, selectGraph } from "./sidecar-graph-impact-overlay.mjs";
 import {
@@ -47,17 +40,44 @@ import {
   statusHints
 } from "./sidecar-graph-impact-hints.mjs";
 import { createCompactGraphImpactSummary } from "./sidecar-graph-impact-summary.mjs";
-import {
-  diffPathStates,
-  emptyGraphImpactResult,
-  normalizeGraphImpactDiffInput,
-  pathsForDiffImpact
-} from "./sidecar-graph-impact-diff.mjs";
 
 export { SIDECAR_GRAPH_IMPACT_DIFF_RAW_PATCH_LIMITS } from "./sidecar-graph-impact-shared.mjs";
 
 const GRAPH_REBUILD_MAX_PASSES = 3;
 const COMMITTED_HEAD_QUERY_SCHEMA_VERSION = "committed-head-graph-impact.v1";
+const canonicalRecordCache = new Map();
+
+export async function loadCanonicalRecords(targetDir, { profile, extensionNamespaces, cacheKey = null } = {}) {
+  const key = cacheKey === null ? null : JSON.stringify([
+    targetDir, cacheKey, profile ?? null, extensionNamespaces ?? null
+  ]);
+  if (key && canonicalRecordCache.has(key)) return canonicalRecordCache.get(key);
+  const context = await resolveContractContext(targetDir, { profile, extensionNamespaces });
+  const state = await loadCanonicalState(targetDir, {
+    extensionNamespaces: context.extensionNamespaces
+  });
+  const records = [
+    ...state.docs,
+    ...state.decisions,
+    ...state.areas,
+    ...state.issues,
+    ...state.initiatives,
+    ...state.sources,
+    ...state.wikiPages,
+    ...state.extensionPages
+  ].map((page) => ({
+    ...page,
+    id: page.frontmatter?.id ?? null,
+    pageKind: pageKindForPath(page.relativePath)
+  }));
+  if (key) {
+    canonicalRecordCache.set(key, records);
+    while (canonicalRecordCache.size > 8) {
+      canonicalRecordCache.delete(canonicalRecordCache.keys().next().value);
+    }
+  }
+  return records;
+}
 
 function committedUnitIdentity(value) {
   if (
@@ -73,10 +93,6 @@ function committedUnitIdentity(value) {
     record_id: value.record_id.slice(0, 64),
     slice_id: value.kind === "slice" ? value.slice_id.slice(0, 64) : null
   };
-}
-
-function statusRequiresRebuild(status) {
-  return status?.index_action === "rebuild";
 }
 
 export function deriveDirectImportAdjacencyFromGraph(graph, bearingPaths) {
@@ -119,7 +135,7 @@ export function deriveDirectImportAdjacencyFromGraph(graph, bearingPaths) {
     .map((key) => key.split("\t"));
 }
 
-function committedHeadFailure({ outcome, status, selectedUnit }) {
+function committedHeadFailure({ outcome, status, selectedUnit, cause = null }) {
   return {
     schema_version: COMMITTED_HEAD_QUERY_SCHEMA_VERSION,
     outcome,
@@ -135,7 +151,16 @@ function committedHeadFailure({ outcome, status, selectedUnit }) {
       dirty_graph_mode: "unavailable",
       graph_schema_version: status?.graph_state?.graph_schema_version ?? null,
       unavailable_paths: []
-    }
+    },
+    ...(cause === null ? {} : { failure: {
+      code: cause?.code ?? "committed_code_index_unavailable",
+      message: cause?.message ?? String(cause),
+      cause: structuredClone(cause?.envelope ?? null),
+      recovery: cause?.envelope?.recovery ?? {
+        action: "correct_the_reported_index_failure_then_retry_this_operation",
+        automatic_rebuild_on_retry: true
+      }
+    } })
   };
 }
 
@@ -152,56 +177,13 @@ function statusFailureOutcome(status) {
   return "base_artifact_unavailable";
 }
 
-async function getCommittedHeadArtifactStatus({ dir, cacheDir }) {
-  const repoRoot = await resolveSidecarRepositoryIdentity({ dir });
-  const [indexHead, indexTree] = await Promise.all([
-    runSidecarGit(repoRoot, ["rev-parse", "HEAD"]),
-    runSidecarGit(repoRoot, ["rev-parse", "HEAD^{tree}"])
-  ]);
-  const artifactPaths = resolveSidecarArtifactPath({ repoRoot, cacheDir });
-  let artifactExists = true;
-  try {
-    await access(artifactPaths.artifactPath);
-  } catch {
-    artifactExists = false;
-  }
-  return {
-    repo_root: repoRoot,
-    artifact_exists: artifactExists,
-    artifact_path: artifactPaths.artifactRelativePath,
-    artifact_schema_version: SIDECAR_ARTIFACT_SCHEMA_VERSION,
-    staleness: artifactExists ? "fresh" : "missing",
-    index_action: artifactExists ? "use" : "rebuild",
-    status_reason: artifactExists ? "source_identity_match" : "artifact_missing",
-    index_head: indexHead,
-    index_tree: indexTree,
-    graph_state: {
-      graph_available: artifactExists,
-      graph_schema_version: artifactExists ? SIDECAR_GRAPH_SCHEMA_VERSION : null
-    }
-  };
-}
-
-function artifactMatchesCommittedIdentity({ artifact, identity, indexHead, indexTree }) {
-  return Boolean(
-    artifact?.schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
-    artifact.index_head === indexHead &&
-    artifact.index_tree === indexTree &&
-    artifact.cache_metadata?.artifact_schema_version === SIDECAR_ARTIFACT_SCHEMA_VERSION &&
-    artifact.cache_metadata?.index_head === indexHead &&
-    artifact.cache_metadata?.index_tree === indexTree &&
-    identity?.index_head === indexHead
-  );
-}
-
 export async function getCommittedHeadGraphImpactPaths({
   dir = ".",
   selectedUnit,
   subject,
   cacheDir = undefined,
-  statusReader = getCommittedHeadArtifactStatus,
-  artifactReader = readArtifact,
-  headReader = null
+  headReader = null,
+  ensureIndex = ensureSidecarIndex
 } = {}) {
   const unitIdentity = committedUnitIdentity(selectedUnit);
   if (!unitIdentity) {
@@ -211,97 +193,58 @@ export async function getCommittedHeadGraphImpactPaths({
       selectedUnit: null
     });
   }
-  const targetDir = path.resolve(String(dir || "."));
   let status = null;
   try {
-    status = await statusReader({ dir: targetDir, cacheDir });
-    if (status.index_action !== "use" || status.staleness !== "fresh") {
+    const prepared = await resolveCommittedSidecarSnapshot({ dir, cacheDir, ensureIndex });
+    status = prepared.status;
+    if (!prepared.available) {
       return committedHeadFailure({
-        outcome: statusFailureOutcome(status),
+        outcome: prepared.outcome,
         status,
         selectedUnit: unitIdentity
       });
     }
-
-    const repoRoot = await resolveSidecarRepositoryIdentity({
-      dir: status.repo_root ?? targetDir
+    const subjectPaths = [
+      ...(Array.isArray(subject?.write_scope) ? subject.write_scope : []),
+      ...(Array.isArray(subject?.repo_paths) ? subject.repo_paths : [])
+    ].map(validateImpactPath).filter(({ ok }) => ok).map(({ relative_path }) => relative_path);
+    const selection = readSidecarGraphSelection({
+      repoRoot: prepared.repoRoot,
+      cacheDir,
+      paths: subjectPaths
     });
-    const artifactRead = await artifactReader({ repoRoot, status });
-    if (!artifactRead.artifact || !artifactRead.identity) {
-      const reason = artifactRead.evidence?.reason ?? "artifact_unavailable";
+    if (!sameGraphSnapshot(selection.publication, prepared.graph_snapshot)) {
       return committedHeadFailure({
-        outcome: reason === "artifact_unreadable"
-          ? "base_artifact_corrupt"
-          : reason.includes("incompatible") || reason.includes("format") ||
-              reason.startsWith("generator_identity_")
-            ? "base_artifact_incompatible"
-            : "base_artifact_unavailable",
+        outcome: "repository_snapshot_changed",
         status,
         selectedUnit: unitIdentity
       });
     }
-
-    const verifiedArtifactRead = artifactReader === readArtifact
-      ? artifactRead
-      : await artifactReader({ repoRoot, status });
-    if (
-      !verifiedArtifactRead.artifact ||
-      !verifiedArtifactRead.identity ||
-      !artifactIdentityMatches(artifactRead.identity, verifiedArtifactRead.identity)
-    ) {
-      return committedHeadFailure({
-        outcome: "base_artifact_incompatible",
-        status,
-        selectedUnit: unitIdentity
-      });
-    }
-
-    const [currentHead, currentTree] = await Promise.all([
-      headReader ? headReader() : runSidecarGit(repoRoot, ["rev-parse", "HEAD"]),
-      runSidecarGit(repoRoot, ["rev-parse", "HEAD^{tree}"])
+    const [afterHead, afterTree] = await Promise.all([
+      headReader ? headReader() : runSidecarGit(prepared.repoRoot,
+        ["--no-replace-objects", "rev-parse", "HEAD"]),
+      runSidecarGit(prepared.repoRoot, ["--no-replace-objects", "rev-parse", "HEAD^{tree}"])
     ]);
-    const identity = artifactRead.identity;
-    const classified = classifyReadSidecarGraphArtifact(artifactRead.artifact);
-    if (currentHead !== status.index_head || currentTree !== status.index_tree) {
-      return committedHeadFailure({
-        outcome: "repository_head_unstable",
-        status,
-        selectedUnit: unitIdentity
-      });
+    if (afterHead !== prepared.graph_snapshot.repository_commit ||
+        afterTree !== prepared.graph_snapshot.repository_tree) {
+      return committedHeadFailure({ outcome: "repository_head_unstable", status,
+        selectedUnit: unitIdentity });
     }
-    if (
-      !artifactMatchesCommittedIdentity({
-        artifact: artifactRead.artifact,
-        identity,
-        indexHead: currentHead,
-        indexTree: currentTree
-      }) ||
-      identity.graph_schema_version !== SIDECAR_GRAPH_SCHEMA_VERSION ||
-      !classified.compatible ||
-      classified.graph_state.graph_available !== true
-    ) {
-      return committedHeadFailure({
-        outcome: "base_artifact_incompatible",
-        status,
-        selectedUnit: unitIdentity
-      });
-    }
-
     const projection = projectSelectedUnitGraphBearingPaths({
       selectedUnit: unitIdentity,
       subject,
-      committedSourcePaths: sourcePathsFromArtifact(artifactRead.artifact)
+      committedSourcePaths: selection.files.map(({ path: value }) => value)
     });
-    const sanitized = artifactRead.derived
-      ? {
-          graph: artifactRead.derived.sanitized_graph,
-          evidence: artifactRead.derived.sanitization_evidence
-        }
-      : sanitizeGraphForbiddenPaths(artifactRead.artifact.graph);
-    const indexes = artifactRead.derived?.graph_indexes ?? createGraphIndexes(sanitized.graph);
-    const unavailablePaths = projection.graph_bearing_paths.filter(
-      (relativePath) => !indexes.nodeIdsByPath.has(relativePath)
-    );
+    const sanitized = sanitizeGraphForbiddenPaths(selection.graph);
+    const indexes = createGraphIndexes(sanitized.graph);
+
+    const absentFromCommitted = new Set(projection.excluded_paths
+      .filter(({ reason }) => reason === "absent_from_committed_artifact")
+      .map(({ path: value }) => value));
+    const unavailablePaths = uniqueStrings([
+      ...selection.unavailable_paths.filter((value) => !absentFromCommitted.has(value)),
+      ...sanitized.evidence.map(({ input_path }) => input_path)
+    ]);
     const impacts = projection.graph_bearing_paths.flatMap((inputPath) =>
       connectedGraphImpact({ inputPath, indexes })
     );
@@ -321,9 +264,10 @@ export async function getCommittedHeadGraphImpactPaths({
       outcome: "available",
       available: true,
       query_kind: "graph_impact_paths",
-      repository_commit: identity.index_head,
-      graph_schema_version: identity.graph_schema_version,
-      generator_identity: identity.generator_identity,
+      repository_commit: selection.publication.repository_commit,
+      graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
+      generator_identity: selection.publication.generator_identity,
+      graph_snapshot: prepared.graph_snapshot,
       selected_unit: unitIdentity,
       projection,
       input_paths: projection.subject_paths,
@@ -338,11 +282,14 @@ export async function getCommittedHeadGraphImpactPaths({
       graph_edges: impactedGraph.graph_edges,
       structural_impacts: impacts
     };
-  } catch {
+  } catch (cause) {
     return committedHeadFailure({
-      outcome: "base_artifact_unavailable",
+      outcome: cause?.envelope?.status_reason
+        ? statusFailureOutcome({ status_reason: cause.envelope.status_reason })
+        : "base_artifact_unavailable",
       status,
-      selectedUnit: unitIdentity
+      selectedUnit: unitIdentity,
+      cause
     });
   }
 }
@@ -350,57 +297,72 @@ export async function getCommittedHeadGraphImpactPaths({
 export async function resolveCurrentGraphForImpact({
   targetDir,
   cacheDir,
-  artifactReader = readArtifact,
+  paths = [],
   headReader = async () => {
     try {
       const repoRoot = await resolveSidecarRepositoryIdentity({ dir: targetDir });
       return await runSidecarGit(repoRoot, ["rev-parse", "HEAD"]);
-    } catch {
-      return null;
+    } catch (error) {
+
+      if (error?.code === 128) return null;
+      throw error;
     }
   }
 } = {}) {
   let lastResolution = null;
   for (let pass = 0; pass < GRAPH_REBUILD_MAX_PASSES; pass += 1) {
     const isFinalPass = pass === GRAPH_REBUILD_MAX_PASSES - 1;
-    const pinnedHead = await headReader();
+    let prepared;
+    try {
 
-    let status = await getSidecarIndexStatus({ dir: targetDir, cacheDir });
-    let rebuild = null;
-    if (statusRequiresRebuild(status)) {
-      rebuild = await rebuildGraphIndexAtHead({ targetDir, cacheDir });
-
-      status = await getSidecarIndexStatus({ dir: targetDir, cacheDir });
-      if (statusRequiresRebuild(status)) {
-
+      prepared = await resolveCommittedSidecarSnapshot({
+        dir: targetDir,
+        cacheDir,
+        dirtyState: true
+      });
+    } catch (error) {
+      if (!(error instanceof SidecarIndexEnsureError)) throw error;
+      const headMoved = error.code === "sidecar_index_head_unstable";
+      throw new SidecarGraphIndexUnbuildableError(
+        headMoved
+          ? "repository HEAD moved throughout committed graph-index recovery"
+          : `repo code index could not be built for graph impact: ${error.message}`,
+        { code: headMoved ? "graph_head_moved_unstable" : "graph_index_unbuildable",
+          cause: error, status: error.envelope?.status ?? null }
+      );
+    }
+    if (!prepared.available) {
+      if (isFinalPass) {
         throw new SidecarGraphIndexUnbuildableError(
-          "repo code index was rebuilt at HEAD but still does not yield a usable base graph",
-          { status }
+          `repo code index snapshot is unavailable: ${prepared.outcome}`,
+          { code: "graph_index_unbuildable", status: prepared.status }
         );
       }
+      continue;
     }
-
-    const gitState = await discoverSidecarGitState(targetDir);
-    const artifactRead = await artifactReader({ repoRoot: gitState.repoRoot, status });
-    const artifactMatchesPinnedHead =
-      Boolean(artifactRead.artifact) &&
-      artifactRead.identity?.index_head === pinnedHead &&
-      artifactRead.identity.index_head === status.index_head;
+    const pinnedHead = prepared.graph_snapshot.repository_commit;
+    const status = prepared.status;
+    const rebuild = prepared.build;
+    const gitState = {
+      repoRoot: prepared.repoRoot,
+      index_head: status.index_head,
+      index_tree: status.index_tree,
+      dirty_state: status.dirty_state,
+      dirty_details: status.dirty_details
+    };
+    const storeSelection = readSidecarGraphSelection({
+      repoRoot: gitState.repoRoot,
+      cacheDir,
+      paths,
+      directories: paths.map((value) => path.posix.dirname(value)).filter((value) => value !== ".")
+    });
+    const snapshotStable = sameGraphSnapshot(storeSelection.publication, prepared.graph_snapshot);
     const overlay = await collectDirtyGraphOverlay({ repoRoot: gitState.repoRoot, status });
-    const graphSelection = selectGraph({ status, artifact: artifactRead.artifact, overlay });
-
-    const verifiedArtifactRead = artifactReader === readArtifact
-      ? artifactRead
-      : await artifactReader({ repoRoot: gitState.repoRoot, status });
-    const artifactIdentityStable =
-      artifactMatchesPinnedHead &&
-      verifiedArtifactRead.identity?.index_head === pinnedHead &&
-      artifactIdentityMatches(artifactRead.identity, verifiedArtifactRead.identity);
-
-    lastResolution = { gitState, status, artifactRead, overlay, graphSelection, rebuild };
+    const graphSelection = selectGraph({ baseGraph: storeSelection.graph, overlay });
+    lastResolution = { gitState, status, storeSelection, overlay, graphSelection, rebuild };
 
     const afterHead = await headReader();
-    if (afterHead === pinnedHead && artifactIdentityStable) {
+    if (afterHead === pinnedHead && snapshotStable) {
 
       return lastResolution;
     }
@@ -432,28 +394,19 @@ export async function getSidecarGraphImpactPaths({
   }
 
   const targetDir = path.resolve(String(dir || "."));
-  const { gitState, status, artifactRead, overlay, graphSelection, rebuild } =
-    await resolveCurrentGraphForImpact({ targetDir, cacheDir, headReader });
-  const cachedDerived = graphSelection.graph === artifactRead.artifact?.graph
-    ? artifactRead.derived
-    : null;
-  const sanitizedSelection = cachedDerived
-    ? {
-        graph: cachedDerived.sanitized_graph,
-        evidence: cachedDerived.sanitization_evidence
-      }
-    : sanitizeGraphForbiddenPaths(graphSelection.graph);
-
   const validations = inputPaths.map(validateImpactPath);
   const validPaths = uniqueStrings(
     validations.filter((entry) => entry.ok).map((entry) => entry.relative_path)
   );
   const validationHints = validations.map((entry) => entry.hint);
   const invalidPaths = validations.filter((entry) => !entry.ok).map((entry) => entry.input_path);
+  const { gitState, status, storeSelection, overlay, graphSelection, rebuild } =
+    await resolveCurrentGraphForImpact({ targetDir, cacheDir, headReader, paths: validPaths });
+  const sanitizedSelection = sanitizeGraphForbiddenPaths(graphSelection.graph);
 
   const graphImportAdjacency = deriveDirectImportAdjacencyFromGraph(graphSelection.graph, validPaths);
 
-  const indexes = cachedDerived?.graph_indexes ?? createGraphIndexes(sanitizedSelection.graph);
+  const indexes = createGraphIndexes(sanitizedSelection.graph);
   const impacts = sanitizedSelection.graph
     ? validPaths.flatMap((inputPath) => connectedGraphImpact({ inputPath, indexes }))
     : [];
@@ -498,14 +451,14 @@ export async function getSidecarGraphImpactPaths({
   if (joinPaths.length > 0) {
     const canonicalRecords = await loadCanonicalRecords(targetDir, {
       profile,
-      extensionNamespaces
+      extensionNamespaces,
+      cacheKey: status.dirty_state === "clean" ? status.index_tree : null
     });
-    const knownExistingPaths =
-      overlay.overlayState === "included"
-        ? overlay.sourcePaths
-        : status.staleness === "fresh"
-          ? sourcePathsFromArtifact(artifactRead.artifact)
-          : null;
+    const knownExistingPaths = uniqueStrings([
+      ...storeSelection.files.map(({ path: value }) => value),
+      ...storeSelection.directory_membership.map(({ path: value }) => value),
+      ...(overlay.overlayState === "included" ? overlay.sourcePaths : [])
+    ]);
     joined = joinSidecarPathsToCanonicalRecords({
       paths: joinPaths,
       canonicalRecords,
@@ -542,7 +495,15 @@ export async function getSidecarGraphImpactPaths({
             }
           ]
         : []),
-      artifactRead.evidence,
+      {
+        kind: "sidecar_sqlite_selection",
+        graph_snapshot: status.graph_snapshot,
+        selected_file_count: storeSelection.files.length,
+        selected_directory_member_count: storeSelection.directory_membership.length,
+        selected_node_count: storeSelection.graph.graph_nodes.length,
+        selected_edge_count: storeSelection.graph.graph_edges.length,
+        provenance: provenance({ evidenceBasis: "git_tree" })
+      },
       ...(overlay.evidence ? [overlay.evidence] : []),
       queryEvidence({ inputPaths: validPaths, includeSuppressed }),
       ...joined.derived_evidence.map(cloneJson),
@@ -556,6 +517,7 @@ export async function getSidecarGraphImpactPaths({
     artifact_exists: status.artifact_exists,
     artifact_schema_version: status.artifact_schema_version,
     expected_artifact_schema_version: status.expected_artifact_schema_version,
+    graph_snapshot: cloneJson(status.graph_snapshot),
     status_reason: status.status_reason,
     query_kind: "graph_impact_paths",
     input_paths: inputPaths,
@@ -568,91 +530,6 @@ export async function getSidecarGraphImpactPaths({
     graph_edges: impactedGraph.graph_edges,
     structural_impacts: impacts,
     missing_update_hints: hints
-  });
-  return {
-    ...result,
-    summary: createCompactGraphImpactSummary(result)
-  };
-}
-
-export async function getSidecarGraphImpactDiff({
-  dir = ".",
-  patchText = null,
-  diffRecords = null,
-  liveGit = false,
-  cacheDir = undefined,
-  includeSuppressed = false,
-  profile = null,
-  extensionNamespaces = null
-} = {}) {
-  const targetDir = path.resolve(String(dir || "."));
-  const normalized = await normalizeGraphImpactDiffInput({
-    repoRoot: targetDir,
-    patchText,
-    diffRecords,
-    liveGit
-  });
-
-  const impactPaths = pathsForDiffImpact(normalized.validatedDiffRecords);
-  const graphResult =
-    impactPaths.length > 0
-      ? await getSidecarGraphImpactPaths({
-          dir: targetDir,
-          paths: impactPaths,
-          cacheDir,
-          includeSuppressed,
-          profile,
-          extensionNamespaces
-        })
-      : emptyGraphImpactResult({
-          status: await getSidecarIndexStatus({ dir: targetDir, cacheDir }),
-          inputPaths: impactPaths
-        });
-  const states = diffPathStates({
-    records: normalized.validatedDiffRecords,
-    graphResult
-  });
-  const oldPaths = uniqueStrings(
-    normalized.validatedDiffRecords.map((record) => record.oldPath).filter(Boolean)
-  ).sort((left, right) => left.localeCompare(right));
-  const newPaths = uniqueStrings(
-    normalized.validatedDiffRecords.map((record) => record.newPath).filter(Boolean)
-  ).sort((left, right) => left.localeCompare(right));
-  const affectedPaths = uniqueStrings([...oldPaths, ...newPaths]).sort((left, right) =>
-    left.localeCompare(right)
-  );
-  const diffQueryEvidence = {
-    kind: "sidecar_graph_impact_diff_query",
-    query_kind: "graph_impact_diff",
-    input_diff_sources: normalized.inputSources.map((entry) => entry.source),
-    affected_paths: affectedPaths,
-    provenance: provenance({ evidenceBasis: "explicit_metadata" })
-  };
-
-  const result = createSidecarResultEnvelope({
-    ...graphResult,
-    query_kind: "graph_impact_diff",
-    input_diff_sources: normalized.inputSources,
-    input_paths: impactPaths,
-    parsed_diff_records: normalized.parsedDiffRecords,
-    validated_diff_records: normalized.validatedDiffRecords,
-    invalid_diff_records: normalized.invalidDiffRecords,
-    affected_paths: affectedPaths,
-    old_paths: oldPaths,
-    new_paths: newPaths,
-    validation_hints: [
-      ...normalized.validationHints,
-      ...(graphResult.validation_hints || [])
-    ],
-    graph_state: {
-      ...graphResult.graph_state,
-      diff_path_states: states
-    },
-    derived_evidence: [
-      ...(graphResult.derived_evidence || []).map(cloneJson),
-      diffQueryEvidence,
-      ...normalized.validationHints.map(cloneJson)
-    ]
   });
   return {
     ...result,

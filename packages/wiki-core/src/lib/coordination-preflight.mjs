@@ -16,6 +16,9 @@ import {
   isAcceptedIdentityTrustSource
 } from "./agent-dispatch-identity.mjs";
 
+const STDIO_MCP_LIFECYCLE_PROTOCOL_INCOMPATIBLE_CODE =
+  RUNTIME_BLOCKER_CODES.STDIO_MCP_LIFECYCLE_PROTOCOL_INCOMPATIBLE;
+
 export const COORDINATION_PREFLIGHT_SCHEMA_VERSION = "coordination-preflight.v1";
 
 export const COORDINATOR_ALLOWED_WRITE_SURFACES = Object.freeze([
@@ -595,7 +598,8 @@ export function evaluateCoordinationPreflight({
   if (compositionProjection !== null && compositionProjection.available !== true) {
     const refusal = compositionProjection.blocker ?? {};
     blockers.push(
-      buildBlocker(RUNTIME_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED, {
+
+      buildBlocker(STDIO_MCP_LIFECYCLE_PROTOCOL_INCOMPATIBLE_CODE, {
         cause: refusal.cause ?? "stdio_mcp_lifecycle_protocol_incompatible",
         recovery: refusal.recovery ??
           "deploy one coherent build and restart the long-lived backend",

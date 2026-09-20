@@ -1,0 +1,205 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "operation-returns-result",
+      "claim_id": "claim-routing-supports-authoring"
+    },
+    {
+      "pattern_id": "required-members-present",
+      "claim_id": "claim-nonterminal-routes-next-call"
+    },
+    {
+      "pattern_id": "result-count-complete",
+      "claim_id": "claim-state-matrix-complete"
+    },
+    {
+      "pattern_id": "result-count-verification",
+      "claim_id": "claim-state-matrix-members-enumerated"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "allowed_count",
+      "value": 2
+    },
+    {
+      "role": "allowed_shape_count",
+      "value": 1
+    },
+    {
+      "role": "forbidden_member_count",
+      "value": 2
+    },
+    {
+      "role": "forbidden_shape_count",
+      "value": 2
+    },
+    {
+      "role": "optional_count",
+      "value": 0
+    },
+    {
+      "role": "required_count",
+      "value": 2
+    },
+    {
+      "role": "result_count",
+      "value": 2
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-allowed-population"
+      ],
+      "role": "allowed_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-allowed-shape-population"
+      ],
+      "role": "allowed_shape_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-disallowed-shape-condition"
+      ],
+      "role": "disallowed_shape_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-forbidden-member-population"
+      ],
+      "role": "forbidden_member_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-forbidden-shape-condition"
+      ],
+      "role": "forbidden_shape_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-forbidden-shape-population"
+      ],
+      "role": "forbidden_shape_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-incorrect-count-condition"
+      ],
+      "role": "incorrect_count_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-missing-required-condition"
+      ],
+      "role": "missing_required_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-operation"
+      ],
+      "role": "operation"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-optional-population"
+      ],
+      "role": "optional_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-required-population"
+      ],
+      "role": "required_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-result"
+      ],
+      "role": "result"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-result-count-signal"
+      ],
+      "role": "result_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-result-population"
+      ],
+      "role": "result_population"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-result-shape"
+      ],
+      "role": "result_shape"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-schema"
+      ],
+      "role": "schema"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-unexpected-member-condition"
+      ],
+      "role": "unexpected_member_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-verification"
+      ],
+      "role": "verification"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-required-members-1",
+        "ref-result-shape-conformance-required-members-2"
+      ],
+      "role": "allowed_members"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-result-shape"
+      ],
+      "role": "allowed_shapes"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-forbidden-members-1",
+        "ref-result-shape-conformance-forbidden-members-2"
+      ],
+      "role": "forbidden_members"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-forbidden-shapes-1",
+        "ref-result-shape-conformance-forbidden-shapes-2"
+      ],
+      "role": "forbidden_shapes"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-required-members-1",
+        "ref-result-shape-conformance-required-members-2"
+      ],
+      "role": "required_members"
+    },
+    {
+      "reference_ids": [
+        "ref-result-shape-conformance-required-members-1",
+        "ref-result-shape-conformance-required-members-2"
+      ],
+      "role": "result_members"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

@@ -1,6 +1,16 @@
 
 
-import { createHash } from "node:crypto";
+import {
+  resolveControlledContractAttachmentGeneration
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+import {
+  authenticateControlledContractGenerationAtW,
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
+  resolveControlledContractGenerationBinding
+} from "./controlled-carrier-attachment-primitive.mjs";
+import {
+  readCanonicalContractGenerationIdentity
+} from "./slice-integration-authorization.mjs";
 import {
   reconcileIntegratedSliceRecord,
   recoverZeroDeltaIntegratedSlice,
@@ -11,6 +21,7 @@ import {
   resolveCanonicalSliceIntegrationUnit
 } from "./backend-scope-authority.mjs";
 import {
+  canonicalUnitScopes,
   resolveUniqueManagedLifecycleBindingPairForRecovery
 } from "./worktree-substrate-identity.mjs";
 
@@ -32,68 +43,94 @@ export function continuationRefusal(reason, detail = null, cause = null) {
   );
 }
 
+export const COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH =
+  "completed_integration_write_scope_mismatch";
+
+const COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_REFUSALS = new WeakSet();
+
+const COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_FACT = Object.freeze({
+  reason: COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH
+});
+
+function refuseCompletedIntegrationWriteScopeMismatch() {
+  try {
+    continuationRefusal(COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH);
+  } catch (error) {
+    COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_REFUSALS.add(error);
+    throw error;
+  }
+}
+
+export function projectCompletedIntegrationContinuationFailure(error) {
+  return COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_REFUSALS.has(error)
+    ? COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_FACT
+    : null;
+}
+
 function normalizedBranchRef(value) {
   return typeof value === "string" && value.startsWith("refs/heads/")
     ? value
     : `refs/heads/${value ?? ""}`;
 }
 
-const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
+const UNAVAILABLE_GENERATION_CODES = new Set([
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.GIT_FAILED,
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.REF_UNRESOLVABLE,
+  CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE
+]);
 
-async function readPersistedGeneration({ runGit, repo, wkRef, expected }) {
-  const listing = await runGit({
-    repo,
-    args: ["ls-tree", "-r", "--full-tree", "--format=%(objectname) %(path)", wkRef,
-      "--", "wiki/contracts/.carrier-generations"]
-  });
-  if (listing?.ok !== true) continuationRefusal("controlled_contract_generation_unavailable");
-  const entries = String(listing.stdout ?? "").trim().split("\n").filter(Boolean)
-    .map((line) => {
-      const separator = line.indexOf(" ");
-      return separator < 1 ? null : { oid: line.slice(0, separator), path: line.slice(separator + 1) };
-    });
-  if (entries.some((entry) => entry === null)) {
-    continuationRefusal("controlled_contract_generation_malformed");
+function readContinuationGenerationIdentity(repo, wkId) {
+  try {
+    return readCanonicalContractGenerationIdentity(repo, wkId);
+  } catch (error) {
+    continuationRefusal("controlled_contract_generation_malformed", {
+      source_code: typeof error?.code === "string" ? error.code : null,
+      source_reason: error?.detail?.reason ?? null
+    }, error);
   }
-  const expectedPath = expected?.path ?? expected?.generation_path ??
-    (expected?.id ? `.carrier-generations/${expected.id}` : null);
-  const manifests = entries.filter((entry) => /\/manifest\.json$/u.test(entry.path) &&
-    (expectedPath === null || entry.path === `wiki/contracts/${expectedPath}/manifest.json`));
-  if (manifests.length === 0) {
-    const absent = Object.freeze({ state: "absent", digest: "controlled-contract-generation:none",
-      carrier_count: 0, manifest_digest: null });
-    if (expected !== undefined && JSON.stringify({ state: expected.state ?? "absent", digest: expected.digest,
-      carrier_count: expected.carrier_count, manifest_digest: expected.manifest_digest }) !==
-      JSON.stringify(absent)) {
-      continuationRefusal("controlled_contract_generation_stale");
+}
+
+async function authenticateContinuationGeneration({ repo, wkId, wkTip, emptyDelivery }) {
+  const identity = readContinuationGenerationIdentity(repo, wkId);
+  if (identity.state === "absent") {
+
+    if (emptyDelivery !== true) continuationRefusal("controlled_contract_generation_missing");
+    return identity;
+  }
+  try {
+    const generation = await resolveControlledContractAttachmentGeneration({ repoRoot: repo, wkId });
+    if (generation === null) {
+      continuationRefusal("continuation_authority_changed_during_lookup");
     }
-    return absent;
+    const binding = await resolveControlledContractGenerationBinding({
+      repoRoot: repo, wkId, generation, lifecycleBinding: null, deps: {}
+    });
+    if (binding.wk_tip_sha !== wkTip) {
+      continuationRefusal("continuation_authority_changed_during_lookup");
+    }
+    await authenticateControlledContractGenerationAtW({ binding, deps: {} });
+  } catch (error) {
+    if (error instanceof SliceIntegrationError) throw error;
+    const reason = error?.code ===
+        CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.W_AUTHENTICATION_FAILED
+      ? "controlled_contract_generation_stale"
+      : UNAVAILABLE_GENERATION_CODES.has(error?.code)
+        ? "controlled_contract_generation_unavailable"
+        : "controlled_contract_generation_malformed";
+    continuationRefusal(reason, {
+      source_code: typeof error?.code === "string" ? error.code : null,
+      cause_code: error?.details?.cause_code ?? null,
+      expected_generation: identity.digest
+    }, error);
   }
-  if (manifests.length !== 1) continuationRefusal("controlled_contract_generation_malformed");
-  const manifest = await runGit({ repo, args: ["cat-file", "blob", manifests[0].oid] });
-  if (manifest?.ok !== true) continuationRefusal("controlled_contract_generation_unavailable");
-  let parsed;
-  try { parsed = JSON.parse(String(manifest.stdout ?? "")); } catch (error) {
-    continuationRefusal("controlled_contract_generation_malformed", null, error);
-  }
-  const bytes = Buffer.from(String(manifest.stdout ?? ""), "utf8");
-  const digest = parsed?.generation?.digest ?? parsed?.digest;
-  const carrierCount = parsed?.generation?.carrier_count ?? parsed?.carrier_count;
-  const manifestDigest = parsed?.generation?.manifest_digest ?? parsed?.manifest_digest ??
-    `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-  if (!SHA256_DIGEST_RE.test(digest ?? "") || !Number.isInteger(carrierCount) || carrierCount < 1 ||
-      !SHA256_DIGEST_RE.test(manifestDigest)) {
-    continuationRefusal("controlled_contract_generation_malformed");
-  }
-  const current = Object.freeze({ state: "present", digest, carrier_count: carrierCount, manifest_digest: manifestDigest });
-  if (expected !== undefined && JSON.stringify({ state: expected.state ?? "present", digest: expected.digest,
-    carrier_count: expected.carrier_count, manifest_digest: expected.manifest_digest }) !==
-    JSON.stringify(current)) {
+  const confirmed = readContinuationGenerationIdentity(repo, wkId);
+  if (JSON.stringify(confirmed) !== JSON.stringify(identity)) {
     continuationRefusal("controlled_contract_generation_stale", {
-      expected_generation: expected?.digest ?? null, observed_generation: current.digest
+      expected_generation: identity.digest,
+      observed_generation: confirmed.digest
     });
   }
-  return current;
+  return identity;
 }
 
 export function brandedContinuation(fields) {
@@ -107,13 +144,35 @@ export function brandedContinuation(fields) {
   return Object.freeze(continuation);
 }
 
+export function committedSliceIntegrationDeliveryKey(context) {
+  const identity = context?.worktree_identity;
+  const fields = [
+    context?.main_repo,
+    context?.review_admission_kind,
+    context?.review_subject,
+    context?.initiative,
+    context?.record_id,
+    context?.review_slice_id,
+    context?.slice_ref,
+    context?.reviewed_sha,
+    context?.diff_base_sha,
+    identity?.write_scope
+  ];
+  if (fields.slice(0, 9).some((value) => typeof value !== "string") ||
+      !Array.isArray(fields[9])) {
+    throw new TypeError("committed-slice completion requires exact delivery identity");
+  }
+  return JSON.stringify(fields);
+}
+
 export function createBackendIntegrationContinuation(ctx) {
   const {
     worktreeProvisioningConfig,
     reviewContextRunGit,
     postWorkerLifecycleRunGit = reviewContextRunGit,
     frozenSliceReviewContexts,
-    exactSliceReviewReceiptStore
+    exactSliceReviewReceiptStore,
+    canonicalCommittedSliceIntegrationsByDelivery
   } = ctx;
 
   async function resolveLiveCommit(ref, reason) {
@@ -126,6 +185,128 @@ export function createBackendIntegrationContinuation(ctx) {
       continuationRefusal(reason, { ref, source_code: result?.code ?? null });
     }
     return sha;
+  }
+
+  async function resolveLiveCompletedIntegration({ subject, status }) {
+    if (canonicalCommittedSliceIntegrationsByDelivery?.size === 0) return null;
+    if (worktreeProvisioningConfig === null || status === null || status === undefined) {
+      return null;
+    }
+    if (typeof status.run_id !== "string" || typeof status.monitor_handle !== "string" ||
+        status.subject !== subject) {
+      continuationRefusal("worker_status_selector_mismatch");
+    }
+    let pair;
+    try {
+      pair = resolveUniqueManagedLifecycleBindingPairForRecovery({
+        mainRepo: worktreeProvisioningConfig.mainRepo,
+        launchRef: status.monitor_handle,
+        expectedSubject: subject,
+        allowMissingSliceWorktree: true
+      });
+    } catch (error) {
+      continuationRefusal("durable_worker_binding_invalid", {
+        source_code: typeof error?.code === "string" ? error.code : null
+      }, error);
+    }
+    if (pair === null) return null;
+    if (pair.run_id !== status.run_id || pair.retry_id !== pair.slice_binding.retry_id ||
+        pair.retry_id !== pair.wk_binding.retry_id ||
+        pair.slice_binding.launch_ref !== status.monitor_handle ||
+        pair.wk_binding.launch_ref !== status.monitor_handle) {
+      continuationRefusal("durable_worker_tuple_mismatch", {
+        expected_run_id: pair.run_id,
+        actual_run_id: status.run_id,
+        retry_id: pair.retry_id
+      });
+    }
+    const [initiative, recordId, sliceId, extra] =
+      String(pair.slice_binding.unit_address ?? "").split("/");
+    if (extra !== undefined || subject !== `${recordId}#${sliceId}` ||
+        pair.wk_binding.unit_address !== `${initiative}/${recordId}`) {
+      continuationRefusal("durable_worker_tuple_mismatch", {
+        expected_subject: `${recordId}#${sliceId}`,
+        actual_subject: subject,
+        retry_id: pair.retry_id
+      });
+    }
+    const sliceRef = `refs/heads/slice/${initiative}/${recordId}/${sliceId}`;
+    const wkRef = `refs/heads/wk/${initiative}/${recordId}`;
+    if (normalizedBranchRef(pair.slice_binding.output_branch) !== sliceRef ||
+        normalizedBranchRef(pair.wk_binding.output_branch) !== wkRef) {
+      continuationRefusal("durable_worker_ref_mismatch", { slice_ref: sliceRef, wk_ref: wkRef });
+    }
+    const deliverySha = await resolveLiveCommit(sliceRef, "live_slice_ref_unavailable");
+    const deliveryBase = await resolveAuthenticatedExactSliceDeliveryBase({
+      runGit: postWorkerLifecycleRunGit,
+      mainRepo: worktreeProvisioningConfig.mainRepo,
+      subject,
+      deliverySha
+    });
+    if (deliveryBase === null || pair.slice_binding.base_sha !== deliveryBase) {
+      continuationRefusal("reviewed_delivery_base_mismatch", {
+        binding_base_sha: pair.slice_binding.base_sha,
+        authenticated_base_sha: deliveryBase
+      });
+    }
+    const completedUnderScope = (writeScope) =>
+      canonicalCommittedSliceIntegrationsByDelivery.get(
+        committedSliceIntegrationDeliveryKey({
+          main_repo: worktreeProvisioningConfig.mainRepo,
+          review_admission_kind: "canonical_committed_slice",
+          review_subject: subject,
+          initiative,
+          record_id: recordId,
+          review_slice_id: sliceId,
+          slice_ref: sliceRef,
+          reviewed_sha: deliverySha,
+          diff_base_sha: deliveryBase,
+          worktree_identity: { write_scope: writeScope }
+        })
+      );
+    const authenticateCompletedIntegration = async (completed) => {
+      const completedIntegration = await completed;
+      const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
+      const target = completedIntegration?.boundary_authorization?.target;
+      if (completedIntegration?.integrated !== true ||
+          completedIntegration.delivery_sha !== deliverySha ||
+          completedIntegration.slice_ref !== sliceRef ||
+          completedIntegration.wk_ref !== wkRef ||
+          completedIntegration.wk_sha !== liveWkTip ||
+          target?.subject !== subject || target?.slice_ref !== sliceRef ||
+          target?.reviewed_sha !== deliverySha || target?.diff_base_sha !== deliveryBase ||
+          typeof target?.committed_target_digest !== "string") {
+        continuationRefusal("warm_completed_integration_mismatch");
+      }
+      return completedIntegration;
+    };
+    const completed = completedUnderScope(pair.slice_binding.write_scope);
+    if (completed === undefined) {
+
+      let currentWriteScope;
+      try {
+        currentWriteScope = canonicalUnitScopes(
+          worktreeProvisioningConfig.mainRepo, recordId, sliceId,
+          { expectedInitiative: initiative }
+        ).writeScope;
+      } catch {
+        return null;
+      }
+      if (JSON.stringify(currentWriteScope) === JSON.stringify(pair.slice_binding.write_scope)) {
+        return null;
+      }
+      const revised = completedUnderScope(currentWriteScope);
+      if (revised === undefined) return null;
+      await authenticateCompletedIntegration(revised);
+      refuseCompletedIntegrationWriteScopeMismatch();
+    }
+    const completedIntegration = await authenticateCompletedIntegration(completed);
+    return brandedContinuation({
+      requested: true,
+      completed: true,
+      reviewed_sha: deliverySha,
+      integration: completedIntegration
+    });
   }
 
   function refuseCanonicalRecordRepair() {
@@ -277,16 +458,11 @@ export function createBackendIntegrationContinuation(ctx) {
       });
     }
 
-    const persistedGeneration = integration.contract_generation ??
-      integration.authority?.contract_generation;
-    if (integration.empty_delivery !== true && persistedGeneration === undefined) {
-      continuationRefusal("controlled_contract_generation_missing");
-    }
-    const contractGeneration = await readPersistedGeneration({
-      runGit: postWorkerLifecycleRunGit,
+    const contractGeneration = await authenticateContinuationGeneration({
       repo: worktreeProvisioningConfig.mainRepo,
-      wkRef,
-      expected: persistedGeneration
+      wkId: integrationUnit.record_id,
+      wkTip: liveWkTip,
+      emptyDelivery: integration.empty_delivery
     });
 
     const confirmed = await recoverDurableIntegratedSlice({
@@ -333,6 +509,7 @@ export function createBackendIntegrationContinuation(ctx) {
   }
 
   return {
-    resolveDurableIntegrationContinuation
+    resolveDurableIntegrationContinuation,
+    resolveLiveCompletedIntegration
   };
 }

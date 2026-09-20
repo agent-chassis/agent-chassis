@@ -18,6 +18,20 @@ import {
   projectWorkRecordTestProofValidation,
   renderWorkRecordValidationEntry
 } from "./work-record-test-proof-bindings.mjs";
+import { projectWorkRecordEntries } from "./work-record-entry-projection.mjs";
+
+import { mergeReadScopeRefs } from "./work-record-schema.mjs";
+
+function renderEntryMetadata(unit) {
+  const projection = projectWorkRecordEntries(unit, { limit: 3 });
+  const section = renderListSection("Saved Entries", projection.entries,
+    entry => `${escapeInlineCode(entry.entry_id)} v${entry.current_version}: ${entry.title}`);
+  if (!projection.has_more) return section;
+  return [
+    section,
+    `- (showing ${projection.returned_count} of ${projection.total_count} saved entries; more exist — read them from the canonical record)`
+  ].join("\n");
+}
 
 function projectedValidation(unit) {
   const projection = projectWorkRecordTestProofValidation({ selectedUnit: unit });
@@ -57,7 +71,7 @@ function renderRecordIdentity(record) {
 
 function renderBriefScope(record) {
   return [
-    renderListSection("Canonical Docs", stringList(record.docs), escapeInlineCode),
+    renderListSection("Canonical Docs", mergeReadScopeRefs(record), escapeInlineCode),
     "",
     renderListSection("Repo Paths", stringList(record.repo_paths), escapeInlineCode),
     "",
@@ -125,7 +139,7 @@ function renderSlicesBrief(record, { sliceId = null } = {}) {
         ["dispatch unit", escapeInlineCode(`${record.id}#${selected.id}`)]
       ]),
       "",
-      renderListSection("Slice Docs", stringList(selected.docs), escapeInlineCode),
+      renderListSection("Slice Docs", mergeReadScopeRefs(selected), escapeInlineCode),
       "",
       renderListSection("Slice Repo Paths", stringList(selected.repo_paths), escapeInlineCode),
       "",
@@ -142,6 +156,7 @@ function renderSlicesBrief(record, { sliceId = null } = {}) {
       "",
       renderDispatchIntent(selected)
     ];
+    sections.push("", renderEntryMetadata(selected));
     const sliceAgentNotes = normalizeAgentNotes(selected.sections?.agent_notes);
     if (sliceAgentNotes !== "") {
       sections.push(
@@ -340,7 +355,7 @@ function renderInheritedParentContext(record, slice) {
     }
   };
 
-  inheritList(slice.docs, record.docs, "Canonical Docs");
+  inheritList(mergeReadScopeRefs(slice), mergeReadScopeRefs(record), "Canonical Docs");
   inheritList(slice.repo_paths, record.repo_paths, "Repo Paths");
   inheritList(slice.write_scope, record.write_scope, "Write Scope");
   inheritList(slice.depends_on, record.depends_on, "Dependencies");
@@ -363,7 +378,16 @@ function renderInheritedParentContext(record, slice) {
   return sections;
 }
 
-function buildSelectedSliceBriefResult(record, metadata, slice) {
+function renderEntryMaterial(entryMaterial) {
+  if (!entryMaterial || entryMaterial.reference_count === 0) return [];
+  const lines = ["", renderSectionHeading("Assignment Material"), ""];
+  for (const entry of entryMaterial.entries) {
+    lines.push(`Source: ${escapeInlineCode(entry.ref)}`, "", entry.text, "");
+  }
+  return lines;
+}
+
+function buildSelectedSliceBriefResult(record, metadata, slice, entryMaterial = null) {
   const dispatchUnit = `${record.id}#${slice.id}`;
   const lines = [
     `# Agent Brief: ${record.title} — slice ${escapeInlineCode(slice.id)}`,
@@ -377,6 +401,7 @@ function buildSelectedSliceBriefResult(record, metadata, slice) {
     "",
     renderSlicesBrief(record, { sliceId: slice.id }),
     ...renderInheritedParentContext(record, slice),
+    ...renderEntryMaterial(entryMaterial),
     "",
     renderSelectedSliceEscalations(record, slice.id),
     "",
@@ -388,6 +413,7 @@ function buildSelectedSliceBriefResult(record, metadata, slice) {
     diagnostics: [],
     projection: {
       ...metadata,
+      entry_material: entryMaterial,
       brief: lines.join("\n")
     },
     brief: lines.join("\n")
@@ -398,7 +424,8 @@ export function buildBriefProjectionResult(record, metadata, options = {}) {
   const sliceId = options.sliceId ?? null;
   const selectedSlice = findSelectedSlice(record, sliceId);
   if (sliceId && selectedSlice) {
-    return buildSelectedSliceBriefResult(record, metadata, selectedSlice);
+    return buildSelectedSliceBriefResult(record, metadata, selectedSlice,
+      options.entryMaterial ?? null);
   }
 
   const lines = [
@@ -408,8 +435,9 @@ export function buildBriefProjectionResult(record, metadata, options = {}) {
     `> Source digest: ${escapeInlineCode(metadata.source_digest)}`,
     "",
     renderRecordIdentity(record),
+    ...renderEntryMaterial(options.entryMaterial ?? null),
     "",
-    renderListSection("Canonical Docs", stringList(record.docs), escapeInlineCode),
+    renderListSection("Canonical Docs", mergeReadScopeRefs(record), escapeInlineCode),
     "",
     renderListSection("Repo Paths", stringList(record.repo_paths), escapeInlineCode),
     "",
@@ -427,6 +455,8 @@ export function buildBriefProjectionResult(record, metadata, options = {}) {
     "",
     renderEscalationsBrief(record),
     "",
+    renderEntryMetadata(record),
+    "",
     renderClosureBrief(record),
     "",
     renderBriefGeneratedSource(metadata)
@@ -437,6 +467,7 @@ export function buildBriefProjectionResult(record, metadata, options = {}) {
     diagnostics: [],
     projection: {
       ...metadata,
+      entry_material: options.entryMaterial ?? null,
       brief: lines.join("\n")
     },
     brief: lines.join("\n")

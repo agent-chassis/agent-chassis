@@ -2,10 +2,10 @@
   "schema_version": "public-docs-manifest.v1",
   "package": {
     "name": "@agent-chassis/core",
-    "version": "0.6.0"
+    "version": "0.8.0"
   },
-  "entry_count": 57,
-  "available_count": 49,
+  "entry_count": 62,
+  "available_count": 54,
   "entries": [
     {
       "logical_path": "docs/acceptance-coverage-mcp.md",
@@ -13,8 +13,8 @@
       "bundle_path": "docs/acceptance-coverage-mcp.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "5d69fa5a70d02531310cc7bfdf6a5795eb12913555ffcbebbd929670478b3211",
-      "bytes": 32826
+      "sha256": "f69abe4891a8f137d32dd93011974ed620984e6f8aeadaf36e0e93f215417782",
+      "bytes": 62808
     },
     {
       "logical_path": "docs/adoption.md",
@@ -22,8 +22,8 @@
       "bundle_path": "docs/adoption.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "9afed864572c425b17152d1548076ebf43dad1e7b032f8d0259afe32feee3cfd",
-      "bytes": 2045
+      "sha256": "3943996d145489e1d9ce36d11bab90cd5433ed2455b75d35e88110ddcdf91f8b",
+      "bytes": 2616
     },
     {
       "logical_path": "docs/agent-faq.md",
@@ -31,8 +31,8 @@
       "bundle_path": "docs/agent-faq.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "ccdef9d1d61dde6d569fe56341c6e19a6c1bad55bf8cc626d0e58fe2b4795ca1",
-      "bytes": 5373
+      "sha256": "e8a3ba6258626bed6824d6fc8a5d3130f62eca8faf1ca01723c4379539624593",
+      "bytes": 8234
     },
     {
       "logical_path": "docs/agent-launch-conduit-diagnostics.md",
@@ -40,17 +40,17 @@
       "bundle_path": "docs/agent-launch-conduit-diagnostics.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "5e59850b7842bd5ab2b85e84207179d191660a66000f52143f9d9648c1147e59",
-      "bytes": 8181
+      "sha256": "9fd9f52eb07a18bbe19a3d2bdbd34c0cff673802a150d683eb9f9ad0b802e397",
+      "bytes": 9669
     },
     {
       "logical_path": "docs/agent-launch-confinement-mcp-conduit.md",
       "source_path": "docs/agent-launch-confinement-mcp-conduit.md",
       "bundle_path": "docs/agent-launch-confinement-mcp-conduit.md",
-      "advertised_by_built_in_descriptor": true,
+      "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "7af76c443cffb6502b03df4adc2a3c9e436fbd67e7144e37a99e43de692b2c2c",
-      "bytes": 45948
+      "sha256": "738ac3c61ccfa171b0bc1cdd8df787bee729c9d1ca7b04769fe1f3db8c2eb2e1",
+      "bytes": 64954
     },
     {
       "logical_path": "docs/agent-launch-family-runtime-state.md",
@@ -58,8 +58,8 @@
       "bundle_path": "docs/agent-launch-family-runtime-state.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "4c27c4be18fdbc03a025ece5c203494326da2cb3e00c63d5fc26e9c0c7074b86",
-      "bytes": 7325
+      "sha256": "df7220c2d372a5aeb8090f4bd9352a385395092d0a469eeb21ab827223b1640a",
+      "bytes": 7327
     },
     {
       "logical_path": "docs/agent-launch-local-config.md",
@@ -67,8 +67,8 @@
       "bundle_path": "docs/agent-launch-local-config.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3c87d81ab3e6bacdd4ba31c53fcad5cf6005d83e7a99872de470c52da91e34e4",
-      "bytes": 5382
+      "sha256": "f934ad19554e746f88f6495b2f7fae5c091d3c36239a041c8fe193303066ab68",
+      "bytes": 8526
     },
     {
       "logical_path": "docs/agent-launch-operator-entrypoints.md",
@@ -94,8 +94,8 @@
       "bundle_path": "docs/agent-launch-quickstart.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "b07c0d3ae6b604f85a58e5b39b56f5c372d4ae8c1dfdd344b6d7e5b0bccddd2b",
-      "bytes": 35448
+      "sha256": "b4d0f0bd704d615a20295cfd9a0a51aa398b30f65c202391b3a913f4ca9652c1",
+      "bytes": 39078
     },
     {
       "logical_path": "docs/agent-launch-run-provenance.md",
@@ -103,8 +103,8 @@
       "bundle_path": "docs/agent-launch-run-provenance.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "5924eb45872ccb549fa78438ed29bf22c052a91b6f00e9b092f985050d5376cf",
-      "bytes": 12591
+      "sha256": "4dbeb95f484869f40bcf053579a96b01450dcc7e97511f7d24950d3f1362afbf",
+      "bytes": 14142
     },
     {
       "logical_path": "docs/agent-launch-write-scope-preparation.md",
@@ -112,8 +112,8 @@
       "bundle_path": "docs/agent-launch-write-scope-preparation.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "b4391289a8349dad54088919eba941e80ae3e48241197b33434c408e50de4c23",
-      "bytes": 6944
+      "sha256": "f290b67ca5544bf1e18459668b0da6a811d7f0908c3fa6de04908bd439bc1a5b",
+      "bytes": 10028
     },
     {
       "logical_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
@@ -121,8 +121,8 @@
       "bundle_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "0e114ce5df6f072a6b4932e57b6b29b8489646c3fadb858e32792d09595cd987",
-      "bytes": 18137
+      "sha256": "178e8b290954f733906372d8ccba2c54b76e0baf5ce989da55393aa2c62665a8",
+      "bytes": 19177
     },
     {
       "logical_path": "docs/areas.md",
@@ -132,6 +132,15 @@
       "available": true,
       "sha256": "9d3f14e158ad4991273a9096a6938882b46e59396d5bdb93612959149eeb1b1d",
       "bytes": 4277
+    },
+    {
+      "logical_path": "docs/claude-native-permission-probe.md",
+      "source_path": "docs/claude-native-permission-probe.md",
+      "bundle_path": "docs/claude-native-permission-probe.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "0e5a5df57367cd9754a1b6370dee10c641e075714fc0ede6d9a4cf3ef2f3a46c",
+      "bytes": 4520
     },
     {
       "logical_path": "docs/consumer-owned-docs.md",
@@ -148,8 +157,8 @@
       "bundle_path": "docs/enforcement-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "d4d56e322a8af4e061a6c5f02590d3b84235961116279de75e7eba97609f6310",
-      "bytes": 75894
+      "sha256": "bc540699a130511bd912a8f5ffbccf7c57c896e71a42ea775da40018de3965d3",
+      "bytes": 81258
     },
     {
       "logical_path": "docs/env-reference.md",
@@ -157,8 +166,8 @@
       "bundle_path": "docs/env-reference.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "b1fe087b49b61a2ab01fd172d52040262fbfe4553698daef79680cb13252a732",
-      "bytes": 8903
+      "sha256": "e6b984ba8c7256b967b06a2687e0a5f94d918d77fd3ab99349738f2dc097bc64",
+      "bytes": 9745
     },
     {
       "logical_path": "docs/index.md",
@@ -166,8 +175,8 @@
       "bundle_path": "docs/index.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3b41d650f84749290dd7980d37a7007799dd9d9a99f2835fb5fc64fa16a272c0",
-      "bytes": 3263
+      "sha256": "c384b164c2fc422a43fbf44ee6a82a9e44a3fde86b3aa86a06fa0b68a6aedb3e",
+      "bytes": 3265
     },
     {
       "logical_path": "docs/initiative-status.md",
@@ -175,8 +184,8 @@
       "bundle_path": "docs/initiative-status.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "bdf1992cd17a6ffd1b5ff8783b428e8e734e5200059d1e53c16b3f2c0a796ffe",
-      "bytes": 11675
+      "sha256": "4bcd6b0dc428799e7297b14473f6a85962612f2784005efe3cd740aa0a5b5911",
+      "bytes": 14091
     },
     {
       "logical_path": "docs/local-package-install.md",
@@ -184,8 +193,17 @@
       "bundle_path": "docs/local-package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "88781b4d83a70a750a39cf87ada705319d9fd9ff2928eabcc225ab6c5e01f603",
-      "bytes": 10564
+      "sha256": "10215459f1b27442cae7cd037043a5e701c6bdcb569ed944474021628802cbd4",
+      "bytes": 10948
+    },
+    {
+      "logical_path": "docs/local-test-runtime-setup.md",
+      "source_path": "docs/local-test-runtime-setup.md",
+      "bundle_path": "docs/local-test-runtime-setup.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "178acb89c55d3663fbc3913fb9e85c48b70544ad2c3828b2965180cd479e3dd2",
+      "bytes": 13524
     },
     {
       "logical_path": "docs/mcp-controlled-contract-operations.md",
@@ -193,8 +211,8 @@
       "bundle_path": "docs/mcp-controlled-contract-operations.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "aedbd89a8becb15329e2aeaa74431caa656fcb8f9f015bbcfa95114a430fa4e7",
-      "bytes": 56524
+      "sha256": "bb211ca74df040024b1f00aec94769b1bd9332afa54940ef597c46260df4f612",
+      "bytes": 20713
     },
     {
       "logical_path": "docs/mcp-dispatch-launch-and-admission.md",
@@ -202,8 +220,8 @@
       "bundle_path": "docs/mcp-dispatch-launch-and-admission.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "914fa4b88a715d3238ae1c7a5b1cf51edaee9789970b506ed6f7de0e51fcdda7",
-      "bytes": 40728
+      "sha256": "c6fc7d91da5e79942003b486079751d41f9a8751622a692b63d82ad9b51f7dc6",
+      "bytes": 64454
     },
     {
       "logical_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
@@ -211,8 +229,8 @@
       "bundle_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "c24076644ff365587d0afb835dfca8c7b32e1d0a7a3836f55a4f5cd53f026b62",
-      "bytes": 53672
+      "sha256": "30cc5bf51f217cb7ff1c770ce752211a5d58c80dc698cacec0351d00bfb2ca0d",
+      "bytes": 84379
     },
     {
       "logical_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
@@ -220,8 +238,8 @@
       "bundle_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "ca0f4a1c6edb11f20cce2df033e2b4070b7468d08d153b58f777c4aa95166098",
-      "bytes": 33799
+      "sha256": "77e87c13117d6d92fc4c0997429c1e6ff78d4417c3f40c7ff37c47857a56c348",
+      "bytes": 60122
     },
     {
       "logical_path": "docs/mcp-dispatch-runtime-contract.md",
@@ -229,8 +247,8 @@
       "bundle_path": "docs/mcp-dispatch-runtime-contract.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "d968f31625a54546f1dcce12f5bfe4b89db6a0c77c4b9764ae67734648514c74",
-      "bytes": 123849
+      "sha256": "3a624b8b9fc6728a27e92b7702db43dc5d8e0a81b3a6f70fb5a40708a1ecaf9b",
+      "bytes": 147945
     },
     {
       "logical_path": "docs/mcp-dispatch-slice-integration.md",
@@ -238,8 +256,8 @@
       "bundle_path": "docs/mcp-dispatch-slice-integration.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "cd3c81a95103b3d876e572dcbaec6645d7a68a942b5464b03bb2aba390fe632c",
-      "bytes": 30816
+      "sha256": "79d4913a39e61cf9f72d71f014078d9f3f78fee10194790ac0b255e4db2ca782",
+      "bytes": 37105
     },
     {
       "logical_path": "docs/mcp-dispatch-terminal-review.md",
@@ -247,8 +265,8 @@
       "bundle_path": "docs/mcp-dispatch-terminal-review.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "94b1c3f00f2de2aca13d983ce8f681c82e19d36e3cbdbbbadbc933f0bae1f8db",
-      "bytes": 56300
+      "sha256": "2138a4ebea36bfd14eb7981897e912f61254ee1b26b662746c0a28bc238459a2",
+      "bytes": 56719
     },
     {
       "logical_path": "docs/mcp-integration.md",
@@ -256,8 +274,8 @@
       "bundle_path": "docs/mcp-integration.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "f1fcf9ddfc5822947ff5ffffa5879a762a6049847ef0e57e787ecbfc833d0f24",
-      "bytes": 72324
+      "sha256": "39fb4d3ac73d4abe27e75176e2a92b6a38a8eeb59574216d99980fffa6f06bb5",
+      "bytes": 95587
     },
     {
       "logical_path": "docs/mcp-operation-reference.md",
@@ -265,8 +283,8 @@
       "bundle_path": "docs/mcp-operation-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "355108fb95f35b8253147a3058a7d12f71413a9507338b65e9f462b270b2b426",
-      "bytes": 31998
+      "sha256": "11b63bddaa93a243667c7ae29ddd9430411f663fb5aead4d7bc7cd9e4f9ede0e",
+      "bytes": 96786
     },
     {
       "logical_path": "docs/mcp-repository-model.md",
@@ -274,8 +292,26 @@
       "bundle_path": "docs/mcp-repository-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "f912e378d8ca83a44f7a75c65f5ffa9674e71f8ca38f70aa8c3ea4136fbb7f52",
-      "bytes": 20781
+      "sha256": "57c13ef764a761160521bcdf1b0efc99a70c2ccd52b6465fa72483195ab9832c",
+      "bytes": 35443
+    },
+    {
+      "logical_path": "docs/mcp-selected-response-details.md",
+      "source_path": "docs/mcp-selected-response-details.md",
+      "bundle_path": "docs/mcp-selected-response-details.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "f74966104c03aa810cd2209657f92d5eb86ea3f6e710100d44200777c6f89821",
+      "bytes": 8081
+    },
+    {
+      "logical_path": "docs/mcp-telemetry.md",
+      "source_path": "docs/mcp-telemetry.md",
+      "bundle_path": "docs/mcp-telemetry.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "e35d4985b8bb5597868eca38152aa8f599b97fe78a5f082f144e525c5941d298",
+      "bytes": 7984
     },
     {
       "logical_path": "docs/mcp-tool-registry-reference.md",
@@ -283,8 +319,8 @@
       "bundle_path": "docs/mcp-tool-registry-reference.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "76ec4fde97e0a9b4300f275836743c5256e1ec98264cfc2e50d2d4747914e917",
-      "bytes": 3773
+      "sha256": "724330c213bc502c3e48b003e809251707773ae8e864975877a9dafa0afabccb",
+      "bytes": 4294
     },
     {
       "logical_path": "docs/operating-model.md",
@@ -292,8 +328,8 @@
       "bundle_path": "docs/operating-model.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "ed8aabd49b6628e68ded5be13a668e9fb193b28400ff431a86b77721073cf14c",
-      "bytes": 23382
+      "sha256": "7d8443d96f560dc209805fe26d54cc3cede6d68b21fb7036725f40d5166b5f4b",
+      "bytes": 24853
     },
     {
       "logical_path": "docs/package-install.md",
@@ -301,17 +337,17 @@
       "bundle_path": "docs/package-install.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "830c4777538fb867f8c40767637eda1d525a114399ac6f798b5a2e17ebb55732",
-      "bytes": 3347
+      "sha256": "cbc37a5d3c82997d47221f59c64303201798709feafbcb50fffdbf5333f59603",
+      "bytes": 3352
     },
     {
       "logical_path": "docs/quickstart.md",
       "source_path": "docs/quickstart.md",
       "bundle_path": "docs/quickstart.md",
-      "advertised_by_built_in_descriptor": false,
+      "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "61c1e6b9823a4c0e993e8df4b3b75730df5a25f9277125dcd08513aaa1b728d8",
-      "bytes": 13571
+      "sha256": "03e3bb0e6a7b6998f4af50d8f42f387959108995139083f9e46ecd9b9ddac981",
+      "bytes": 15386
     },
     {
       "logical_path": "docs/README-agents.md",
@@ -319,8 +355,8 @@
       "bundle_path": "docs/README-agents.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "6b220aa2f3b6f72fae386417c0efc88c5ed7370ebf7fdfdd228a43894ccc9bd3",
-      "bytes": 5770
+      "sha256": "ab95721c0e47fea59a6028541bccbbe26f3d56c6e551c1971ce338eb1421ae64",
+      "bytes": 5915
     },
     {
       "logical_path": "docs/test-proof-runtime-identity.md",
@@ -328,17 +364,17 @@
       "bundle_path": "docs/test-proof-runtime-identity.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "60a00f9e78de73eef8b07eb97c00342cf07ba1b3769f16b2d8da9d1a362aa8c2",
-      "bytes": 14304
+      "sha256": "10adf9d5cb739dd14d4d3840a576a8a721971a0961f7c3d8660db676f67acc5b",
+      "bytes": 53130
     },
     {
       "logical_path": "docs/tool-discovery-dispatch-runtime.md",
       "source_path": "docs/tool-discovery-dispatch-runtime.md",
       "bundle_path": "docs/tool-discovery-dispatch-runtime.md",
-      "advertised_by_built_in_descriptor": true,
+      "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "1f54e452ff103256211e7af25704773f484e6d067ffb868afea6c712df81bc89",
-      "bytes": 23422
+      "sha256": "b857b07c03775082623dcc33c1308b7f1b1e1fb8fe36e997230b60abf8da4558",
+      "bytes": 23445
     },
     {
       "logical_path": "docs/tool-discovery-fragment-registry.md",
@@ -346,8 +382,8 @@
       "bundle_path": "docs/tool-discovery-fragment-registry.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "1b5fd80b4098fb4c395fabd0ca3577054e65148f8d069bf4d6a0d751d034a6eb",
-      "bytes": 8190
+      "sha256": "4fff98f8692ff0388ba70710bfaab2257e45e4954174c976ef692ccd6de1eceb",
+      "bytes": 8475
     },
     {
       "logical_path": "docs/tool-discovery-schema.md",
@@ -355,8 +391,8 @@
       "bundle_path": "docs/tool-discovery-schema.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "fae7d00b2ce7ed040aa989d6b0e4d7991430e53b088ae230c563fee044f1537e",
-      "bytes": 23977
+      "sha256": "2bd91d87874a538a7641f59eabd936fb9f27a2032e25c60c10197da749e599e5",
+      "bytes": 28032
     },
     {
       "logical_path": "docs/tool-discovery-surfaces.md",
@@ -364,8 +400,8 @@
       "bundle_path": "docs/tool-discovery-surfaces.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "18019e949b64e575307089e425c9e7270bd350b7c4c097df26d40bac28d77b62",
-      "bytes": 32065
+      "sha256": "11a5d96c04da3c250d508960a62970ab3482613649432b5eb90e8521987f1d8b",
+      "bytes": 44862
     },
     {
       "logical_path": "docs/tool-discovery-tiers.md",
@@ -373,8 +409,8 @@
       "bundle_path": "docs/tool-discovery-tiers.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "bfe3955744acbf5c5d98c4372356edae4d100126721dd0e3bebf1d70ed96c603",
-      "bytes": 5794
+      "sha256": "9fe5f2ab23498b005a810251ded36dfcaeb23956b25653e64091fc0c3e885054",
+      "bytes": 7112
     },
     {
       "logical_path": "docs/tool-discovery.md",
@@ -382,8 +418,8 @@
       "bundle_path": "docs/tool-discovery.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "6b0b18a21837eea533866695cc5bb725eaacd0e2469284c7d871cbcd37c384a7",
-      "bytes": 26623
+      "sha256": "29083c969cafc56818b2b51eef05d9c6dfe7325d2b6f7cdb72c87ccdcb4ef045",
+      "bytes": 51476
     },
     {
       "logical_path": "docs/versioning.md",
@@ -391,8 +427,8 @@
       "bundle_path": "docs/versioning.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "3102b06a60ed589d685d79d214ab066b71a66ae0f1d6192f5c2cc54dfdf15a1f",
-      "bytes": 7272
+      "sha256": "928717aa0ad68cd03766ab3f3fc3958a53ecbfde5a78cfe792a10b472699144f",
+      "bytes": 15671
     },
     {
       "logical_path": "docs/wiki-contract-metadata.md",
@@ -400,8 +436,8 @@
       "bundle_path": "docs/wiki-contract-metadata.md",
       "advertised_by_built_in_descriptor": false,
       "available": true,
-      "sha256": "7b297c41b7ca85188474176b45a5f98a70736c04fb88fe2c419a1475e8a68701",
-      "bytes": 6005
+      "sha256": "2ddf72953417b07aaa3904caf70cc8879d814fa26378f454457fd43b470dc082",
+      "bytes": 8596
     },
     {
       "logical_path": "docs/work-record-ontology.md",
@@ -409,8 +445,17 @@
       "bundle_path": "docs/work-record-ontology.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "23be362a6b56bd483cbcbd3f21d4a6acd20f569fce6e3c9e40850c6ae841cb0d",
-      "bytes": 9299
+      "sha256": "d72deea6fe2ce790406e2b2a41933d484ae049fea8944350a0d3d5480e6133ef",
+      "bytes": 10039
+    },
+    {
+      "logical_path": "docs/work-record-persistence.md",
+      "source_path": "docs/work-record-persistence.md",
+      "bundle_path": "docs/work-record-persistence.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "eea4a11b28033501c0d9da042a1e920e7bec3fb4ffececbe3dcdf4c79fba1010",
+      "bytes": 17837
     },
     {
       "logical_path": "docs/work-record-schema.md",
@@ -418,8 +463,8 @@
       "bundle_path": "docs/work-record-schema.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "1427b6f2950bc80283ea96ecc0815ad6671800583b6d2791492a6819279a20ba",
-      "bytes": 11579
+      "sha256": "8107c1537ba24ec2b7c2f1749415e9dfc038654b4a20a96fd2a0d2aa6aabf4eb",
+      "bytes": 17895
     },
     {
       "logical_path": "internal/docs/branch-worktree-dispatch.md",
@@ -456,8 +501,8 @@
       "bundle_path": "docs/_refs/packages/wiki-core/contract/schema.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "9d5c56638df3f106a569dcea01d32e8af2b82f3bc00f7db839fcce7d17a22729",
-      "bytes": 7888
+      "sha256": "e8f9f00b88fbb3f241cf7038bbb61752739a5839f396847410e456bffe64efb9",
+      "bytes": 7917
     },
     {
       "logical_path": "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
@@ -465,8 +510,8 @@
       "bundle_path": "docs/_refs/packages/wiki-core/templates/AGENTS.md.boilerplate.md",
       "advertised_by_built_in_descriptor": true,
       "available": true,
-      "sha256": "2ababe841ff1dad4db06ae26ded5f72bf6ce8b8951fe36c3790d8a10be75281b",
-      "bytes": 19664
+      "sha256": "a12499e160049f957642744919b7c31db0726b7dc9833c2896205222c7fa1678",
+      "bytes": 9215
     },
     {
       "logical_path": "wiki/decisions/DEC-0134.md",

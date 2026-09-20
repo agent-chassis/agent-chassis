@@ -1,0 +1,117 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "member_count",
+      "value": 1
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-condition-canonical-value-mismatch"
+      ],
+      "role": "canonical_value_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-condition-left-count-mismatch"
+      ],
+      "role": "left_count_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-left-count-signal"
+      ],
+      "role": "left_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-left-selected-value"
+      ],
+      "role": "left_members"
+    },
+    {
+      "reference_ids": [
+        "ref-left-population"
+      ],
+      "role": "left_population"
+    },
+    {
+      "reference_ids": [
+        "ref-condition-left-population-not-subset"
+      ],
+      "role": "left_population_not_subset_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-left-result"
+      ],
+      "role": "left_result"
+    },
+    {
+      "reference_ids": [
+        "ref-left-selected-value"
+      ],
+      "role": "left_selected_canonical_value"
+    },
+    {
+      "reference_ids": [
+        "ref-logical-source"
+      ],
+      "role": "logical_source"
+    },
+    {
+      "reference_ids": [
+        "ref-condition-right-count-mismatch"
+      ],
+      "role": "right_count_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-right-count-signal"
+      ],
+      "role": "right_count_signal"
+    },
+    {
+      "reference_ids": [
+        "ref-right-selected-value"
+      ],
+      "role": "right_members"
+    },
+    {
+      "reference_ids": [
+        "ref-right-population"
+      ],
+      "role": "right_population"
+    },
+    {
+      "reference_ids": [
+        "ref-condition-right-population-not-subset"
+      ],
+      "role": "right_population_not_subset_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-right-result"
+      ],
+      "role": "right_result"
+    },
+    {
+      "reference_ids": [
+        "ref-right-selected-value"
+      ],
+      "role": "right_selected_canonical_value"
+    },
+    {
+      "reference_ids": [
+        "ref-test-publish-smoke"
+      ],
+      "role": "verification"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

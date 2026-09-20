@@ -1,6 +1,10 @@
 
 
-import { readWorkRecordById } from "@agent-chassis/wiki-core";
+import { captureDiagnosticEvidence } from
+  "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import {
+  readWorkRecordById
+} from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 
 import { projectNextActionScalar } from "./mcp-response.mjs";
 import {
@@ -17,8 +21,6 @@ import {
   AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD,
   AGENT_DISPATCH_SUBJECT_KIND_WORK_RECORD_SLICE,
   AGENT_RUN_STATUS_SCHEMA_VERSION,
-  AGENT_RUN_WAIT_SCHEMA_VERSION,
-  AGENT_RUNS_LIST_SCHEMA_VERSION,
   BACKEND_REFUSAL_TO_DISPATCH_BLOCKER,
   DISPATCH_BLOCKER_CODES,
   DISPATCH_SUBJECT_KIND_TO_ROUTE_KIND
@@ -42,6 +44,7 @@ import {
 
 import { createReadySliceInputSchema } from "./work-record-write-tools.mjs";
 import { z as zodOwner } from "zod";
+import { getPublicFinalResultTextMember } from "./dispatch-final-result-projection.mjs";
 
 const registeredRequestSchemas = new Map();
 const ownerRequestSchemaScopesByRegistrar = new WeakMap();
@@ -426,7 +429,7 @@ export function summarizeRunStatusFinalResult(finalResult) {
         prose_authority: "none"
       }
     : null;
-  const advisoryReview = summarizeAdvisoryReview(finalResult.advisory_review);
+  const advisoryReview = summarizeAdvisoryReview(finalResult.advisory_review, finalResult);
   return {
     kind: finalResult.kind ?? null,
     schema_version: finalResult.schema_version ?? null,
@@ -454,7 +457,7 @@ export function summarizeRunStatusFinalResult(finalResult) {
   };
 }
 
-function summarizeAdvisoryReview(advisoryReview) {
+function summarizeAdvisoryReview(advisoryReview, finalResult) {
   if (!advisoryReview || typeof advisoryReview !== "object" || Array.isArray(advisoryReview)) {
     return null;
   }
@@ -463,21 +466,27 @@ function summarizeAdvisoryReview(advisoryReview) {
   const formalAttestation = advisoryReview.formal_attestation;
   const posture = advisoryReview.automatic_lifecycle_posture;
   if (!output || typeof output !== "object" || !schema || typeof schema !== "object" ||
-      !formalAttestation || typeof formalAttestation !== "object" ||
-      !posture || typeof posture !== "object") {
+      !formalAttestation || typeof formalAttestation !== "object") {
     return null;
   }
+  const retainedTextMember = getPublicFinalResultTextMember(
+    finalResult,
+    "final_result.advisory_review.advisory_output.text"
+  );
   return {
     kind: "advisory_review",
     execution_status: advisoryReview.execution_status ?? "unknown",
     advisory_output: {
       available: output.available === true,
       usable: output.usable === true,
-      ...(output.available === true ? {
+      ...(output.available === true && retainedTextMember !== null ? {
         content_reference: {
-          member: "final_result.advisory_review.advisory_output.text",
+          member: retainedTextMember,
           complete_mode: { include_final_result: true }
         }
+      } : {}),
+      ...(output.available === true && output.source_reference?.ref ? {
+        reusable_source: output.source_reference
       } : {})
     },
     schema_observation: {
@@ -496,8 +505,15 @@ function summarizeAdvisoryReview(advisoryReview) {
         attestation_id: formalAttestation.attestation_id
       } : {})
     },
-    coordinator_guidance: advisoryReview.coordinator_guidance,
-    automatic_lifecycle_posture: posture
+    ...(Object.hasOwn(advisoryReview, "authority")
+      ? { authority: advisoryReview.authority }
+      : {}),
+    ...(Object.hasOwn(advisoryReview, "coordinator_guidance")
+      ? { coordinator_guidance: advisoryReview.coordinator_guidance }
+      : {}),
+    ...(posture && typeof posture === "object" && !Array.isArray(posture)
+      ? { automatic_lifecycle_posture: posture }
+      : {})
   };
 }
 
@@ -660,39 +676,6 @@ export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null
   };
 }
 
-export function buildBlockedRunWaitResult({ blockerCode, reason, detail = null, nextAction = null, nextCalls = null, refusal = null }) {
-  assertTransportableNextCalls(nextCalls, refusal);
-  return {
-    schema_version: AGENT_RUN_WAIT_SCHEMA_VERSION,
-    accepted: false,
-    blocker: canonicalBlockerLimb({ blockerCode, reason, detail, refusal }),
-    run_id: null,
-    status: null,
-    timed_out: null,
-    ...canonicalRefusalSlot(refusal),
-    ...refusalNextActionSlot(resolveEnvelopeNextAction({ nextAction, nextCalls, refusal }))
-  };
-}
-
-export function buildBlockedRunsListResult({
-  blockerCode,
-  reason,
-  detail = null,
-  nextAction = null,
-  nextCalls = null,
-  refusal = null
-}) {
-  assertTransportableNextCalls(nextCalls, refusal);
-  return {
-    schema_version: AGENT_RUNS_LIST_SCHEMA_VERSION,
-    accepted: false,
-    blocker: canonicalBlockerLimb({ blockerCode, reason, detail, refusal }),
-    runs: null,
-    ...canonicalRefusalSlot(refusal),
-    ...refusalNextActionSlot(resolveEnvelopeNextAction({ nextAction, nextCalls, refusal }))
-  };
-}
-
 export const SLICE_REVIEW_POSTCHECK_FAILED_CODE =
   "agent_launch.slice_review_materialization.postcheck_failed.v1";
 
@@ -754,9 +737,34 @@ export function buildDispatchToolExceptionDetail(toolName, error) {
     error_message: diagnostic.value,
     error_message_redactions: diagnostic.redactions,
     ...(causeIdentity === null ? {} : { cause_code: causeIdentity }),
-    ...(mismatchField === null ? {} : { postcheck_mismatch_field: mismatchField })
+    ...(mismatchField === null ? {} : { postcheck_mismatch_field: mismatchField }),
+
+    evidence: captureDispatchToolExceptionEvidence(toolName, error)
   };
 }
+
+function captureDispatchToolExceptionEvidence(toolName, error) {
+  try {
+    return {
+      schema_version: DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION,
+      operation: toolName,
+      thrown: captureDiagnosticEvidence(error)
+    };
+  } catch (captureError) {
+    return {
+      schema_version: DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION,
+      operation: toolName,
+      thrown: null,
+      evidence_capture_failure: {
+        name: typeof captureError?.name === "string" ? captureError.name : null,
+        message: typeof captureError?.message === "string" ? captureError.message : null
+      }
+    };
+  }
+}
+
+export const DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION =
+  "dispatch_tool_exception_evidence.v1";
 
 export function resolveMonitorHandleAlwaysUnknown(token) {
 

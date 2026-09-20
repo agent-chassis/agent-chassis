@@ -21,24 +21,12 @@ async function buildProofPlanFixture({ contractPath, packs }) {
     const evaluationPath = path.resolve(request.evaluationInputPath);
     const evaluationInput = await readJson(evaluationPath);
     const intents = sortedUnique(request.requestedIntents);
-    const exactBinding = request.captureRoot === undefined ? null : {
-      capture_root: path.resolve(request.captureRoot),
-      contract_path: path.relative(path.resolve(request.captureRoot), resolvedContract)
-        .split(path.sep).join("/"),
-      evaluation_input_path: path.relative(
-        path.resolve(request.captureRoot), evaluationPath
-      ).split(path.sep).join("/"),
-      sources: structuredClone(request.exactBindingSources)
-    };
     entries.push({
       profile_id: admitted.profile.profile_id,
       profile_version: admitted.profile.profile_version,
       requested_intents: intents,
       evaluation_input: { path: evaluationPath },
-      exact_binding: exactBinding,
-      source_digests: expectedPackSourceDigests(
-        admitted, evaluationInput, request.exactBindingSources ?? null
-      )
+      source_digests: expectedPackSourceDigests(admitted, evaluationInput)
     });
   }
   return {

@@ -1,0 +1,23 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "6.0.0",
+  "profile_digest": "241dbd7aac3679c98cd60bb0ee350eb3437d44062521cc9ecc864ff3f470167e",
+  "guarantee": "For one exact test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, and evaluator satisfies the guarantee only when the candidate passes, the one test the binding's declarative test selector names is discovered, executed, and not skipped, every declared falsifier is present and detected, every required traversal is present and proven, and no prohibited shortcut is observed. No authored baseline inventory participates, and sibling tests observed in the same run neither earn nor withhold credit. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused.",
+  "guarantee_digest": "7d2ba6e9dadfc1c004033b05e08f74d25e0f0b430beabe4e58ed5e033c1fa9ab",
+  "explicit_exclusions": [
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "durable-receipt-retention",
+    "lifecycle-admission",
+    "provider-support-invention"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "2be1ee3e6efc7d7b4b5e99d784205c5235b38cb243b6680253bdec0e21366116",
+    "adequacy_result_digest": "fbf3784fedb9363dc12f1768319d96974119b9477d059f8e340847ba2a2541ca",
+    "executable_control_count": 10,
+    "negative_fixture_count": 9,
+    "coverage_witness_count": 9
+  }
+}

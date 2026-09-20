@@ -9,11 +9,11 @@ import { pathToFileURL } from "node:url";
 import {
   buildTestProofRuntimeEvidence,
   canonicalTestProofEvidenceJson,
-  compareTestProofInventories,
   digestTestProofEvidence,
   executeTestProofAttempt,
   projectBoundaryTraversal,
   projectFalsifierExecution,
+  projectTestProofInventory,
   stableRuntimeTestId
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-evidence.mjs";
 import {
@@ -35,13 +35,11 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
 import { observeLauncherNodeTestRun } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-observation.mjs";
-import {
-  buildTestProofFaultModuleSource,
-  testProofFaultMutationAttestationCode
-} from
-  "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-contract.mjs";
+import { currentProviderBinding } from "../helpers/verify-proof-runtime-fixture.mjs";
 import launcherTestProofReporter from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-reporter.mjs";
+import { captureTestFailureDiagnostic, isLauncherTestFailureDiagnostic } from
+  "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-error-diagnostic.mjs";
 import { extractTestProofRuntimeEvidenceReceipt } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
 import {
@@ -55,12 +53,27 @@ const digestBytes = (value) => `sha256:${createHash("sha256").update(value).dige
 const testA = stableRuntimeTestId("file.test.mjs :: suite :: preserves behavior");
 const testB = stableRuntimeTestId("file.test.mjs :: suite :: rejects bypass");
 const testC = stableRuntimeTestId("file.test.mjs :: suite :: replacement identity");
-const artifactPayload = (character) => ({ fixture: character });
+
+const WITNESS_PAYLOADS = Object.freeze({
+  c: { mechanism: "node_test_v8_coverage", boundary_kind: "module",
+    module_path: "validation-runner.mjs", observable_seam: "node_test_structured_assertion",
+    target_test_id: testA, target_pass_observed: true, observed: true,
+    covered_module_paths: ["validation-runner.mjs"] },
+  d: { mechanism: "module_substitution", strategy: "dependency_failure",
+    mutation_id: "mutation-test-dependency", target_module_path: "dependency.mjs",
+    target_test_id: testA, witness_identity: "d".repeat(64),
+    observation: { dependency_invocation_count: 1, reached_assertion: true,
+      selected_test_only: true, observed: true } }
+});
+const artifactPayload = (character) => structuredClone(WITNESS_PAYLOADS[character] ??
+  { fixture: character });
 const artifactDigest = (character) => digestTestProofEvidence(artifactPayload(character));
 const artifactId = (character) => `artifact-${artifactDigest(character).slice(7)}`;
 const attemptId = (character) => `attempt-${character.repeat(64)}`;
 const provider = (providerId, capability, observationMechanism, artifactTypes) => ({
-  provider_id: providerId, provider_version: "1.0.0", capability,
+  provider_id: providerId, capability,
+  provider_version: controlledContractCurrent.TEST_PROOF_PROVIDER_CATALOG.providers.find(
+    ({ provider_id: id }) => id === providerId).provider_version,
   capability_snapshot_digest: TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
   observation_mechanism: observationMechanism,
   evidence_artifact_types: artifactTypes
@@ -73,50 +86,16 @@ const structuredResult = (status = "passed") => ({
     test_id: testA, file: "provider-target.test.mjs", nesting: 0, status: "passed"}] : [],
   fail_events: status === "passed" ? [] : [{type: "test:fail", name: "target",
     test_id: testA, file: "provider-target.test.mjs", nesting: 0, status: "failed",
-    error_codes: ["ERR_TEST_FAILURE"]}]
+    error_codes: ["ERR_TEST_FAILURE"],
+    failure_diagnostic: captureTestFailureDiagnostic(
+      Object.assign(new Error("selected fixture failed"), { code: "ERR_TEST_FAILURE" })
+    )}]
 });
 
-const expectedFalsifierReason = "test_proof_fault.dependency_failure.v1";
-const differentFalsifierReason = "test_proof_fault.different_failure.v1";
-const falsifierMutationAttestationCode = testProofFaultMutationAttestationCode({
-  schema_version: "workspace-agent-test-proof-module-fault.v1",
-  strategy: "dependency_failure",
-  mechanism: "module_substitution",
-  mutation_id: "mutation-provider-dependency",
-  module_path: "provider-dependency.mjs",
-  failure_reason_code: expectedFalsifierReason
-});
-const falsifierTargetTestId = stableRuntimeTestId(
-  "falsifier-target.test.mjs :: 0 :: falsifier target"
-);
-
-test("module-fault replacement preserves observed export names and faults on invocation",
-  async () => {
-    const configuration = {
-      schema_version: "workspace-agent-test-proof-module-fault.v1",
-      strategy: "dependency_failure",
-      mechanism: "module_substitution",
-      mutation_id: "mutation-export-shape",
-      module_path: "packages/core/lib/package-docs-carrier.mjs",
-      failure_reason_code: "test_proof_fault.dependency_failure.v1"
-    };
-    const names = ["CORE_PACKAGE_DOCS_MANIFEST_SCHEMA_VERSION",
-      "createCorePackageDocsCarrier"];
-    const source = buildTestProofFaultModuleSource(configuration, names);
-    const namespace = await import(`data:text/javascript;base64,${
-      Buffer.from(source).toString("base64")}`);
-    assert.deepEqual(Object.keys(namespace), names);
-    assert.throws(() => namespace.createCorePackageDocsCarrier(), (error) =>
-      error.code === configuration.failure_reason_code &&
-      error.cause?.code === testProofFaultMutationAttestationCode(configuration));
-  });
-
-function failureError(reasonCodes) {
-  if (reasonCodes.length === 0) return {};
-  return {
-    code: reasonCodes[0],
-    errors: reasonCodes.slice(1).map((code) => ({ code }))
-  };
+function structuredArtifact(status = "passed", payload = structuredResult(status)) {
+  const digest = digestTestProofEvidence(payload);
+  return { artifact_id: `artifact-${digest.slice(7)}`, kind: "structured_test_result",
+    digest, owner: "launcher", payload };
 }
 
 async function reporterStdout(events) {
@@ -128,69 +107,99 @@ async function reporterStdout(events) {
   return stdout;
 }
 
-async function observeFalsifierRun({
-  targetReasonCodes,
-  unrelatedReasonCodes = null,
-  stdoutReasonCode = null
-}) {
-  const workingDirectory = process.cwd();
-  const testFailure = (file, name, reasonCodes) => ({
-    type: "test:fail",
-    data: {
-      file: path.join(workingDirectory, file),
-      name,
-      nesting: 0,
-      details: { type: "test", error: failureError(reasonCodes) }
-    }
+test("failure capture preserves nested errors and a complete cyclic assertion-value graph", () => {
+  let hookCalls = 0;
+  const shared = { marker: "shared-value" };
+  shared.self = shared;
+  const expected = { shared, absent: undefined, nan: Number.NaN, negativeZero: -0,
+    bigint: 42n, date: new Date("2026-09-10T00:00:00.000Z"), expression: /proof/giu,
+    map: new Map([[shared, "mapped"]]), set: new Set([shared]),
+    arrayBuffer: Uint8Array.from([1, 2, 3]).buffer,
+    typed: new Uint16Array([258, 772]), bytes: Buffer.from([4, 5, 6]) };
+  Object.defineProperty(expected, "getter", { enumerable: true, get() {
+    hookCalls++; return "must not execute";
+  } });
+  expected.toJSON = () => { hookCalls++; return {}; };
+  expected[Symbol.for("nodejs.util.inspect.custom")] = () => {
+    hookCalls++; return "must not inspect";
+  };
+  const actual = { shared, values: [1, , 3] };
+  const assertion = new assert.AssertionError({
+    message: "WK-2554 distinctive assertion explanation",
+    expected, actual, operator: "deepStrictEqual"
   });
-  const failureEvents = [
-    testFailure("falsifier-target.test.mjs", "falsifier target",
-      [...targetReasonCodes, falsifierMutationAttestationCode]),
-    ...(unrelatedReasonCodes === null ? [] : [
-      testFailure("unrelated.test.mjs", "unrelated failure", unrelatedReasonCodes)
-    ])
-  ];
-  let stdout = await reporterStdout([{
-    type: "test:coverage",
-    data: { summary: { workingDirectory, files: [{
-      path: path.join(workingDirectory,
-        "packages/agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-loader.mjs"),
-      coveredLineCount: 1,
-      functions: [{ name: "substituteFaultModule", count: 1 }]
-    }] } }
-  }, ...failureEvents, {
-    type: "test:summary",
-    data: { counts: { passed: 0, failed: failureEvents.length, skipped: 0,
-      cancelled: 0, todo: 0, tests: failureEvents.length } }
-  }]);
-  if (stdoutReasonCode !== null) {
-    const envelope = JSON.parse(stdout);
-    stdout = `${JSON.stringify({ ...envelope, stdout: stdoutReasonCode })}\n`;
-  }
-  return observeLauncherNodeTestRun({
-    stdout,
-    exitCode: 1,
-    expectation: {
-      capability: "falsifier_execution",
-      mutation_id: "mutation-provider-dependency",
-      strategy: "dependency_failure",
-      module_path: "provider-dependency.mjs",
-      fault_module_identity: "runtime-module-fault",
-      loader_module_path:
-        "packages/agent-launch-cli/src/lib/workspace-agent-test-proof-module-fault-loader.mjs",
-      loader_function_name: "substituteFaultModule",
-      target_test_id: falsifierTargetTestId,
-      mutation_attestation_code: falsifierMutationAttestationCode,
-      failure_reason_code: expectedFalsifierReason
-    }
+  assertion.code = "ERR_ASSERTION";
+  const aggregateCause = new AggregateError(
+    [assertion, Object.assign(new Error("aggregate sibling"), { code: "ERR_AGGREGATE_CHILD" })],
+    "aggregate wrapper",
+    { cause: Object.assign(new Error("nested cause"), { code: "ERR_NESTED_CAUSE" }) }
+  );
+  Object.defineProperty(aggregateCause.errors, "map", { get() {
+    hookCalls++; throw new Error("aggregate array hooks must not execute");
+  } });
+  const wrapper = Object.assign(new Error("runner wrapper", { cause: aggregateCause }),
+    { code: "ERR_TEST_FAILURE" });
+  const hookCallsBeforeCapture = hookCalls;
+  const diagnostic = captureTestFailureDiagnostic(wrapper);
+  assert.equal(isLauncherTestFailureDiagnostic(diagnostic), true);
+  const malformedBytes = structuredClone(diagnostic);
+  malformedBytes.values.find(({ type }) => type === "array_buffer").bytes = "A";
+  assert.equal(isLauncherTestFailureDiagnostic(malformedBytes), false);
+  assert.equal(hookCalls, hookCallsBeforeCapture);
+  const errors = new Map(diagnostic.errors.map((entry) => [entry.id, entry]));
+  const values = new Map(diagnostic.values.map((entry) => [entry.id, entry]));
+  const root = errors.get(diagnostic.root_error);
+  const aggregate = errors.get(root.cause);
+  const capturedAssertion = diagnostic.errors.find(({ code }) => code === "ERR_ASSERTION");
+  assert.equal(root.code, "ERR_TEST_FAILURE");
+  assert.equal(aggregate.message, "aggregate wrapper");
+  assert.ok(aggregate.aggregate_errors.includes(capturedAssertion.id));
+  assert.match(capturedAssertion.message,
+    /^WK-2554 distinctive assertion explanation/u);
+  assert.equal(capturedAssertion.operator, "deepStrictEqual");
+  assert.match(capturedAssertion.stack, /test-proof-runtime-evidence\.test\.mjs/u);
+  const expectedNode = values.get(capturedAssertion.expected);
+  const actualNode = values.get(capturedAssertion.actual);
+  const properties = (node) => new Map(node.properties.map((entry) => [entry.key, entry.value]));
+  const expectedProperties = properties(expectedNode);
+  const actualProperties = properties(actualNode);
+  assert.equal(expectedProperties.get("shared"), actualProperties.get("shared"));
+  const sharedNode = values.get(expectedProperties.get("shared"));
+  assert.equal(properties(sharedNode).get("self"), sharedNode.id);
+  assert.equal(values.get(expectedProperties.get("absent")).type, "undefined");
+  assert.equal(values.get(expectedProperties.get("nan")).type, "nonfinite_number");
+  assert.equal(values.get(expectedProperties.get("negativeZero")).type, "negative_zero");
+  assert.equal(values.get(expectedProperties.get("bigint")).value, "42");
+  assert.equal(values.get(expectedProperties.get("date")).value, "2026-09-10T00:00:00.000Z");
+  assert.equal(values.get(expectedProperties.get("expression")).type, "regexp");
+  assert.equal(values.get(expectedProperties.get("map")).type, "map");
+  assert.equal(values.get(expectedProperties.get("set")).type, "set");
+  assert.equal(values.get(expectedProperties.get("arrayBuffer")).bytes, "AQID");
+  assert.equal(values.get(expectedProperties.get("typed")).type, "typed_array");
+  assert.equal(values.get(expectedProperties.get("bytes")).type, "buffer");
+  assert.equal(values.get(expectedProperties.get("getter")).type, "unavailable");
+  assert.equal(values.get(expectedProperties.get("toJSON")).type, "unavailable");
+  assert.ok(diagnostic.issues.some(({ reason }) => reason === "accessor_not_invoked"));
+  assert.ok(diagnostic.issues.some(({ reason }) => reason === "unsupported_symbol_key"));
+  assert.equal(values.get(properties(values.get(actualProperties.get("values"))).get("0")),
+    undefined);
+  const sparse = values.get(actualProperties.get("values"));
+  assert.deepEqual(sparse.elements.map(({ index }) => index), [0, 2]);
+});
+
+test("failure capture explicitly represents an unavailable reporter error", () => {
+  const diagnostic = captureTestFailureDiagnostic(undefined);
+  assert.deepEqual(diagnostic, {
+    schema_version: "launcher-test-failure-diagnostic.v1",
+    status: "unavailable", root_error: null, errors: [], values: [],
+    issues: [{ path: "/error", reason: "error_not_supplied" }]
   });
-}
+  assert.equal(isLauncherTestFailureDiagnostic(diagnostic), true);
+});
 
 function inventory(overrides = {}) {
-  return compareTestProofInventories({
-    baselineId: "coverage-baseline-suite",
-    declaredTestIds: [testA, testB],
-    baselineExecutedTestIds: [testA, testB],
+  return projectTestProofInventory({
+    selectedTestId: testA,
     observedTestIds: [testA, testB],
     executedTestIds: [testA, testB],
     skippedTestIds: [],
@@ -305,31 +314,37 @@ const artifacts = [{
   artifact_id: artifactId("d"),
   kind: "falsifier_result",
   digest: artifactDigest("d"), owner: "launcher", payload: artifactPayload("d")
-}, {
-  artifact_id: artifactId("e"),
-  kind: "structured_test_result",
-  digest: artifactDigest("e"), owner: "launcher", payload: artifactPayload("e")
-}];
+}, structuredArtifact()];
 
-test("records and compares complete declared and observed identity inventories", () => {
-  const compared = inventory({ observedTestIds: [testA, testC], executedTestIds: [testA, testC] });
-  assert.deepEqual(compared.removed_baseline_test_ids, [testB]);
-  assert.deepEqual(compared.unexpected_test_ids, [testC]);
-});
-
-test("distinguishes explicit rename identity from removal and flags undispositioned coverage", () => {
-  const compared = inventory({
-    declaredTestIds: [testA, testC], observedTestIds: [testA, testC], executedTestIds: [testA, testC],
-    declaredRenames: [{ baseline_test_id: testB, observed_test_id: testC }]
+test("records the complete observed population beside the one selected test", () => {
+  const projected = inventory({ observedTestIds: [testC, testA], executedTestIds: [testC, testA] });
+  assert.deepEqual(projected, {
+    selected_test_id: testA,
+    declared_test_ids: [testA],
+    discovered_test_ids: [testA, testC].sort(),
+    executed_test_ids: [testA, testC].sort(),
+    skipped_test_ids: []
   });
-  assert.deepEqual(compared.removed_baseline_test_ids, []);
-  assert.deepEqual(compared.renamed_baseline_tests, [{ baseline_test_id: testB, observed_test_id: testC }]);
-  assert.deepEqual(compared.undispositioned_coverage_test_ids, [testB]);
+  assert.equal(Object.isFrozen(projected), true);
+  assert.equal(Object.isFrozen(projected.discovered_test_ids), true);
 });
 
-test("detects newly skipped identities independently of aggregate counts", () => {
-  const compared = inventory({ executedTestIds: [testA], skippedTestIds: [testB] });
-  assert.deepEqual(compared.newly_skipped_test_ids, [testB]);
+test("a skipped selected test is reported as skipped, never inferred executed", () => {
+  const projected = inventory({ executedTestIds: [testB], skippedTestIds: [testA] });
+  assert.deepEqual(projected.skipped_test_ids, [testA]);
+  assert.deepEqual(projected.executed_test_ids, [testB]);
+  assert.deepEqual(projected.declared_test_ids, [testA]);
+});
+
+test("inventory refuses unobserved, duplicated, or non-stable identities", () => {
+  assert.throws(() => inventory({ executedTestIds: [testA, testC] }),
+    (error) => error.code === "test_proof_inventory_invalid");
+  assert.throws(() => inventory({ skippedTestIds: [testC] }),
+    (error) => error.code === "test_proof_inventory_invalid");
+  assert.throws(() => inventory({ observedTestIds: [testA, testB, testA] }),
+    (error) => error.code === "test_proof_inventory_duplicate");
+  assert.throws(() => inventory({ selectedTestId: "file.test.mjs :: 0 :: not a stable id" }),
+    (error) => error.code === "test_proof_test_identity_invalid");
 });
 
 test("unsupported traversal cannot be caller-declared", () => {
@@ -337,7 +352,7 @@ test("unsupported traversal cannot be caller-declared", () => {
     (error) => error.code === "test_proof_provider_registry.execution_untrusted.v1");
   const attestation = authenticateUnsupportedTestProofTraversal({
     mode: "registry_unsupported", registry_id: "launcher.test-proof-provider-registry",
-    registry_version: "1.0.0"
+    registry_version: "1.3.0"
   });
   assert.deepEqual(projectBoundaryTraversal({
     boundaryId: "sut-boundary-validation-runner",
@@ -354,32 +369,9 @@ test("unsupported traversal cannot be caller-declared", () => {
     observation_mechanism: "registry_unsupported",
     observation_seam: null,
     status: "review_only",
+    limitation: null,
     evidence_artifact_ids: []
   });
-});
-
-test("falsifier proof requires isolation, unchanged pass, target failure, and exact reason", () => {
-  assert.equal(falsifier().status, "detected");
-  assert.equal(falsifier({ observedFailureReasonCode: "unrelated_failure" }).status, "not_detected");
-  assert.equal(falsifier({ isolated: false }).status, "not_detected");
-  assert.equal(falsifier({ mutationObserved: false }).status, "not_detected");
-  assert.equal(falsifier({ falsifiedStatus: "skipped" }).status, "execution_error");
-});
-
-test("loader execution with target failure and exact structured reason is detected", async () => {
-  const observation = await observeFalsifierRun({
-    targetReasonCodes: [expectedFalsifierReason, "ERR_TEST_FAILURE"]
-  });
-  assert.equal(observation.valid, true);
-  assert.equal(observation.mutation_observed, true);
-  assert.equal(observation.failure_reason_code, expectedFalsifierReason);
-  assert.equal(falsifier({
-    falsifiedStatus: observation.status,
-    mutationObserved: observation.mutation_observed,
-    observedFailureReasonCode: observation.failure_reason_code
-  }).status, "detected");
-  assert.deepEqual(observation.mutation.structured_failure_error_codes,
-    ["ERR_TEST_FAILURE", expectedFalsifierReason, falsifierMutationAttestationCode]);
 });
 
 test("a valid structured selected assertion failure remains evaluable proof evidence",
@@ -409,6 +401,10 @@ test("a valid structured selected assertion failure remains evaluable proof evid
     assert.equal(observation.valid, true);
     assert.equal(observation.status, "failed");
     assert.equal(observation.selected_status, "failed");
+    assert.equal(observation.structured_result.fail_events[0].failure_diagnostic.status,
+      "captured");
+    assert.equal(observation.structured_result.fail_events[0].failure_diagnostic
+      .errors[0].code, "ERR_ASSERTION");
     assert.deepEqual(observation.test_inventory.observed_test_ids, [testId]);
     assert.deepEqual(observation.test_inventory.executed_test_ids, [testId]);
   });
@@ -472,12 +468,13 @@ test("selected assertion status is independent of sibling failures and the file 
     assert.equal(observation.test_inventory.observed_test_ids.length, 2);
   });
 
-test("file termination before the selected assertion is a bounded distinct observation",
+test("file termination before the selected assertion is a complete distinct observation",
   async () => {
     const relativeFile = "tests/integration/selected-purpose.test.mjs";
     const selectedId = stableRuntimeTestId(
       `${relativeFile} :: 0 :: selected proof never starts`
     );
+    const failureDiagnostic = captureTestFailureDiagnostic({ code: "ERR_FIXTURE_TERMINATED" });
     const stdout = await reporterStdout([{
       type: "test:fail",
       data: { file: path.join(process.cwd(), relativeFile),
@@ -497,80 +494,49 @@ test("file termination before the selected assertion is a bounded distinct obser
       expected_test_id: selectedId,
       target: relativeFile,
       observed_count: 1,
-      returned_count: 0,
-      omitted_count: 1,
-      observed_identity_candidates: [],
+      returned_count: 1,
+      omitted_count: 0,
+      observed_identity_candidates: [{ test_id: stableRuntimeTestId(
+        `${relativeFile} :: 0 :: ${path.join(process.cwd(), relativeFile)}`),
+        file: relativeFile, name: relativeFile, nesting: 0,
+        status: "failed", error_codes: ["ERR_FIXTURE_TERMINATED"],
+        failure_diagnostic: failureDiagnostic }],
+      observed_failures: [{ test_id: stableRuntimeTestId(
+        `${relativeFile} :: 0 :: ${path.join(process.cwd(), relativeFile)}`),
+        file: relativeFile, name: relativeFile, nesting: 0,
+        status: "failed", error_codes: ["ERR_FIXTURE_TERMINATED"],
+        failure_diagnostic: failureDiagnostic }],
+      observed_failure_count: 1,
       file_wrapper_status: "failed",
       file_wrapper_error_codes: ["ERR_FIXTURE_TERMINATED"]
     });
   });
 
-test("loader execution with a different target failure reason is not detected", async () => {
-  const observation = await observeFalsifierRun({
-    targetReasonCodes: [differentFalsifierReason]
-  });
-  assert.equal(observation.mutation_observed, false);
-  assert.equal(observation.failure_reason_code, null);
-  assert.equal(falsifier({
-    falsifiedStatus: observation.status,
-    mutationObserved: observation.mutation_observed,
-    observedFailureReasonCode: observation.failure_reason_code
-  }).status, "not_detected");
-  assert.deepEqual(observation.mutation.structured_failure_error_codes,
-    [differentFalsifierReason, falsifierMutationAttestationCode]);
-});
-
-test("loader execution with no structured target failure reason is not detected", async () => {
-  const observation = await observeFalsifierRun({ targetReasonCodes: [] });
-  assert.equal(observation.mutation_observed, false);
-  assert.equal(observation.failure_reason_code, null);
-  assert.equal(falsifier({
-    falsifiedStatus: observation.status,
-    mutationObserved: observation.mutation_observed,
-    observedFailureReasonCode: observation.failure_reason_code
-  }).status, "not_detected");
-  assert.deepEqual(observation.mutation.structured_failure_error_codes,
-    [falsifierMutationAttestationCode]);
-});
-
-test("stdout-only exact failure reason is not detected", async () => {
-  const observation = await observeFalsifierRun({
-    targetReasonCodes: [],
-    stdoutReasonCode: expectedFalsifierReason
-  });
-  assert.equal(observation.mutation_observed, false);
-  assert.equal(observation.failure_reason_code, null);
-  assert.equal(falsifier({
-    falsifiedStatus: observation.status,
-    mutationObserved: observation.mutation_observed,
-    observedFailureReasonCode: observation.failure_reason_code
-  }).status, "not_detected");
-  assert.deepEqual(observation.mutation.structured_failure_error_codes,
-    [falsifierMutationAttestationCode]);
-});
-
-test("exact failure reason from an unrelated test is not detected", async () => {
-  const observation = await observeFalsifierRun({
-    targetReasonCodes: [differentFalsifierReason],
-    unrelatedReasonCodes: [expectedFalsifierReason]
-  });
-  assert.equal(observation.mutation_observed, false);
-  assert.equal(observation.failure_reason_code, null);
-  assert.equal(falsifier({
-    falsifiedStatus: observation.status,
-    mutationObserved: observation.mutation_observed,
-    observedFailureReasonCode: observation.failure_reason_code
-  }).status, "not_detected");
-  assert.deepEqual(observation.mutation.structured_failure_error_codes,
-    [expectedFalsifierReason, differentFalsifierReason,
-      falsifierMutationAttestationCode].sort());
+test("failure diagnostics are covered by reporter authentication", async () => {
+  const stdout = await reporterStdout([{
+    type: "test:fail",
+    data: { file: path.join(process.cwd(), "tamper.test.mjs"), name: "tampered",
+      nesting: 0, details: { type: "test", error:
+        Object.assign(new Error("authentic message"), { code: "ERR_ASSERTION" }) } }
+  }, {
+    type: "test:summary",
+    data: { counts: { passed: 0, failed: 1, skipped: 0,
+      cancelled: 0, todo: 0, tests: 1 } }
+  }]);
+  const envelope = JSON.parse(stdout);
+  envelope.events[0].failure_diagnostic.errors[0].message = "tampered message";
+  const observation = observeLauncherNodeTestRun({ stdout: JSON.stringify(envelope), exitCode: 1,
+    expectation: { capability: "candidate_execution" } });
+  assert.deepEqual(observation,
+    { valid: false, code: "test_proof_structured_events_digest_mismatch" });
 });
 
 test("builds deterministic content-addressed package-valid advisory evidence", () => {
   const input = {
     evidenceIdentity: identity(), contractBinding: contractBinding(),
     executionResult: { status: "passed", exit_code: 0, attempt_id: attemptId("a"),
-      structured_result: structuredResult(), evidence_artifact_ids: [artifactId("e")],
+      structured_result: structuredResult(),
+      evidence_artifact_ids: [structuredArtifact().artifact_id],
       provider: provider("launcher.node-test", "candidate_execution",
         "node_test_structured_events", ["structured_test_result"]) }, testInventory: inventory(),
     boundaryTraversals: [traversal()], falsifierExecutions: [falsifier()], artifacts
@@ -589,18 +555,27 @@ test("builds deterministic content-addressed package-valid advisory evidence", (
 
 test("closed registry resolves exact versioned provider capabilities", () => {
   const binding = {
-    system_under_test_boundary: { kind: "module", runtime_module_path: "dependency.mjs" },
+    test_proof_id: "test-proof-provider-resolution",
+    verification_claim_id: "claim-provider-resolution",
+    system_under_test_boundary: { boundary_id: "sut-boundary-provider-resolution",
+      kind: "module", runtime_module_path: "dependency.mjs",
+      subject_reference_ids: ["ref-provider-subject"] },
+    observable_result: { observable_id: "observable-provider-resolution",
+      kind: "return_value", proposition_id: "prop-provider-result" },
     candidate_execution_provider: { provider_id: "launcher.node-test",
       provider_version: "1.0.0", capability: "candidate_execution" },
     falsifiers: [{ falsifier_id: "falsifier-a", strategy: "dependency_failure",
+      proposition_id: "prop-provider-failure", expected_outcome: "verification_fails",
       mutation: { mutation_id: "mutation-a", mechanism: "module_substitution",
         target_kind: "module", module_path: "dependency.mjs" },
-      execution_provider: { provider_id: "launcher.node-test-module-fault",
-        provider_version: "1.0.0", capability: "falsifier_execution" } }],
+      execution_provider: currentProviderBinding("launcher.node-test-module-fault",
+        "falsifier_execution") }],
     traversal_provider: { mode: "provider", provider_id: "launcher.node-test-v8-coverage",
       provider_version: "1.0.0", capability: "boundary_traversal", boundary_kind: "module",
       observation_mechanism: "node_test_v8_coverage",
-      observation_seam: "node_test_structured_assertion", evidence_artifact_type: "boundary_trace" }
+      observation_seam: "node_test_structured_assertion", evidence_artifact_type: "boundary_trace" },
+    test_selector: { name: "provider resolution uses the closed registry", nesting: 0 },
+    prohibited_shortcuts: ["source_text_inspection"]
   };
   const registry = describeTestProofProviderRegistry();
   const resolved = resolveTestProofProviders(binding);
@@ -614,19 +589,13 @@ test("closed registry resolves exact versioned provider capabilities", () => {
       "stable_test_proof_provider_unknown"],
     [(value) => { value.candidate_execution_provider.provider_version = "0.9.0"; },
       "stable_test_proof_provider_version_mismatch"],
-    [(value) => { value.traversal_provider = { mode: "registry_unsupported",
-      registry_id: "launcher.test-proof-provider-registry", registry_version: "0.9.0" }; },
-    "stable_test_proof_provider_version_mismatch"],
-    [(value) => { delete value.candidate_execution_provider.capability; },
-      "stable_test_proof_provider_partial"],
-    [(value) => { value.candidate_execution_provider.capability = "falsifier_execution"; },
+    [(value) => { value.candidate_execution_provider = {
+      ...currentProviderBinding("launcher.node-test-module-fault", "falsifier_execution"),
+      capability: "candidate_execution" }; },
       "stable_test_proof_provider_capability_mismatch"],
-    [(value) => { value.traversal_provider.observation_mechanism = "printed_marker"; },
+    [(value) => { value.traversal_provider.observation_mechanism =
+      "node_test_structured_events"; },
       "stable_test_proof_provider_observation_mismatch"],
-    [(value) => { value.traversal_provider.observation_seam = "printed_marker"; },
-      "stable_test_proof_provider_observation_seam_mismatch"],
-    [(value) => { value.traversal_provider.evidence_artifact_type = "stdout"; },
-      "stable_test_proof_provider_artifact_type_mismatch"],
     [(value) => { value.falsifiers[0].strategy = "result_inversion"; },
       "stable_test_proof_provider_strategy_mismatch"],
     [(value) => { value.traversal_provider.boundary_kind = "process"; },
@@ -639,6 +608,11 @@ test("closed registry resolves exact versioned provider capabilities", () => {
     assert.throws(() => resolveTestProofProviders(weakened),
       (error) => error.code === code);
   }
+  const incomplete = structuredClone(binding);
+  delete incomplete.candidate_execution_provider.capability;
+  assert.throws(() => resolveTestProofProviders(incomplete), (error) =>
+    error.code === "test_proof_provider_registry.binding_invalid.v1" &&
+    error.detail?.package_code === "stable_test_proof_incomplete");
   assert.throws(() => assertLauncherResolvedTestProofProvider({
     ...resolved.candidate
   }, "candidate_execution"),
@@ -646,27 +620,31 @@ test("closed registry resolves exact versioned provider capabilities", () => {
 });
 
 test("current public runtime and declarations expose only explicit stable identities", async () => {
+
   for (const name of ["resolveTestProofProviderBindings",
-    "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V1", "validateTestProofRuntimeEvidence"]) {
+    "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V1", "validateTestProofRuntimeEvidence",
+    "projectStableTestProofCurrentPopulation",
+    "classifyStableTestProofRuntimeReadiness",
+    "STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS",
+    "STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION"]) {
     assert.equal(name in controlledContractCurrent, false, name);
   }
   for (const name of ["resolveStableTestProofProviderBindings",
     "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2", "validateTestProofRuntimeEvidenceV2",
-    "projectStableTestProofCurrentPopulation",
-    "classifyStableTestProofRuntimeReadiness",
-    "STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS"]) {
+    "projectStableTestProofSelector"]) {
     assert.equal(name in controlledContractCurrent, true, name);
   }
   const declaration = await readFile(new URL(
     "../../packages/controlled-contract/current.d.mts", import.meta.url
   ), "utf8");
   for (const name of ["resolveTestProofProviderBindings",
-    "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V1", "validateTestProofRuntimeEvidence"]) {
+    "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V1", "validateTestProofRuntimeEvidence",
+    "classifyStableTestProofRuntimeReadiness", "projectStableTestProofCurrentPopulation"]) {
     assert.doesNotMatch(declaration, new RegExp(`\\b${name}\\b`, "u"), name);
   }
   for (const name of ["resolveStableTestProofProviderBindings",
     "TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2", "validateTestProofRuntimeEvidenceV2",
-    "StableRuntimeTestIdentityV1", "classifyStableTestProofRuntimeReadiness"]) {
+    "projectStableTestProofSelector"]) {
     assert.match(declaration, new RegExp(`\\b${name}\\b`, "u"), name);
   }
   const launcherIdentity = await readFile(new URL(
@@ -674,11 +652,12 @@ test("current public runtime and declarations expose only explicit stable identi
     import.meta.url
   ), "utf8");
   assert.doesNotMatch(launcherIdentity,
-    /exactRuntimeTestId|TEST_PROOF_RUNTIME_TEST_SELECTION_VERSION/u);
+    /exactRuntimeTestId|TEST_PROOF_RUNTIME_TEST_SELECTION_VERSION|runtime_test_identity|coverage_disposition/u);
   const stableOwner = await readFile(new URL(
     "../../packages/controlled-contract/lib/test-proof-contract-v1.mjs",
     import.meta.url
   ), "utf8");
+
   assert.doesNotMatch(stableOwner,
     /controlled-acceptance-contract\.experimental\.v0\.[23]|runtime_test_selection/u);
 });
@@ -710,16 +689,6 @@ test("public runtime refuses caller-injected executor callbacks", async () => {
   }
 });
 
-test("printed markers, echoed reasons, and environment-shaped output are never observations", () => {
-  for (const stdout of [
-    "test_proof_fault.dependency_failure.v1\n",
-    "TEST_PROOF_TRAVERSAL:sut-boundary-validation-runner:observable-test-result\n",
-    JSON.stringify({ AGENT_CHASSIS_TEST_PROOF_FAILURE_REASON:
-      "test_proof_fault.dependency_failure.v1" })
-  ]) assert.equal(observeLauncherNodeTestRun({ stdout, exitCode: 1,
-    expectation: { capability: "falsifier_execution" } }).valid, false);
-});
-
 test("stable launcher executes candidate, falsifier, and traversal with v2 evidence", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "test-proof-provider-"));
   const mainRepo = path.join(root, "main");
@@ -731,7 +700,8 @@ test("stable launcher executes candidate, falsifier, and traversal with v2 evide
     "{}\n");
   const launcherLib = path.join(worktree, "packages/agent-launch-cli/src/lib");
   await mkdir(launcherLib, { recursive: true });
-  for (const name of ["workspace-agent-test-proof-node-reporter.mjs",
+  for (const name of ["workspace-agent-test-proof-error-diagnostic.mjs",
+    "workspace-agent-test-proof-node-reporter.mjs",
     "workspace-agent-test-proof-module-fault-loader.mjs",
     "workspace-agent-test-proof-module-fault-contract.mjs"]) {
     await writeFile(path.join(launcherLib, name), await readFile(new URL(
@@ -778,49 +748,51 @@ test("provider target", async () => {
       proposition_id: "prop-runtime-fails", expected_outcome: "verification_fails",
       mutation: { mutation_id: "mutation-provider-dependency", mechanism: "module_substitution",
         target_kind: "module", module_path: dependency },
-      execution_provider: { provider_id: "launcher.node-test-module-fault", provider_version: "1.0.0",
-        capability: "falsifier_execution" } }],
+      execution_provider: currentProviderBinding("launcher.node-test-module-fault",
+        "falsifier_execution") }],
     traversal_provider: { mode: "provider", provider_id: "launcher.node-test-v8-coverage",
       provider_version: "1.0.0", capability: "boundary_traversal", boundary_kind: "module",
       observation_mechanism: "node_test_v8_coverage",
       observation_seam: "node_test_structured_assertion", evidence_artifact_type: "boundary_trace" },
-    coverage_disposition: { baseline_id: "coverage-baseline-suite",
-      baseline_state: "complete_executed_inventory",
-      items: [{ test_id: providerTestId, disposition: "preserved" }] },
-    runtime_test_identity: { test_id: providerTestId },
+
+    test_selector: { name: "provider target", nesting: 0 },
     prohibited_shortcuts: ["source_text_inspection"]
   };
   const proofAuthority = mintManagedWorkerTestProofRuntimeAuthority({ authority });
   const selection = await controlledSelection(worktree, binding);
-  const missingSelection = structuredClone(selection);
-  delete missingSelection.bindings[0].runtime_test_identity;
+
+  const missingSelector = structuredClone(selection);
+  delete missingSelector.bindings[0].test_selector;
   assert.throws(() => mintLauncherTestProofAttemptContext({
     authority: proofAuthority,
     target,
     authorizedTargets: [target],
-    controlledContractSelection: missingSelection,
+    controlledContractSelection: missingSelector,
     verificationId: "claim-verify-slice-006"
-  }), (error) => error.code === "test_proof_runtime_test_selection_missing" &&
-    error.detail.candidate_total === 1 &&
-    error.detail.authority_limb === "mechanical_failure");
-  const invalidSelection = structuredClone(selection);
-  invalidSelection.bindings[0].runtime_test_identity = {
-    test_id: `test-${"f".repeat(64)}`
-  };
+  }), (error) => error.code === "test_proof_test_selector_invalid" &&
+    error.detail.package_code === "stable_test_proof_selector_invalid" &&
+    error.detail.authority_limb === "mechanical_failure" &&
+    error.detail.admissibility_effect === "none");
+  const invalidSelector = structuredClone(selection);
+  invalidSelector.bindings[0].test_selector = { name: "provider target", nesting: 65 };
   assert.throws(() => mintLauncherTestProofAttemptContext({
     authority: proofAuthority,
     target,
     authorizedTargets: [target],
-    controlledContractSelection: invalidSelection,
+    controlledContractSelection: invalidSelector,
     verificationId: "claim-verify-slice-006"
-  }), (error) => error.code === "test_proof_runtime_test_selection_invalid");
-  assert.throws(() => mintLauncherTestProofAttemptContext({
+  }), (error) => error.code === "test_proof_test_selector_invalid");
+  for (const callerAuthored of [
+    { runtimeTestIdentity: { test_id: providerTestId } },
+    { selectedTest: { test_id: providerTestId } },
+    { testSelector: { name: "provider target", nesting: 0 } }
+  ]) assert.throws(() => mintLauncherTestProofAttemptContext({
     authority: proofAuthority,
     target,
     authorizedTargets: [target],
     controlledContractSelection: selection,
     verificationId: "claim-verify-slice-006",
-    runtimeTestIdentity: { test_id: providerTestId }
+    ...callerAuthored
   }), (error) => error.code === "test_proof_caller_identity_forbidden");
   const context = mintLauncherTestProofAttemptContext({
     authority: proofAuthority,
@@ -829,7 +801,20 @@ test("provider target", async () => {
     controlledContractSelection: selection,
     verificationId: "claim-verify-slice-006"
   });
+
+  assert.deepEqual(context.selected_test, { test_id: providerTestId, file: target,
+    name: "provider target", nesting: 0 });
+  assert.equal(context.evidence_identity.test_id, providerTestId);
   const attempt = await executeTestProofAttempt({ context });
+  assert.equal(attempt.evidence.test_inventory.selected_test_id, providerTestId);
+  assert.deepEqual(attempt.evidence.test_inventory.declared_test_ids, [providerTestId]);
+  assert.ok(attempt.evidence.test_inventory.executed_test_ids.includes(providerTestId));
+  const receipt = extractTestProofRuntimeEvidenceReceipt(attempt);
+  assert.equal(receipt.selected_test_id, providerTestId);
+  assert.equal(receipt.selected_test_executed, true);
+  assert.equal(receipt.observed_test_count,
+    attempt.evidence.test_inventory.discovered_test_ids.length);
+  assert.equal(Object.hasOwn(receipt, "inventory_change_count"), false);
   assert.equal(attempt.evidence.schema_version,
     controlledContractCurrent.TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2);
   assert.equal(attempt.evidence.test_proof_version,
@@ -862,18 +847,82 @@ test("provider target", async () => {
 });
 
 test("source-text inspection is recorded as a prohibited shortcut, never evidence", () => {
+  const failedStructuredResult = structuredResult("failed");
+  const failedStructuredArtifact = structuredArtifact("failed", failedStructuredResult);
   const result = buildTestProofRuntimeEvidence({
     evidenceIdentity: identity(), contractBinding: contractBinding(),
     executionResult: { status: "failed", exit_code: 1, attempt_id: attemptId("a"),
-      structured_result: structuredResult("failed"), evidence_artifact_ids: [artifactId("e")],
+      structured_result: failedStructuredResult,
+      evidence_artifact_ids: [failedStructuredArtifact.artifact_id],
       provider: provider("launcher.node-test", "candidate_execution",
         "node_test_structured_events", ["structured_test_result"]) }, testInventory: inventory(),
     boundaryTraversals: [traversal()],
     falsifierExecutions: [falsifier({ candidateStatus: "failed" })],
-    observedShortcuts: ["source_text_inspection"], artifacts
+    observedShortcuts: ["source_text_inspection"],
+    artifacts: [...artifacts.filter(({ kind }) => kind !== "structured_test_result"),
+      failedStructuredArtifact]
   });
   assert.deepEqual(result.evidence.observed_shortcuts, ["source_text_inspection"]);
   assert.equal(result.evidence.falsifier_executions[0].status, "not_detected");
+});
+
+test("runtime evidence refuses malformed and dangling failure diagnostic graphs", () => {
+  const failedStructuredResult = structuredResult("failed");
+  const failedStructuredArtifact = structuredArtifact("failed", failedStructuredResult);
+  const evidence = buildTestProofRuntimeEvidence({
+    evidenceIdentity: identity(), contractBinding: contractBinding(),
+    executionResult: { status: "failed", exit_code: 1, attempt_id: attemptId("a"),
+      structured_result: failedStructuredResult,
+      evidence_artifact_ids: [failedStructuredArtifact.artifact_id],
+      provider: provider("launcher.node-test", "candidate_execution",
+        "node_test_structured_events", ["structured_test_result"]) },
+    testInventory: inventory(), boundaryTraversals: [traversal()],
+    falsifierExecutions: [falsifier({ candidateStatus: "failed" })],
+    artifacts: [...artifacts.filter(({ kind }) => kind !== "structured_test_result"),
+      failedStructuredArtifact]
+  }).evidence;
+  assert.equal(controlledContractCurrent.validateTestProofRuntimeEvidenceV2(evidence).valid, true);
+
+  const dangling = structuredClone(evidence);
+  dangling.execution_result.structured_result.fail_events[0]
+    .failure_diagnostic.errors[0].actual = "value-999";
+  const danglingValidation = controlledContractCurrent.validateTestProofRuntimeEvidenceV2(dangling);
+  assert.equal(danglingValidation.valid, false);
+  assert.ok(danglingValidation.diagnostics.diagnostics.some(({ code }) =>
+    code === "runtime_failure_diagnostic_reference_dangling"));
+
+  const duplicate = structuredClone(evidence);
+  const diagnostic = duplicate.execution_result.structured_result.fail_events[0].failure_diagnostic;
+  diagnostic.errors.push(structuredClone(diagnostic.errors[0]));
+  const duplicateValidation = controlledContractCurrent.validateTestProofRuntimeEvidenceV2(duplicate);
+  assert.equal(duplicateValidation.valid, false);
+  assert.ok(duplicateValidation.diagnostics.diagnostics.some(({ code }) =>
+    code === "runtime_failure_diagnostic_error_identity_duplicate"));
+
+  const missing = structuredClone(evidence);
+  delete missing.execution_result.structured_result.fail_events[0].failure_diagnostic;
+  const missingValidation = controlledContractCurrent.validateTestProofRuntimeEvidenceV2(missing);
+  assert.equal(missingValidation.schema_valid, false);
+
+  const malformedBytes = structuredClone(evidence);
+  malformedBytes.execution_result.structured_result.fail_events[0]
+    .failure_diagnostic.values.push({ id: "value-999", type: "array_buffer",
+      byte_length: 0, bytes: "A" });
+  const malformedBytesValidation = controlledContractCurrent
+    .validateTestProofRuntimeEvidenceV2(malformedBytes);
+  assert.equal(malformedBytesValidation.schema_valid, false);
+
+  const tamperedArtifact = structuredClone(evidence);
+  const artifact = tamperedArtifact.artifacts.find(({ kind }) => kind === "structured_test_result");
+  artifact.payload.fail_events[0].failure_diagnostic.errors[0].message = "artifact tamper";
+  const tamperedValidation = controlledContractCurrent.validateTestProofRuntimeEvidenceV2(
+    tamperedArtifact
+  );
+  assert.equal(tamperedValidation.valid, false);
+  assert.ok(tamperedValidation.diagnostics.diagnostics.some(({ code }) =>
+    code === "runtime_artifact_identity_digest_mismatch"));
+  assert.ok(tamperedValidation.diagnostics.diagnostics.some(({ code }) =>
+    code === "runtime_structured_result_artifact_mismatch"));
 });
 
 test("terminal validation refuses identities without exact receipts", () => {

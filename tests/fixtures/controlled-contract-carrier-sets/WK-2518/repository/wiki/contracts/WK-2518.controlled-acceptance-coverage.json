@@ -1,0 +1,354 @@
+{
+  "schema_version": "wiki-core-controlled-contract-acceptance-coverage.v1",
+  "wk_id": "WK-2518",
+  "selected_unit": null,
+  "source_identity": {
+    "source_kind": "obligation-coverage",
+    "content_digest": "sha256:7b50573be979e2ec45c9e8707f9bfd45bee56c80744cb9ea903b39045311b00b"
+  },
+  "source_bindings": {
+    "workRecordLocatorDigest": "sha256:85724cc5c4e83eb98d139cf1f02e3da3f47e0de2a8066d9922010b2bf0428547",
+    "contractDigest": "sha256:51c6c064ece446dcbf1ea6e90918cce5994ed7184fb6d89a8fca38f9d61b38ff",
+    "contractNodeDigest": "sha256:fdcc31663d2f0e0e179771cbf5aaa54f8a461370b0de1af812a1ad3f865ff290",
+    "proofPlanDigest": "sha256:9d9681bb8b565d43e7daf97005d2873a66011ac6fc241ef07ede077558d9420a",
+    "selectedPackDigest": "sha256:ef77974eb1d5cb311658c9c7454d77228855bedbf3e7925e4ba2180c5fec25e1",
+    "assessmentDigest": null,
+    "proofAssessmentDigest": null,
+    "profileVersionDigest": "sha256:02eb48ccd762d6bf8bf6b2122dda9a5272bc2d2330595943a9e390f5abac5438",
+    "selectorArtifactDigest": "sha256:0f7e99b9b64289f18dd65f2670c894b8f0b0b1bd75acab08c81f82e44afdbfd0",
+    "ownershipDigest": "sha256:3c93f8c6e7ee59403b2987a0095df174165af71acfa86ec30886319ad42d85a1",
+    "verificationDigest": "sha256:519e10a867b1e09d23a5d7677694101f9293b4e133437168e5103bcd1388470f",
+    "optionalScopeDigest": "sha256:73f6f970ddacb5af4bba3b7bc34c1cc0599e4204d24c1e1ac5366d6e1c4e0e13",
+    "sourceDigest": "sha256:7b50573be979e2ec45c9e8707f9bfd45bee56c80744cb9ea903b39045311b00b",
+    "sourceKind": "obligation-coverage",
+    "mappingDigest": "sha256:74544f5cebaf12e50cc295e10c116ea1ba0c682a11d90bf4bfcdb602db42d07f"
+  },
+  "criterion_identities": {
+    "version": "acceptance-coverage-criterion-identity.v1",
+    "identities": [
+      {
+        "position": 0,
+        "text": "Admission target: production workspace_agent_dispatch registration and admitAgentDispatchRequest accept the exact legitimate request at admission only; the real env.PATH dictionary value ../opaque-control.txt is schema-admitted, preserved and opaque to protected authority coordinates. Demonstrate this; do not add a field, change parser behavior, invoke its lazy continuation, or substitute a mock parser/resolver. If the control is not actually accepted, return the precise blocker.",
+        "identity": "derived:4d5f5512f43db01f2e4454ffc4ae9ebd31a15f09f13d0a0cb249ab98eb4e60a9",
+        "source": "derived"
+      },
+      {
+        "position": 1,
+        "text": "Refusal cut: the corresponding actual request plus registered authority:true returns caller_supplied_cce_policy_authority with the caller-supplied-identity blocker and authority in refused_fields before resolveWorkspaceRepo or any protected downstream continuation. Cover every incumbent forbidden-field family and precedence as regressions without extending this claim to WK-2510 policy selection, no-gate settlement or automatic review. Across-family precedence follows the admission owner loop; registered authority lists collect all present fields in the first matching family, while nested identity is first-carrier-wins. Identity regressions assert the owning refusal code/blocker and identityRefusal.detail.carrier, without pinning incidental envelope-key refused_fields/count or repairing that production projection. Reviewer SHA-subject correction is a separate subject/role branch.",
+        "identity": "derived:7f8e276a845197c30472d289ef9ccbe6918a62e5acd27ef494f185a9a61ea289",
+        "source": "derived"
+      },
+      {
+        "position": 2,
+        "text": "Complete observation: derive the exact loaded admission dependency/callsite census and all nine source channels (resolver, loader, filesystem, environment, module, catalog, subprocess, return, success), with actual source-specific start/end state/version and monotone refusal cut. Require real occurrence-injection sensitivity at resolver, protected successful-return and success/continuation hooks. The current closure has no call-time filesystem/subprocess/module/loader port; catalog uses loaded metadata and environment access is in the imported identity owner. For those channels require exact-generation census-completeness falsifiers (removed/extra reachable callsite, missing/duplicate/extra source, missing endpoint, stale closure). A newly reachable protected operation requires its actual hook or an explicit missing-hook blocker. Never infer nine complete empty channels from one spy or relabel census inspection as runtime observation. Dropped/late/misordered events and stale module/schema generations must not produce success. Refusal output is not protected successful dispatch return.",
+        "identity": "derived:c289c69da656e4b4d2108fb5d79aa5e2cdd06291aecf8b81ea9cd7c94e391ec4",
+        "source": "derived"
+      },
+      {
+        "position": 3,
+        "text": "Production provenance: only live host-private acquisition objects yield exact request/outcome bytes and actual signed source assignment, target, source, attempt and authentication witnesses. Use randomly generated per-acquisition/source Ed25519 keys and successful signature verification over actual retained bytes; reject forged/mismatched keys, altered evidence, fixture-only synthetic witnesses and foreign source/attempt. No private keys persisted/exposed; no CCE, admission, launcher identity or general trust authority conferred.",
+        "identity": "derived:4ecea87611fca7e4ec5a9073edacfeac33702c82e01b1e2c0d7c9be7ca6b71fc",
+        "source": "derived"
+      },
+      {
+        "position": 4,
+        "text": "Existing pack composition: proof.input.caller-authority-confinement@2.0.0 consumes the five actual input artifacts and its incumbent caller-input-surface-capture.v1 alone creates caller-input-projection. Derive concrete-member input policy from the shared real schema/refusal owner; preserve open dictionary semantics, actual decoding/aliases and exact protected coordinate associations. Pure mapper reuses capture-mapping and owned vocabularies, never acts as acquisition or policy owner.",
+        "identity": "derived:288a2a90c5ab0e2e5c6bc0becd447a4073883e60e542062c5fad6bd4eadad5b5",
+        "source": "derived"
+      },
+      {
+        "position": 5,
+        "text": "Single ownership: one package artifact naming/declaration owner replaces duplicate suffix/formula definitions; common-proof-capture-tools retains sole family/store/currentness/persistence dispatch and carrier-set-publication retains staging/exclusion/complete-generation publication. Existing other-family contracts remain correct without compatibility shims or independent file writes. Use actual structured size/attestation/refactor policy results, not the 1200-LOC retrieval threshold. Unit 1 migrates both the package skeleton and wiki-core carrier-set-manifest naming consumers to the one descriptor atomically; unit 3 adds publication constituents afterward. No transient duplicate naming owner or compatibility window.",
+        "identity": "derived:cf28cbb03ecfb38edf65f82b36dc4e402aadd4b0993d9f9769aebf84e5de5b00",
+        "source": "derived"
+      },
+      {
+        "position": 6,
+        "text": "Exact source selection: six artifacts plus public producer metadata are complete WK contract-generation constituents. Manifest owns shared locations/digests/lengths; private producer join additionally matches exact pack/profile, WK/focus, schema/parser/observer generation, acquisition/attempt/cut, requirement and intended artifact. Reject missing/duplicate/ambiguous/foreign/stale/tampered sources or wrong requirement-to-artifact association; filename, digest match or signature alone cannot confer intended identity.",
+        "identity": "derived:0799d0ee698bd2097bf1e1c40273cfe17166a4c2c3cb813d4413d42676f13cdd",
+        "source": "derived"
+      },
+      {
+        "position": 7,
+        "text": "Atomicity and currentness: publish the complete constituent census under one incumbent source lease/CAS/generation/manifest switch; source movement or pre-switch failure preserves the canonical generation, while post-switch/indeterminate failures report truthful effects and supported recovery. Test same/conflicting replay, concurrent acquisition/publication and restart; never reconstruct unfinished observations or silently reuse stale captures.",
+        "identity": "derived:26831649c26f6cca2a94d9655a9a8d5ea80e37c26e7bee2ad8e9d8b4c39cdf17",
+        "source": "derived"
+      },
+      {
+        "position": 8,
+        "text": "Private exact-capture handoff: absent-input authoring and applicable reauthoring/reference preparation receive only server-resolved authenticated source locations through the existing package constructor and incumbent applicability reassessment. Changed intent requires explicit current owner rebinding. Preserve unrelated carriers and compiler refusal for missing/stale exact_capture; no null-plan success, guessed path, generic lookup, pack substitution or auto-acquisition from refresh/post_delivery.",
+        "identity": "derived:3533e7c98237052c5eba0d96df201f12d5da88bb88209995a55ba7bd6a68bfea",
+        "source": "derived"
+      },
+      {
+        "position": 9,
+        "text": "Exact verifier consumption: real capture-generated declarations reach the unchanged exact-binding compiler/capture/verification owners with descriptor-pinned no-symlink regular-file containment and before/after identity checks. Missing sixth projection, invalid signatures, traversal, symlink/nonregular/replaced descriptor and change-during-read fail; a complete projected artifact alone is not proof of runtime truth or lifecycle completion.",
+        "identity": "derived:b857e99e44b550caec64e7b34c382f7ed8497babef1275346d6d38f532c447e4",
+        "source": "derived"
+      },
+      {
+        "position": 10,
+        "text": "Bounded resources: before allocation/I/O enforce exactly two attempts/nine sources/six artifacts, 64 KiB per request, depth 16, 256 concrete declarations, 4096 events, 8 MiB per artifact and aggregate 48 MiB subject to stricter carrier-owner caps including witness overhead. At most one in-flight acquisition per WK/focus; discard incomplete process state at request end. Overflow/depth/size/count failures report unavailability rather than dropping data or proving absence.",
+        "identity": "derived:c3f6a9ca81004cabf27601965d6071a42d6e78d1531719ee92d71fb1a3fff04c",
+        "source": "derived"
+      },
+      {
+        "position": 11,
+        "text": "Public authority and effects: extend only coordinator/operator workspace_controlled_common_proof_capture with the exact caller-authority family and fixed server-side admission target. Server resolves/checks repo/WK/focus/profile/verification/role/write scope. Reject caller roots/paths/keys/evidence/policy/source assignments/requests/executors/environment before acquisition or writes; expose actual attempt/publication effects and bounded closed-code/redaction projections; do not give workers inherited execution capability.",
+        "identity": "derived:b24a3fb055ad21ffcb754cf2e92d2916bfc519df9dfa2ddd895f49881e6647f6",
+        "source": "derived"
+      },
+      {
+        "position": 12,
+        "text": "End-to-end integration and discovery: real registered capture to complete canonical generation to semantic absent-input authoring to reassessed reauthoring to exact verification succeeds in isolated integration tests, with exact expected negative cases and unchanged unrelated packs. Always-on discovery and owning docs disclose the only supported target, source caps/currentness, effects, refusal causes and next call; explicitly keep later WK-2510 policy/no-gate/automatic-review proofs separate.",
+        "identity": "derived:5109ecbe22e8e7e9e9d57c4695ace6a3d7cb41ebd5f3cbeb0f1bb09adb58f307",
+        "source": "derived"
+      },
+      {
+        "position": 13,
+        "text": "Design/execution distinction: bind meaningful stable runtime test proofs with declared actual boundaries, observables and falsifiers. New tests have honest no_executed_coverage and no invented runtime identities until workers implement and execute them through launcher-supported validation. Review prose, local signatures, metadata completeness and pack stage never assert implementation readiness, CCE admissibility or completion.",
+        "identity": "derived:4c38134b02d03db8a9e70cacfb96d6e6f498d8ed39cccdd72a9c303c43519689",
+        "source": "derived"
+      }
+    ],
+    "bindings": {
+      "contractDigest": "sha256:51c6c064ece446dcbf1ea6e90918cce5994ed7184fb6d89a8fca38f9d61b38ff",
+      "proofPlanDigest": "sha256:9d9681bb8b565d43e7daf97005d2873a66011ac6fc241ef07ede077558d9420a",
+      "selectedPackDigest": "sha256:ef77974eb1d5cb311658c9c7454d77228855bedbf3e7925e4ba2180c5fec25e1",
+      "mappingDigest": "sha256:74544f5cebaf12e50cc295e10c116ea1ba0c682a11d90bf4bfcdb602db42d07f"
+    },
+    "provenance": {
+      "selectedUnitDigest": "sha256:b58e418bdb082fdce7a7b263c4eb0c4261c74400934f17718aa5aff630878426"
+    },
+    "digest": "efafdeb98cd9f107c5da42ae76454fa3118f81502e046c8f3973846f063e593a"
+  },
+  "rows": [
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:4d5f5512f43db01f2e4454ffc4ae9ebd31a15f09f13d0a0cb249ab98eb4e60a9",
+      "node_ids": [
+        "claim-5645935490402421f28745ecb2ad192f056d108f",
+        "claim-7c62d9d4c16c3235472cd520fb2a11636fdacdf0"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:4ecea87611fca7e4ec5a9073edacfeac33702c82e01b1e2c0d7c9be7ca6b71fc",
+      "node_ids": [
+        "claim-d6636eb5982798f80320b6d6083e0af7314eb93d",
+        "claim-0f542f718035b2052c9708e0e46b769a5205d49b"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:288a2a90c5ab0e2e5c6bc0becd447a4073883e60e542062c5fad6bd4eadad5b5",
+      "node_ids": [
+        "claim-73e86024142c81ea07a9e9be085f2ebe6bb037fd",
+        "claim-54e7d57dfd68dc019a3e8ad0f9a17da4016cb708"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:0799d0ee698bd2097bf1e1c40273cfe17166a4c2c3cb813d4413d42676f13cdd",
+      "node_ids": [
+        "claim-369c14d3296d2d561c15f2d2d427577c2ed581d2",
+        "claim-0615617ec0933a20eee608730ee6add45b143562"
+      ]
+    },
+    {
+      "criterion_identity": "derived:26831649c26f6cca2a94d9655a9a8d5ea80e37c26e7bee2ad8e9d8b4c39cdf17",
+      "node_ids": [
+        "claim-7e0b41a0a569e9aae24d8f158460d246b8141d88",
+        "claim-e1b733ca11cfe7674636ddc6d31d6eb051900812",
+        "claim-0be0557fcc5f81da5e6af0a542c32c83e69a2071",
+        "claim-697c4c42fe02f5467a29d748256e910c206a7233",
+        "claim-722e9dcc65954d94f347c4e55dc8bf222e85c67e",
+        "claim-9193a3333fb25803266d1822b8d0fb60a9b75d54",
+        "claim-bdb55886a6837a8b7088d732597493342a75d2e6",
+        "claim-cd313f9586834b22cb355f9879d083a9015e025d",
+        "claim-7e099dbe6c05289be0638815949467fec24863a5",
+        "claim-b8a4b6923e79b3aee7d6e9ab881e6bf950be1422",
+        "claim-3abbd9bccb198348641ca1a792b068cceb58c122",
+        "claim-3b9b27d891f99e9c983b58345194bbc7fb7cf0d3"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:3533e7c98237052c5eba0d96df201f12d5da88bb88209995a55ba7bd6a68bfea",
+      "node_ids": [
+        "claim-d8467a27e47164900125daa9c0e495504365ab49",
+        "claim-8be96edd2c15a7b2f1522b07694efb22395109fb"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:b857e99e44b550caec64e7b34c382f7ed8497babef1275346d6d38f532c447e4",
+      "node_ids": [
+        "claim-f525acaa9eb9d2ab8a83e139bb28fa20ccca43d4",
+        "claim-402acecc547eab6f802b67fa2c73a48923f8966f"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:c3f6a9ca81004cabf27601965d6071a42d6e78d1531719ee92d71fb1a3fff04c",
+      "node_ids": [
+        "claim-0e3da540f2dcc07e239539335b5944ab0fc5709d",
+        "claim-27fdd09710619ebff3e2773766827c25fe1c5a52"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:b24a3fb055ad21ffcb754cf2e92d2916bfc519df9dfa2ddd895f49881e6647f6",
+      "node_ids": [
+        "claim-d913246fe8da2d11933f59276aad0e91cba261ba",
+        "claim-c7c225b336bafe4ba9870225aaa4dc76b404d4e2"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:5109ecbe22e8e7e9e9d57c4695ace6a3d7cb41ebd5f3cbeb0f1bb09adb58f307",
+      "node_ids": [
+        "claim-1d60d40476808b917d90ff0d10022718d1b34333",
+        "claim-55b15bdd3d6aeac3283587569f1e1098b89930cc"
+      ]
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:4c38134b02d03db8a9e70cacfb96d6e6f498d8ed39cccdd72a9c303c43519689",
+      "node_ids": [
+        "claim-af53f0115bb68fc821752f63a7c011acddb9c734",
+        "claim-0ed6cfa68425bb663653c376a599f3d14c300b66"
+      ]
+    },
+    {
+      "criterion_identity": "derived:cf28cbb03ecfb38edf65f82b36dc4e402aadd4b0993d9f9769aebf84e5de5b00",
+      "node_ids": [
+        "claim-26bd913ec4aad739c26fb166eb586d53b6dae6cc",
+        "claim-8b7c3aa14dfb0cbe91d0a9ec47eaac770acb4240",
+        "claim-cf0f6b3437d5cba329ad5d9b29a375c736f22ef0",
+        "claim-dfbf6f81335180b04893667287799c1be5b4cf42"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:7f8e276a845197c30472d289ef9ccbe6918a62e5acd27ef494f185a9a61ea289",
+      "node_ids": [
+        "claim-521edcb0d6cad753258f2bbdc500901333792ec9",
+        "claim-5a07dc1e2bc66b262cf7698d37c000ba1578f260",
+        "claim-1ca90111bf541c36ac0040125e2382645790359c",
+        "claim-0c6a632ac02141d5f0b45d6284aa166ee354e43e",
+        "claim-a7bfe30c72bd0d7ac021dd1f9bbe80e8f9fdeb28",
+        "claim-afc0df49e4b6e8dacac0c007c37712dd3dbc20ea",
+        "claim-4ea6ca62a8f355e1b3f3058ea076d6e583ff4907"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "implementation_ownership": "covered",
+        "scope_feasibility": "covered",
+        "selected_pack_guarantee_coverage": "outside_pack",
+        "structural_verification": "covered",
+        "verification_ownership": "covered"
+      },
+      "criterion_identity": "derived:c289c69da656e4b4d2108fb5d79aa5e2cdd06291aecf8b81ea9cd7c94e391ec4",
+      "node_ids": [
+        "claim-20e68e8aa5f9150e48721ec99a80ca383365954a",
+        "claim-a27848c794c4007f8fd768547d433bb82a99c763"
+      ]
+    }
+  ]
+}

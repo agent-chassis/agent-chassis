@@ -22,17 +22,21 @@ function recovery(overrides = {}) {
     observed: { parent_status: "todo", slice_status: "todo" }, unit: "WK-2328",
     slice_unit: "WK-2328#SLICE-003", exact_subject: "WK-2328#SLICE-003",
     responsible_actor: "launcher",
-    next_action: "retry_workspace_agent_run_status_same_monitor_and_subject",
-    monitor_handle: "wkmh_wk2328", launcher_retirement_required: true,
+    next_action: "retry_workspace_agent_run_status_same_subject",
+    launcher_retirement_required: true,
     filesystem_cleanup_forbidden: true, preserve_substantive_review: true,
     preserve_review_status: true, replacement_review_required: false,
     notification: "retry the exact managed run status", ...overrides };
 }
 function carrier(overrides = {}) {
-  return { code: owner.MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES
-    .INTEGRATED_STATE_UNRESOLVED, detail: {
+  const detail = {
     cause_code: "agent_launch.canonical_integrated_lifecycle_state.impossible.v1",
-    observed_canonical_status: OBSERVED, recovery: recovery(), ...overrides } };
+    observed_canonical_status: OBSERVED, recovery: recovery(), ...overrides };
+  for (const [field, value] of Object.entries(overrides)) {
+    if (value === undefined) delete detail[field];
+  }
+  return { code: owner.MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES
+    .INTEGRATED_STATE_UNRESOLVED, detail };
 }
 
 test("the shared module owns and exports the exact closed vocabulary", () => {
@@ -53,7 +57,7 @@ test("the shared module owns and exports the exact closed vocabulary", () => {
     ["parent_status", "slice_status"]);
   assert.deepEqual(owner.MANAGED_CORRECTIVE_RECOVERY_FIELDS, [
     "exact_subject", "filesystem_cleanup_forbidden", "launcher_retirement_required",
-    "monitor_handle", "next_action", "notification", "observed", "preserve_review_status",
+    "next_action", "notification", "observed", "preserve_review_status",
     "preserve_substantive_review", "recovery_kind", "replacement_review_required",
     "responsible_actor", "slice_unit", "unit"]);
   for (const symbol of EXPORTS) {

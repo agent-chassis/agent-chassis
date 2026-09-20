@@ -36,6 +36,7 @@ export const SLICE_TIP_RECONCILE_STATES = Object.freeze({
 
 export const SLICE_TIP_RECOVERY_ROUTES = Object.freeze({
   EXACT_SLICE_REVIEW_RECOVERY: "exact_slice_review_recovery",
+  INTEGRATE_ACCUMULATED_IMPLEMENTATION: "integrate_accumulated_implementation",
   OPERATOR_RECONCILE: "operator_reconcile"
 });
 
@@ -280,11 +281,22 @@ export function reconcileExistingSliceTip({
       sliceTip: classified.slice_tip
     });
     if (authenticated !== null) {
-      return Object.freeze({
-        ...authenticated,
-        wk_base_ref: wkBase.base_ref,
-        wk_base_sha: wkBaseSha
-      });
+      reconcileRefusal(
+        SLICE_TIP_RECONCILE_STATES.ACCUMULATED_IMPLEMENTATION_TIP,
+        "the authenticated accumulated implementation tip is not contained in the current WK tip; " +
+          "it must be integrated before another implementation execution",
+        {
+          branch,
+          unit_address: name.unit_address,
+          slice_tip: authenticated.slice_tip,
+          wk_base_ref: wkBase.base_ref,
+          wk_base_sha: wkBaseSha,
+          authenticated_base_sha: authenticated.authenticated_base_sha,
+          recovery_route: SLICE_TIP_RECOVERY_ROUTES.INTEGRATE_ACCUMULATED_IMPLEMENTATION,
+          reason: "exact_slice_accumulated_implementation_requires_integration",
+          failure_class: "lifecycle"
+        }
+      );
     }
 
     reconcileRefusal(

@@ -1,6 +1,12 @@
 import { canonicalValue, compareCodeUnits, deepFreeze, sha256 } from
   "./deterministic-projection-primitives.mjs";
 import { applyControlledContractCarrierPatch } from "./carrier-patch-v1.mjs";
+import {
+  REFACTOR_IDENTITY_ROLES,
+  classifyControlledContractRefactorIdentityRole,
+  inspectStableTestProofExternalGrounding,
+  visitControlledContractRefactorIdentities
+} from "./refactor-identity-taxonomy.mjs";
 
 const REFACTOR_GRAPH_SCHEMA_VERSION = "controlled-contract-refactor-graph.v1";
 const REFACTOR_MODES = Object.freeze(["rename_identity", "replace_subgraph"]);
@@ -9,33 +15,19 @@ const REFACTOR_GRAPH_LIMITS = Object.freeze({
   total_bytes: 16 * 1024 * 1024, identity_count: 16384,
   correspondence_count: 4096, unresolved_identity_count: 256
 });
-const ID_FIELDS = new Set([
-  "acceptance_id", "annotation_id", "assessment_id", "binding_id", "claim_id",
-  "collection_id", "controlled_contract_node_id", "criterion_id",
-  "criterion_identity", "evidence_id", "generation_id", "node_id",
-  "obligation_id", "proof_id", "proof_plan_id", "proposition_id",
-  "reference_id", "relation_id", "requirement_id", "residue_id",
-  "source_assessment_id", "source_generation_id", "source_proof_plan_id",
-  "stable_test_proof_id", "verification_claim_id", "verification_id"
-]);
-const ID_ARRAY_FIELDS = new Set([
-  "acceptance_ids", "claim_ids", "collection_ids",
-  "controlled_contract_node_ids", "criterion_identities", "node_ids",
-  "obligation_ids", "proof_ids", "proposition_ids", "reference_ids",
-  "relation_ids", "requirement_ids", "verification_ids"
-]);
 const DERIVED_KINDS = new Set(["assessment", "proof_plan"]);
 const REQUEST_FIELDS = ["live_carriers", "mode"];
 const RENAME_FIELDS = ["kind", "old_identity", "new_identity", "old_node", "new_node"];
 const REPLACE_FIELDS = ["kind", "correspondence", "reason", "carrier_operations"];
 
 class ControlledContractRefactorError extends Error {
-  constructor({ code, message, decidingFacts = [], wouldBreak, recovery = null }) {
+  constructor({ code, message, decidingFacts = [], wouldBreak, recovery = null,
+    owner = "controlled_contract_refactor_graph" }) {
     super(message);
     this.name = "ControlledContractRefactorError";
     this.code = code;
     this.limb = "mechanical_failure";
-    this.owner = "controlled_contract_refactor_graph";
+    this.owner = owner;
     this.deciding_facts = deepFreeze(structuredClone(decidingFacts));
     this.would_break = wouldBreak;
     this.recovery = recovery === null ? null : deepFreeze(structuredClone(recovery));
@@ -87,11 +79,16 @@ function normalizeCarriers(input) {
         "each live carrier requires carrier_kind and complete content",
         [{ field: "carrier_index", value: index }],
         "an incomplete carrier could hide a live identity edge");
-    if (seen.has(row.carrier_kind)) refuse(
+
+    const identity = `${row.carrier_kind}\u0000${
+      typeof row.filename === "string" ? row.filename : ""}`;
+    if (seen.has(identity)) refuse(
       "controlled_contract_refactor_live_population_invalid",
-      "live carrier kinds must be unique", [{ field: "carrier_kind", value: row.carrier_kind }],
+      "live carriers must be unique by kind and filename",
+      [{ field: "carrier_kind", value: row.carrier_kind },
+        { field: "filename", value: row.filename ?? null }],
       "two competing current carriers would make closure ambiguous");
-    seen.add(row.carrier_kind);
+    seen.add(identity);
     const bytes = Buffer.byteLength(JSON.stringify(row.content), "utf8");
     totalBytes += bytes;
     if (bytes > REFACTOR_GRAPH_LIMITS.carrier_bytes ||
@@ -111,7 +108,8 @@ function normalizeCarriers(input) {
       mutable: row.mutable !== false };
   });
   return normalized.sort((left, right) =>
-    compareCodeUnits(left.carrier_kind, right.carrier_kind));
+    compareCodeUnits(left.carrier_kind, right.carrier_kind) ||
+    compareCodeUnits(left.filename ?? "", right.filename ?? ""));
 }
 
 function normalizeMode(mode) {
@@ -169,36 +167,22 @@ function normalizeMode(mode) {
   return { ...structuredClone(mode), correspondence };
 }
 
-function isIdentity(key, value) {
-  return typeof value === "string" && (ID_FIELDS.has(key) ||
-    /(?:^|_)id$/u.test(key));
-}
-function walk(value, visitor, pointer = "", parentKey = "") {
-  if (Array.isArray(value)) {
-    value.forEach((member, index) => {
-      const child = `${pointer}/${index}`;
-      if (typeof member === "string" && (ID_ARRAY_FIELDS.has(parentKey) ||
-          /(?:^|_)ids$/u.test(parentKey))) visitor(member, child, parentKey);
-      walk(member, visitor, child, parentKey);
-    });
-    return;
-  }
-  if (!isPlainObject(value)) return;
-  for (const key of Object.keys(value).sort(compareCodeUnits)) {
-    const member = value[key];
-    const child = `${pointer}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`;
-    if (isIdentity(key, member)) visitor(member, child, key);
-    walk(member, visitor, child, key);
-  }
-}
 function identityIndex(carriers) {
   const index = new Map();
-  for (const carrier of carriers) walk(carrier.content, (identity, pointer, field) => {
+  for (const carrier of carriers) visitControlledContractRefactorIdentities(
+    carrier.content, (identity, pointer, field, identityRole) => {
+      if (![REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_DECLARATION,
+        REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_REFERENCE].includes(
+        identityRole.role)) return;
     const rows = index.get(identity) ?? [];
     rows.push({ carrier_kind: carrier.carrier_kind, pointer, field,
+      role: identityRole.role, target_domain: identityRole.target_domain,
+      relationship: identityRole.relationship,
+      prospective_settlement_owner:
+        identityRole.prospective_settlement_owner ?? null,
       mutable: carrier.mutable, current: carrier.current });
     index.set(identity, rows);
-  });
+    }, { carrierKind: carrier.carrier_kind });
   if (index.size > REFACTOR_GRAPH_LIMITS.identity_count)
     refuse("controlled_contract_refactor_bound_exceeded",
       "the live identity population exceeds the package bound",
@@ -209,15 +193,32 @@ function identityIndex(carriers) {
       `${right.carrier_kind}${right.pointer}`));
   return index;
 }
-function replaceIdentity(value, from, to, parentKey = "") {
-  if (Array.isArray(value)) return value.map((member) =>
-    typeof member === "string" && (ID_ARRAY_FIELDS.has(parentKey) ||
-      /(?:^|_)ids$/u.test(parentKey)) && member === from
-      ? to : replaceIdentity(member, from, to, parentKey));
+function replaceIdentity(value, from, to, {
+  pointer = "", parentKey = "", carrierKind = "contract"
+} = {}) {
+  if (Array.isArray(value)) return value.map((member, index) => {
+    const child = `${pointer}/${index}`;
+    const identityRole = typeof member === "string"
+      ? classifyControlledContractRefactorIdentityRole({ field: parentKey,
+          pointer: child, arrayMember: true, carrierKind }) : null;
+    return member === from && identityRole !== null &&
+      [REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_DECLARATION,
+        REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_REFERENCE].includes(identityRole.role)
+      ? to : replaceIdentity(member, from, to,
+        { pointer: child, parentKey, carrierKind });
+  });
   if (!isPlainObject(value)) return value;
-  return Object.fromEntries(Object.entries(value).map(([key, member]) => [key,
-    isIdentity(key, member) && member === from
-      ? to : replaceIdentity(member, from, to, key)]));
+  return Object.fromEntries(Object.entries(value).map(([key, member]) => {
+    const child = `${pointer}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`;
+    const identityRole = typeof member === "string"
+      ? classifyControlledContractRefactorIdentityRole({ field: key,
+          pointer: child, arrayMember: false, carrierKind }) : null;
+    return [key, member === from && identityRole !== null &&
+      [REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_DECLARATION,
+        REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_REFERENCE].includes(identityRole.role)
+      ? to : replaceIdentity(member, from, to,
+        { pointer: child, parentKey: key, carrierKind })];
+  }));
 }
 function normalizedNode(value, identity) {
   return canonicalValue(replaceIdentity(structuredClone(value), identity,
@@ -228,41 +229,27 @@ function closureRows(index, identities) {
     (index.get(identity) ?? []).map((row) => ({ identity, ...row })));
 }
 
-const DECLARATION_SEGMENTS = Object.freeze({
-  acceptance_id: "acceptances", annotation_id: "annotations",
-  assessment_id: "assessments", claim_id: "claims", collection_id: "collections",
-  criterion_identity: "rows", evidence_id: "evidence", node_id: "nodes",
-  obligation_id: "obligations", proof_id: "test_proofs", proof_plan_id: "proof_plans",
-  proposition_id: "propositions", reference_id: "references",
-  relation_id: "relations", requirement_id: "requirements", residue_id: "residue",
-  stable_test_proof_id: "test_proofs", test_proof_id: "test_proofs",
-  boundary_id: "system_under_test_boundary", observable_id: "observable_result",
-  falsifier_id: "falsifiers", mutation_id: "mutation",
-  baseline_id: "coverage_disposition", verification_id: "verifications"
-});
-
 function refactorIntegrity(carriers, index) {
-  const declarations = new Set();
+  const declarations = new Map();
   for (const [identity, occurrences] of index) {
-    if (occurrences.some(({ carrier_kind: carrierKind, field, pointer }) => {
-      const segment = DECLARATION_SEGMENTS[field];
-      return (segment !== undefined && pointer.includes(`/${segment}/`)) ||
-        (carrierKind === "assessment" && field === "assessment_id") ||
-        (carrierKind === "proof_plan" && field === "proof_plan_id");
-    })) declarations.add(identity);
+    for (const occurrence of occurrences) {
+      if (occurrence.role !== REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_DECLARATION) continue;
+      const domains = declarations.get(identity) ?? new Set();
+      domains.add(occurrence.target_domain);
+      domains.add("controlled_contract.graph_node");
+      declarations.set(identity, domains);
+    }
   }
-  const ignoredExternal = new Set(["generation_id", "source_generation_id",
-    "source_assessment_id", "source_proof_plan_id", "profile_id", "provider_id",
-    "pack_id", "wk_id", "component_id"]);
   const dangling = [];
   const orphanProofs = [];
   const absentCoverage = [];
   for (const [identity, occurrences] of index) {
-    if (declarations.has(identity)) continue;
     for (const occurrence of occurrences) {
-      if (ignoredExternal.has(occurrence.field)) continue;
+      if (occurrence.role === REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_DECLARATION) continue;
+      if (declarations.get(identity)?.has(occurrence.target_domain)) continue;
       const row = { identity, carrier_kind: occurrence.carrier_kind,
-        pointer: occurrence.pointer, field: occurrence.field };
+        pointer: occurrence.pointer, field: occurrence.field,
+        target_domain: occurrence.target_domain };
       if (["stable_test_proof", "test_proof", "verification_bundle"].includes(
         occurrence.carrier_kind)) orphanProofs.push(row);
       else if (["obligation_coverage", "acceptance_coverage"].includes(
@@ -278,6 +265,19 @@ function refactorIntegrity(carriers, index) {
   const order = (rows) => rows.sort((left, right) =>
     compareCodeUnits(`${left.identity ?? ""}\0${left.carrier_kind}\0${left.pointer ?? ""}`,
       `${right.identity ?? ""}\0${right.carrier_kind}\0${right.pointer ?? ""}`));
+  const contract = carriers.find(({ carrier_kind: kind }) => kind === "contract")?.content;
+  const externalGrounding = inspectStableTestProofExternalGrounding(contract);
+  if (externalGrounding.refusals.length > 0) {
+    const error = new ControlledContractRefactorError({
+      code: "controlled_contract_refactor_external_selector_invalid",
+      message: "a stable test proof carries an invalid declarative test selector",
+      decidingFacts: [{ field: "external_selector_refusals",
+        value: externalGrounding.refusals }],
+      wouldBreak: "an absent or malformed declarative test selector could survive refactor",
+      owner: "projectStableTestProofSelector"
+    });
+    throw error;
+  }
   return deepFreeze({
     dangling_live_nodes: order(dangling),
     orphan_verification_bindings: order(orphanProofs),
@@ -285,7 +285,8 @@ function refactorIntegrity(carriers, index) {
     stale_derived_carriers: order(staleDerived),
     generation_identity_conflicts: generations.length <= 1 ? [] : generations.map(
       (generation_id) => ({ generation_id })),
-    generation_identities: generations
+    generation_identities: generations,
+    external_runtime_selector_groundings: externalGrounding.groundings
   });
 }
 
@@ -317,12 +318,38 @@ function refuseUnresolvedIdentities(integrity) {
     decidingFacts: [
       { field: "unresolved_identity_count", value: identities.length },
       { field: "unresolved_identities", value: identities }
-    ], wouldBreak: "refactor planning could proceed without complete live identity closure",
-    recovery: { operation: "workspace_controlled_contract_refactor_plan" }
+    ], wouldBreak: "refactor planning could proceed without complete live identity closure"
   });
   error.integrity = integrity;
   error.result_digest = digest({ code: error.code, integrity });
   throw error;
+}
+
+function resolveControlledContractRefactorIdentityPopulation(liveCarriers) {
+  const carriers = normalizeCarriers(liveCarriers);
+  const index = identityIndex(carriers);
+  const integrity = refactorIntegrity(carriers, index);
+  refuseUnresolvedIdentities(integrity);
+  return { carriers, index, integrity };
+}
+
+function inspectControlledContractRefactorIdentityPopulation(input, ...unexpected) {
+  if (unexpected.length > 0) refuse("controlled_contract_refactor_input_invalid",
+    "the identity inspector accepts exactly one request object", [],
+    "multiple inputs could bypass the closed semantic boundary");
+  assertClosed(input, ["live_carriers"], "");
+  const { carriers, index, integrity } =
+    resolveControlledContractRefactorIdentityPopulation(input.live_carriers);
+  return deepFreeze({
+    schema_version: "controlled-contract-refactor-identity-population.v1",
+    counts: {
+      live_carriers: carriers.length,
+      internal_identities: index.size,
+      grounded_external_runtime_selectors:
+        integrity.external_runtime_selector_groundings.length
+    },
+    integrity
+  });
 }
 
 function classifyRename(carriers, index, mode) {
@@ -330,8 +357,7 @@ function classifyRename(carriers, index, mode) {
     "controlled_contract_refactor_identity_unknown",
     "the renamed identity is not live in the complete population",
     [{ field: "old_identity", value: mode.old_identity }],
-    "an unknown identity could not be closed",
-    { operation: "workspace_controlled_contract_refactor_plan", arguments: { mode } });
+    "an unknown identity could not be closed");
   if (index.has(mode.new_identity)) refuse(
     "controlled_contract_refactor_identity_conflict",
     "the requested new identity is already live",
@@ -345,9 +371,7 @@ function classifyRename(carriers, index, mode) {
         "rename_identity cannot change proposition, modality, applicability, verification, relation, collection, or proof semantics",
         [{ field: "old_identity", value: mode.old_identity },
           { field: "new_identity", value: mode.new_identity }],
-        "graph and semantic equivalence would not hold",
-        { operation: "workspace_controlled_contract_refactor_plan",
-          arguments: { mode: { kind: "replace_subgraph" } } });
+        "graph and semantic equivalence would not hold");
   }
   return { classification: "identity_equivalent", reason: null,
     correspondence: [{ old_identity: mode.old_identity,
@@ -355,7 +379,8 @@ function classifyRename(carriers, index, mode) {
     affected_identities: [mode.old_identity, mode.new_identity],
     closure: closureRows(index, [mode.old_identity]),
     prospective: carriers.map((carrier) => ({ ...carrier,
-      content: replaceIdentity(carrier.content, mode.old_identity, mode.new_identity) })),
+      content: replaceIdentity(carrier.content, mode.old_identity, mode.new_identity,
+        { carrierKind: carrier.carrier_kind }) })),
     invalidated_derived: carriers.filter(({ carrier_kind }) =>
       DERIVED_KINDS.has(carrier_kind)).map(({ carrier_kind, content_digest }) => ({
         carrier_kind, content_digest, currentness: "stale_after_apply" })) };
@@ -370,16 +395,14 @@ function classifyReplace(carriers, index, mode) {
   if (unknown.length > 0) refuse("controlled_contract_refactor_identity_unknown",
     "replace_subgraph correspondence contains identities outside the live closure",
     [{ field: "unknown_identities", value: unknown.sort(compareCodeUnits) }],
-    "a replacement could leave untreated live edges",
-    { operation: "workspace_controlled_contract_refactor_plan" });
+    "a replacement could leave untreated live edges");
   const existingAdditions = additions.filter((identity) => index.has(identity));
   if (existingAdditions.length > 0) refuse(
     "controlled_contract_refactor_correspondence_invalid",
     "pure additions must name identities absent from the source graph",
     [{ field: "existing_addition_identities",
       value: [...new Set(existingAdditions)].sort(compareCodeUnits) }],
-    "addition correspondence would fabricate semantic change and proof gaps",
-    { operation: "workspace_controlled_contract_refactor_plan" });
+    "addition correspondence would fabricate semantic change and proof gaps");
   const allNew = mode.correspondence.flatMap(({ new_identities }) => new_identities);
   const operations = Array.isArray(mode.carrier_operations)
     ? structuredClone(mode.carrier_operations) : [];
@@ -427,7 +450,9 @@ function classifyReplace(carriers, index, mode) {
     mutable && !DERIVED_KINDS.has(carrier_kind) &&
     !["obligation_coverage", "acceptance_coverage"].includes(carrier_kind));
   const prospectiveIndex = identityIndex(prospectiveLive);
-  const untreated = old.filter((identity) => prospectiveIndex.has(identity));
+  const untreated = old.filter((identity) => (prospectiveIndex.get(identity) ?? [])
+    .some(({ prospective_settlement_owner: owner }) =>
+      owner !== "prospective_proof_plan_compiler"));
   const absentNew = allNew.filter((identity) => !prospectiveIndex.has(identity));
   const changedCarrierKinds = new Set(prospective.filter((carrier, ordinal) =>
     digest(carrier.content) !== digest(carriers[ordinal].content))
@@ -443,8 +468,7 @@ function classifyReplace(carriers, index, mode) {
       { field: "absent_new_identities", value: absentNew.sort(compareCodeUnits) },
       { field: "addition_identities_without_carrier_change",
         value: [...new Set(additionsWithoutCarrierChange)].sort(compareCodeUnits) }],
-    "the prospective graph would not implement the explicit correspondence",
-    { operation: "workspace_controlled_contract_refactor_plan" });
+    "the prospective graph would not implement the explicit correspondence");
   return { classification: "semantic_replacement", reason: mode.reason.trim(),
     correspondence: mode.correspondence,
     affected_identities: [...new Set([...old, ...allNew])].sort(compareCodeUnits),
@@ -469,11 +493,9 @@ function buildControlledContractRefactorClosure(request, ...unexpected) {
     "the primitive accepts exactly one request object", [],
     "multiple inputs could bypass the closed semantic boundary");
   assertClosed(request, REQUEST_FIELDS, "");
-  const carriers = normalizeCarriers(request.live_carriers);
   const mode = normalizeMode(request.mode);
-  const index = identityIndex(carriers);
-  const integrity = refactorIntegrity(carriers, index);
-  refuseUnresolvedIdentities(integrity);
+  const { carriers, index, integrity } =
+    resolveControlledContractRefactorIdentityPopulation(request.live_carriers);
   const result = mode.kind === "rename_identity"
     ? classifyRename(carriers, index, mode) : classifyReplace(carriers, index, mode);
   const projectedCarriers = result.prospective.map((carrier) => {
@@ -500,6 +522,8 @@ function buildControlledContractRefactorClosure(request, ...unexpected) {
     counts: { live_carriers: carriers.length, live_identities: index.size,
       closure_edges: result.closure.length,
       affected_identities: result.affected_identities.length,
+      grounded_external_runtime_selectors:
+        integrity.external_runtime_selector_groundings.length,
       proof_gaps: result.proof_gaps?.length ?? 0,
       invalidated_derived: result.invalidated_derived?.length ?? 0 },
     failure_contract: { limbs: ["mechanical_failure", "returned_policy_decision"],
@@ -515,4 +539,6 @@ function planControlledContractRefactor(request, ...unexpected) {
 
 export { ControlledContractRefactorError, REFACTOR_GRAPH_LIMITS,
   REFACTOR_GRAPH_SCHEMA_VERSION, REFACTOR_MODES,
-  buildControlledContractRefactorClosure, planControlledContractRefactor };
+  buildControlledContractRefactorClosure,
+  inspectControlledContractRefactorIdentityPopulation,
+  planControlledContractRefactor };

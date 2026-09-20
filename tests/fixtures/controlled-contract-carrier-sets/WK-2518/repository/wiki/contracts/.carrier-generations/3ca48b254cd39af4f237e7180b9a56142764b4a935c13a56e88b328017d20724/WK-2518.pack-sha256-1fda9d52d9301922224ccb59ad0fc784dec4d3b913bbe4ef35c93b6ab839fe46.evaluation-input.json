@@ -1,0 +1,42 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "evaluation_stage": "pre_dispatch",
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "number_bindings": [],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-beb0ef7f72c8535d012844df881e6807e3204064"
+      ],
+      "role": "execution_context"
+    },
+    {
+      "reference_ids": [
+        "ref-6a3a89c0ab1b29fbda3798338d596f6c2d3d15d7"
+      ],
+      "role": "forbidden_operation_population"
+    },
+    {
+      "reference_ids": [
+        "ref-f9aae661485e215724baa2a0984577385353076f",
+        "ref-3fb7914c19085de8008b386812f86dd7ca0f46cb"
+      ],
+      "role": "forbidden_operations"
+    },
+    {
+      "reference_ids": [
+        "ref-eeb5ba6b93c3be595673c9bb54ecf66370a02b22"
+      ],
+      "role": "subject_operation"
+    },
+    {
+      "reference_ids": [
+        "ref-6793f5b5f882cfb0a17daef3b05815d23ab72395"
+      ],
+      "role": "verification"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

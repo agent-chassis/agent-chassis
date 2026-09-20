@@ -13,8 +13,7 @@ with tier exposure.
 
 Tool discovery is a **tier projection**, not a single global corpus shown to
 every registration. The checked-in descriptor corpus may carry full metadata and
-per-tier prose, but `workspace_tools_list` / `workspace_tools_describe` /
-`workspace_tools_query`, the agent FAQ, live MCP tool descriptions, and
+per-tier prose, but `workspace_tools_list` / `workspace_tools_describe`, the agent FAQ, live MCP tool descriptions, and
 mixed-route default responses render only the tool information relevant to the
 **resolved registered tier**.
 
@@ -74,6 +73,11 @@ an optional `tier_text.paid_cce` override. Projection strips the internal
 an unknown/absent tier or a missing override — degrades to the free/local base
 rather than falling through to higher-tier text.
 
+An override replaces the base text for its tier, so it is complete on its own and
+follows the [Discovery Prose Boundary](tool-discovery-schema.md#discovery-prose-boundary).
+The per-note ceiling and prose checks apply to each override separately from the
+base notes and the historical raw-notes aggregate.
+
 ### `agent-safe` / `agent-authoritative` are not tier labels
 
 `agent-safe` and `agent-authoritative` are compatibility labels for
@@ -94,6 +98,29 @@ exposure, lifecycle, support-state, or authority gate and cannot override any
 of the runtime facts above. Caller text, prompt intent, argv, environment,
 wrapper names, and inferred defaults likewise cannot widen visibility.
 
+### Startup-static role dispositions
+
+Role exposure is fixed when the MCP server starts. The launcher-resolved role,
+registered tier, and checked-in access policy are evaluated once; task text does
+not activate schemas or re-register tools during a session.
+
+Every supported operation must have one known disposition and explicit role
+grants in the central policy:
+
+- `direct` identifies an ordinary role-granted operation.
+- `operator_recovery_only` identifies an operation limited to operator
+  recovery.
+
+A disposition does not grant access. Exposure remains the intersection of
+runtime registration, role grant, registered tier, descriptor tier visibility,
+install state, and runtime posture. Missing, unknown, or inconsistent
+classification fails closed.
+
+Lint checks descriptor-to-policy completeness and consistency. A separate
+booted conformance check reconciles runtime registration with the descriptor
+and policy because static descriptor lint cannot observe an unlisted runtime
+registration. New operations must satisfy both checks before becoming visible.
+
 ### Terminology disambiguation
 
 Response-shape language such as the code-index compact/degraded/verbose contract is
@@ -103,7 +130,7 @@ a "three response-shape mode" contract with `free_local` / `paid_cce` /
 
 ### Free-tier structured role results under decision
 
-In the free/local tier, `workspace_agent_run_wait` and `workspace_agent_run_status`
+In the free/local tier, `workspace_agent_run_status`
 can report terminal success while `structured_role_result.valid:false`, because
 `decision` free-tier reviewer/redteam/worker output is prose-only and non-attesting.
 That value is expected, non-attesting state — not a failed child run, a failed

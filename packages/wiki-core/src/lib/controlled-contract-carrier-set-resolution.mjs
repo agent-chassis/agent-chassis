@@ -114,7 +114,13 @@ export async function resolveCanonicalControlledContractCarrierSetImpl({
       continue;
     }
     const inspected = await inspectCarrierSetMember(
-      path.join(generationDir, member.filename), CONTROLLED_CONTRACT_MAX_JSON_BYTES
+      path.join(generationDir, member.filename), CONTROLLED_CONTRACT_MAX_JSON_BYTES, {
+        filename: member.filename,
+        generation: generationId,
+        generation_path: generationPath,
+        wk_id: wkId,
+        focus: focus ?? null
+      }
     );
     if (inspected.digest !== member.content_digest ||
         inspected.bytes.byteLength !== member.byte_length) {

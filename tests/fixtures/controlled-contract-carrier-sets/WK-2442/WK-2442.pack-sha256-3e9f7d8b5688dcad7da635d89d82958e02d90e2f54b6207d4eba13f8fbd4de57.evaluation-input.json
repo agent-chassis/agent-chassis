@@ -1,0 +1,67 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "observed-mutations-within-authorized-scope",
+      "claim_id": "claim-wk2442-docs-quality"
+    },
+    {
+      "pattern_id": "write-confinement-verification",
+      "claim_id": "claim-verify-ownership"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-authorized-scope"
+      ],
+      "role": "authorized_scope"
+    },
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-authorized-target-contract",
+        "ref-scope-write-confinement-authorized-target-evaluation-input",
+        "ref-scope-write-confinement-authorized-target-proof-plan-request",
+        "ref-scope-write-confinement-authorized-target-proof-plan"
+      ],
+      "role": "authorized_targets"
+    },
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-execution"
+      ],
+      "role": "execution"
+    },
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-authorized-target-contract",
+        "ref-scope-write-confinement-authorized-target-evaluation-input",
+        "ref-scope-write-confinement-authorized-target-proof-plan-request",
+        "ref-scope-write-confinement-authorized-target-proof-plan"
+      ],
+      "role": "observed_mutations"
+    },
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-observed-population"
+      ],
+      "role": "observed_population"
+    },
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-unauthorized-mutation-condition"
+      ],
+      "role": "unauthorized_mutation_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-scope-write-confinement-verification"
+      ],
+      "role": "verification"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

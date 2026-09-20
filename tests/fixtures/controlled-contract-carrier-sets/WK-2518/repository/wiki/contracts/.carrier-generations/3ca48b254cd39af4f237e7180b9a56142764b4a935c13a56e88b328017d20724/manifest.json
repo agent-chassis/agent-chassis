@@ -1,0 +1,115 @@
+{
+  "schema_version": "controlled-contract-carrier-set-manifest.v1",
+  "repository": "agent-chassis/agent-chassis",
+  "wk_id": "WK-2518",
+  "focus": null,
+  "profile": {
+    "profile_id": "canonical_authoring",
+    "profile_version": "1.0.0"
+  },
+  "generation": {
+    "id": "3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724",
+    "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724"
+  },
+  "carriers": [
+    {
+      "member_kind": "carrier",
+      "carrier_kind": "contract",
+      "filename": "WK-2518.controlled-acceptance.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.controlled-acceptance.json",
+      "content_digest": "sha256:51c6c064ece446dcbf1ea6e90918cce5994ed7184fb6d89a8fca38f9d61b38ff",
+      "byte_length": 117115
+    },
+    {
+      "member_kind": "evaluation_input",
+      "carrier_kind": "evaluation_input",
+      "filename": "WK-2518.evaluation-input.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.evaluation-input.json",
+      "content_digest": "sha256:c426476be3c48e45d6cd3a1fdb8ad3534d085235313bd7235cdd90f8ff6c68e0",
+      "byte_length": 531
+    },
+    {
+      "member_kind": "evaluation_input",
+      "carrier_kind": "evaluation_input",
+      "filename": "WK-2518.pack-sha256-1fda9d52d9301922224ccb59ad0fc784dec4d3b913bbe4ef35c93b6ab839fe46.evaluation-input.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.pack-sha256-1fda9d52d9301922224ccb59ad0fc784dec4d3b913bbe4ef35c93b6ab839fe46.evaluation-input.json",
+      "content_digest": "sha256:bccb3f4f3eff10f6406a373e08acef1077f68d5f1f23f062864be7aa3328c20e",
+      "byte_length": 1026
+    },
+    {
+      "member_kind": "evaluation_input",
+      "carrier_kind": "evaluation_input",
+      "filename": "WK-2518.pack-sha256-ad1d0f370fdf78abdd3dec92e996f848c70e3aed82ae9cb5d130e1b3726f7ee8.evaluation-input.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.pack-sha256-ad1d0f370fdf78abdd3dec92e996f848c70e3aed82ae9cb5d130e1b3726f7ee8.evaluation-input.json",
+      "content_digest": "sha256:b0418cc6e403f5a13443b6d471c0003fc37c40a1d52485c71bad6181775d35ef",
+      "byte_length": 1335
+    },
+    {
+      "member_kind": "carrier",
+      "carrier_kind": "proof_plan_request",
+      "filename": "WK-2518.proof-plan-request.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.proof-plan-request.json",
+      "content_digest": "sha256:171671627b81668f99e5ed17dcaa671b275ba0d1e0c91a07b43a9df43a69e64d",
+      "byte_length": 973
+    },
+    {
+      "member_kind": "carrier",
+      "carrier_kind": "proof_plan",
+      "filename": "WK-2518.proof-plan.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.proof-plan.json",
+      "content_digest": "sha256:9d9681bb8b565d43e7daf97005d2873a66011ac6fc241ef07ede077558d9420a",
+      "byte_length": 3629
+    }
+  ],
+  "carrier_census": [
+    {
+      "member_kind": "carrier",
+      "carrier_kind": "contract",
+      "filename": "WK-2518.controlled-acceptance.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.controlled-acceptance.json",
+      "content_digest": "sha256:51c6c064ece446dcbf1ea6e90918cce5994ed7184fb6d89a8fca38f9d61b38ff",
+      "byte_length": 117115
+    },
+    {
+      "member_kind": "evaluation_input",
+      "carrier_kind": "evaluation_input",
+      "filename": "WK-2518.evaluation-input.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.evaluation-input.json",
+      "content_digest": "sha256:c426476be3c48e45d6cd3a1fdb8ad3534d085235313bd7235cdd90f8ff6c68e0",
+      "byte_length": 531
+    },
+    {
+      "member_kind": "evaluation_input",
+      "carrier_kind": "evaluation_input",
+      "filename": "WK-2518.pack-sha256-1fda9d52d9301922224ccb59ad0fc784dec4d3b913bbe4ef35c93b6ab839fe46.evaluation-input.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.pack-sha256-1fda9d52d9301922224ccb59ad0fc784dec4d3b913bbe4ef35c93b6ab839fe46.evaluation-input.json",
+      "content_digest": "sha256:bccb3f4f3eff10f6406a373e08acef1077f68d5f1f23f062864be7aa3328c20e",
+      "byte_length": 1026
+    },
+    {
+      "member_kind": "evaluation_input",
+      "carrier_kind": "evaluation_input",
+      "filename": "WK-2518.pack-sha256-ad1d0f370fdf78abdd3dec92e996f848c70e3aed82ae9cb5d130e1b3726f7ee8.evaluation-input.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.pack-sha256-ad1d0f370fdf78abdd3dec92e996f848c70e3aed82ae9cb5d130e1b3726f7ee8.evaluation-input.json",
+      "content_digest": "sha256:b0418cc6e403f5a13443b6d471c0003fc37c40a1d52485c71bad6181775d35ef",
+      "byte_length": 1335
+    },
+    {
+      "member_kind": "carrier",
+      "carrier_kind": "proof_plan_request",
+      "filename": "WK-2518.proof-plan-request.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.proof-plan-request.json",
+      "content_digest": "sha256:171671627b81668f99e5ed17dcaa671b275ba0d1e0c91a07b43a9df43a69e64d",
+      "byte_length": 973
+    },
+    {
+      "member_kind": "carrier",
+      "carrier_kind": "proof_plan",
+      "filename": "WK-2518.proof-plan.json",
+      "path": ".carrier-generations/3ca48b254cd39af4f237e7180b9a56142764b4a935c13a56e88b328017d20724/WK-2518.proof-plan.json",
+      "content_digest": "sha256:9d9681bb8b565d43e7daf97005d2873a66011ac6fc241ef07ede077558d9420a",
+      "byte_length": 3629
+    }
+  ],
+  "manifest_digest": "sha256:ae2dd00649bf6c4c1714e34e36b97af8457a817ed6329b82987ea220bae88f87"
+}

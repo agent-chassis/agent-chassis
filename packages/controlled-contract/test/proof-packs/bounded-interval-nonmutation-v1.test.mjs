@@ -15,7 +15,7 @@ import { validateProfileSchemaV1, validateProfileSemanticsV1 }
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.state.bounded-interval-nonmutation/2.0.0");
+  "test/certification/profiles/proof.state.bounded-interval-nonmutation/3.0.0");
 const readJson = async (name) => JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
 
 test("bounded-interval-nonmutation profile is valid, pre-dispatch, digest-bound, and explicitly bounded", async () => {

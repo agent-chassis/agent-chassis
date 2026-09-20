@@ -11,6 +11,51 @@ Sibling pages: [launch and admission](mcp-dispatch-launch-and-admission.md),
 [terminal review](mcp-dispatch-terminal-review.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
 
+## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+
+Every forge publication publishes the same thing, whichever delivery workflow the
+repository selected.
+
+- **One candidate.** For the selected integrated WK tip `W` and the fixed
+  authenticated fork `B`, the existing trusted constructor builds the squash
+  candidate `C` with `tree(C) = tree(W)` and sole parent `B`, and handoff
+  publishes `C` unchanged. The current base tip is not a construction input.
+  There is no direct-`W` alternative, no second constructor and no additional
+  candidate store or ref family.
+- **Terminal review is conditional; candidate authentication is not.** Terminal
+  review belongs to the repository's selected workflow, not to construction. A
+  workflow that selects it hands publication a reviewer materialization, and that
+  checkout is authenticated. A workflow that does not select it hands publication
+  no materialization: no terminal-review unit is invented, no review evidence is
+  fabricated and no reviewer checkout is required. The candidate object binding,
+  its tree and sole-parent topology, its version selection and the controlled
+  generation authority are authenticated on every publication alike, and the
+  published result names which workflow it ran under.
+- **A selected candidate is publishable on its own terms.** When no terminal
+  review target exists, publication state is recovered from the candidate already
+  selected on its durable current ref: its base, tree and sole parent come from
+  the candidate object itself, and the WK ref is named by the canonical record
+  that candidate carries. Recovery consults no current landing state.
+- **The fence holds before any external effect.** Repository, WK, fork, tip,
+  candidate identity, tree, parent and controlled generation are rechecked under
+  the existing exclusion before the branch or the proposal is touched. A moved or
+  foreign input, an inconsistent candidate identity, tree or parent, or
+  generation drift refuses with zero publication. Configured CCE denial is
+  enacted; the absence of a configured decision is not a local denial.
+- **Publication is create-or-observe and nothing more.** The result reports the
+  exact candidate and proposal identity and the truthful effects. Repeating a
+  handoff recovers the same proposal rather than opening a duplicate, a branch
+  already present at different bytes refuses rather than being republished, and
+  publication neither merges nor completes the WK.
+- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
+  exactly two WK-only commits carrying the actual applicable closure evidence and
+  then the parent review-to-done transition; a workflow without terminal review
+  has no terminal-review record fabricated for it. Merge takes the exact
+  authenticated pull-request head only on confirmed mergeability, and an
+  unmerged, unknown, moved or foreign state leaves the canonical parent in
+  review. The confirmed merged base record is canonical, and a reconciliation
+  failure is a typed partial success.
+
 ## Authority boundary and ownership map
 
 Contributor sequencing and consuming-repository integration are separate
@@ -44,6 +89,14 @@ The consuming-repository boundary has three explicit owners:
    Evidence counts and dispositions are correlation output only; projection
    never becomes a second registry, producer, or policy gate.
 
+The public request is
+`workspace_integrate_committed_slice({repo?, subject, dispositions?})`.
+`subject` is a canonical address such as `work record`; `repo` is the optional
+configured repository alias; and `dispositions`, when present, is the registered
+array of `{review_run_id, finding_id, disposition}` entries. There is no
+`comment_dispositions` argument. The request carries no target, ref, receipt,
+review verdict, policy decision, or integration authority.
+
 These roles are selected by explicit structured fields and bound function
 contracts, never by substring matching over a reason, code, subject, or prose.
 The normative CCE-policy versus local-mechanical boundary is owned by
@@ -61,7 +114,11 @@ are written before any check, so every check binds to one immutable object rathe
 than to a re-read worktree. An empty trusted changed-path set is not a third
 commit blocker: once structural write-scope containment succeeds, the exact-slice
 delivery performs the same implementation-to-review transaction as any other
-delivery. A within-scope zero-delta delivery still publishes an authenticated
+delivery. That containment is the shared scope interpretation described in
+[Enforcement Model](enforcement-model.md#scope-doctrine) — one declared-to-effective
+derivation, membership at the authenticated base tree, one candidate matcher —
+and the closed-input commit gate, this page's admission, and the retry re-check
+all consume it rather than restating it. A within-scope zero-delta delivery still publishes an authenticated
 server-minted child — its single parent is the launcher-authenticated base and
 its tree equals that base tree — and advances the exact slice ref to that child
 through the expected-old compare-and-swap. `empty_delivery` is reported from tree
@@ -71,22 +128,23 @@ equivalent same-tree child converges idempotently on the already-published winne
 and never hides, discards, or replaces it.
 
 When a managed worker terminates successfully, the post-worker lifecycle
-mechanically separates an authenticated delivery from a missing one before any
-review or integration, and the exact slice ref is the witness: an unchanged ref
+mechanically separates an authenticated delivery from a missing one before
+integration, and the exact slice ref is the witness: an unchanged ref
 is ALWAYS the absence of a committed delivery, and any authenticated delivery —
 empty or not — has advanced it. An **authenticated delivery commit** is a slice
 ref advanced past its launcher-bound base with a server-minted commit chain. It
 may carry a nonempty delta or be a **genuine zero-delta child** whose tree equals
 the base tree; either way it advanced through the expected-old compare-and-swap
-and takes the full real-delivery path, retaining server-minted chain
+and takes the full real-delivery path — the lifecycle requests this page's
+canonical committed-slice integration directly, with no review step — retaining
+server-minted chain
 verification, write-scope containment, object and target-stability checks, and
 the exact-parent assertion — which a same-tree child satisfies because its sole
 parent is the launcher-bound base. `empty_delivery` is that tree equality, not
 ref identity. A **missing delivery** is an unchanged slice ref with no
 authenticated closed-input delivery at all: the worker changed authorized files
 but never invoked the closed-input commit, so the delta is unpublished. A missing
-delivery is not a committed slice. It enters neither review-surface preparation,
-slice-level review, nor integration; it moves no ref; it preserves every
+delivery is not a committed slice. It does not enter integration; it moves no ref; it preserves every
 unpublished worktree byte untouched; and it is retired only through the exact
 proven-dead `no_commit_base_equal` path into a finalized, non-integrated,
 retryable continuation the coordinator clears by re-dispatch — no ref deletion,
@@ -130,6 +188,8 @@ later base-to-target index reconciliation after the independent CCE policy bound
 
 ### Authenticated historical launcher-index recovery
 
+No managed post-worker route invokes exact-slice review-surface preparation;
+the preparation primitive's contract below is unchanged for its direct callers.
 That two-state rule stays exactly as written. Multi-round corrective delivery
 adds one further accepted prestate to exact-slice review-surface preparation, and
 only there: because corrective rounds reuse the same deterministic slice worktree
@@ -216,14 +276,13 @@ correctly delivered chained corrective round before reviewer spawn; they are
 therefore authenticated separately, each against its own authority, and neither
 substitutes for the other.
 
-Reviewer projection is consistent and single-sourced: the frozen slice-review
-context, the lifecycle's review-surface result, and the reviewer dispatch context
-all describe the review range as the independently authenticated accumulated
-committed-admission range (`diff_base_sha`, `diff_head_sha`, `diff_range`). The
-current attempt base remains visible beside it under its own name and is never
-relabelled as the reviewer's diff base. Ref, reviewed-SHA, worktree, canonical
-review-unit, or commit-chain disagreement still refuses before reviewer spawn,
-leaving refs, worktree, canonical record, index, and lifecycle identity untouched.
+An explicitly dispatched exact-slice reviewer describes its review range as the
+independently authenticated accumulated committed-admission range
+(`diff_base_sha`, `diff_head_sha`, `diff_range`); the post-worker lifecycle
+publishes no review range at all. The current attempt base is never relabelled as
+the reviewer's diff base. Ref, reviewed-SHA, canonical review-unit, or
+commit-chain disagreement refuses before reviewer spawn, leaving refs, worktree,
+canonical record, index, and lifecycle identity untouched.
 
 ### Compound final-slice record write applies to every integration route
 
@@ -429,9 +488,14 @@ invoke the launcher-provided closed-input commit capability, then emit the
 family-neutral terminal-result renderer is the single source of that ordered
 protocol. Family role contracts carry no parallel completion instruction of their
 own; in particular they no longer carry an independent commit-and-terminate
-sentence, and they no longer claim that confirmed termination itself causes
-integration, whole-WK freezing, and review — exact committed-slice review runs
-before integration.
+sentence, and they do not claim that confirmed termination itself causes
+integration, whole-WK freezing, or review. After confirmed termination the
+launcher's post-worker lifecycle requests committed-slice integration for the
+exact delivered subject, with the exact-target, mechanical, configured-CCE, and
+CAS behavior defined on this page; a coordinator may also request it explicitly.
+Review is never a prerequisite: it remains available and advisory only as an
+explicit dispatch; see
+[managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md#post-worker-delivery-without-built-in-review).
 
 Authenticated closed-input commit is the sole implementation delivery and the
 sole implementation-to-review authority. Worker structured output is strictly
@@ -448,7 +512,7 @@ The failure matrix follows from that split:
   the authenticated delivery fully intact; only the diagnostic evidence is lost.
   Output failure after commit never erases delivery.
 - A process that exits without invoking commit is a missing delivery: the delta
-  stays unpublished and enters neither review nor integration.
+  stays unpublished and does not enter integration.
 - An authenticated same-tree child commit is a valid zero-delta delivery.
 - Repeated equivalent commit calls converge on the existing trusted-tool
   idempotency; the prompt adds no retry protocol of its own.
@@ -489,3 +553,30 @@ authenticates the retained marker, exact refs and commits, current WK tip, and
 canonical record, then performs only cleanup confirmation or continuation. Review
 findings, historical status, and generic operator settings grant no recovery or
 integration authority.
+
+The live backend retains one additional index entry for each successful
+authenticated integration, keyed by repository, unit, exact delivery and base,
+and admitted write scope. This lets the original worker monitor recognize a
+completion even when an earlier pre-integration failure occurred before its
+frozen review context was retained. Observation must still authenticate the
+launcher-minted run, monitor, retry and binding pair, the delivery parent and
+live slice/WK refs, and the integration's original boundary-authorization target.
+A refused or in-flight attempt creates no entry. The index is process-local and
+non-authoritative after restart: absence continues through the durable recovery
+path, including its unchanged canonical-generation checks and
+`controlled_contract_generation_missing` refusal.
+
+The admitted write scope stays in the key, so a completion admitted after the
+slice's canonical `write_scope` was revised is not a completion the original
+worker may consume. When the lookup under the retained binding scope misses, the
+live backend performs one further exact lookup under the current canonical
+slice scope, in the binding owner's normalized form. Only if that finds an entry
+whose delivery passes the same run, monitor, retry, binding-pair, delivery-base,
+live-ref and boundary-target checks does observation refuse with
+`completed_integration_write_scope_mismatch`. It never consumes the completion,
+reintegrates, rewrites the binding, or selects another generation. An unreadable
+or unchanged canonical scope, or a miss under both scopes, keeps the absence
+answer and its durable fall-through; missing, pending, refused, foreign or moved
+evidence therefore never produces the mismatch. The public monitor projection of
+that refusal is described under
+[seam-keyed lifecycle failure codes](mcp-dispatch-managed-run-lifecycle.md#seam-keyed-lifecycle-failure-codes).

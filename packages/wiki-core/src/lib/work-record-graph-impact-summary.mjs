@@ -363,6 +363,9 @@ export function normalizeWorkRecordGraphImpactSummary(value, { unit = null } = {
     slice_id: normalizeStringEntry(graphImpact.slice_id) ?? normalizeStringEntry(normalizedUnit?.slice_id) ?? null,
     unit: normalizedUnit,
     source_record_digest: normalizeStringEntry(graphImpact.source_record_digest) ?? null,
+    graph_snapshot: isObject(graphImpact.graph_snapshot)
+      ? structuredClone(graphImpact.graph_snapshot)
+      : null,
     graph_state: graphState,
     warning_counts: warningCounts,
     graph_quality: {

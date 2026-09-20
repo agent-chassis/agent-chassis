@@ -13,27 +13,58 @@ import {
   releaseManagedRunSubjectReservation,
   retireManagedRunProcessIdentity
 } from "./managed-run-process-identity.mjs";
+import {
+  deriveManagedRunIdentityTupleFromBindingPair,
+  fail,
+  MANAGED_RUN_PROCESS_IDENTITY_CODES,
+  sameTuple
+} from "./managed-run-process-identity-contract.mjs";
 
 import {
   retireNoCommitAndReserveSuccessor,
   retireProvenDeadAndReserveSuccessor
 } from "./managed-run-subject-reservation.mjs";
 import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
-import { resolveCanonicalSliceReviewUnit } from "./backend-scope-authority.mjs";
+import { resolveCanonicalSliceIntegrationUnit } from "./backend-scope-authority.mjs";
 
 export function createManagedRunProvenDeathRetirement(ctx, seam) {
   const {
     worktreeProvisioningConfig,
     managedRunIdentityRoot,
-    managedRunIdentityDeps
+    managedRunIdentityDeps,
+    managedWorktreeProvisioningAuthority = null
   } = ctx;
 
-  const managedRunIdentityTuple = ({ subject, run_id, monitor_handle }) => ({
-    assigned_unit: subject,
-    launch_ref: monitor_handle,
-    run_id,
-    retry_id: 0
-  });
+  const managedRunIdentityTuple = ({ app, subject, run_id, monitor_handle, provisioning_ticket }) => {
+    const prepared = managedWorktreeProvisioningAuthority?.resolve?.({
+      ticket: provisioning_ticket ?? null,
+      input: { subject, run_id, monitor_handle },
+      app
+    }) ?? null;
+    const provisioning = prepared?.provisioning ?? null;
+    if (provisioning === null) {
+      fail(
+        MANAGED_RUN_PROCESS_IDENTITY_CODES.BINDING_MISMATCH,
+        "the managed worker execution tuple requires this launch's launcher-private provisioning pair",
+        { assigned_unit: subject ?? null, launch_ref: monitor_handle ?? null, run_id: run_id ?? null }
+      );
+    }
+    const tuple = deriveManagedRunIdentityTupleFromBindingPair({
+      assignedUnit: subject,
+      launchRef: monitor_handle,
+      wkBinding: provisioning.wk_binding,
+      sliceBinding: provisioning.slice_binding,
+      expectedRunId: run_id
+    });
+    if (tuple.retry_id !== prepared.retry_id) {
+      fail(
+        MANAGED_RUN_PROCESS_IDENTITY_CODES.BINDING_MISMATCH,
+        "the provisioning pair does not carry the prepared attempt's retry id",
+        { binding_retry_id: tuple.retry_id, prepared_retry_id: prepared.retry_id ?? null }
+      );
+    }
+    return tuple;
+  };
 
   function supersedeNoDeliveryProvenDeadAttempt({ subject, priorAttempt }) {
     if (managedRunIdentityRoot === null ||
@@ -79,16 +110,23 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
       return null;
     }
     try {
-      resolveCanonicalSliceReviewUnit(worktreeProvisioningConfig.mainRepo, subject);
+      resolveCanonicalSliceIntegrationUnit(worktreeProvisioningConfig.mainRepo, subject);
     } catch {
       return null;
     }
+    const tuples = priorAttempt.tuple
+      ? [priorAttempt.tuple]
+      : Array.isArray(priorAttempt.proven_dead_tuples) ? priorAttempt.proven_dead_tuples : [];
+    const unintegratedDelivery = tuples.some((tuple) => {
+      const resolved = seam.resolveNoDeliveryRetirementEvidence(subject, tuple);
+      return resolved?.committed === true && resolved.evidence?.integrated === false;
+    });
+    if (!unintegratedDelivery) return null;
     return Object.freeze({
       ...priorAttempt,
       may_launch: false,
       committed_review_continuation: true,
-      reason: "the exact slice was committed and is in canonical review",
-      review_route: "workspace_agent_dispatch(role=reviewer)",
+      reason: "the exact slice has an authenticated committed delivery not yet integrated",
       reservation: null
     });
   }
@@ -103,8 +141,10 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
 
   const publishPendingManagedRunIdentity = managedRunIdentityRoot === null
     ? null
-    : ({ role, subject, run_id, monitor_handle, reservation = null }) => {
-        const tuple = managedRunIdentityTuple({ subject, run_id, monitor_handle });
+    : ({ app, role, subject, run_id, monitor_handle, provisioning_ticket, reservation = null }) => {
+        const tuple = managedRunIdentityTuple({
+          app, subject, run_id, monitor_handle, provisioning_ticket
+        });
         const pending = publishPendingManagedRunProcessIdentity({
           mainRepo: managedRunIdentityRoot,
           tuple,
@@ -121,6 +161,16 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
         }
         return Object.freeze({
           tuple,
+
+          confirmProvisioning: ({ provisioning_ticket: ticket }) => {
+            try {
+              return sameTuple(tuple, managedRunIdentityTuple({
+                app, subject, run_id, monitor_handle, provisioning_ticket: ticket
+              }));
+            } catch {
+              return false;
+            }
+          },
           bind: ({ pid, enforcement }) => bindManagedRunSandboxProcessIdentity(pending, {
             pid,
             killShape: deriveOuterSandboxKillShape({ pid, enforcement }),

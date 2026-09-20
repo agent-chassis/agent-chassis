@@ -14,7 +14,7 @@ import {
 } from "./exact-ownership-isolation-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "cd82bf41a005361a7f3cddbd32310bc3d2d1d0d3c725184bb525dd1715ecbebc";
+  "9446d388315a4c607f7b3fd4b0b28c066f866d34215b129eb7ac8c9295f777cd";
 const GUARANTEE_DIGEST =
   "5a3b73c64e5fb0057b749b9cc0422bebd0118b282d213e251b7d43a9f2d41e5c";
 function evaluateFixture(profile, fixture) {

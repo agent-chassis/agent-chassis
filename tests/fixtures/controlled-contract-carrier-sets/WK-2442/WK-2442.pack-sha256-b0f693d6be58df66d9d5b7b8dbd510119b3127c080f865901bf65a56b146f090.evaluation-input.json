@@ -1,0 +1,196 @@
+{
+  "claim_pattern_bindings": [
+    {
+      "pattern_id": "design-names-grounded-loci",
+      "claim_id": "claim-wk2055-authoritative"
+    },
+    {
+      "pattern_id": "implementation-locus-targets-requirements",
+      "claim_id": "claim-gaps-escalate"
+    },
+    {
+      "pattern_id": "warning-signal-carries-exact-values",
+      "claim_id": "claim-complete-traversal-capture-route-unavailable"
+    },
+    {
+      "pattern_id": "warning-shape-verification",
+      "claim_id": "claim-complete-traversal-capture-gap-escalates"
+    },
+    {
+      "pattern_id": "warning-code-value-exact",
+      "claim_id": "claim-versioned-cursor-capture-route-unavailable"
+    },
+    {
+      "pattern_id": "warning-message-template-exact",
+      "claim_id": "claim-versioned-cursor-capture-gap-escalates"
+    }
+  ],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "placeholder_count",
+      "value": 0
+    },
+    {
+      "role": "required_warning_field_count",
+      "value": 4
+    },
+    {
+      "role": "requirement_count",
+      "value": 2
+    },
+    {
+      "role": "validation_count",
+      "value": 2
+    },
+    {
+      "role": "warning_field_count",
+      "value": 4
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-design-unit"
+      ],
+      "role": "design_unit"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-implementation-locus"
+      ],
+      "role": "implementation_locus"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-placeholder-population"
+      ],
+      "role": "placeholder_population"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-code-field",
+        "ref-design-implementation-readiness-warning-severity-field",
+        "ref-design-implementation-readiness-warning-message-field",
+        "ref-design-implementation-readiness-warning-payload-field"
+      ],
+      "role": "required_warning_fields"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-required-warning-shape-population"
+      ],
+      "role": "required_warning_shape_population"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-requirement-population"
+      ],
+      "role": "requirement_population"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-requirements-1",
+        "ref-design-implementation-readiness-requirements-2"
+      ],
+      "role": "requirements"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-test-locus"
+      ],
+      "role": "test_locus"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-requirements-1",
+        "ref-design-implementation-readiness-requirements-2"
+      ],
+      "role": "validated_requirements"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-validation-population"
+      ],
+      "role": "validation_population"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-code-field"
+      ],
+      "role": "warning_code_field"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-code-value"
+      ],
+      "role": "warning_code_value"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-code-field",
+        "ref-design-implementation-readiness-warning-severity-field",
+        "ref-design-implementation-readiness-warning-message-field",
+        "ref-design-implementation-readiness-warning-payload-field"
+      ],
+      "role": "warning_fields"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-message-field"
+      ],
+      "role": "warning_message_field"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-message-template"
+      ],
+      "role": "warning_message_template"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-payload-field"
+      ],
+      "role": "warning_payload_field"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-payload-schema"
+      ],
+      "role": "warning_payload_schema"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-severity-field"
+      ],
+      "role": "warning_severity_field"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-severity-value"
+      ],
+      "role": "warning_severity_value"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-shape-mismatch-condition"
+      ],
+      "role": "warning_shape_mismatch_condition"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-shape-population"
+      ],
+      "role": "warning_shape_population"
+    },
+    {
+      "reference_ids": [
+        "ref-design-implementation-readiness-warning-signal"
+      ],
+      "role": "warning_signal"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

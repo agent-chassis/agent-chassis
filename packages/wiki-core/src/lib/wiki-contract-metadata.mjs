@@ -10,6 +10,7 @@ import {
   pathExists,
   resolveProfileName
 } from "./wiki-shared.mjs";
+import { resolvePackageRepositoryCoordinate } from "./wiki-package-provenance.mjs";
 import {
   defaultDocsInferencePaths,
   getSharedTopics,
@@ -25,22 +26,30 @@ export async function writeContractMetadata(
   {
     repo,
     profile = DEFAULT_PROFILE,
-    extensionNamespaces = []
+    extensionNamespaces = [],
+    packageManifestPath
   } = {}
 ) {
-  const resolvedProfile = resolveProfileName(profile, manifest);
+
+  const expected = buildExpectedMetadata(manifest, {
+    repo,
+    profile,
+    extensionNamespaces,
+    packageManifestPath
+  });
   const metadataPath = path.join(targetDir, "wiki", ".wiki-contract.json");
   const existing = await readContractMetadata(targetDir);
   const metadata = {
-    repo: repo || null,
-    profile: resolvedProfile,
-    extensionNamespaces: normalizeExtensionNamespaces(extensionNamespaces),
-    contractVersion: manifest.contractVersion,
+    repo: expected.repo,
+    profile: expected.profile,
+    extensionNamespaces: expected.extensionNamespaces,
+    contractVersion: expected.contractVersion,
+
     syncedAt: new Date().toISOString(),
-    sourceRepo: "agent-chassis/agent-chassis",
-    retrievalEntrypoint: manifest.retrievalEntrypoint,
+    sourceRepo: expected.sourceRepo,
+    retrievalEntrypoint: expected.retrievalEntrypoint,
     vocab: normalizeTopicVocabulary(existing?.vocab, manifest),
-    inference: normalizeInferenceConfig(existing?.inference, resolvedProfile, manifest)
+    inference: normalizeInferenceConfig(existing?.inference, expected.profile, manifest)
   };
   await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
   return { metadataPath, metadata };
@@ -167,7 +176,8 @@ export function buildExpectedMetadata(
   {
     repo = null,
     profile = DEFAULT_PROFILE,
-    extensionNamespaces = []
+    extensionNamespaces = [],
+    packageManifestPath
   } = {}
 ) {
   return {
@@ -175,7 +185,7 @@ export function buildExpectedMetadata(
     profile: resolveProfileName(profile, manifest),
     extensionNamespaces: normalizeExtensionNamespaces(extensionNamespaces),
     contractVersion: manifest.contractVersion,
-    sourceRepo: "agent-chassis/agent-chassis",
+    sourceRepo: resolvePackageRepositoryCoordinate(packageManifestPath),
     retrievalEntrypoint: manifest.retrievalEntrypoint
   };
 }

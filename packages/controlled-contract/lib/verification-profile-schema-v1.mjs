@@ -1,15 +1,15 @@
 import { compiledValidators } from "./compiled-validator-cache.mjs";
 import STABLE_EVALUATION_INPUT_SCHEMA from
-  "../schema/controlled-contract-verification-profile-input.v1.schema.json" with { type: "json" };
+  "../schema/controlled-contract-verification-profile-input.v2.schema.json" with { type: "json" };
 import STABLE_PROFILE_SCHEMA from
-  "../schema/controlled-contract-verification-profile.v1.schema.json" with { type: "json" };
+  "../schema/controlled-contract-verification-profile.v2.schema.json" with { type: "json" };
 import STABLE_RESULT_SCHEMA from
-  "../schema/controlled-contract-verification-profile-result.v1.schema.json" with { type: "json" };
+  "../schema/controlled-contract-verification-profile-result.v2.schema.json" with { type: "json" };
 
-const PROFILE_SCHEMA_VERSION_V1 = "controlled-contract-verification-profile.v1";
+const PROFILE_SCHEMA_VERSION_V1 = "controlled-contract-verification-profile.v2";
 const EVALUATION_INPUT_VERSION_V1 =
-  "controlled-contract-verification-profile-input.v1";
-const RESULT_VERSION_V1 = "controlled-contract-verification-profile-result.v1";
+  "controlled-contract-verification-profile-input.v2";
+const RESULT_VERSION_V1 = "controlled-contract-verification-profile-result.v2";
 
 function buildVerificationProfileSchemaV1() {
   return structuredClone(STABLE_PROFILE_SCHEMA);

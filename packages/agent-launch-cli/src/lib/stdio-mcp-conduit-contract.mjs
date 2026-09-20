@@ -2,6 +2,11 @@
 
 import {
   STDIO_MCP_CONDUIT_ERROR_CODES,
+  controlledLifecycleEventClass,
+  controlledLifecycleFailureReason,
+  controlledLifecyclePhase,
+  controlledLifecycleProtocolGeneration,
+  controlledLifecycleValidationRule,
   failStdioMcpConduit
 } from "./stdio-mcp-conduit-errors.mjs";
 import {
@@ -50,6 +55,15 @@ export {
 } from "./stdio-mcp-conduit-process-registry.mjs";
 
 export const STDIO_MCP_CONDUIT_SCHEMA_VERSION = "launcher-stdio-mcp-conduit.v1";
+
+const LAUNCHER_PRIVATE_STATE_REDACTION_REASON = "launcher_private_state";
+const STDIO_MCP_CONDUIT_ERROR_CODE_SET = new Set(
+  Object.values(STDIO_MCP_CONDUIT_ERROR_CODES)
+);
+
+function controlledConduitErrorCode(value) {
+  return STDIO_MCP_CONDUIT_ERROR_CODE_SET.has(value) ? value : null;
+}
 
 export const STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION =
   "stdio-mcp-conduit-lifecycle-vocabulary.v2";
@@ -103,9 +117,9 @@ export function describeStdioMcpConduitLaunchFailure(conduit) {
     return {
       reason: STDIO_MCP_CLIENT_READINESS_BLOCKER_REASON,
       detail: {
-        conduit_error_code: primary.code ?? null,
-        message: primary.message ?? String(primary),
-        detail: primary.detail ?? null,
+        conduit_error_code: controlledConduitErrorCode(primary.code),
+        ...projectControlledLifecycleDetail(primary.detail),
+        redactions: classifyConduitPrivateFields(primary),
         run_id: conduit.runId ?? null,
         unenforced_fallback_permitted: false
       }
@@ -116,14 +130,45 @@ export function describeStdioMcpConduitLaunchFailure(conduit) {
     return {
       reason: STDIO_MCP_CLEANUP_BLOCKER_REASON,
       detail: {
-        conduit_error_code: cleanup.code ?? null,
-        message: cleanup.message ?? String(cleanup),
-        detail: cleanup.detail ?? null,
+        conduit_error_code: controlledConduitErrorCode(cleanup.code),
+        ...projectControlledLifecycleDetail(cleanup.detail),
+        redactions: classifyConduitPrivateFields(cleanup),
         run_id: conduit.runId ?? null
       }
     };
   }
   return null;
+}
+
+function classifyConduitPrivateFields(error) {
+  const redactions = [];
+  if (error?.message !== undefined) {
+    redactions.push(Object.freeze({
+      field: "message",
+      reason: LAUNCHER_PRIVATE_STATE_REDACTION_REASON
+    }));
+  }
+  if (error?.detail !== null && error?.detail !== undefined) {
+    redactions.push(Object.freeze({
+      field: "detail",
+      reason: LAUNCHER_PRIVATE_STATE_REDACTION_REASON
+    }));
+  }
+  return Object.freeze(redactions);
+}
+
+function projectControlledLifecycleDetail(detail) {
+  return Object.freeze({
+    lifecycle_reason: controlledLifecycleFailureReason(detail?.lifecycle_reason),
+    lifecycle_phase: controlledLifecyclePhase(detail?.lifecycle_phase),
+    lifecycle_event_class: controlledLifecycleEventClass(detail?.lifecycle_event_class),
+    lifecycle_validation_rule:
+      controlledLifecycleValidationRule(detail?.lifecycle_validation_rule),
+    producer_protocol_generation:
+      controlledLifecycleProtocolGeneration(detail?.producer_protocol_generation),
+    consumer_protocol_generation:
+      controlledLifecycleProtocolGeneration(detail?.consumer_protocol_generation)
+  });
 }
 
 export const STDIO_MCP_CONDUIT_TERMINAL_PROBE_SCHEMA_VERSION =
@@ -163,7 +208,7 @@ export function buildStdioMcpConduitTerminalProbe(failure, probed = null) {
       ? Object.freeze({
           code: null,
           signal: null,
-          error: failure?.detail?.message ?? failure?.reason ?? "stdio mcp conduit failed"
+          error: failure?.reason ?? "stdio mcp conduit failed"
         })
       : observedExit,
     final_result: observed?.final_result ?? null,
@@ -213,9 +258,9 @@ function composeCleanupResidue(failure, cleanupFailure) {
     detail: {
       ...(failure.detail ?? {}),
       cleanup_failure: {
-        code: cleanupFailure.code ?? null,
-        message: cleanupFailure.message ?? String(cleanupFailure),
-        detail: cleanupFailure.detail ?? null
+        code: controlledConduitErrorCode(cleanupFailure.code),
+        ...projectControlledLifecycleDetail(cleanupFailure.detail),
+        redactions: classifyConduitPrivateFields(cleanupFailure)
       }
     }
   };

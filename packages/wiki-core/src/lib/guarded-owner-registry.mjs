@@ -260,6 +260,54 @@ function sha256(bytes) {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
+async function checkGuardedOwnerReference(reference, { repositoryRoot, trackedPaths, tracked, read }) {
+  if (!tracked.has(reference.path)) {
+    let movedTo = null;
+    for (const candidate of trackedPaths) {
+      let candidateBytes;
+      try {
+        candidateBytes = await read(path.join(repositoryRoot, candidate));
+      } catch (error) {
+        return [GUARDED_OWNER_REGISTRY_DIAGNOSTICS.SOURCE_LOCATION_STALE, {
+          reference_id: reference.reference_id,
+          path: reference.path,
+          unreadable_candidate: candidate,
+          cause: error instanceof Error ? error.code ?? error.name : typeof error
+        }];
+      }
+      if (sha256(candidateBytes) === reference.content_digest) {
+        movedTo = candidate;
+        break;
+      }
+    }
+    return [GUARDED_OWNER_REGISTRY_DIAGNOSTICS.SOURCE_LOCATION_STALE, {
+      reference_id: reference.reference_id,
+      path: reference.path,
+      moved_to: movedTo
+    }];
+  }
+  let bytes;
+  try {
+    bytes = await read(path.join(repositoryRoot, reference.path));
+  } catch (error) {
+    return [GUARDED_OWNER_REGISTRY_DIAGNOSTICS.MISSING_OWNER_REFERENCE, {
+      reference_id: reference.reference_id,
+      path: reference.path,
+      cause: error instanceof Error ? error.code ?? error.name : typeof error
+    }];
+  }
+  const actual = sha256(bytes);
+  if (actual !== reference.content_digest) {
+    return [GUARDED_OWNER_REGISTRY_DIAGNOSTICS.OWNER_REFERENCE_DIGEST_MISMATCH, {
+      reference_id: reference.reference_id,
+      path: reference.path,
+      expected: reference.content_digest,
+      actual
+    }];
+  }
+  return null;
+}
+
 export async function validateGuardedOwnerReferences(registry, { repositoryRoot, trackedPaths, read = readFile }) {
   validateGuardedOwnerRegistryDefinition(registry);
   if (typeof repositoryRoot !== "string" || !Array.isArray(trackedPaths)) {
@@ -267,51 +315,26 @@ export async function validateGuardedOwnerReferences(registry, { repositoryRoot,
   }
   const tracked = new Set(trackedPaths);
   for (const reference of registry.owner_references) {
-    if (!tracked.has(reference.path)) {
-      let movedTo = null;
-      for (const candidate of trackedPaths) {
-        let candidateBytes;
-        try {
-          candidateBytes = await read(path.join(repositoryRoot, candidate));
-        } catch (error) {
-          fail(GUARDED_OWNER_REGISTRY_DIAGNOSTICS.SOURCE_LOCATION_STALE, {
-            reference_id: reference.reference_id,
-            path: reference.path,
-            unreadable_candidate: candidate,
-            cause: error instanceof Error ? error.code ?? error.name : typeof error
-          });
-        }
-        if (sha256(candidateBytes) === reference.content_digest) {
-          movedTo = candidate;
-          break;
-        }
-      }
-      fail(GUARDED_OWNER_REGISTRY_DIAGNOSTICS.SOURCE_LOCATION_STALE, {
-        reference_id: reference.reference_id,
-        path: reference.path,
-        moved_to: movedTo
-      });
-    }
-    let bytes;
-    try {
-      bytes = await read(path.join(repositoryRoot, reference.path));
-    } catch (error) {
-      fail(GUARDED_OWNER_REGISTRY_DIAGNOSTICS.MISSING_OWNER_REFERENCE, {
-        reference_id: reference.reference_id,
-        path: reference.path,
-        cause: error instanceof Error ? error.code ?? error.name : typeof error
-      });
-    }
-    const actual = sha256(bytes);
-    if (actual !== reference.content_digest) {
-      fail(GUARDED_OWNER_REGISTRY_DIAGNOSTICS.OWNER_REFERENCE_DIGEST_MISMATCH, {
-        reference_id: reference.reference_id,
-        expected: reference.content_digest,
-        actual
-      });
-    }
+    const defect = await checkGuardedOwnerReference(reference,
+      { repositoryRoot, trackedPaths, tracked, read });
+    if (defect) fail(defect[0], defect[1]);
   }
   return registry;
+}
+
+export async function surveyGuardedOwnerReferences(registry, { repositoryRoot, trackedPaths, read = readFile }) {
+  validateGuardedOwnerRegistryDefinition(registry);
+  if (typeof repositoryRoot !== "string" || !Array.isArray(trackedPaths)) {
+    fail(GUARDED_OWNER_REGISTRY_DIAGNOSTICS.SCHEMA_INVALID, { location: "reference_validation_inputs" });
+  }
+  const tracked = new Set(trackedPaths);
+  const defects = [];
+  for (const reference of registry.owner_references) {
+    const defect = await checkGuardedOwnerReference(reference,
+      { repositoryRoot, trackedPaths, tracked, read });
+    if (defect) defects.push(Object.freeze({ code: defect[0], details: Object.freeze(defect[1]) }));
+  }
+  return Object.freeze(defects);
 }
 
 export function defineGuardedOwnerCategoryAdapter(categoryId, discover) {

@@ -195,6 +195,8 @@ function buildOrchestratorBwrapPlanForPosture({
     stdioMcpConduit,
     shareNet: true,
 
+    installGitStatusWrapper: true,
+
     newSession
   });
 

@@ -1,0 +1,758 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2361",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK2361-001",
+      "statement": "The D11 neutral registry is implemented as mechanical enumeration and reference-currentness substrate only; it does not copy semantic, authentication, carrier-schema, public-envelope, recovery, findings-target, or common-proof authority.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-001",
+        "claim-wk2361-c001",
+        "claim-verify-wk2361-c001"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-012",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-registry.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Implemented at 19b8bca3ce88b91bf8ad543017b8049b0baa1f84 and remediated at ed2761eda0feabdff1711ec70d0355f8e914f15c after exact implementation review and one blueteam disposition; this domain claim is carried by closure/review evidence, not the selected structural proof pack."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-002",
+      "statement": "The shared family adapter consumes D11 neutral mechanics without acquiring semantic or carrier-authentication ownership.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-001"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-014",
+        "kind": "test",
+        "selector": "node --test tests/integration/workspace-agent-family-adapter-boundary.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-014 is blocked pending predecessor delivery."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-003",
+      "statement": "Registry validation is limited to reference grammar, source location, current digest, uniqueness or contradiction, and presence/currentness of owner-produced proof or classification identities; it never validates carrier content or owner schemas.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-002",
+        "claim-wk2361-c002",
+        "claim-verify-wk2361-c002"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-012",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-registry.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Implemented and mutation-tested at 19b8bca3ce88b91bf8ad543017b8049b0baa1f84 plus ed2761eda0feabdff1711ec70d0355f8e914f15c; exact review and blueteam evidence carry the domain result outside the selected structural proof pack."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-004",
+      "statement": "The audit consumes the closed WK-2359/WK-2382 semantic-owner union and successor proof identities without re-owning semantics held by WK-2357, WK-2391, WK-2405, WK-2428, WK-2258, or WK-2257.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-003",
+        "claim-wk2361-c003",
+        "claim-verify-wk2361-c003"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-013",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-exception-adapter.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-013 is blocked pending SLICE-012."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-005",
+      "statement": "Implementation consumes the D11 current-main owner leaf set and exact intervening path-change chains. The mismatched WK-2359 leaves and WK-2382 handler witness are refreshed, while active WK-2405 remains an explicit parent dependency.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-004",
+        "claim-wk2361-c004",
+        "claim-verify-wk2361-c004"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-012",
+        "kind": "configuration",
+        "selector": "D11 ref-wk2361-d11-current-owner-leaf-set and ref-wk2361-d11-owner-provenance-chain"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The D11 leaf/provenance census and the rejected review finding are carried by immutable canonical review and coordinator-disposition evidence, not by the selected structural proof pack."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-006",
+      "statement": "The audit re-derives deterministic closed production populations from the D11 roots, extensions, exclusions, parse rules, and stable source identity rather than preserving historical counts.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-005",
+        "claim-wk2361-c005",
+        "claim-verify-wk2361-c005"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-013",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-exception-adapter.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-013 has not been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-007",
+      "statement": "Every confirmed-defect fact has a semantic owner, exact source identity, remediation WK, falsifying test, and finite expiry or repository milestone; anonymous legacy allowlists are rejected.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-006",
+        "claim-wk2361-c006",
+        "claim-verify-wk2361-c006"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-013",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-exception-adapter.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-013 has not been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-008",
+      "statement": "Safe suppression is admitted only through an exact owner-produced executed witness or classification identity; syntax alone proves neither defect nor safety.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-007",
+        "claim-wk2361-c007",
+        "claim-verify-wk2361-c007"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-013",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-exception-adapter.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-013 has not been delivered."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-009",
+      "statement": "Repository lint proves registered authority-boundary paths reach exactly one declared translator and rejects mechanically demonstrated raw or locally invented public error identities.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-008",
+        "claim-wk2361-c008",
+        "claim-verify-wk2361-c008"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-016",
+        "kind": "test",
+        "selector": "node --test tests/integration/guarded-owner-lint.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-016 is blocked pending predecessor delivery."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-010",
+      "statement": "Deny-by-default applies only to mechanical registry defects and exact authenticated authority gates; D11 neither authenticates carrier content nor makes policy decisions.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-009",
+        "claim-wk2361-c009",
+        "claim-verify-wk2361-c009"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-012",
+        "kind": "test",
+        "selector": "node --test tests/unit/guarded-owner-registry.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The fail-loud mechanical boundary and surviving review findings were implemented and remediated in the landed SLICE-012 commits; closure/review evidence, rather than the selected structural proof pack, carries this domain claim."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-011",
+      "statement": "Both production stdio-MCP injection edges consume exact neutral-registry bindings while preserving launcher and semantic-owner authority boundaries.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-009"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-015",
+        "kind": "test",
+        "selector": "node --test tests/integration/workspace-agent-dispatch-registration.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-015 is blocked pending predecessor delivery."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-012",
+      "statement": "The immutable D8 DRY, D9 all-decisions, D10 redteam, exact blueteam challenge, and single D11 disposition are preserved; no second design review or challenge is required or permitted.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-010",
+        "claim-wk2361-c010",
+        "claim-verify-wk2361-c010"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "wiki/work-records/WK-2361.json#review_provenance(SLICE-024,SLICE-025,SLICE-026,SLICE-027)"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The design-review lifecycle is complete. This obligation is satisfied by authenticated canonical review provenance and coordinator disposition, not implementation evidence."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-013",
+      "statement": "Repository lint fails only for mechanically proven production defects and exact authority gates; complete source-located corpus absence remains non-gating unresolved evidence.",
+      "controlled_contract_node_ids": [
+        "ref-wk2361-criterion-011",
+        "claim-wk2361-c011",
+        "claim-verify-wk2361-c011"
+      ],
+      "mechanism": {
+        "owner": "WK-2361#SLICE-016",
+        "kind": "test",
+        "selector": "node --test tests/integration/guarded-owner-lint.test.mjs"
+      },
+      "gap": {
+        "gap_kind": "implementation_not_delivered",
+        "reason": "SLICE-016 has not been delivered; its planned unresolved-only mutation must prove zero exit-status gating."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-014",
+      "statement": "Mandatory claim claim-wk2361-proof-requirements-count is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-requirements-count"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-requirements-count"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-015",
+      "statement": "Mandatory claim claim-wk2361-proof-requirements-members is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-requirements-members"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-requirements-members"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-016",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-shape-count is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-shape-count"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-warning-shape-count"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-017",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-shape-members is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-shape-members"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-warning-shape-members"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-018",
+      "statement": "Mandatory claim claim-wk2361-proof-required-warning-shape-count is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-required-warning-shape-count"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-required-warning-shape-count"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-019",
+      "statement": "Mandatory claim claim-wk2361-proof-required-warning-shape-members is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-required-warning-shape-members"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-required-warning-shape-members"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-020",
+      "statement": "Mandatory claim claim-wk2361-proof-validation-count is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-validation-count"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-validation-count"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-021",
+      "statement": "Mandatory claim claim-wk2361-proof-validation-members is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-validation-members"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-validation-members"
+      },
+      "gap": {
+        "gap_kind": "no_proof_required",
+        "reason": "This package-derived count or membership identity is structural input metadata; it requires exact accounting but no separate proof-pack component mapping."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-022",
+      "statement": "Mandatory claim claim-wk2361-proof-placeholder-population-empty maps to admitted implementation-readiness component placeholder-population-empty.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-placeholder-population-empty"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "placeholder-population-empty"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-023",
+      "statement": "Mandatory claim claim-wk2361-proof-implementation-locus-targets-requirements maps to admitted implementation-readiness component implementation-locus-targets-requirements.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-implementation-locus-targets-requirements"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "implementation-locus-targets-requirements"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-024",
+      "statement": "Mandatory claim claim-wk2361-proof-test-locus-covers-validation maps to admitted implementation-readiness component test-locus-covers-validation.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-test-locus-covers-validation"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "test-locus-covers-validation"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-025",
+      "statement": "Mandatory claim claim-wk2361-proof-test-locus-targets-implementation maps to admitted implementation-readiness component test-locus-targets-implementation.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-test-locus-targets-implementation"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "test-locus-targets-implementation"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-026",
+      "statement": "Mandatory claim claim-wk2361-proof-validation-covers-all-requirements maps to admitted implementation-readiness component validation-covers-all-requirements.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-validation-covers-all-requirements"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "validation-covers-all-requirements"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-027",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-code-value-exact maps to admitted implementation-readiness component warning-code-value-exact.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-code-value-exact"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-code-value-exact"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-028",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-message-template-exact maps to admitted implementation-readiness component warning-message-template-exact.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-message-template-exact"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-message-template-exact"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-029",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-payload-schema-exact maps to admitted implementation-readiness component warning-payload-schema-exact.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-payload-schema-exact"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-payload-schema-exact"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-030",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-severity-value-exact maps to admitted implementation-readiness component warning-severity-value-exact.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-severity-value-exact"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-severity-value-exact"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-031",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-shape-exact maps to admitted implementation-readiness component warning-shape-exact.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-shape-exact"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-shape-exact"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-032",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-shape-includes-required-fields maps to admitted implementation-readiness component warning-shape-includes-required-fields.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-shape-includes-required-fields"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-shape-includes-required-fields"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-033",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-shape-verification maps to admitted implementation-readiness component warning-shape-verification.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-shape-verification"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-shape-verification"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-034",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-signal-carries-exact-values maps to admitted implementation-readiness component warning-signal-carries-exact-values.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-signal-carries-exact-values"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-signal-carries-exact-values"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-035",
+      "statement": "Mandatory claim claim-wk2361-proof-warning-signal-contains-shape maps to admitted implementation-readiness component warning-signal-contains-shape.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-warning-signal-contains-shape"
+      ],
+      "mechanism": {
+        "owner": "proof.design.implementation-readiness@2.1.0",
+        "kind": "configuration",
+        "selector": "warning-signal-contains-shape"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-036",
+      "statement": "Mandatory claim claim-wk2361-proof-design-names-grounded-loci is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-proof-design-names-grounded-loci"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-proof-design-names-grounded-loci"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The selected implementation-readiness pack names this component, but the D11 contract does not establish the required design-unit relation to independently grounded implementation and test loci."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-037",
+      "statement": "Mandatory claim claim-wk2361-frozen-wk2359-leaf-set is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-frozen-wk2359-leaf-set"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-frozen-wk2359-leaf-set"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The frozen WK-2359 leaf population is repository-history evidence outside the selected proof-pack guarantee and requires its catalog owner."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-038",
+      "statement": "Mandatory claim claim-wk2361-frozen-wk2382-leaf-set is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-frozen-wk2382-leaf-set"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-frozen-wk2382-leaf-set"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The frozen WK-2382 leaf population is repository-history evidence outside the selected proof-pack guarantee and requires its catalog owner."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-039",
+      "statement": "Mandatory claim claim-wk2361-criterion005-uses-census-spec is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-criterion005-uses-census-spec"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-criterion005-uses-census-spec"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The criterion-to-census binding is carried by the D11 reviewed contract and coordinator disposition, not the selected structural proof pack."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-040",
+      "statement": "Mandatory claim claim-wk2361-unresolved-routes-to-authority is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-unresolved-routes-to-authority"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-unresolved-routes-to-authority"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "The unresolved-evidence authority route is carried by the reviewed D11 authority contract and canonical disposition, not the selected structural proof pack."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-041",
+      "statement": "Mandatory claim claim-wk2361-unresolved-isolated-from-local-gate is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-unresolved-isolated-from-local-gate"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-unresolved-isolated-from-local-gate"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "Isolation of unresolved evidence from the local nonzero gate is carried by reviewed authority-boundary evidence outside the selected structural proof pack."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2361-042",
+      "statement": "Mandatory claim claim-wk2361-current-successor-set is explicitly accounted for without unsupported proof credit.",
+      "controlled_contract_node_ids": [
+        "claim-wk2361-current-successor-set"
+      ],
+      "mechanism": {
+        "owner": "WK-2361",
+        "kind": "durable_record",
+        "selector": "claim-wk2361-current-successor-set"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The current successor-owner population is repository-history evidence outside the selected proof-pack guarantee and requires its catalog owner."
+      }
+    }
+  ]
+}

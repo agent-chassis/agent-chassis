@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "52da26a460c268920729d35a9604933d4594c6e97925c03fdfe488eaffd3ad79",
+  "profile_id": "proof.authorization.failed-attempt-nonconsumption",
+  "profile_version": "4.0.0",
+  "profile_digest": "d949ae751ce8612a2d2aa0d9166aeb23bf95b821fd97761c365e52925e82cbc4",
+  "guarantee": "A declared failed attempt using one legitimate authority is refused; that authority complete declared state observed after refusal equals its complete declared state observed before the attempt; and a later distinct authorized attempt using the same authority reaches a declared expected successful result state.",
+  "guarantee_digest": "fd5a53f0f0357bbbce255cd8b6cdbfe60be577a653b099c3c136f4f5c59fbf0f",
+  "explicit_exclusions": [
+    "concurrent-authority-use",
+    "pack-applicability",
+    "refusal-before-protected-effects",
+    "resources-outside-legitimate-authority",
+    "single-use-semantics-after-valid-success",
+    "transient-consume-and-restore",
+    "truthful-reference-grounding"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "bb414f69a2ef7c8d4504a0b9abe70fdc65c046ccb3dd45a5fb65fe648a2fd08e",
+    "adequacy_result_digest": "77ee23fdeb41267fe82dd912acdb9753941fc433bd6da5208bf62de13a196d45",
+    "executable_control_count": 59,
+    "negative_fixture_count": 87,
+    "coverage_witness_count": 199
+  }
+}

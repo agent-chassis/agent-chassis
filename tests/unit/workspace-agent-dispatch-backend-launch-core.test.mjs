@@ -14,6 +14,9 @@ import {
   maybeWrapExecutorWithWorktreeProvisioning
 } from "../../packages/agent-launch-cli/src/lib/backend-worktree-binding.mjs";
 import {
+  computeWorkRecordSourceDigest
+} from "../../packages/wiki-core/src/index.mjs";
+import {
   assertNoForbiddenTokens,
   createTestDispatchBackend
 } from "../workspace-agent-dispatch-backend-shared.mjs";
@@ -173,11 +176,51 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     slice_id: "SLICE-004",
     repo: "agent-chassis/agent-chassis"
   });
+
+  const canonicalRecord = Object.freeze({
+    schema_version: "work-record.v1",
+    id: "WK-2261",
+    repo: "agent-chassis/agent-chassis",
+    title: "Provisioning ticket fixture",
+    work_kind: "tracker",
+    status: "active",
+    priority: "medium",
+    read_scope: ["README.md"],
+    repo_paths: ["README.md"],
+    write_scope: ["tests/example.test.mjs"],
+    depends_on: [],
+    acceptance: { criteria: [], validation: [] },
+    sections: { agent_notes: "WK2261_SLICE_NOTES", tasks: [] },
+    slices: [{
+      id: "SLICE-004",
+      title: "Provisioned slice",
+      work_kind: "implementation",
+      status: "todo",
+      depends_on: [],
+      read_scope: ["README.md"],
+      repo_paths: ["README.md"],
+      write_scope: ["tests/example.test.mjs"],
+      acceptance: { criteria: ["WK2261_SLICE_CRITERION"], validation: [] },
+      sections: { agent_notes: "WK2261_SLICE_NOTES" }
+    }]
+  });
+  const dispatchReadiness = Object.freeze({
+    schema_version: "dispatch-readiness.v1",
+    decision_code: "dispatchable",
+    dispatchable: true,
+    record_id: "WK-2261",
+    unit: Object.freeze({ address: "WK-2261#SLICE-004", record_id: "WK-2261", slice_id: "SLICE-004" }),
+    reasons: Object.freeze([]),
+    validation_hints: Object.freeze([]),
+    canonical_refs: Object.freeze([]),
+    derived_evidence: Object.freeze([])
+  });
   const authority = Object.freeze({
     unit_address: "IN-0038/WK-2261/SLICE-004",
     selected_unit: selectedUnit,
     source: "wiki/work-records/WK-2261.json#SLICE-004",
-    source_digest: "sha256:scope",
+
+    source_digest: computeWorkRecordSourceDigest(canonicalRecord),
     source_version: "work-record.v1",
     read_scope: Object.freeze(["README.md"]),
     repo_paths: Object.freeze(["README.md"]),
@@ -237,6 +280,23 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     assert.equal(JSON.stringify(input).includes("managed_provisioning_ticket"), false);
     assert.equal(input.worktree_provisioning, provisioning);
     assert.equal(input.worker_scope_authority, authority);
+
+    assert.equal(input.workspace_dir, "/tmp/wk2261-slice");
+    assert.equal(input.workspace_alias, "wk2261");
+    assert.ok(Object.isFrozen(input.dispatch_workspace_binding));
+    assert.deepEqual(input.dispatch_workspace_binding, {
+      workspace_alias: "wk2261",
+      workspace_dir: "/srv/wk2261"
+    });
+
+    assert.ok(Object.isFrozen(input.worker_assignment));
+    assert.equal(input.worker_assignment.unit_address, "WK-2261#SLICE-004");
+    assert.equal(input.worker_assignment.run_id, "wkdb_WK2261");
+    assert.equal(input.worker_assignment.monitor_handle, "wkmh_WK2261");
+    assert.equal(input.worker_assignment.worktree_path, "/tmp/wk2261-slice");
+    assert.match(input.worker_assignment.prompt, /WK2261_SLICE_CRITERION/);
+    assert.match(input.worker_assignment.prompt, /WK2261_SLICE_NOTES/);
+    assert.equal(Object.hasOwn(input.worker_assignment, "record"), false);
     return { accepted: true, status: "launching" };
   };
   const wrapped = maybeWrapExecutorWithWorktreeProvisioning(
@@ -259,14 +319,24 @@ test("WK-2261 executor consumes one launcher-private provisioning ticket without
     subject: "WK-2261#SLICE-004",
     run_id: "wkdb_WK2261",
     monitor_handle: "wkmh_WK2261",
+    workspace_alias: "wk2261",
+    workspace_dir: "/srv/wk2261",
+    readiness: dispatchReadiness,
     frozen_worker_scope_snapshot: Object.freeze({
       authority,
+      record: canonicalRecord,
+      selected_unit_contract: canonicalRecord.slices[0],
+      assignment_capture: Object.freeze({
+        schema_version: "worker-assignment-capture.v1",
+        repository: "agent-chassis",
+        entry_material: null
+      }),
       managed_provisioning_ticket: ticket
     })
   };
 
   const launched = await wrapped(input);
-  assert.equal(launched.accepted, true);
+  assert.equal(launched.accepted, true, JSON.stringify(launched.refusal ?? launched));
   assert.deepEqual(events, [
     "consume-ticket", "validate-snapshot", "record-provisioned",
     "record-binding", "spawn", "record-result"

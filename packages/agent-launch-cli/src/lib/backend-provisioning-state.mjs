@@ -4,7 +4,11 @@ import {
   RUNTIME_BLOCKER_CODES,
   getRuntimeBlockerEntry
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import { serializeWorkRecordDiagnosticValue } from
+  "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
   collectDeclaredInterRecordIds,
   resolveDependencyEvidenceVector
@@ -16,6 +20,7 @@ import {
   resolveIndependentUnitBase,
   sliceBranchRef
 } from "./worktree-substrate.mjs";
+import { parseLiteralCommitObject } from "./literal-commit-object.mjs";
 
 import {
   SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES,
@@ -29,7 +34,10 @@ import {
 import { isPlainObject } from "./backend-review-identity.mjs";
 import { readCanonicalWorkRecord } from "./backend-scope-authority.mjs";
 import { buildServerGeneratedCommitMessage } from "./commit-tool-exposure-guard.mjs";
-import { isForgeConfirmedLandedPublicationIdentity } from "./launcher-transition-plan.mjs";
+import {
+  isForgeConfirmedLandedPublicationIdentity,
+  LAUNCHER_TRANSITION_FAILURES
+} from "./launcher-transition-plan.mjs";
 
 import {
   SLICE_MARKER_EVIDENCE_STATES,
@@ -85,20 +93,41 @@ export function revalidateLauncherTransitionSettlement({
   observedBase = null,
   plannedBaseAncestry = null
 } = {}) {
-  const bindingMatches = Object.isFrozen(settlement) && settlement?.complete === true &&
-    plannedBase?.base_ref === settlement?.slice_binding?.base_ref &&
-    plannedBase?.base_sha === settlement?.slice_binding?.base_sha &&
-    settlement?.wk_binding?.output_branch === plannedBase?.base_ref;
-  const observedTipMatches = observedBase === null || (
-    observedBase?.base_ref === plannedBase?.base_ref &&
-    observedBase?.base_sha === settlement?.wk_binding?.wk_tip_sha &&
-    plannedBaseAncestry?.state === "ancestor"
-  );
-  const ok = bindingMatches && observedTipMatches;
-  return Object.freeze({
-    ok,
-    reason: ok ? null : "launcher_transition_planned_base_mismatch"
-  });
+  void plannedBaseAncestry;
+  if (!Object.isFrozen(settlement) || settlement?.complete !== true ||
+      !isPlainObject(settlement.slice_binding) || !isPlainObject(settlement.wk_binding) ||
+      !isPlainObject(plannedBase) || typeof plannedBase.base_ref !== "string" ||
+      !EXACT_OID_RE.test(plannedBase.base_sha ?? "")) {
+    return Object.freeze({
+      ok: false,
+      reason: "launcher_transition_settlement_unverifiable"
+    });
+  }
+  const expectedRef = observedBase?.base_ref ?? plannedBase.base_ref;
+  const expectedSha = observedBase?.base_sha ?? plannedBase.base_sha;
+  if (typeof expectedRef !== "string" || !EXACT_OID_RE.test(expectedSha ?? "")) {
+    return Object.freeze({
+      ok: false,
+      reason: "launcher_transition_settlement_unverifiable"
+    });
+  }
+  const mismatches = [
+    ["slice_binding.base_ref", expectedRef, settlement.slice_binding.base_ref],
+    ["slice_binding.base_sha", expectedSha, settlement.slice_binding.base_sha],
+    ["wk_binding.output_branch", expectedRef, settlement.wk_binding.output_branch],
+    ["wk_binding.wk_tip_sha", expectedSha, settlement.wk_binding.wk_tip_sha]
+  ];
+  const mismatch = mismatches.find(([, expected, actual]) => expected !== actual);
+  if (mismatch) {
+    return Object.freeze({
+      ok: false,
+      reason: "launcher_transition_planned_base_mismatch",
+      mismatch_field: mismatch[0],
+      expected: mismatch[1],
+      actual: mismatch[2] ?? null
+    });
+  }
+  return Object.freeze({ ok: true, reason: null });
 }
 
 const SLICE_TIP_RECONCILE_TAXONOMY_ENTRY =
@@ -109,6 +138,7 @@ if (SLICE_TIP_RECONCILE_TAXONOMY_ENTRY?.actor_recovery !== "coordinator" ||
 }
 
 const SLICE_TIP_RECONCILE_BLOCKING_STATES = Object.freeze([
+  SLICE_TIP_RECONCILE_STATES.ACCUMULATED_IMPLEMENTATION_TIP,
   SLICE_TIP_RECONCILE_STATES.ORPHANED
 ]);
 
@@ -130,7 +160,9 @@ function classifySliceTipReconcileRefusal(error) {
     reconcile_state: detail.reconcile_state,
     slice_tip: boundedString(detail.slice_tip),
     wk_base_ref: boundedString(detail.wk_base_ref),
-    wk_base_sha: boundedString(detail.wk_base_sha)
+    wk_base_sha: boundedString(detail.wk_base_sha),
+    reason: boundedString(detail.reason),
+    recovery_route: boundedString(detail.recovery_route)
   };
 }
 
@@ -173,59 +205,31 @@ function resolveExactRefCommit(runGit, mainRepo, ref) {
   return EXACT_OID_RE.test(sha) && !/^0+$/u.test(sha) ? sha : null;
 }
 
-function parseLiteralCommit(raw, oid) {
-  if (typeof raw !== "string" || raw.includes("\uFFFD") || raw.includes("\0") || raw.includes("\r")) {
-    return null;
+function literalReadFailure(detail, oid, parseReason = null) {
+  return {
+    commit: null,
+    failure: { detail, object: oid, ...(parseReason === null ? {} : { parse_reason: parseReason }) }
+  };
+}
+
+function readLiteralCommitOutcome(runGit, mainRepo, oid, cache) {
+  if (!EXACT_OID_RE.test(oid) || /^0+$/u.test(oid)) {
+    return literalReadFailure("literal_object_id_invalid", oid);
   }
-  const separator = raw.indexOf("\n\n");
-  if (separator < 0) return null;
-  const lines = raw.slice(0, separator).split("\n");
-  if (lines.length === 0 || lines.some((line) => line.length === 0)) return null;
-  const headers = [];
-  let continuedKey = null;
-  for (const line of lines) {
-    if (line.startsWith(" ")) {
-      if (continuedKey === null || continuedKey === "tree" || continuedKey === "parent" ||
-          /[\x00-\x1f\x7f]/u.test(line.slice(1))) {
-        return null;
-      }
-      continue;
-    }
-    const space = line.indexOf(" ");
-    if (space <= 0 || space === line.length - 1) return null;
-    const key = line.slice(0, space);
-    const value = line.slice(space + 1);
-    if (!/^[\x21-\x7e]+$/u.test(key) || value.startsWith(" ") || /[\x00-\x1f\x7f]/u.test(value)) {
-      return null;
-    }
-    headers.push({ key, value });
-    continuedKey = key;
-  }
-  const trees = headers.filter(({ key }) => key === "tree");
-  const parents = headers.filter(({ key }) => key === "parent").map(({ value }) => value);
-  if (trees.length !== 1) return null;
-  const tree = trees[0].value;
-  if (!EXACT_OID_RE.test(tree) || tree.length !== oid.length ||
-      parents.some((parent) => !EXACT_OID_RE.test(parent) || parent.length !== oid.length)) return null;
-  return Object.freeze({
-    oid,
-    tree,
-    parents: Object.freeze(parents),
-    message: raw.slice(separator + 2)
-  });
+  if (cache.has(oid)) return { commit: cache.get(oid), failure: null };
+  const type = authorityGit(runGit, mainRepo, ["cat-file", "-t", oid]);
+  if (type.ok !== true) return literalReadFailure("literal_commit_read_failed", oid);
+  if (type.stdout !== "commit\n") return literalReadFailure("literal_object_not_commit", oid);
+  const body = authorityGit(runGit, mainRepo, ["cat-file", "commit", oid]);
+  if (body.ok !== true) return literalReadFailure("literal_commit_read_failed", oid);
+  const parsed = parseLiteralCommitObject(body.stdout, oid);
+  if (!parsed.ok) return literalReadFailure("literal_commit_malformed", oid, parsed.reason);
+  cache.set(oid, parsed.commit);
+  return { commit: parsed.commit, failure: null };
 }
 
 function readLiteralCommit(runGit, mainRepo, oid, cache) {
-  if (!EXACT_OID_RE.test(oid) || /^0+$/u.test(oid)) return null;
-  if (cache.has(oid)) return cache.get(oid);
-  const type = authorityGit(runGit, mainRepo, ["cat-file", "-t", oid]);
-  if (type.ok !== true || type.stdout !== "commit\n") return null;
-  const body = authorityGit(runGit, mainRepo, ["cat-file", "commit", oid]);
-  if (body.ok !== true) return null;
-  const commit = parseLiteralCommit(body.stdout, oid);
-  if (commit === null) return null;
-  cache.set(oid, commit);
-  return commit;
+  return readLiteralCommitOutcome(runGit, mainRepo, oid, cache).commit;
 }
 
 function probeExactAncestry(runGit, mainRepo, ancestor, descendant, cache) {
@@ -242,8 +246,8 @@ function probeExactAncestry(runGit, mainRepo, ancestor, descendant, cache) {
     if (active.has(entry.oid) || visited.size >= MAX_LITERAL_COMMITS) {
       return { state: "indeterminate", detail: active.has(entry.oid) ? "literal_parent_cycle" : "literal_traversal_bound" };
     }
-    const commit = readLiteralCommit(runGit, mainRepo, entry.oid, cache);
-    if (commit === null) return { state: "indeterminate", detail: "literal_commit_unreadable" };
+    const { commit, failure } = readLiteralCommitOutcome(runGit, mainRepo, entry.oid, cache);
+    if (commit === null) return { state: "indeterminate", ...failure };
     visited.add(entry.oid);
     active.add(entry.oid);
     stack.push({ oid: entry.oid, exiting: true });
@@ -470,7 +474,7 @@ function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
 function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
   const captured = resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
   if (captured === null) {
-    return { ok: false, reason: "scope_existence_base_unresolved", wk_ref: wkRef };
+    return exactSliceResolutionFailure("scope_existence_base_unresolved", { wk_ref: wkRef });
   }
   const observed = resolveScopeExistenceBase({
     runGit,
@@ -480,15 +484,71 @@ function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
   });
   if (observed === null || observed.base_ref !== captured.base_ref ||
       observed.base_sha !== captured.base_sha) {
-    return {
-      ok: false,
-      reason: "scope_existence_base_unstable",
+    return exactSliceResolutionFailure("scope_existence_base_unstable", {
       wk_ref: wkRef,
       captured_scope_existence_base: captured,
-      observed_scope_existence_base: observed
-    };
+      observed_scope_existence_base: observed,
+      mismatch_field: "current_wk_tip",
+      expected: captured.base_sha,
+      actual: observed?.base_sha ?? null
+    });
   }
   return { ok: true, scope_existence_base: captured };
+}
+
+export const EXACT_SLICE_RESOLUTION_FAILURE_CLASSES = Object.freeze({
+  LIFECYCLE: "lifecycle",
+  DEPENDENCY: "dependency",
+  PUBLICATION: "publication"
+});
+
+export const EXACT_SLICE_RESOLUTION_FAILURE_REASONS = Object.freeze({
+  [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.LIFECYCLE]: Object.freeze([
+    "exact_slice_required",
+    "exact_implementation_slice_unresolved",
+    "exact_slice_accumulated_implementation_requires_integration",
+    "launcher_transition_settlement_unverifiable",
+    "launcher_transition_planned_base_mismatch",
+    "scope_existence_base_unresolved",
+    "scope_existence_base_unstable"
+  ]),
+  [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.DEPENDENCY]: Object.freeze([
+    "unit_dependencies_unmet",
+    "dependency_identity_unresolved",
+    "dependency_self_edge_forbidden",
+    "dependency_not_present_on_wk_branch"
+  ]),
+  [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.PUBLICATION]: Object.freeze([
+    "dependency_publication_identity_unavailable",
+    "dependency_publication_identity_mismatch"
+  ])
+});
+
+const EXACT_SLICE_FAILURE_CLASS_BY_REASON = new Map(
+  Object.entries(EXACT_SLICE_RESOLUTION_FAILURE_REASONS).flatMap(
+    ([failureClass, reasons]) => reasons.map((reason) => [reason, failureClass])
+  )
+);
+
+export function resolveProspectiveScopeExistenceBase({ mainRepo, initiative, recordId, deps = {} }) {
+  const runGit = deps.runGit ?? defaultRunGit;
+  const wkRef = perWkBranchRef(initiative, recordId);
+  const wkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
+  const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+  if (!stable.ok) return stable;
+  return Object.freeze({
+    ok: true,
+    scope_existence_base: stable.scope_existence_base,
+    source: wkTip === null ? "configured_base" : "wk_tip"
+  });
+}
+
+function exactSliceResolutionFailure(reason, detail = {}) {
+  const failureClass = EXACT_SLICE_FAILURE_CLASS_BY_REASON.get(reason);
+  if (failureClass === undefined) {
+    throw new TypeError(`exact slice dependency resolution reason is unclassified: ${reason}`);
+  }
+  return Object.freeze({ ok: false, reason, failure_class: failureClass, ...detail });
 }
 
 export function resolveExactSliceDependencies(
@@ -498,11 +558,11 @@ export function resolveExactSliceDependencies(
   { settlement = null, plannedBase = null } = {}
 ) {
   const match = typeof subject === "string" ? subject.match(/^(WK-\d{4})#(SLICE-\d{3})$/) : null;
-  if (!match) return { ok: false, reason: "exact_slice_required" };
+  if (!match) return exactSliceResolutionFailure("exact_slice_required");
   const record = readCanonicalWorkRecord(mainRepo, subject);
   const slice = Array.isArray(record?.slices) ? record.slices.find((candidate) => candidate?.id === match[2]) : null;
   if (!record || !/^IN-\d{4}$/.test(record.initiative ?? "") || !slice || slice.work_kind !== "implementation") {
-    return { ok: false, reason: "exact_implementation_slice_unresolved" };
+    return exactSliceResolutionFailure("exact_implementation_slice_unresolved");
   }
   const selectedUnit = { ...slice, kind: "slice" };
   const additionalRecords = new Map();
@@ -518,100 +578,79 @@ export function resolveExactSliceDependencies(
   });
   const dependencies = dependencyEvidence.map((entry) => entry.address);
   const settlementBound = settlement !== null || plannedBase !== null;
-  if (settlementBound && !revalidateLauncherTransitionSettlement({ settlement, plannedBase }).ok) {
-    return { ok: false, reason: "launcher_transition_settlement_unverifiable" };
+  if (settlementBound) {
+    const initialSettlement = revalidateLauncherTransitionSettlement({ settlement, plannedBase });
+    if (!initialSettlement.ok) {
+      return exactSliceResolutionFailure(initialSettlement.reason, {
+        ...(initialSettlement.mismatch_field === undefined ? {} : {
+          mismatch_field: initialSettlement.mismatch_field,
+          expected: initialSettlement.expected,
+          actual: initialSettlement.actual
+        })
+      });
+    }
   }
   const runGit = deps.runGit ?? defaultRunGit;
   const wkRef = perWkBranchRef(record.initiative, record.id);
 
   const wkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
-  const plannedBaseAncestry = settlementBound
-    ? probeExactAncestry(runGit, mainRepo, plannedBase.base_sha, wkTip, new Map())
-    : null;
-  if (settlementBound && !revalidateLauncherTransitionSettlement({
-    settlement,
-    plannedBase,
-    observedBase: { base_ref: wkRef, base_sha: wkTip },
-    plannedBaseAncestry
-  }).ok) {
-    return {
-      ok: false,
-      reason: "launcher_transition_planned_base_mismatch",
-      planned_base: plannedBase,
-      observed_base: Object.freeze({ base_ref: wkRef, base_sha: wkTip })
-    };
+  if (settlementBound && wkTip === null) {
+    return exactSliceResolutionFailure("scope_existence_base_unresolved", {
+      wk_ref: wkRef
+    });
   }
-  const publicationIdentities = new Map();
-  if (settlementBound) {
-    const publicationEvidence = dependencyEvidence.filter((evidence) =>
-      evidence.target_work_kind === "implementation" &&
-      evidence.target_status === "done" && evidence.record_id !== record.id
-    );
-    const resolver = deps.resolveForgeConfirmedLandedPublicationIdentity;
-    if (publicationEvidence.length > 0 && typeof resolver !== "function") {
-      return {
-        ok: false,
-        reason: "dependency_publication_identity_unavailable",
-        dependency: publicationEvidence[0].address,
-        owner: "WK-2313"
-      };
-    }
-    const observations = publicationEvidence.map((evidence) =>
-      resolver({ dependency: evidence, subject, settlement })
-    );
-    if (observations.some((observed) => typeof observed?.then === "function")) {
-      return Promise.all(observations).then((resolved) => {
-        const exactOutcomes = new Map(
-          publicationEvidence.map((evidence, index) => [evidence.address, resolved[index]])
-        );
-        return resolveExactSliceDependencies(mainRepo, subject, {
-          ...deps,
-          resolveForgeConfirmedLandedPublicationIdentity: ({ dependency }) =>
-            exactOutcomes.get(dependency.address) ?? null
-        }, { settlement, plannedBase });
-      }, () => ({
-        ok: false,
-        reason: "dependency_publication_identity_unavailable",
-        dependency: publicationEvidence[0].address,
-        owner: "WK-2313"
-      }));
-    }
+  const observedSettlement = settlementBound
+    ? revalidateLauncherTransitionSettlement({
+        settlement,
+        plannedBase,
+        observedBase: { base_ref: wkRef, base_sha: wkTip }
+      })
+    : Object.freeze({ ok: true });
+  if (!observedSettlement.ok) {
+    return exactSliceResolutionFailure(observedSettlement.reason, {
+      ...(observedSettlement.mismatch_field === undefined ? {} : {
+        mismatch_field: observedSettlement.mismatch_field,
+        expected: observedSettlement.expected,
+        actual: observedSettlement.actual
+      })
+    });
+  }
+
+  const continueResolution = (publicationEvidence, observations) => {
+    const publicationIdentities = new Map();
     for (let index = 0; index < publicationEvidence.length; index += 1) {
       const evidence = publicationEvidence[index];
       const observed = observations[index];
       const identity = observed?.result ?? observed;
       if (!isForgeConfirmedLandedPublicationIdentity(identity) || identity.wk !== evidence.record_id) {
-        return {
-          ok: false,
-          reason: "dependency_publication_identity_mismatch",
+        return exactSliceResolutionFailure("dependency_publication_identity_mismatch", {
           dependency: evidence.address,
           owner: "WK-2313"
-        };
+        });
       }
       publicationIdentities.set(evidence.record_id, identity);
     }
-  }
-  const publicationProjection = settlementBound
-    ? { publication_identities: Object.freeze([...publicationIdentities.values()]) }
-    : {};
-  if (dependencies.length === 0) {
-    const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
-    if (!stable.ok) return stable;
-    return {
-      ok: true,
-      record,
-      slice,
-      dependency_evidence: dependencyEvidence,
-      scope_existence_base: stable.scope_existence_base,
-      ...publicationProjection
-    };
-  }
-  const unmet = [];
-  const capturedDependencyRefs = new Map();
-  const literalCache = new Map();
-  let replayObservation = null;
-  let replayObservationFailure = null;
-  for (const evidence of dependencyEvidence) {
+    const publicationProjection = settlementBound
+      ? { publication_identities: Object.freeze([...publicationIdentities.values()]) }
+      : {};
+    if (dependencies.length === 0) {
+      const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+      if (!stable.ok) return stable;
+      return Object.freeze({
+        ok: true,
+        record,
+        slice,
+        dependency_evidence: dependencyEvidence,
+        scope_existence_base: stable.scope_existence_base,
+        ...publicationProjection
+      });
+    }
+    const unmet = [];
+    const capturedDependencyRefs = new Map();
+    const literalCache = new Map();
+    let replayObservation = null;
+    let replayObservationFailure = null;
+    for (const evidence of dependencyEvidence) {
     const dependency = evidence.address;
     if (evidence.marker === "fact_resolution_failed") {
       unmet.push({
@@ -676,7 +715,9 @@ export function resolveExactSliceDependencies(
         wk_ref: wkRef,
         dependency_ref: dependencyRef,
         evidence: "ancestry_indeterminate",
-        detail: ancestry.detail ?? null
+        detail: ancestry.detail ?? null,
+        ...(ancestry.object === undefined ? {} : { object: ancestry.object }),
+        ...(ancestry.parse_reason === undefined ? {} : { parse_reason: ancestry.parse_reason })
       });
       continue;
     }
@@ -720,29 +761,27 @@ export function resolveExactSliceDependencies(
       evidence: replay.evidence,
       detail: replay.detail ?? null
     });
-  }
-  if (unmet.length > 0) {
-    return {
-      ok: false,
-      reason: "unit_dependencies_unmet",
-      unmet: unmet.map((entry) => entry.dependency),
-      dependency_diagnostics: unmet
-    };
-  }
-  if (capturedDependencyRefs.size === 0) {
-    const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
-    if (!stable.ok) return stable;
-    return {
-      ok: true,
-      record,
-      slice,
-      dependency_evidence: dependencyEvidence,
-      scope_existence_base: stable.scope_existence_base,
-      ...publicationProjection
-    };
-  }
+    }
+    if (unmet.length > 0) {
+      return exactSliceResolutionFailure("unit_dependencies_unmet", {
+        unmet: unmet.map((entry) => entry.dependency),
+        dependency_diagnostics: unmet
+      });
+    }
+    if (capturedDependencyRefs.size === 0) {
+      const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+      if (!stable.ok) return stable;
+      return Object.freeze({
+        ok: true,
+        record,
+        slice,
+        dependency_evidence: dependencyEvidence,
+        scope_existence_base: stable.scope_existence_base,
+        ...publicationProjection
+      });
+    }
 
-  for (const [dependencyRef, capturedDependencyTip] of capturedDependencyRefs) {
+    for (const [dependencyRef, capturedDependencyTip] of capturedDependencyRefs) {
     const stableDependencyTip = resolveExactRefCommit(runGit, mainRepo, dependencyRef);
     if (capturedDependencyTip === null || stableDependencyTip === null ||
         stableDependencyTip !== capturedDependencyTip) {
@@ -758,9 +797,7 @@ export function resolveExactSliceDependencies(
             );
         return ref === dependencyRef;
       }).map((evidence) => evidence.address);
-      return {
-        ok: false,
-        reason: "unit_dependencies_unmet",
+      return exactSliceResolutionFailure("unit_dependencies_unmet", {
         unmet: affected,
         dependency_diagnostics: affected.map((dependency) => ({
           dependency,
@@ -769,48 +806,104 @@ export function resolveExactSliceDependencies(
           captured_dependency_tip: capturedDependencyTip,
           observed_dependency_tip: stableDependencyTip
         }))
-      };
+      });
     }
-  }
-  const stableWkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
-  if (wkTip === null || stableWkTip === null || stableWkTip !== wkTip) {
-    return {
-      ok: false,
-      reason: "unit_dependencies_unmet",
-      unmet: dependencies.slice(),
-      dependency_diagnostics: dependencies.map((dependency) => ({
-        dependency,
-        reason: "subject_wk_tip_unstable",
+    }
+    const stableWkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
+    if (wkTip === null || stableWkTip === null || stableWkTip !== wkTip) {
+      return exactSliceResolutionFailure("scope_existence_base_unstable", {
         wk_ref: wkRef,
-        captured_wk_tip: wkTip,
-        observed_wk_tip: stableWkTip
-      }))
-    };
-  }
+        mismatch_field: "current_wk_tip",
+        expected: wkTip,
+        actual: stableWkTip
+      });
+    }
 
-  return {
-    ok: true,
-    record,
-    slice,
-    dependency_evidence: dependencyEvidence,
-    scope_existence_base: Object.freeze({ base_ref: wkRef, base_sha: wkTip }),
-    ...publicationProjection
+    return Object.freeze({
+      ok: true,
+      record,
+      slice,
+      dependency_evidence: dependencyEvidence,
+      scope_existence_base: Object.freeze({ base_ref: wkRef, base_sha: wkTip }),
+      ...publicationProjection
+    });
   };
+
+  const publicationEvidence = settlementBound
+    ? dependencyEvidence.filter((evidence) =>
+        evidence.target_work_kind === "implementation" &&
+        evidence.target_status === "done" && evidence.record_id !== record.id
+      )
+    : [];
+  const resolver = deps.resolveForgeConfirmedLandedPublicationIdentity;
+  if (publicationEvidence.length > 0 && typeof resolver !== "function") {
+    return exactSliceResolutionFailure("dependency_publication_identity_unavailable", {
+      dependency: publicationEvidence[0].address,
+      owner: "WK-2313"
+    });
+  }
+  const observations = publicationEvidence.map((evidence) =>
+    resolver({ dependency: evidence, subject, settlement })
+  );
+  if (observations.some((observed) => typeof observed?.then === "function")) {
+    return Promise.all(observations).then(
+      (resolved) => continueResolution(publicationEvidence, resolved),
+      () => exactSliceResolutionFailure("dependency_publication_identity_unavailable", {
+        dependency: publicationEvidence[0].address,
+        owner: "WK-2313"
+      })
+    );
+  }
+  return continueResolution(publicationEvidence, observations);
+}
+
+export function serializeManagedBootstrapFailure(error) {
+  const diagnostic = serializeWorkRecordDiagnosticValue(error, {
+    path: "managed_wk_bootstrap_failure"
+  });
+  const sourceCode = diagnostic !== null && typeof diagnostic === "object" &&
+      typeof diagnostic.code === "string" &&
+      /^[a-z][a-z0-9_.-]{0,159}$/u.test(diagnostic.code)
+    ? diagnostic.code
+    : null;
+  return Object.freeze({
+    cause: Object.freeze({
+      type: "managed_wk_bootstrap_failure",
+      code: sourceCode
+    }),
+    diagnostic
+  });
 }
 
 export function provisioningRefusal(error) {
 
-  const sourceCode = typeof error?.code === "string" &&
-      /^[a-z][a-z0-9_.-]{0,159}$/u.test(error.code)
-    ? error.code
-    : null;
-  const cause = Object.freeze({
-    type: "managed_wk_bootstrap_failure",
-    code: sourceCode
-  });
+  const { cause, diagnostic } = serializeManagedBootstrapFailure(error);
 
   const reconcile = classifySliceTipReconcileRefusal(error);
   if (reconcile !== null) {
+    if (reconcile.reconcile_state ===
+        SLICE_TIP_RECONCILE_STATES.ACCUMULATED_IMPLEMENTATION_TIP) {
+      return {
+        accepted: false,
+        refusal: {
+          code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          reason: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
+          detail: Object.freeze({
+            cause,
+            diagnostic,
+            reason: "exact_slice_accumulated_implementation_requires_integration",
+            failure_class: "lifecycle",
+            reconcile_state: reconcile.reconcile_state,
+            slice_tip: reconcile.slice_tip,
+            wk_base_ref: reconcile.wk_base_ref,
+            wk_base_sha: reconcile.wk_base_sha,
+            actor_recovery: "coordinator",
+            next_action: reconcile.recovery_route ??
+              "integrate_accumulated_implementation"
+          })
+        }
+      };
+    }
     return {
       accepted: false,
       refusal: {
@@ -818,6 +911,7 @@ export function provisioningRefusal(error) {
         reason: MANAGED_SLICE_TIP_RECONCILE_REQUIRED,
         detail: Object.freeze({
           cause,
+          diagnostic,
 
           reconcile_state: reconcile.reconcile_state,
           slice_tip: reconcile.slice_tip,
@@ -837,6 +931,7 @@ export function provisioningRefusal(error) {
       reason: MANAGED_PROVISIONING_UNAVAILABLE,
       detail: Object.freeze({
         cause,
+        diagnostic,
         recovery: Object.freeze({
           state: "no_supported_route",
           route: null
@@ -879,7 +974,7 @@ export async function resolveProvisioningAttemptState({ attemptStateAuthority, i
       ok: false,
       refusal: invalidProvisioningStateRefusal(
         "worktree_provisioning_attempt_state_threw",
-        { message: error?.message ?? String(error) }
+        serializeManagedBootstrapFailure(error)
       )
     };
   }

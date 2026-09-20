@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-work-record-tools.json",
   "summary": "MCP work-record assignment and evidence tools.",
-  "tool_count": 9,
+  "tool_count": 7,
   "tools": [
     {
       "tool_name": "workspace_record_graph_impact_evidence",
@@ -51,7 +51,24 @@
         "packages/wiki-core/src/operations/work-records.mjs",
         "packages/wiki-core/src/lib/work-record-admission-derived-evidence.mjs"
       ],
-      "notes": "Agent-safe MCP route for persisting graph-impact derived evidence onto a WK or slice. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots and shell output as authority. The graph_impact payload must be an envelope produced by the workspace code-index graph-impact surface (graph_impact_paths or graph_impact_diff), and the persisted entry is validated against the work-record schema before writing. Compact by default; verbose:true for raw graph_state and full derived evidence."
+      "notes": "Agent-safe MCP route for persisting graph-impact derived evidence onto a WK or slice. Resolves the workspace through configured aliases; rejects caller-supplied filesystem roots and shell output as authority. The graph_impact payload must be the complete workspace_code_index_impact answer (verbose:true, or the retained original at full_result), and the persisted entry is validated against the work-record schema before writing. Compact by default; verbose:true for raw graph_state and full derived evidence.",
+      "use_when": [
+        "Persist a complete workspace_code_index_impact answer onto a WK or slice as graph-impact evidence."
+      ],
+      "do_not_use_when": [
+        "Impact only needs to be read; workspace_code_index_impact itself records nothing."
+      ],
+      "authoritative_for": [
+        "WK-stored graph-impact derived evidence"
+      ],
+      "recommended_first_call": {
+        "operation": "record a complete impact answer for one work unit",
+        "arguments": {
+          "unit": "$work_record_unit",
+          "graph_impact": "$complete_impact_answer"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "assign_work_record_to_initiative",
@@ -95,49 +112,24 @@
         "packages/wiki-core/src/operations/work-record-contract-edit.mjs",
         "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
       ],
-      "notes": "Free/local MCP route for assigning one record-level WK to an existing initiative through the sole canonical `WK.initiative` scalar. The target initiative is validated read-only; no initiative record or `included_issues` array is written, and initiative membership remains derived from WK records. Repeating the current assignment is a no-op with no digest churn. Reassignment performs one CAS-protected WK write that atomically overwrites only the WK initiative scalar; the route does not provide two-sided transactionality or create IN-0014 membership authority."
-    },
-    {
-      "tool_name": "workspace_decision_create",
-      "display_name": "Workspace create decision",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_decision_create",
-      "task_ids": [
-        "contract-edit"
+      "notes": "Assigns one record-level WK to an existing initiative by writing only the canonical `WK.initiative` scalar. The initiative is validated read-only and never written, so membership stays derived from WK records. Repeating the current assignment is a no-op; reassignment is one CAS-protected WK write. Slice selectors and conflicting aliases refuse.",
+      "use_when": [
+        "A record-level WK must be assigned or reassigned to an existing initiative."
       ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
+      "do_not_use_when": [
+        "The target is a slice, or the initiative record itself must change; slices refuse and initiative edits use the initiative amend routes."
       ],
-      "priority": 120,
-      "side_effects": [
-        "workspace_write",
-        "record_write"
+      "authoritative_for": [
+        "canonical WK.initiative assignment"
       ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "docs/operating-model.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
-        "packages/wiki-core/src/operations/create.mjs"
-      ],
-      "notes": "Free-tier agent-callable MCP route that creates (births) a new decision (`DEC-*`) record through the shared allocator/birth path (no caller-supplied filesystem root). The new DEC is born status='proposed', seeded to its decision.v1 required fields, and written as canonical `.json` with the `.md` projection in lockstep; returns the compact born-record envelope. Identity/provenance is server-resolved (there is no actor input). DEC-0152 posture: agents DRAFT decisions but cannot ratify - `create` mints a `proposed` DEC and `amend` edits a `proposed` DEC, neither can set `status`; making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY operator action (the human `wiki decision ratify` CLI, the only ratification surface; there is no MCP ratify/unratify tool for any role), not an agent tool. To get a decision ratified, finish the `proposed` draft and ask the operator to ratify it."
+      "recommended_first_call": {
+        "operation": "assign one WK to an initiative",
+        "arguments": {
+          "unit": "$unit_if_known",
+          "initiative": "$initiative_if_known"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_decision_amend_section",
@@ -179,7 +171,26 @@
         "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
         "packages/wiki-core/src/operations/kind-record-edit.mjs"
       ],
-      "notes": "Free-tier agent-callable MCP route that amends one declared body section (`section`/`value`) of a decision (`DEC-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Identity is server-resolved (there is no actor input). DEC-0152 posture: agents DRAFT decisions but cannot ratify - `amend` edits a `proposed` DEC and cannot set `status`; making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY operator action (the human `wiki decision ratify` CLI, the only ratification surface; there is no MCP ratify/unratify tool for any role), not an agent tool. To get a decision ratified, finish the `proposed` draft and ask the operator to ratify it."
+      "notes": "Replaces one declared body section (`section`/`value`) of a proposed decision (`DEC-*`) by id through validated persistence, with optional expected_source_digest stale-write protection. Identity is server-resolved. Accepted decisions refuse edits. Ratification is a human-only operator action with no MCP route: finish the proposed draft and ask the operator to ratify it.",
+      "use_when": [
+        "A proposed decision's body section needs complete replacement text."
+      ],
+      "do_not_use_when": [
+        "The decision is accepted or needs ratification; ratification is a human-only operator action.",
+        "A top-level decision scalar changes; use the decision scalar amend route."
+      ],
+      "authoritative_for": [
+        "proposed decision section replacement"
+      ],
+      "recommended_first_call": {
+        "operation": "replace one proposed decision section",
+        "arguments": {
+          "id": "$decision_id",
+          "section": "$section_name",
+          "value": "$complete_section_text"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_decision_amend_scalar",
@@ -221,7 +232,26 @@
         "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
         "packages/wiki-core/src/operations/kind-record-edit.mjs"
       ],
-      "notes": "Free-tier agent-callable MCP route that amends one controlled top-level scalar field (`field`/`value`) of a decision (`DEC-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Lifecycle/provenance-managed fields (status/ratified/updated) are refused; identity is server-resolved (there is no actor input). DEC-0152 posture: agents DRAFT decisions but cannot ratify - `amend` edits a `proposed` DEC and cannot set `status` (the `status`/`ratified` fields are refused); making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY operator action (the human `wiki decision ratify` CLI, the only ratification surface; there is no MCP ratify/unratify tool for any role), not an agent tool. To get a decision ratified, finish the `proposed` draft and ask the operator to ratify it."
+      "notes": "Amends one controlled top-level scalar (`field`/`value`) of a proposed decision (`DEC-*`) by id through validated persistence, with optional expected_source_digest stale-write protection. Lifecycle and provenance fields (status, ratified, updated) refuse, and identity is server-resolved. Accepted decisions refuse edits; ratification remains a human-only operator action.",
+      "use_when": [
+        "A proposed decision's controlled top-level scalar needs a new value."
+      ],
+      "do_not_use_when": [
+        "The change is a status, ratification, or other lifecycle transition; those fields refuse.",
+        "A decision body section changes; use the decision section amend route."
+      ],
+      "authoritative_for": [
+        "proposed decision scalar amendment"
+      ],
+      "recommended_first_call": {
+        "operation": "amend one proposed decision scalar",
+        "arguments": {
+          "id": "$decision_id",
+          "field": "$scalar_field",
+          "value": "$new_value"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_decision_reject",
@@ -263,49 +293,23 @@
         "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
         "packages/wiki-core/src/operations/kind-record-edit.mjs"
       ],
-      "notes": "Free-tier agent-callable MCP route that performs the single agent-legitimate decision (`DEC-*`) status transition `proposed`->`rejected` by id - an agent declining (rejecting) its own never-accepted draft - through the validated kind-record persistence path, honoring an optional expected_source_digest. It refuses any source status other than `proposed` (an agent cannot `reject` an `accepted` DEC as a backdoor unlock). DEC-0155 posture: DEC lifecycle authority is symmetric - agents own the `proposed` lane (create, edit every field/section, and this one `proposed`->`rejected` transition), while every transition conferring or removing `accepted` authority (ratify, unratify, and the retirement transitions superseded/expired/deprecated) stays human-only CLI. This is the ONLY agent-callable DEC status transition."
-    },
-    {
-      "tool_name": "workspace_initiative_create",
-      "display_name": "Workspace create initiative",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_initiative_create",
-      "task_ids": [
-        "contract-edit"
+      "notes": "Performs the only agent-callable decision (`DEC-*`) status transition: `proposed` to `rejected` by id, declining a never-accepted draft, with optional expected_source_digest stale-write protection. Any other source status refuses. Transitions that confer or remove accepted authority, including ratification and retirement, are human-only operator actions.",
+      "use_when": [
+        "A never-accepted proposed decision draft should be declined."
       ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": [
-        "agent",
-        "operator"
+      "do_not_use_when": [
+        "The decision is accepted or already retired; accepted-authority transitions are human-only."
       ],
-      "priority": 125,
-      "side_effects": [
-        "workspace_write",
-        "record_write"
+      "authoritative_for": [
+        "proposed-to-rejected decision status transition"
       ],
-      "authority": [
-        "checked_in_descriptor",
-        "runtime_env",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "free_local"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery.md",
-        "docs/mcp-integration.md",
-        "docs/operating-model.md"
-      ],
-      "source_files": [
-        "packages/wiki-core/data/tool-discovery/manifest.json",
-        "packages/wiki-core/data/tool-discovery/mcp-work-record-tools.json",
-        "packages/wiki-mcp/src/server.mjs",
-        "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
-        "packages/wiki-core/src/operations/create.mjs"
-      ],
-      "notes": "Free-tier agent-callable MCP route that creates (births) a new initiative (`IN-*`) record through the shared allocator/birth path (no caller-supplied filesystem root). The new IN is born as a draft, seeded to its initiative.v1 required fields, and written as canonical `.json` with the `.md` projection in lockstep; returns the compact born-record envelope. Identity/provenance is server-resolved (there is no actor input). DEC-0152 posture: initiatives are out of scope for the DEC lockdown - agents keep drafting initiatives freely (initiatives stay agent-writable), and the DEC ratify/unratify human-only ratification does not apply to initiatives."
+      "recommended_first_call": {
+        "operation": "reject one proposed decision",
+        "arguments": {
+          "id": "$decision_id"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_initiative_amend_section",
@@ -347,7 +351,26 @@
         "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
         "packages/wiki-core/src/operations/kind-record-edit.mjs"
       ],
-      "notes": "Free-tier agent-callable MCP route that amends one declared body section (`section`/`value`) of an initiative (`IN-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Identity is server-resolved (there is no actor input). DEC-0152 posture: initiatives are out of scope for the DEC lockdown - agents keep amending initiatives freely (initiatives stay agent-writable), and the DEC ratify/unratify human-only ratification does not apply to initiatives."
+      "notes": "Replaces one declared body section (`section`/`value`) of an initiative (`IN-*`) by id through validated persistence, with optional expected_source_digest stale-write protection. Identity is server-resolved. Initiatives stay agent-writable and have no ratification gate.",
+      "use_when": [
+        "An initiative body section needs complete replacement text."
+      ],
+      "do_not_use_when": [
+        "A top-level initiative scalar changes; use the initiative scalar amend route.",
+        "A WK's initiative assignment changes; use the WK assignment route."
+      ],
+      "authoritative_for": [
+        "initiative section replacement"
+      ],
+      "recommended_first_call": {
+        "operation": "replace one initiative section",
+        "arguments": {
+          "id": "$initiative_id",
+          "section": "$section_name",
+          "value": "$complete_section_text"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_initiative_amend_scalar",
@@ -389,7 +412,26 @@
         "packages/wiki-mcp/src/lib/kind-record-write-tools.mjs",
         "packages/wiki-core/src/operations/kind-record-edit.mjs"
       ],
-      "notes": "Free-tier agent-callable MCP route that amends one controlled top-level scalar field (`field`/`value`) of an initiative (`IN-*`) record by id through the validated kind-record persistence path, honoring an optional expected_source_digest for stale-write protection. Lifecycle/provenance-managed fields (status/updated) are refused; identity is server-resolved (there is no actor input). DEC-0152 posture: initiatives are out of scope for the DEC lockdown - agents keep amending initiatives freely (initiatives stay agent-writable), and the DEC ratify/unratify human-only ratification does not apply to initiatives."
+      "notes": "Amends one controlled top-level scalar (`field`/`value`) of an initiative (`IN-*`) by id through validated persistence, with optional expected_source_digest stale-write protection. Lifecycle and provenance fields (status, updated) refuse, and identity is server-resolved. Initiatives have no ratification gate.",
+      "use_when": [
+        "An initiative's controlled top-level scalar needs a new value."
+      ],
+      "do_not_use_when": [
+        "The change is an initiative status or provenance field; those fields refuse.",
+        "An initiative body section changes; use the initiative section amend route."
+      ],
+      "authoritative_for": [
+        "initiative scalar amendment"
+      ],
+      "recommended_first_call": {
+        "operation": "amend one initiative scalar",
+        "arguments": {
+          "id": "$initiative_id",
+          "field": "$scalar_field",
+          "value": "$new_value"
+        },
+        "omit_null_arguments": true
+      }
     }
   ]
 }

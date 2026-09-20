@@ -29,7 +29,9 @@ import {
   prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
 import {
-  readPersistedWorkerAdmissionEvidenceSidecarEntry
+  captureWorkRecordAdmissionEvidence,
+  isAdmissionEvidenceSnapshotChangedError,
+  readCapturedWorkRecordAdmissionEvidence
 } from "../lib/work-record-admission-evidence-sidecar.mjs";
 import {
   detectConcurrentCanonicalRecordChange,
@@ -236,7 +238,8 @@ async function carryForwardPersistedReviewAttestations(
   previousEntry,
   derivedEvidence,
   dir,
-  currentSourceDigest
+  currentSourceDigest,
+  { recordStore = null } = {}
 ) {
   if (!isObject(previousEntry) || !isObject(derivedEvidence)) {
     return;
@@ -268,10 +271,10 @@ async function carryForwardPersistedReviewAttestations(
   if (isObject(previousEntry.normalized_request)) {
     persistedEvidence = previousEntry;
   } else {
-    persistedEvidence = await readPersistedWorkerAdmissionEvidenceSidecarEntry({
-      dir,
-      entry: previousEntry
-    });
+
+    persistedEvidence = readCapturedWorkRecordAdmissionEvidence(
+      await captureWorkRecordAdmissionEvidence({ dir, entry: previousEntry, recordStore })
+    );
   }
 
   const persistedAttestations = persistedEvidence?.normalized_request?.evidence?.review_attestations;
@@ -589,10 +592,18 @@ export async function evaluateWorkRecordAdmissionDerivedEvidenceById({
   const admission = evaluateWorkRecordAdmissionDerivedEvidence(issueOrEntry.entry);
 
   if (admissionDecisionIsLargeFileAuthoritySensitive(admission)) {
-    const rehydratedEvidence = await readPersistedWorkerAdmissionEvidenceSidecarEntry({
-      dir: targetDir,
-      entry: issueOrEntry.entry
-    });
+    let rehydrationCapture;
+    try {
+      rehydrationCapture = await captureWorkRecordAdmissionEvidence({
+        dir: targetDir,
+        entry: issueOrEntry.entry,
+        recordStore
+      });
+    } catch (error) {
+      if (!isAdmissionEvidenceSnapshotChangedError(error)) throw error;
+      return refuse({ code: error.code, message: error.message, details: cloneJson(error.details) });
+    }
+    const rehydratedEvidence = readCapturedWorkRecordAdmissionEvidence(rehydrationCapture);
     if (rehydratedEvidence) {
       const sidecarAdmission = evaluateWorkRecordAdmissionDerivedEvidence(rehydratedEvidence);
       return finalizeAdmission({
@@ -854,12 +865,33 @@ export async function refreshWorkRecordAdmissionDerivedEvidenceById({
     ...refreshOptions,
     dispatch_readiness: dispatchReadiness
   });
-  await carryForwardPersistedReviewAttestations(
-    priorDerivedEvidenceEntry,
-    derivedEvidence,
-    targetDir,
-    currentReviewedUnitDigest
-  );
+  try {
+    await carryForwardPersistedReviewAttestations(
+      priorDerivedEvidenceEntry,
+      derivedEvidence,
+      targetDir,
+      currentReviewedUnitDigest,
+      { recordStore }
+    );
+  } catch (error) {
+    if (!isAdmissionEvidenceSnapshotChangedError(error)) throw error;
+    return {
+      ...loaded,
+      valid: false,
+      written: false,
+      diagnostics: [
+        ...(Array.isArray(loaded.diagnostics) ? loaded.diagnostics : []),
+        {
+          code: error.code,
+          severity: "error",
+          message: error.message,
+          path: loaded.source_path || null,
+          details: cloneJson(error.details)
+        }
+      ],
+      derived_evidence: null
+    };
+  }
   const admissionSummary = createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary(
     evaluateWorkRecordAdmissionDerivedEvidence(derivedEvidence)
   );

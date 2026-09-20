@@ -1,0 +1,780 @@
+{
+  "annotations": [
+    {
+      "annotation_id": "ann-wk2040-provenance",
+      "kind": "provenance",
+      "text": "WK-2151 carries only WK-2040 review finding HIGH-2 after its blueteam NARROW disposition; the documentation-overstatement claim and codex-role analogue remain out of scope."
+    },
+    {
+      "annotation_id": "ann-authority-rationale",
+      "kind": "rationale",
+      "text": "The implementation must reuse the existing launcher-owned lifecycle compatibility authority and must not create a second family-local compatibility decision."
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-fresh-resume-use-existing-owner",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-fresh-resume-use-existing-owner"
+    },
+    {
+      "claim_id": "claim-mixed-generations-fail",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-mixed-generations-fail"
+    },
+    {
+      "claim_id": "claim-coherent-v2-completes-readiness",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-coherent-v2-completes-readiness"
+    },
+    {
+      "claim_id": "claim-command-omits-forbidden-mechanisms",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-command-omits-forbidden-mechanisms"
+    },
+    {
+      "claim_id": "claim-runtime-tests-cover-command",
+      "falsifying_proposition_id": "prop-runtime-tests-omit-command",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-runtime-tests-cover-command",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-versioning-tests-cover-owner",
+      "falsifying_proposition_id": "prop-versioning-tests-omit-owner",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-versioning-tests-cover-owner",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-local-tests-cover-readiness",
+      "falsifying_proposition_id": "prop-local-tests-omit-readiness",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-local-tests-cover-readiness",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-wk2151-component-exists",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2151-component-exists"
+    },
+    {
+      "claim_id": "claim-wk2151-suite-covers-component",
+      "falsifying_proposition_id": "prop-wk2151-component-absent",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-wk2151-suite-covers-component",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-owner-precedes-spawn-events",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-owner-precedes-spawn-events"
+    },
+    {
+      "claim_id": "claim-owner-emits-lifecycle-incompatibility-evidence",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-owner-emits-lifecycle-incompatibility-evidence"
+    }
+  ],
+  "collections": [
+    {
+      "collection_id": "set-wk2151-operative-claims",
+      "collection_kind": "ordered_sequence",
+      "member_claim_ids": [
+        "claim-fresh-resume-use-existing-owner",
+        "claim-owner-precedes-spawn-events",
+        "claim-mixed-generations-fail",
+        "claim-owner-emits-lifecycle-incompatibility-evidence",
+        "claim-coherent-v2-completes-readiness",
+        "claim-command-omits-forbidden-mechanisms"
+      ],
+      "purpose": "implementation_obligations"
+    }
+  ],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-lifecycle-compatibility-owner"
+        }
+      ],
+      "operator": "reference:uses",
+      "proposition_id": "prop-fresh-resume-use-existing-owner",
+      "subject_reference_id": "ref-fresh-and-resume-paths"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-both-mixed-generation-directions"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:fails_when",
+      "proposition_id": "prop-mixed-generations-fail",
+      "subject_reference_id": "ref-claude-orchestrator-command"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-coherent-v2-composition"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-real-readiness-lifecycle"
+        }
+      ],
+      "operator": "reference:completes",
+      "proposition_id": "prop-coherent-v2-completes-readiness",
+      "subject_reference_id": "ref-claude-orchestrator-command"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-forbidden-compatibility-mechanisms"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-command-omits-forbidden-mechanisms",
+      "subject_reference_id": "ref-claude-orchestrator-command"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-claude-orchestrator-command"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-runtime-tests-cover-command",
+      "subject_reference_id": "ref-orchestrator-runtime-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-claude-orchestrator-command"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-runtime-tests-omit-command",
+      "subject_reference_id": "ref-orchestrator-runtime-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-lifecycle-compatibility-owner"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-versioning-tests-cover-owner",
+      "subject_reference_id": "ref-lifecycle-versioning-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-lifecycle-compatibility-owner"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-versioning-tests-omit-owner",
+      "subject_reference_id": "ref-lifecycle-versioning-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-real-readiness-lifecycle"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-local-tests-cover-readiness",
+      "subject_reference_id": "ref-local-activation-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-real-readiness-lifecycle"
+        }
+      ],
+      "operator": "reference:omits",
+      "proposition_id": "prop-local-tests-omit-readiness",
+      "subject_reference_id": "ref-local-activation-tests"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-wk2151-component-exists",
+      "subject_reference_id": "ref-wk2151-runtime-component"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-wk2151-runtime-component"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-wk2151-suite-covers-component",
+      "subject_reference_id": "ref-wk2151-validation-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-wk2151-component-absent",
+      "subject_reference_id": "ref-wk2151-runtime-component"
+    },
+    {
+      "applicability_context": {
+        "mode": "during",
+        "operand_reference_ids": [
+          "ref-claude-orchestrator-command"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-confined-claude-child-spawn"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-host-wiki-mcp-server-spawn"
+        }
+      ],
+      "operator": "reference:precedes",
+      "proposition_id": "prop-owner-precedes-spawn-events",
+      "subject_reference_id": "ref-lifecycle-compatibility-owner"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-both-mixed-generation-directions"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-lifecycle-incompatibility-result"
+        }
+      ],
+      "operator": "reference:emits",
+      "proposition_id": "prop-owner-emits-lifecycle-incompatibility-evidence",
+      "subject_reference_id": "ref-lifecycle-compatibility-owner"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "code_symbol",
+        "path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "repository": "agent-chassis/agent-chassis",
+        "symbol": "runClaudeOrchestratorCommand"
+      },
+      "reference_id": "ref-claude-orchestrator-command",
+      "type_term": "cc:operation"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-lifecycle-compatibility-owner",
+      "type_term": "cc:authority"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "confined-claude-child-spawn"
+      },
+      "reference_id": "ref-confined-claude-child-spawn",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "host-wiki-mcp-server-spawn"
+      },
+      "reference_id": "ref-host-wiki-mcp-server-spawn",
+      "type_term": "cc:event"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "historical-producer-new-consumer-and-new-producer-historical-consumer"
+      },
+      "reference_id": "ref-both-mixed-generation-directions",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "typed-lifecycle-incompatibility-with-exact-generation-evidence"
+      },
+      "reference_id": "ref-lifecycle-incompatibility-result",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "coherent-v2-producer-consumer-composition"
+      },
+      "reference_id": "ref-coherent-v2-composition",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "authentication-initialize-tools-list-namespace-session-cleanup"
+      },
+      "reference_id": "ref-real-readiness-lifecycle",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "domain": "WK-2151",
+        "kind": "durable_id",
+        "value": "claude-orchestrator-fresh-and-resume"
+      },
+      "reference_id": "ref-fresh-and-resume-paths",
+      "type_term": "cc:process"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "retry-fallback-caller-environment-permissive-parser-historical-latch-second-deadline"
+      },
+      "reference_id": "ref-forbidden-compatibility-mechanisms",
+      "type_term": "cc:scope"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-orchestrator-runtime-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-lifecycle-versioning-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/agent-launch-stdio-mcp-local-activation.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-local-activation-tests",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "claude-orchestrator-pre-spawn-component"
+      },
+      "reference_id": "ref-wk2151-runtime-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "wk2151-declared-node-test-suite"
+      },
+      "reference_id": "ref-wk2151-validation-suite",
+      "type_term": "cc:test"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-runtime-verifies-fresh-resume-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-runtime-tests-cover-command",
+      "target_claim_id": "claim-fresh-resume-use-existing-owner"
+    },
+    {
+      "relation_id": "rel-runtime-verifies-child-order",
+      "role": "verifies",
+      "source_claim_id": "claim-runtime-tests-cover-command",
+      "target_claim_id": "claim-owner-precedes-spawn-events"
+    },
+    {
+      "relation_id": "rel-runtime-verifies-mixed-failure",
+      "role": "verifies",
+      "source_claim_id": "claim-runtime-tests-cover-command",
+      "target_claim_id": "claim-mixed-generations-fail"
+    },
+    {
+      "relation_id": "rel-runtime-verifies-no-forbidden-mechanisms",
+      "role": "verifies",
+      "source_claim_id": "claim-runtime-tests-cover-command",
+      "target_claim_id": "claim-command-omits-forbidden-mechanisms"
+    },
+    {
+      "relation_id": "rel-versioning-verifies-owner",
+      "role": "verifies",
+      "source_claim_id": "claim-versioning-tests-cover-owner",
+      "target_claim_id": "claim-fresh-resume-use-existing-owner"
+    },
+    {
+      "relation_id": "rel-local-verifies-coherent-v2",
+      "role": "verifies",
+      "source_claim_id": "claim-local-tests-cover-readiness",
+      "target_claim_id": "claim-coherent-v2-completes-readiness"
+    },
+    {
+      "relation_id": "rel-wk2151-suite-verifies-component",
+      "role": "verifies",
+      "source_claim_id": "claim-wk2151-suite-covers-component",
+      "target_claim_id": "claim-wk2151-component-exists"
+    },
+    {
+      "relation_id": "rel-versioning-verifies-typed-evidence",
+      "role": "verifies",
+      "source_claim_id": "claim-versioning-tests-cover-owner",
+      "target_claim_id": "claim-owner-emits-lifecycle-incompatibility-evidence"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-local-activation-readiness",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+            "mutation_id": "mutation-local-activation-readiness",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-local-tests-omit-readiness",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "state_transition",
+        "observable_id": "observable-local-activation-readiness",
+        "proposition_id": "prop-local-tests-cover-readiness"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "mock_only_boundary_substitution",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-local-activation-readiness",
+        "kind": "module",
+        "runtime_module_path": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "subject_reference_ids": [
+          "ref-real-readiness-lifecycle"
+        ]
+      },
+      "test_proof_id": "test-proof-local-activation-readiness",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-local-tests-cover-readiness",
+      "test_selector": {
+        "name": "local activation readiness",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-orchestrator-runtime-pre-spawn",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+            "mutation_id": "mutation-orchestrator-runtime-pre-spawn",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-runtime-tests-omit-command",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "side_effect",
+        "observable_id": "observable-orchestrator-runtime-pre-spawn",
+        "proposition_id": "prop-runtime-tests-cover-command"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "mock_only_boundary_substitution",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-orchestrator-runtime-pre-spawn",
+        "kind": "module",
+        "runtime_module_path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "subject_reference_ids": [
+          "ref-claude-orchestrator-command"
+        ]
+      },
+      "test_proof_id": "test-proof-orchestrator-runtime-pre-spawn",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-runtime-tests-cover-command",
+      "test_selector": {
+        "name": "orchestrator runtime pre spawn",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-lifecycle-versioning-owner",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+            "mutation_id": "mutation-lifecycle-versioning-owner",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-versioning-tests-omit-owner",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "structured_diagnostic",
+        "observable_id": "observable-lifecycle-versioning-owner",
+        "proposition_id": "prop-versioning-tests-cover-owner"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "mock_only_boundary_substitution",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-lifecycle-versioning-owner",
+        "kind": "module",
+        "runtime_module_path": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "subject_reference_ids": [
+          "ref-lifecycle-compatibility-owner"
+        ]
+      },
+      "test_proof_id": "test-proof-lifecycle-versioning-owner",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-versioning-tests-cover-owner",
+      "test_selector": {
+        "name": "lifecycle versioning owner",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wk2151-component-validity",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+            "mutation_id": "mutation-wk2151-component-validity",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-wk2151-component-absent",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "side_effect",
+        "observable_id": "observable-wk2151-component-validity",
+        "proposition_id": "prop-wk2151-suite-covers-component"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "mock_only_boundary_substitution",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-wk2151-component-validity",
+        "kind": "module",
+        "runtime_module_path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "subject_reference_ids": [
+          "ref-wk2151-runtime-component"
+        ]
+      },
+      "test_proof_id": "test-proof-wk2151-component-validity",
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-wk2151-suite-covers-component",
+      "test_selector": {
+        "name": "wk2151 component validity",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

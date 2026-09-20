@@ -30,7 +30,7 @@ test("mutation-consistent pagination preserves the explicit policy choice", () =
   for (const profileId of alternatives) {
     const selected = describeProofPackAuthoring({
       profileId,
-      profileVersion: "1.0.0",
+      profileVersion: "3.0.0",
       requestedIntents: [intent]
     });
     assert.equal(selected.profile_id, profileId);
@@ -57,7 +57,7 @@ test("complete pagination traversal is atomically discoverable and selectable", 
   assert.deepEqual(result.ambiguous_intents, []);
   const authored = describeProofPackAuthoring({
     profileId: "proof.pagination.complete-traversal",
-    profileVersion: "1.0.0",
+    profileVersion: "3.0.0",
     requestedIntents: [completeTraversalIntent]
   });
   assert.deepEqual(authored.intent_definitions.map(({ intent_id: id }) => id), [

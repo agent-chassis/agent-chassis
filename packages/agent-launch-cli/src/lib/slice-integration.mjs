@@ -1,7 +1,9 @@
 
 
 import { defaultRunGitAsync } from "./worktree-substrate.mjs";
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import {
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
   withControlledContractAuthorityExclusion
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
@@ -319,7 +321,11 @@ export async function integrateCommittedSlice({
 
     review_target: write.reviewTarget,
     transition: write.transition,
-    boundary_authorization: appliedBoundaryAuthorization
+    boundary_authorization: appliedBoundaryAuthorization,
+
+    integrated_state: write.finalSlice && integratedCommit === write.wkTip
+      ? "final"
+      : "non_final"
   });
     }
   });

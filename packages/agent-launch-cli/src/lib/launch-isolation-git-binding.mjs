@@ -202,8 +202,6 @@ export function normalizeProvisionedWorktreeGitIsolation(identity, repoReal) {
       }
     );
   }
-  const readOnlyBinds = metadataProjection.readOnlyBinds;
-
   return Object.freeze({
     schemaVersion: "provisioned-worktree-git-isolation.v1",
     worktreePath: workTree,
@@ -214,8 +212,7 @@ export function normalizeProvisionedWorktreeGitIsolation(identity, repoReal) {
     mainGitDir,
     gitPointerFile: worktreeGitFile,
     worktreeGitFile,
-    readOnlyBinds,
-    namespaceDirectories: metadataProjection.namespaceDirectories,
+    readOnlyBinds: Object.freeze([]),
     metadataProjection
   });
 }

@@ -61,10 +61,8 @@ export const z = {
 export class McpServer {}
 export class StdioServerTransport {}
 export const WORK_RECORD_STATUS_VALUES = ["todo", "doing", "review", "done"];
-export const WORK_RECORD_CONTRACT_LIST_FIELDS = [];
 export const WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME = "workspace_work_record_refresh_admission_metrics";
 export const WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME = "workspace_work_record_refresh_target_resolution_evidence";
-export const WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME = "workspace_work_record_cleanup_derived_evidence";
 
 export function readContractFile() { return ""; }
 export function parseWorkspaceRepos() {
@@ -84,7 +82,6 @@ export function createCompactContractEditResponse(_workspaceRepo, result) { retu
 export function createCompactValidateDispatchResponse(_workspaceRepo, result) { return result; }
 export function validateOptionalExpectedSourceDigest() { return true; }
 export function runWorkspaceWorkRecordAdmissionRefreshRoute() { return {}; }
-export function runWorkspaceWorkRecordCleanupDerivedEvidenceRoute() { return {}; }
 export function jsonContent(value) {
   return { structuredContent: value, content: [{ type: "text", text: JSON.stringify(value) }] };
 }
@@ -153,13 +150,6 @@ export function createRegisterTool({
     ) {
       return;
     }
-    if (
-      registeredTier !== "paid_cce" &&
-      mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames instanceof Set &&
-      !mcpToolTierRegistrationPolicy.freeLocalFallbackToolNames.has(name)
-    ) {
-      return;
-    }
     const auditedHandler = toolUsageAuditBoundary.wrapHandler(name, handler);
     server.registerTool(name, config, guardToolHandler(auditedHandler, { name, log: structuredLog }));
     registeredToolNames.add(name);
@@ -171,8 +161,8 @@ export function workspaceToolRouterRecommend() { return {}; }
 // The composition root's file-local helper run moved out of server.mjs into
 // ./lib/server-composition-helpers.mjs. This harness rebuilds server.mjs by
 // stripping every import and re-injecting these stubs, so the helpers it now
-// imports are stubbed here. structuredLog and the audit-context builders feed
-// stubbed sinks (createRegisterTool / createToolUsageAuditBoundaryRecorder);
+// imports are stubbed here. structuredLog feeds the stubbed sinks
+// (createRegisterTool / createToolUsageAuditBoundaryRecorder);
 // trimmed, augmentWorkspaceToolDiscoveryDescriptor, and
 // loadMcpToolTierRegistrationPolicy keep the SAME behavior the inline versions
 // had against these stubs — an empty descriptor corpus yields a loaded policy
@@ -188,12 +178,9 @@ export function loadMcpToolTierRegistrationPolicy() {
     descriptorLoaded: true,
     descriptorToolNames: names,
     registrationEligibleToolNames: names,
-    freeLocalToolNames: names,
-    freeLocalFallbackToolNames: null
+    freeLocalToolNames: names
   };
 }
-export function createProductionToolUsageAuditOrigin() { return {}; }
-export function createProductionToolUsageAuditSelectedContext() { return {}; }
 // The four single-route registration clusters that moved out of server.mjs.
 // This harness exercises the COMMIT surface, so they are stubbed exactly like
 // every other registrar above.
@@ -206,6 +193,8 @@ export function registerCodeIndexTools() {}
 export function registerGraphImpactPersistenceTools() {}
 export function registerStaticResources() {}
 export function registerWorkRecordReadTools() {}
+export function registerWorkRecordEntryTools() {}
+export function createWorkspaceReadRepoResolver() { return () => null; }
 export function registerIntegrationStatusTools() {}
 export function registerIntegrationPromoteCheckTools() {}
 export function registerAgentFaqTools() {}
@@ -214,9 +203,14 @@ export async function bindPackageDocsCarrier() { return null; }
 export function registerToolDocReadTools() {}
 export function toDocumentationProjectionCarrier() { return null; }
 export function createToolUsageAuditBoundaryRecorder() {
-  return { wrapHandler: (_name, handler) => handler, recorder: {} };
+  return { wrapHandler: (_name, handler) => handler };
 }
-export function registerToolUsageAuditTools() {}
+// Anonymous metrics composition runs only in startWikiMcpServer, which this
+// harness never calls; inert stubs keep the rebuilt module's imports resolvable.
+export function createMetricsLogWriter() {
+  return { enqueue() { return false; }, countHealth() { return false; }, close: async () => ({}) };
+}
+export function resolveMcpMetricsConfig() { return { state: "disabled", root: null, reason: null }; }
 export function registerToolDiscoveryTools() {}
 export function registerControlledContractTools() {}
 export function persistControlledContractGeneration() {}
@@ -304,7 +298,6 @@ async function importServerWithFakes(t) {
     "readContractFile",
     "setWorkRecordStatusByUnit",
     "WORK_RECORD_STATUS_VALUES",
-    "WORK_RECORD_CONTRACT_LIST_FIELDS",
     "parseWorkspaceRepos",
     "resolveWorkspaceRepo",
     "advanceWkRef",
@@ -330,8 +323,6 @@ async function importServerWithFakes(t) {
     "trimmed",
     "augmentWorkspaceToolDiscoveryDescriptor",
     "loadMcpToolTierRegistrationPolicy",
-    "createProductionToolUsageAuditOrigin",
-    "createProductionToolUsageAuditSelectedContext",
     "registerMcpContentReferenceTools",
     "registerToolRouterTools",
     "registerInitiativeStatusTools",
@@ -342,15 +333,15 @@ async function importServerWithFakes(t) {
     "createCompactValidateDispatchResponse",
     "validateOptionalExpectedSourceDigest",
     "runWorkspaceWorkRecordAdmissionRefreshRoute",
-    "runWorkspaceWorkRecordCleanupDerivedEvidenceRoute",
     "WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME",
     "WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME",
-    "WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME",
     "createGraphImpactToolResponse",
     "registerCodeIndexTools",
     "registerGraphImpactPersistenceTools",
     "registerStaticResources",
     "registerWorkRecordReadTools",
+    "registerWorkRecordEntryTools",
+    "createWorkspaceReadRepoResolver",
     "registerIntegrationStatusTools",
     "registerIntegrationPromoteCheckTools",
     "registerAgentFaqTools",
@@ -359,7 +350,8 @@ async function importServerWithFakes(t) {
     "registerToolDocReadTools",
     "toDocumentationProjectionCarrier",
     "createToolUsageAuditBoundaryRecorder",
-    "registerToolUsageAuditTools",
+    "createMetricsLogWriter",
+    "resolveMcpMetricsConfig",
     "registerToolDiscoveryTools",
     "registerControlledContractTools",
     "persistControlledContractGeneration",
@@ -380,12 +372,20 @@ async function importServerWithFakes(t) {
   const commitToolTransformed = [
     'import path from "node:path";',
     `import { resolveLauncherRunCredential, resolveAssignedUnit, WIKI_MCP_ASSIGNED_UNIT_ENV_VAR, WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR, WIKI_MCP_COMMIT_RUN_ID_ENV_VAR } from ${JSON.stringify(pathToFileURL(path.join(REPO_ROOT, "packages/wiki-mcp/src/lib/launcher-run-credential.mjs")).href)};`,
-    `import { advanceWkRef, materializeCommitObject, verifyAndMeasureCommitScope, resolveWorktreeBinding, deriveWritableMountsFromWriteScope } from ${JSON.stringify(pathToFileURL(stubsPath).href)};`,
+    `import { advanceWkRef, materializeCommitObject, verifyAndMeasureCommitScope, resolveWorktreeBinding } from ${JSON.stringify(pathToFileURL(stubsPath).href)};`,
     `import { admitWorkerCommitCall, WORKER_COMMIT_TOOL_NAME } from ${JSON.stringify(pathToFileURL(COMMIT_GUARD_SOURCE).href)};`,
     'import { verifyExactSliceCommitBinding, resolveCommitGitIdentity, normalizeCommitRef, ' +
-      'resolveExpectedEnvelope, resolveSparseBinding, resolveCommitWriteScopeMatcher } from ' +
+      'resolveExpectedEnvelope, resolveCommitWriteScopeMatcher } from ' +
       `${JSON.stringify(pathToFileURL(EXACT_SLICE_COMMIT_BINDING_SOURCE).href)};`,
+    ...[
+
+      ["createSubmitForReviewResponse", "packages/wiki-mcp/src/lib/server-composition-helpers.mjs"],
+      ["createWorkerScopeTreeReader", "packages/agent-launch-cli/src/lib/backend-worker-scope-tree.mjs"],
+      ["defaultRunGit", "packages/agent-launch-cli/src/lib/worktree-substrate-primitives.mjs"],
+      ["CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT", "packages/wiki-core/src/lib/controlled-contract-private-path-policy.mjs"]
+    ].map(([name, source]) => `import { ${name} } from ${JSON.stringify(pathToFileURL(path.join(REPO_ROOT, source)).href)};`),
     `import { persistExactSliceImplementationReviewTransition } from ${JSON.stringify(pathToFileURL(SLICE_REVIEW_ACCEPTANCE_OPERATION_SOURCE).href)};`,
+    `import { serializeWorkRecordDiagnosticValue } from ${JSON.stringify(pathToFileURL(path.join(REPO_ROOT, "packages/wiki-core/src/operations/work-record-persistence-diagnostics.mjs")).href)};`,
     commitToolWithoutStaticImports
   ].join("\n").replace(
     'import("../../../agent-launch-cli/src/lib/slice-integration.mjs")',
@@ -396,7 +396,8 @@ async function importServerWithFakes(t) {
   const original = (await readFile(SERVER_SOURCE, "utf8")).replace(/^#!.*\n/u, "");
   const withoutStaticImports = original.replace(/^import[\s\S]*?;\n/gm, "");
   const withoutMain = withoutStaticImports.replace(
-    /\n(?:main\(\)\.catch|if \(process\.argv\[1\][^\n]*\))[\s\S]*$/u,
+
+    /\n(?:main\(\)\.catch|if \(process\.argv\[1\][^\n]*\)|if \(isDirectModuleEntry\(import\.meta\.url\)\))[\s\S]*$/u,
     "\nexport { registerTools };\n"
   );
   const transformed = [
@@ -427,7 +428,7 @@ export async function registerCommitTool(t) {
 
 export function exactSliceBinding(overrides = {}) {
   return {
-    schema_version: "worktree-identity-binding.v1",
+    schema_version: "worktree-identity-binding.v2",
     launch_ref: "launch-WK-1429-SLICE-004",
     run_id: "wkdb_WK1429_SLICE004",
     retry_id: 0,
@@ -453,19 +454,9 @@ export function exactSliceBinding(overrides = {}) {
     },
     source_digest: `sha256:${"a".repeat(64)}`,
     source_version: "1",
-    cone_dirs: ["packages/wiki-mcp", "tests"],
-    index_sparse: false,
+    checkout_mode: "full",
     ...overrides
   };
-}
-
-export function exactFullSliceBinding(overrides = {}) {
-  const binding = exactSliceBinding({ output_branch: "refs/heads/slice/IN-0011/WK-1429/SLICE-004" });
-  delete binding.cone_dirs;
-  delete binding.index_sparse;
-  binding.schema_version = "worktree-identity-binding.v2";
-  binding.checkout_mode = "full";
-  return { ...binding, ...overrides };
 }
 
 export function saveCommitEnv(t) {

@@ -41,18 +41,30 @@ async function runMarkdown(argv) {
   printProjectionResult(result, { json: Boolean(options.json), field: "markdown" });
 }
 
+function agentBriefRepositoryOption(options) {
+  if (!Object.hasOwn(options, "repository")) return null;
+  const value = options.repository;
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new Error("work-record-render agent-brief --repository requires a nonblank repository alias");
+  }
+  return value;
+}
+
 async function runAgentBrief(argv) {
   const { options } = parseArgs(argv);
   if (options.help) {
     console.log(
-      "Usage: wiki work-record-render agent-brief (--id <WK-0001> | --path <repo-relative-json-path>) [--dir <path>] [--slice-id <slice-id>] [--output-path <path>] [--json]"
+      "Usage: wiki work-record-render agent-brief (--id <WK-0001> | --path <repo-relative-json-path>) [--dir <path>] [--repository <alias>] [--slice-id <slice-id>] [--output-path <path>] [--json]\n" +
+      "  --repository <alias>  repository namespace configured for --dir; required when the brief has assignment material"
     );
     return;
   }
 
   const targetDir = path.resolve(String(options.dir || "."));
+  const repository = agentBriefRepositoryOption(options);
   const result = await renderWorkRecordAgentBriefById({
     dir: targetDir,
+    repository,
     id: options.path ? null : requireOption(options, "id", "work-record-render agent-brief requires --id"),
     path: options.path || null,
     generatedAt: options["generated-at"] || null,
@@ -108,7 +120,7 @@ export async function runWorkRecordRender(argv) {
     case "--help":
     case "-h":
       console.log(
-        "Usage: wiki work-record-render <markdown|agent-brief|check> [--id <WK-0001> | --path <repo-relative-json-path>] [--dir <path>] [--slice-id <slice-id>] [--output-path <path>] [--source-dir <path>] [--json]"
+        "Usage: wiki work-record-render <markdown|agent-brief|check> [--id <WK-0001> | --path <repo-relative-json-path>] [--dir <path>] [--repository <alias>] [--slice-id <slice-id>] [--output-path <path>] [--source-dir <path>] [--json]"
       );
       return;
     default:

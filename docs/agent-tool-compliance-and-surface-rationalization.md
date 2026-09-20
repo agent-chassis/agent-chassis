@@ -21,9 +21,10 @@ The shared `registerTool` boundary first applies the session-role policy. Every
 role-visible registration must then have a canonical descriptor row and belong
 to the manifest-derived registration-eligible set. That check precedes the tier
 projection and therefore covers free/local, paid CCE, and operator-only routes.
-A malformed descriptor, changed debt row, or new incomplete row fails startup;
-only a genuinely absent installed descriptor asset retains the fixed existing
-free/local compatibility fallback.
+A missing installed manifest or fragment, a malformed descriptor, a changed debt
+row, or a new incomplete row fails startup with its original attributable error
+before any registration boundary exists. There is no fixed fallback tool
+population.
 
 Live description safety is a separate runtime invariant. The single policy
 owner is `AGENT_TOOL_LIVE_DESCRIPTION_HARD_LIMIT_CHARACTERS` in
@@ -59,18 +60,21 @@ accountability data. The record-map digest is pinned by
 record deletion, replacement-route mutation, and an updated/rebased record map
 fail the validator or the pinned manifest test.
 
-| Live alias | Owner | Target WK | Review date | Replacement route | Compatibility evidence |
+| Retired alias | Owner | Target WK | Review date | Recorded replacement route | Compatibility evidence |
 | --- | --- | --- | --- | --- | --- |
-| `workspace_sidecar_build` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_build` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records are complete, immutable, live, and discoverable |
-| `workspace_sidecar_rebuild` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_rebuild` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records are complete, immutable, live, and discoverable |
-| `workspace_sidecar_status` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_status` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records are complete, immutable, live, and discoverable |
-| `workspace_sidecar_impact_paths` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_impact_paths` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records are complete, immutable, live, and discoverable |
-| `workspace_sidecar_context_for_path` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_context_for_path` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records are complete, immutable, live, and discoverable |
+| `workspace_sidecar_build` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_build` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records stay immutable while every alias is retired from the live surface |
+| `workspace_sidecar_rebuild` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_rebuild` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records stay immutable while every alias is retired from the live surface |
+| `workspace_sidecar_status` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_status` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records stay immutable while every alias is retired from the live surface |
+| `workspace_sidecar_impact_paths` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_impact_paths` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records stay immutable while every alias is retired from the live surface |
+| `workspace_sidecar_context_for_path` | code-index registration/descriptor/test family | work record | 2026-08-21 | `workspace_code_index_context_for_path` | `tests/agent-tool-conformance.test.mjs`: compatibility alias records stay immutable while every alias is retired from the live surface |
 
-All five aliases remain live and discoverable with their existing public
-behavior. They contribute five rows to `debt_total` and are reported separately
-as `compatibility_alias_debt_total`, `compatibility_alias_remaining`, and
-`compatibility_alias_retired`. Changing a descriptor alias target is added debt;
+All five aliases are retired: they are absent from registration, discovery, and
+role access, and a retired name refuses when called. Their immutable records
+keep the pinned baseline and now report as `compatibility_alias_retired`, with
+`compatibility_alias_debt_total` zero and `compatibility_alias_remaining` empty.
+The recorded replacement for the retired path-impact alias names a route that is
+itself retired; `workspace_code_index_impact` is the current impact route.
+Restoring a retired alias to the descriptor is added debt. Changing a descriptor alias target is added debt;
 removing the descriptor and access-policy entry through an authorized
 compatibility change is measurable retirement. No deprecated lifecycle or
 support value is introduced.
@@ -92,13 +96,19 @@ projection-vocabulary owners live in `@agent-chassis/controlled-contract`; wiki
 projection and byte measurement remain injected wiki-owned behavior, so the
 neutral package imports neither wiki-core nor wiki-mcp.
 
-Current results are 74 remaining debt rows: 69 unchanged routing-control gaps
-and five workspace-sidecar compatibility aliases. Thirteen rows retired from
-the baseline: the authoring-ergonomics report, three discovery routes, four SCIP
-relation routes, committed-slice integration, coordination preflight, two
-terminal-candidate routes, and the controlled proof-authoring skeleton route.
-`debt_added` is empty. The manifest-backed report is the exact name inventory
-and prevents silent growth.
+Code-index evidence used by this report is ensured automatically. The report
+reuses a fresh shared committed index or invokes the incumbent atomic/coalesced
+builder for missing, stale, incompatible, or corrupt state, then continues the
+report against captured HEAD. A genuine ensure failure is reported as
+`code_index_rebuild_failed` with the owner failure and correction-before-retry
+guidance; dirty-worktree content is not substituted for committed evidence.
+
+The evaluator report is the current measurement. `applicable_tool_count`,
+`debt_total`, `remaining_tool_names`, and `debt_retired` are computed from the
+assembled descriptor, the manifest baseline, and the access policy, and the
+agent-tool conformance test pins their exact current values. `debt_added` must
+stay empty. A baseline row whose prose changes must gain its complete routing
+controls in the same change, because an edited incomplete row is added debt.
 
 ## Runtime ceiling and token-budget debt
 
@@ -114,19 +124,25 @@ The existing manifest and notes/description budget test family owns the debt
 record with owner `tool-discovery notes/description budget test family` and
 target `work record`.
 
-| Surface | Target | Historical baseline | Current | Denominator | Added | Retired | Remaining excess | Within target |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Raw canonical descriptor `notes` | 62,000 chars | 65,172 chars | 60,958 chars | 152 noted rows | 0 | 4,214 | 0 | Yes |
-| Paid/operator live `tools/list` descriptions | 28,000 chars | 44,880 chars | 44,487 chars | 126 registered tools | 0 | 393 | 16,487 | No |
+| Surface | Target | Measured population |
+| --- | ---: | --- |
+| Raw canonical descriptor `notes` | 62,000 chars | Every non-empty base note before role/tier projection. `tier_text` overrides are checked separately and are not part of this aggregate. |
+| Paid/operator live `tools/list` descriptions | 28,000 chars | Every registered description in the paid operator posture. |
 
-Each surface carries an exact per-tool length map, total, denominator, and
-integrity digest. The manifest validator recomputes all four facts, and the
-manifest test pins their accepted values and digests. The evaluator reports
+Each surface carries an exact historical per-tool length map, total, denominator,
+and integrity digest; the notes-budget and live-description budget tests pin the
+current values the evaluator reports. The manifest validator recomputes all four facts, and the
+manifest test pins their accepted values and digests. Those historical per-tool
+lengths are debt guards only while a row lacks the complete structured routing
+metadata. Once a row is metadata-complete, its prose is governed by the aggregate
+surface target, the universal runtime limit, and the discovery prose boundary;
+the old row length is measurement evidence, not a permanent tool-specific cap.
+The evaluator reports
 `target`, `current_value`, `debt_added`, `debt_retired`, `owner`, `target_wk`, and
 `remaining_excess`. A shorter or removed entry retires debt without rebasing.
-Any new entry or per-entry increase is reported separately as added debt even if
-larger reductions elsewhere make the aggregate smaller. Raw-note growth fails
-structured lint; live-description growth fails the description-budget CI test.
+Any new entry is reported separately. A per-entry increase on a metadata-incomplete
+row is added debt even if larger reductions elsewhere make the aggregate smaller.
+Growth on a metadata-complete row remains visible as measurement but is not debt.
 Thus new or changed prose cannot hide inside the historical allowance without
 turning historical debt evidence into runtime launch authority.
 
@@ -139,22 +155,21 @@ MCP transport bytes include the complete two-channel result envelope and remain
 owned by the projection-bounds measurement; they are not counted as
 model-visible description or raw-note debt.
 
-The focused discovery budgets remain within target: discovery
-list/describe/query notes total 741 against 750, the four SCIP notes total 640
-against their focused bound, every live description is at most 1,500 characters,
-and the SCIP shared description reduction remains enforced. Broader corpus
-issues in the notes smell suite and the three-route duplicate-description
-sentence are tracked separately against the debt owner named above.
+The focused discovery budgets remain enforced: the two retained discovery
+routes' notes stay within 750 characters, the four SCIP notes within 650, every
+live description is at most 1,500 characters, and the SCIP shared description
+reduction remains enforced. Prose content follows the
+[Discovery Prose Boundary](tool-discovery-schema.md#discovery-prose-boundary).
 
 ## Compact discovery and token cost
 
-`workspace_tools_list` remains the bounded browse route;
-`workspace_tools_describe` remains targeted detail; and
-`workspace_tools_query` remains the known-selector lookup. Their public routes
-are not mergeable because their input schemas, output semantics, and discovery
-reach differ. Their notes were reduced from 1,424 to 741 characters in total
-while retaining selection distinctions, authority, bounds, and complete
-recovery guidance.
+`workspace_tools_list` remains the bounded browse route, filtered by `task_id`
+when the task is known, and `workspace_tools_describe` remains targeted detail
+for an exact tool name. Their public routes are not mergeable because their
+input schemas, output semantics, and discovery reach differ. The earlier
+three-route discovery family's notes were reduced from 1,424 to 741 characters
+in total while retaining selection distinctions, authority, bounds, and
+complete recovery guidance; the two retained routes' notes now total 534.
 
 work record narrows only the ordinary list and compact-description projections. It
 is bound to the immutable census baseline of 106/106 orchestrator-visible tools
@@ -204,6 +219,51 @@ contract: `result_count.total`, `result_count.returned`, and
 the same route restores every omitted result and full evidence. Their exact
 enforcement is `tests/interface-smoke-mcp-code-index.test.mjs`, test `MCP symbol
 navigation caps successful defaults and preserves verbose full envelopes`.
+
+## Controlled-authoring journey measurement
+
+Launcher-owned stdio MCP capture records a bounded
+`controlled-authoring-journey-measurement.v2` summary in local transcript
+session metadata. It pairs every ID-bearing protocol request with its response,
+including the real MCP `initialize` exchange, and includes successes, refusals,
+protocol failures, retries, and unmatched calls. Initialize request/response bytes
+remain in the transport totals and its observed latency is reported separately in
+the protocol summary; it is not misclassified as a tool operation. Per-tool-call
+phase, outcome, reported effect, and elapsed time are retained when observed. Invalid
+frames, duplicate or unmatched IDs, missing phases, and mixed evidence
+identities make the capture incomplete instead of shrinking its denominator. Its
+`source.content_digest` is the capture owner's stable executed-source census
+digest (see the transcript capture section of
+[agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md));
+a changed or unobservable census leaves the identity incomplete, and comparison
+refuses it rather than substituting a command or path label.
+
+Classification is documented and separate from observed outcome: ordinary
+semantic upsert and remove calls are authoring,
+snapshot/cursor/collection/field-path selectors are retrieval, discovery-family
+calls are discovery, and all other calls are preparation. Retry attribution
+requires an observed earlier request ID; identical requests alone are only
+reported as repetition. A refusal never
+implies caller responsibility. Attribution stays unknown unless separately
+authored with supporting evidence. Repeated complete requests and repeated
+semantic inputs are different counts. Request and response byte counts remain
+transport diagnostics and are explicitly not token counts. No transcript
+values, paths, or fingerprints enter the summary or an admission carrier.
+IDs are scoped to one captured server session. Reuse in a separately measured
+server generation is valid; reuse inside one session remains a duplicate and
+orphaned, duplicate, malformed, and error responses remain explicit.
+
+Exact token totals are admitted only when the observed client projection
+supplies nonnegative input/output counts together with client, model, tokenizer,
+and projection identities. Otherwise the summary reports the observation gap;
+it never estimates tokens from bytes.
+
+Historical paired-benchmark artifacts remain measurement evidence with their
+recorded source identities, comparison validity, and transport limitations.
+The retired authoring workflow has no current executable benchmark wrapper;
+ordinary-authoring performance evidence must exercise the registered upsert,
+query, and explicit-validation operations directly and must preserve the same
+source, semantic-state, exactly-once, and client-projection attribution rules.
 
 ## Cross-posture assurance
 

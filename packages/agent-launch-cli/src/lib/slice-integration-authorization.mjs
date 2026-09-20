@@ -1,21 +1,16 @@
 
 
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
 import {
-  classifyControlledContractRepositoryPath,
-  controlledContractGenerationDigest
-} from
-  "@agent-chassis/wiki-core/src/lib/controlled-contract-tool-shared.mjs";
-import {
-  CONTROLLED_CONTRACT_CARRIER_SET_MANIFEST_CODES,
-  ControlledContractCarrierSetManifestError,
-  parseControlledContractCarrierSetManifest
-} from "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-manifest.mjs";
+  computeWorkRecordSourceDigest
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import { buildWkSliceMarkerTrailer } from "./commit-tool-exposure-guard.mjs";
+import { parseLiteralCommitObject } from "./literal-commit-object.mjs";
+import { readCompleteCanonicalContractGenerationIdentity } from
+  "./canonical-contract-generation-identity.mjs";
 
 export const SLICE_INTEGRATION_SCHEMA_VERSION = "slice-integration.v1";
 export const SLICE_INTEGRATION_BOUNDARY_AUTHORIZATION_SCHEMA_VERSION =
@@ -127,51 +122,6 @@ function runMaybeAsyncGenerator(factory) {
     );
   };
   return advance("next", undefined);
-}
-
-function parseLiteralCommitBytes(raw, oid) {
-  if (typeof raw !== "string" || raw.includes("\uFFFD") || raw.includes("\0") || raw.includes("\r")) {
-    return null;
-  }
-  const separator = raw.indexOf("\n\n");
-  if (separator < 0) return null;
-  const lines = raw.slice(0, separator).split("\n");
-  if (lines.length === 0 || lines.some((line) => line.length === 0)) return null;
-  const headers = [];
-  let continuedKey = null;
-  for (const line of lines) {
-    if (line.startsWith(" ")) {
-      if (continuedKey === null || continuedKey === "tree" || continuedKey === "parent" ||
-          /[\x00-\x1f\x7f]/u.test(line.slice(1))) {
-        return null;
-      }
-      continue;
-    }
-    const space = line.indexOf(" ");
-    if (space <= 0 || space === line.length - 1) return null;
-    const key = line.slice(0, space);
-    const value = line.slice(space + 1);
-    if (!/^[\x21-\x7e]+$/u.test(key) || value.startsWith(" ") || /[\x00-\x1f\x7f]/u.test(value)) {
-      return null;
-    }
-    headers.push({ key, value });
-    continuedKey = key;
-  }
-  const treeHeaders = headers.filter(({ key }) => key === "tree");
-  const parentHeaders = headers.filter(({ key }) => key === "parent");
-  if (treeHeaders.length !== 1) return null;
-  const tree = treeHeaders[0].value;
-  const parents = parentHeaders.map(({ value }) => value);
-  if (!OID_RE.test(tree) || tree.length !== oid.length ||
-      parents.some((parent) => !OID_RE.test(parent) || parent.length !== oid.length)) {
-    return null;
-  }
-  return Object.freeze({
-    oid,
-    tree,
-    parents: Object.freeze(parents),
-    message: raw.slice(separator + 2)
-  });
 }
 
 export function normalizeRef(value, pattern, label) {
@@ -605,7 +555,8 @@ function authorityProbe(runGit, mainRepo, args) {
 }
 
 function parseLiteralCommit(raw, oid) {
-  return parseLiteralCommitBytes(raw, oid);
+  const parsed = parseLiteralCommitObject(raw, oid);
+  return parsed.ok ? parsed.commit : null;
 }
 
 function readLiteralCommit(runGit, mainRepo, oid, cache) {
@@ -655,208 +606,13 @@ function canonicalRepositoryIdentity(mainRepo) {
   }
 }
 
-function readCanonicalContractManifestIdentity({ mainRepo, wkId, focus, manifestPath }) {
-  let firstBytes;
-  try {
-    const entry = lstatSync(manifestPath);
-    if (!entry.isFile() || entry.isSymbolicLink() || realpathSync(manifestPath) !== manifestPath) {
-      observationFailure("contract_generation_manifest_invalid",
-        "canonical contract-generation manifest is not one confined regular file");
-    }
-    firstBytes = readFileSync(manifestPath);
-  } catch (error) {
-    if (error instanceof SliceIntegrationError) throw error;
-    observationFailure("contract_generation_manifest_unreadable",
-      "canonical contract-generation manifest could not be read", {
-        cause_code: error?.code ?? null
-      });
-  }
-  let manifest;
-  try {
-    manifest = parseControlledContractCarrierSetManifest(firstBytes, {
-      wkId,
-      focus
-    });
-  } catch (error) {
-    if (!(error instanceof ControlledContractCarrierSetManifestError)) throw error;
-    const reason = error.code === CONTROLLED_CONTRACT_CARRIER_SET_MANIFEST_CODES.MEMBER
-      ? "contract_generation_member_invalid"
-      : error.code === CONTROLLED_CONTRACT_CARRIER_SET_MANIFEST_CODES.MISSING ||
-          error.code === CONTROLLED_CONTRACT_CARRIER_SET_MANIFEST_CODES.INCOMPLETE
-        ? "contract_generation_manifest_incomplete"
-        : "contract_generation_manifest_malformed";
-    observationFailure(reason, error.message, { manifest_code: error.code });
-  }
-  const generationId = manifest.generation.id;
-  const generationPath = manifest.generation.path;
-  const carriers = manifest.carrier_census.filter((member) =>
-    member.member_kind === "carrier" || member.member_kind === "evaluation_input");
-  const declaredManifestDigest = manifest.manifest_digest;
-  const generationDirectory = path.join(mainRepo, "wiki", "contracts", generationPath);
-  const descriptors = [];
-  for (const carrier of carriers) {
-    const filename = carrier?.filename;
-    const contentDigest = carrier?.content_digest;
-    const carrierPath = path.join(generationDirectory, filename);
-    let bytes;
-    try {
-      const entry = lstatSync(carrierPath);
-      if (!entry.isFile() || entry.isSymbolicLink() || realpathSync(carrierPath) !== carrierPath) {
-        observationFailure("contract_generation_member_invalid",
-          "canonical contract-generation member is not one confined regular file");
-      }
-      bytes = readFileSync(carrierPath);
-    } catch (error) {
-      if (error instanceof SliceIntegrationError) throw error;
-      observationFailure("contract_generation_member_unreadable",
-        "canonical contract-generation member could not be read", {
-          carrier: filename,
-          cause_code: error?.code ?? null
-        });
-    }
-    if (bytes.byteLength !== carrier.byte_length || sha256(bytes) !== contentDigest) {
-      observationFailure("contract_generation_member_mismatch",
-        "canonical contract-generation member bytes do not match the manifest", {
-          carrier: filename
-        });
-    }
-    try {
-      JSON.parse(bytes.toString("utf8"));
-    } catch {
-      observationFailure("contract_generation_member_malformed",
-        "canonical contract-generation member is not JSON", { carrier: filename });
-    }
-    descriptors.push({
-      path: `wiki/contracts/${filename}`,
-      content_digest: contentDigest
-    });
-  }
-  let embeddedBytes;
-  try {
-    const embeddedPath = path.join(generationDirectory, "manifest.json");
-    const entry = lstatSync(embeddedPath);
-    if (!entry.isFile() || entry.isSymbolicLink() || realpathSync(embeddedPath) !== embeddedPath) {
-      observationFailure("contract_generation_manifest_invalid",
-        "embedded contract-generation manifest is not one confined regular file");
-    }
-    embeddedBytes = readFileSync(embeddedPath);
-  } catch (error) {
-    if (error instanceof SliceIntegrationError) throw error;
-    observationFailure("contract_generation_manifest_unreadable",
-      "embedded contract-generation manifest could not be read", {
-        cause_code: error?.code ?? null
-      });
-  }
-  if (!firstBytes.equals(embeddedBytes)) {
-    observationFailure("contract_generation_changed",
-      "visible and embedded contract-generation manifests differ");
-  }
-  let secondBytes;
-  try {
-    secondBytes = readFileSync(manifestPath);
-  } catch (error) {
-    observationFailure("contract_generation_changed",
-      "canonical contract generation changed while it was authenticated", {
-        cause_code: error?.code ?? null
-      });
-  }
-  if (!firstBytes.equals(secondBytes)) {
-    observationFailure("contract_generation_changed",
-      "canonical contract generation changed while it was authenticated");
-  }
-  return Object.freeze({
-    path: path.relative(mainRepo, manifestPath).split(path.sep).join("/"),
-    content_digest: sha256(firstBytes),
-    manifest_digest: declaredManifestDigest,
-    descriptors: Object.freeze(descriptors)
-  });
-}
-
 export function readCanonicalContractGenerationIdentity(mainRepo, wkId) {
-  const contracts = path.join(mainRepo, "wiki", "contracts");
-  const suffix = ".carrier-set-manifest.json";
-  let entries;
-  try {
-    entries = readdirSync(contracts, { withFileTypes: true });
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return Object.freeze({
-        state: "absent",
-        digest: "controlled-contract-generation:none",
-        carrier_count: 0,
-        manifest_digest: null,
-        manifest_digests: Object.freeze([])
-      });
-    }
-    observationFailure("contract_generation_manifest_unreadable",
-      "canonical contract-generation manifest directory could not be read", {
-        cause_code: error?.code ?? null
-      });
-  }
-  const selections = [];
-  for (const entry of entries) {
-    const repositoryPath = `wiki/contracts/${entry.name}`;
-    const classification = classifyControlledContractRepositoryPath({
-      wkId,
-      repositoryPath
-    });
-    if (classification.classification === "malformed_active_candidate" ||
-        (classification.classification === "active_member" &&
-          (!entry.isFile() || entry.isSymbolicLink()))) {
-      observationFailure("contract_generation_member_invalid",
-        "flat active controlled-contract state is malformed or non-ordinary", {
-          path: repositoryPath
-        });
-    }
-    if (!entry.name.startsWith(wkId) || !entry.name.endsWith(suffix)) continue;
-    const stem = entry.name.slice(0, -suffix.length);
-    if (stem !== wkId && !stem.startsWith(`${wkId}-`)) continue;
-    if (!entry.isFile() || entry.isSymbolicLink()) {
-      observationFailure("contract_generation_manifest_invalid",
-        "canonical contract-generation manifest is not one regular file", {
-          manifest: entry.name
-        });
-    }
-    selections.push({
-      focus: stem === wkId ? null : stem.slice(wkId.length + 1),
-      manifestPath: path.join(contracts, entry.name)
-    });
-  }
-  selections.sort((left, right) => left.manifestPath.localeCompare(right.manifestPath));
-  if (selections.length === 0) {
-    return Object.freeze({
-      state: "absent",
-      digest: "controlled-contract-generation:none",
-      carrier_count: 0,
-      manifest_digest: null,
-      manifest_digests: Object.freeze([])
-    });
-  }
-  const manifests = selections.map((selection) => readCanonicalContractManifestIdentity({
+  return readCompleteCanonicalContractGenerationIdentity({
     mainRepo,
     wkId,
-    ...selection
-  }));
-  const descriptors = manifests.flatMap((manifest) => manifest.descriptors)
-    .sort((left, right) => left.path.localeCompare(right.path));
-  if (new Set(descriptors.map((descriptor) => descriptor.path)).size !== descriptors.length) {
-    observationFailure("contract_generation_member_invalid",
-      "canonical contract-generation manifests select the same carrier twice");
-  }
-  const manifestDigests = Object.freeze(manifests.map((manifest) => Object.freeze({
-    path: manifest.path,
-    content_digest: manifest.content_digest,
-    manifest_digest: manifest.manifest_digest
-  })));
-  return Object.freeze({
-    state: "present",
-    digest: controlledContractGenerationDigest({ wkId, descriptors }),
-    carrier_count: descriptors.length,
-    manifest_digest: manifestDigests.length === 1 ? manifestDigests[0].manifest_digest : null,
-    manifest_digests: manifestDigests
+    fail: observationFailure
   });
 }
-
 function recordDigestIdentity(recordSourceDigest, wkId) {
   if (SHA256_DIGEST_RE.test(recordSourceDigest ?? "")) return recordSourceDigest;
 

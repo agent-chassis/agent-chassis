@@ -1,3 +1,4 @@
+import { RUNTIME_BLOCKER_DESCRIPTOR as composedTaxonomy } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -10,9 +11,7 @@ import {
 } from "../../packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 
 const root = new URL("../../", import.meta.url);
-const taxonomy = JSON.parse(readFileSync(new URL(
-  "packages/wiki-core/data/runtime-blocker-codes.v1.json", root
-), "utf8"));
+const taxonomy = composedTaxonomy;
 const registered = taxonomy.codes.map((entry) => entry.code);
 const terminalRegistered = registered.filter((code) => code.startsWith("agent_launch.terminal_"));
 const expected = new Set([

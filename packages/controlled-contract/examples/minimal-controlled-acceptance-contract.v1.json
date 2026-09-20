@@ -1,0 +1,158 @@
+{
+  "annotations": [],
+  "claims": [
+    {
+      "claim_id": "claim-component-exists",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-component-exists"
+    },
+    {
+      "claim_id": "claim-suite-covers-component",
+      "falsifying_proposition_id": "prop-component-absent",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-suite-covers-component",
+      "verification_method": "test_execution"
+    }
+  ],
+  "collections": [],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-component-exists",
+      "subject_reference_id": "ref-component"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-component"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-suite-covers-component",
+      "subject_reference_id": "ref-suite"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-component-absent",
+      "subject_reference_id": "ref-component"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "example-component"
+      },
+      "reference_id": "ref-component",
+      "type_term": "cc:runtime_component"
+    },
+    {
+      "identity": {
+        "kind": "profile_term",
+        "term": "example-suite"
+      },
+      "reference_id": "ref-suite",
+      "type_term": "cc:test"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-suite-verifies-component",
+      "role": "verifies",
+      "source_claim_id": "claim-suite-covers-component",
+      "target_claim_id": "claim-component-exists"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "2.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-wrong-result",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+            "mutation_id": "mutation-wrong-result-dependency-failure",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-component-absent",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "return_value",
+        "observable_id": "observable-package-result",
+        "proposition_id": "prop-suite-covers-component"
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-package-api",
+        "kind": "module",
+        "runtime_module_path": "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+        "subject_reference_ids": [
+          "ref-component"
+        ]
+      },
+      "test_proof_id": "test-proof-suite-covers-component",
+      "test_selector": {
+        "name": "package result is returned for the covered component",
+        "nesting": 0
+      },
+      "traversal_provider": {
+        "boundary_kind": "module",
+        "capability": "boundary_traversal",
+        "evidence_artifact_type": "boundary_trace",
+        "mode": "provider",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0"
+      },
+      "verification_claim_id": "claim-suite-covers-component"
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

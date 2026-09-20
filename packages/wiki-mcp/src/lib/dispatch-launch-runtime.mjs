@@ -33,11 +33,7 @@ import {
   buildFamilyExecutorRegistryEntry
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-launch-adapter-contract.mjs";
 import {
-  prepareSliceReviewSurface
-} from "@agent-chassis/agent-launch-cli/src/lib/slice-review-materialization.mjs";
-import {
   isPlainObject,
-  SLICE_REVIEW_SURFACE_PREPARATION_SCHEMA_VERSION,
   WK_FORGE_HANDOFF_FAILURE_CATEGORIES
 } from "@agent-chassis/agent-launch-cli/src/lib/trusted-operation-contracts.mjs";
 import { defaultRunGitAsync } from
@@ -52,14 +48,7 @@ import {
 import {
   evaluateWorkerAdmissionForBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/codex-worker-plan.mjs";
-
-import {
-  materializeTerminalReviewWorktree
-} from "@agent-chassis/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
-import {
-  runPostWorkerSliceLifecycle,
-  TERMINAL_REVIEW_EVIDENCE_MODES
-} from "./dispatch-run-monitor-routes.mjs";
+import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
 import { settleFormalReviewAttestationForDispatch } from
   "./review-attestation-tools.mjs";
 import { WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION } from "./workspace-commit-tool.mjs";
@@ -71,6 +60,7 @@ import {
 import {
   buildAcceptSucceedCodexExecutorTestSeams,
   consumeDispatchCodexTestSeamEvidence,
+  isAcceptSucceedCodexExecutorTestSeams,
   createAcceptStayRunningTestExecutor,
   createAcceptThenSucceedTestExecutor,
   createRefusingTestExecutor,
@@ -261,36 +251,6 @@ function exactLifecycleTuple(request) {
   });
 }
 
-export function validateSliceReviewPreparationResult(preparation, boundRequest) {
-  return isPlainObject(preparation) &&
-    preparation.schema_version === SLICE_REVIEW_SURFACE_PREPARATION_SCHEMA_VERSION &&
-    preparation.assigned_unit === boundRequest.assigned_unit &&
-    preparation.launch_ref === boundRequest.launch_ref &&
-    preparation.run_id === boundRequest.run_id &&
-    preparation.retry_id === boundRequest.retry_id;
-}
-
-export function createDirectSliceReviewPreparationAdapter(
-  mainRepo,
-
-  { prepareSurface = (args) => prepareSliceReviewSurface(args) } = {}
-) {
-  return async (request) => {
-    const boundRequest = exactLifecycleTuple(request);
-    const preparation = await prepareSurface({
-      mainRepo,
-      assignedUnit: boundRequest.assigned_unit,
-      launchRef: boundRequest.launch_ref,
-      runId: boundRequest.run_id,
-      retryId: boundRequest.retry_id
-    });
-    if (!validateSliceReviewPreparationResult(preparation, boundRequest)) {
-      throw new Error("direct slice-review preparation returned an invalid trusted result");
-    }
-    return { accepted: true, preparation };
-  };
-}
-
 export function createDirectSliceIntegrationAdapter({ requestCommittedSliceIntegration }) {
   if (typeof requestCommittedSliceIntegration !== "function") {
     throw new TypeError("direct slice integration requires the backend-owned integration route");
@@ -301,9 +261,10 @@ export function createDirectSliceIntegrationAdapter({ requestCommittedSliceInteg
       subject: boundRequest.assigned_unit
     });
     if (!integration || integration.integrated !== true) {
+
       return {
         accepted: false,
-        refusal: integration?.refusal ?? integration ?? null
+        refusal: integration ?? null
       };
     }
 
@@ -318,16 +279,19 @@ export function createDirectSliceIntegrationAdapter({ requestCommittedSliceInteg
 }
 
 export function buildDispatchLaunchExecutors(env = process.env, {
-  managedStdioMcpCompositionAuthority = createManagedStdioMcpCompositionAuthority()
+  managedStdioMcpCompositionAuthority = createManagedStdioMcpCompositionAuthority(),
+  codexExecutorTestSeams = null,
+
+  claudeExecutorTestSeams = null
 } = {}) {
   const compositionAuthority = assertManagedStdioMcpCompositionAuthority(
     managedStdioMcpCompositionAuthority
   );
 
   const managedCreateMcpConduit = compositionAuthority.createConduit;
-  const codexExecutor = selectDispatchLaunchExecutor(env, {
-    createMcpConduit: managedCreateMcpConduit
-  });
+  const codexExecutor = codexExecutorTestSeams === null
+    ? selectDispatchLaunchExecutor(env, { createMcpConduit: managedCreateMcpConduit })
+    : selectTestCompositionCodexExecutor(env, codexExecutorTestSeams, managedCreateMcpConduit);
 
   return {
     codex: buildFamilyExecutorRegistryEntry({
@@ -339,12 +303,27 @@ export function buildDispatchLaunchExecutors(env = process.env, {
     claude: buildFamilyExecutorRegistryEntry({
       executor: createClaudeWorkspaceAgentLaunchExecutor({
         env,
-        createMcpConduit: managedCreateMcpConduit
+        createMcpConduit: managedCreateMcpConduit,
+
+        ...(claudeExecutorTestSeams ?? {})
       }),
       sourceReadMode: CLAUDE_FAMILY_SOURCE_READ_MODE,
       nativeReadCapability: CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
     })
   };
+}
+
+function selectTestCompositionCodexExecutor(env, codexExecutorTestSeams, createMcpConduit) {
+  if (String(env.WIKI_MCP_DISPATCH_BACKEND_TEST_FIXTURE ?? "").trim() ||
+      String(env.WIKI_MCP_DISPATCH_CODEX_EXECUTOR_SEAMS ?? "").trim()) {
+    throw new Error(
+      "dispatch test composition seams cannot combine with a startup-selected executor fixture"
+    );
+  }
+  return createProductionCodexDispatchExecutor(env, {
+    ...codexExecutorTestSeams,
+    createMcpConduit
+  });
 }
 
 function mintDispatchSessionIdentity() {
@@ -355,7 +334,9 @@ function mintDispatchSessionIdentity() {
 export const DISPATCH_WORKSPACE_IDENTITY_UNCANONICALIZABLE_CODE =
   "dispatch_workspace_identity_uncanonicalizable";
 
-export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
+export function resolveDispatchWorktreeProvisioningConfig(env = process.env, {
+  testWorktreeRoot = null
+} = {}) {
 
   const mainRepo = String(env[WIKI_MCP_WORKSPACE_DIR_ENV_VAR] ?? "").trim();
   if (!mainRepo) {
@@ -380,7 +361,9 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
     failure.code = DISPATCH_WORKSPACE_IDENTITY_UNCANONICALIZABLE_CODE;
     throw failure;
   }
-  const canonicalWorktreeRoot = deriveLauncherOwnedDispatchWorktreeRoot(canonicalMainRepo);
+  const canonicalWorktreeRoot = testWorktreeRoot === null
+    ? deriveLauncherOwnedDispatchWorktreeRoot(canonicalMainRepo)
+    : canonicalizeTestWorktreeRoot(testWorktreeRoot, canonicalMainRepo);
   const propagatedRoot = String(env[WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR] ?? "").trim();
   if (propagatedRoot && path.resolve(propagatedRoot) !== canonicalWorktreeRoot) {
     throw new Error(
@@ -399,7 +382,6 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
 export function resolveLauncherOwnedLifecycleDeps({
   worktreeProvisioning,
   directSliceIntegrationAdapter = null,
-  hostSliceReviewPreparationAdapter,
   terminalCandidateCoordinator = null
 } = {}) {
 
@@ -411,12 +393,8 @@ export function resolveLauncherOwnedLifecycleDeps({
     ...(directSliceIntegrationAdapter != null
       ? { hostSliceIntegrationAdapter: directSliceIntegrationAdapter }
       : {}),
-    hostSliceReviewPreparationAdapter,
-    terminalReviewEvidenceMode: TERMINAL_REVIEW_EVIDENCE_MODES.LIVE_MATERIALIZER,
-    materializeTerminalReviewWorktree,
     ...(terminalCandidateCoordinator === null ? {} : {
-      prepareTerminalCandidate: terminalCandidateCoordinator.prepareTerminalCandidate,
-      validateTerminalCandidate: terminalCandidateCoordinator.validateTerminalCandidate
+      prepareTerminalCandidate: terminalCandidateCoordinator.prepareTerminalCandidate
     })
   };
 }
@@ -424,21 +402,17 @@ export function resolveLauncherOwnedLifecycleDeps({
 export function composePostWorkerSliceLifecycle({
   worktreeProvisioning,
   directSliceIntegrationAdapter = null,
-  hostSliceReviewPreparationAdapter,
   terminalCandidateCoordinator = null,
-  reviewEnforcementMode = "policy_only",
   lifecycle = runPostWorkerSliceLifecycle
 } = {}) {
   const launcherOwned = resolveLauncherOwnedLifecycleDeps({
     worktreeProvisioning,
     directSliceIntegrationAdapter,
-    hostSliceReviewPreparationAdapter,
     terminalCandidateCoordinator
   });
-  const tierOwned = Object.freeze({ reviewEnforcementMode });
 
   return ({ workspace, status, deps = {} }) =>
-    lifecycle({ workspace, status, deps: { ...deps, ...launcherOwned, ...tierOwned } });
+    lifecycle({ workspace, status, deps: { ...deps, ...launcherOwned } });
 }
 
 const WK_FORGE_HANDOFF_REFUSAL_DETAIL_MAX_DEPTH = 3;
@@ -495,7 +469,44 @@ function projectAuthenticatedWkForgeRecoveryRefusal(outcome, error) {
   });
 }
 
+const DISPATCH_RUNTIME_TEST_COMPOSITION_FIELDS = Object.freeze([
+  "codexExecutorTestSeams",
+  "worktreeRoot"
+]);
+
+export function assertDispatchRuntimeTestComposition(composition) {
+  if (composition === null) return null;
+  const keys = composition !== null && typeof composition === "object" && !Array.isArray(composition)
+    ? Object.keys(composition).sort()
+    : null;
+  if (keys === null || !Object.isFrozen(composition) ||
+      keys.some((key) => !DISPATCH_RUNTIME_TEST_COMPOSITION_FIELDS.includes(key)) ||
+      typeof composition.worktreeRoot !== "string" ||
+      (composition.codexExecutorTestSeams !== undefined &&
+        composition.codexExecutorTestSeams !== null &&
+        !isAcceptSucceedCodexExecutorTestSeams(composition.codexExecutorTestSeams))) {
+    throw new TypeError("dispatch runtime test composition is malformed");
+  }
+  return composition;
+}
+
+function canonicalizeTestWorktreeRoot(worktreeRoot, canonicalMainRepo) {
+  if (typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot)) {
+    throw new TypeError("test composition worktree root must be absolute");
+  }
+  const canonical = realpathSync(worktreeRoot);
+  if (!statSync(canonical).isDirectory()) {
+    throw new TypeError("test composition worktree root must be a directory");
+  }
+  if (canonical === canonicalMainRepo || canonical.startsWith(`${canonicalMainRepo}${path.sep}`) ||
+      canonicalMainRepo.startsWith(`${canonical}${path.sep}`)) {
+    throw new TypeError("test composition worktree root must be disjoint from the workspace");
+  }
+  return canonical;
+}
+
 export function buildDispatchRuntime(env = process.env, {
+  testComposition = null,
   registeredTier = "free_local",
   sliceIntegrationCcePolicy = null,
   wkForgeHandoffCcePolicy = null,
@@ -507,16 +518,17 @@ export function buildDispatchRuntime(env = process.env, {
   const dispatchSessionIdentity = mintDispatchSessionIdentity();
   const managedStdioMcpCompositionAuthority =
     createManagedStdioMcpCompositionAuthority();
+  const composition = assertDispatchRuntimeTestComposition(testComposition);
   const launchExecutors = buildDispatchLaunchExecutors(env, {
-    managedStdioMcpCompositionAuthority
+    managedStdioMcpCompositionAuthority,
+    codexExecutorTestSeams: composition?.codexExecutorTestSeams ?? null
   });
 
-  const worktreeProvisioning = resolveDispatchWorktreeProvisioningConfig(env);
+  const worktreeProvisioning = resolveDispatchWorktreeProvisioningConfig(env, {
+    testWorktreeRoot: composition?.worktreeRoot ?? null
+  });
 
   let dispatchBackend = null;
-  const hostSliceReviewPreparationAdapter = worktreeProvisioning === null
-    ? null
-    : createDirectSliceReviewPreparationAdapter(worktreeProvisioning.mainRepo);
   const directSliceIntegrationAdapter = worktreeProvisioning === null
     ? null
     : createDirectSliceIntegrationAdapter({
@@ -561,10 +573,7 @@ export function buildDispatchRuntime(env = process.env, {
   const composedPostWorkerSliceLifecycle = composePostWorkerSliceLifecycle({
     worktreeProvisioning,
     directSliceIntegrationAdapter,
-    hostSliceReviewPreparationAdapter,
     terminalCandidateCoordinator,
-
-    reviewEnforcementMode: "policy_only",
 
     lifecycle: runPostWorkerSliceLifecycle
   });
@@ -585,6 +594,11 @@ export function buildDispatchRuntime(env = process.env, {
 
           sliceIntegrationCcePolicy,
           evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend,
+
+          resolveConfiguredWorkspaceRepo:
+            workspaceRepos !== null && typeof resolveWorkspaceRepo === "function"
+              ? (alias) => resolveWorkspaceRepo(workspaceRepos, alias)
+              : null,
           settleFormalReviewAttestation:
             workspaceRepos !== null && typeof resolveWorkspaceRepo === "function"
               ? ({ record, formalResult }) => settleFormalReviewAttestationForDispatch({
@@ -635,7 +649,5 @@ export function buildDispatchRuntime(env = process.env, {
     dispatchBackend,
     dispatchSessionIdentity,
     wkForgeHandoffAdapter,
-    runTerminalCandidateValidationForUnit:
-      terminalCandidateCoordinator?.runTerminalCandidateValidationForUnit ?? null
   };
 }

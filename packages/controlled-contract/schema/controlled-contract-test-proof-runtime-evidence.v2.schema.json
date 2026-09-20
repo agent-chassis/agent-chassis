@@ -15,6 +15,7 @@
     "test_inventory",
     "boundary_traversals",
     "falsifier_executions",
+    "capability_limitations",
     "observed_shortcuts",
     "artifacts"
   ],
@@ -49,9 +50,15 @@
     },
     "falsifier_executions": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "$ref": "#/$defs/falsifier_execution"
+      }
+    },
+    "capability_limitations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/capability_limitation"
       }
     },
     "observed_shortcuts": {
@@ -130,9 +137,23 @@
         },
         "observation_mechanism": {
           "enum": [
+            "ava_worker_events",
+            "cargo_test_function_guard",
+            "deno_test_registrations",
+            "function_entry_probe",
+            "go_test_function_probe",
+            "jest_circus_events",
+            "lib0_test_registrations",
+            "mocha_runner_events",
             "module_substitution",
             "node_test_structured_events",
-            "node_test_v8_coverage"
+            "node_test_v8_coverage",
+            "pytest_phase_events",
+            "python_call_trace",
+            "python_scalar_return_substitution",
+            "scalar_return_substitution",
+            "stestr_unittest_results",
+            "vitest_runner_tasks"
           ]
         },
         "evidence_artifact_types": {
@@ -143,6 +164,8 @@
             "enum": [
               "boundary_trace",
               "falsifier_result",
+              "native_phase_observation",
+              "native_test_observation",
               "structured_test_result"
             ]
           }
@@ -168,7 +191,7 @@
               "const": "launcher.test-proof-provider-registry"
             },
             "registry_version": {
-              "const": "1.0.0"
+              "const": "1.3.0"
             },
             "capability": {
               "const": "traversal_unsupported"
@@ -363,7 +386,19 @@
       ],
       "properties": {
         "mechanism": {
-          "const": "node_test_structured_events"
+          "enum": [
+            "ava_worker_events",
+            "cargo_test_function_guard",
+            "deno_test_registrations",
+            "go_test_function_probe",
+            "jest_circus_events",
+            "lib0_test_registrations",
+            "mocha_runner_events",
+            "node_test_structured_events",
+            "pytest_phase_events",
+            "stestr_unittest_results",
+            "vitest_runner_tasks"
+          ]
         },
         "exit_code": {
           "type": [
@@ -423,6 +458,302 @@
         }
       }
     },
+    "failure_diagnostic_issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "reason"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "reason": {
+          "enum": [
+            "accessor_not_invoked",
+            "error_not_supplied",
+            "invalid_aggregate_errors",
+            "source_value_unreadable",
+            "unsupported_error_value",
+            "unsupported_internal_state",
+            "unsupported_symbol_key",
+            "unsupported_value_type"
+          ]
+        }
+      }
+    },
+    "failure_diagnostic_error_id": {
+      "type": "string",
+      "pattern": "^error-[0-9]+$"
+    },
+    "failure_diagnostic_value_id": {
+      "type": "string",
+      "pattern": "^value-[0-9]+$"
+    },
+    "failure_diagnostic_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/failure_diagnostic_error_id" },
+        "name": { "type": "string" },
+        "message": { "type": "string" },
+        "code": { "type": "string" },
+        "stack": { "type": "string" },
+        "operator": { "type": "string" },
+        "generated_message": { "type": "boolean" },
+        "expected": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+        "actual": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+        "value": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+        "cause": { "$ref": "#/$defs/failure_diagnostic_error_id" },
+        "aggregate_errors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failure_diagnostic_error_id" }
+        }
+      }
+    },
+    "failure_diagnostic_property": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value"],
+      "properties": {
+        "key": { "type": "string" },
+        "value": { "$ref": "#/$defs/failure_diagnostic_value_id" }
+      }
+    },
+    "failure_diagnostic_element": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "value"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "value": { "$ref": "#/$defs/failure_diagnostic_value_id" }
+      }
+    },
+    "failure_diagnostic_map_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value"],
+      "properties": {
+        "key": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+        "value": { "$ref": "#/$defs/failure_diagnostic_value_id" }
+      }
+    },
+    "failure_diagnostic_value": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "enum": ["null", "undefined", "negative_zero"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "value"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "string" }, "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "value"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "boolean" }, "value": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "value"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "number" }, "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "value"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "bigint" },
+            "value": { "type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)$" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "value"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "nonfinite_number" },
+            "value": { "enum": ["NaN", "Infinity", "-Infinity"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "properties"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "object" },
+            "properties": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/failure_diagnostic_property" }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "length", "elements", "properties"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "array" },
+            "length": { "type": "integer", "minimum": 0 },
+            "elements": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/failure_diagnostic_element" }
+            },
+            "properties": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/failure_diagnostic_property" }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "value"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "date" },
+            "value": { "type": ["string", "null"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "source", "flags"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "regexp" },
+            "source": { "type": "string" }, "flags": { "type": "string" },
+            "last_index": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "size", "entries"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "map" }, "size": { "type": "integer", "minimum": 0 },
+            "entries": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/failure_diagnostic_map_entry" }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "size", "entries"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "set" }, "size": { "type": "integer", "minimum": 0 },
+            "entries": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/failure_diagnostic_value_id" }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "byte_length", "bytes"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "array_buffer" },
+            "byte_length": { "type": "integer", "minimum": 0 },
+            "bytes": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "name", "length", "byte_length", "bytes"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "enum": ["typed_array", "buffer"] },
+            "name": { "type": "string", "minLength": 1 },
+            "length": { "type": "integer", "minimum": 0 },
+            "byte_length": { "type": "integer", "minimum": 0 },
+            "bytes": {
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "error"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "error" },
+            "error": { "$ref": "#/$defs/failure_diagnostic_error_id" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "type", "reason"],
+          "properties": {
+            "id": { "$ref": "#/$defs/failure_diagnostic_value_id" },
+            "type": { "const": "unavailable" },
+            "reason": {
+              "enum": [
+                "accessor_not_invoked", "source_value_unreadable",
+                "unsupported_internal_state", "unsupported_value_type"
+              ]
+            },
+            "source_type": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "failure_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "status", "root_error", "errors", "values", "issues"],
+      "properties": {
+        "schema_version": { "const": "launcher-test-failure-diagnostic.v1" },
+        "status": { "enum": ["captured", "unavailable"] },
+        "root_error": {
+          "oneOf": [
+            { "$ref": "#/$defs/failure_diagnostic_error_id" },
+            { "type": "null" }
+          ]
+        },
+        "errors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failure_diagnostic_error" }
+        },
+        "values": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failure_diagnostic_value" }
+        },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/failure_diagnostic_issue" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "captured" } } },
+          "then": { "properties": { "root_error": { "$ref": "#/$defs/failure_diagnostic_error_id" } } },
+          "else": {
+            "properties": {
+              "root_error": { "type": "null" },
+              "errors": { "type": "array", "maxItems": 0 },
+              "values": { "type": "array", "maxItems": 0 },
+              "issues": { "type": "array", "minItems": 1 }
+            }
+          }
+        }
+      ]
+    },
     "pass_event": {
       "allOf": [
         {
@@ -436,7 +767,8 @@
             },
             "status": {
               "const": "passed"
-            }
+            },
+            "failure_diagnostic": false
           }
         }
       ]
@@ -448,12 +780,16 @@
         },
         {
           "type": "object",
+          "required": ["failure_diagnostic"],
           "properties": {
             "type": {
               "const": "test:fail"
             },
             "status": {
               "const": "failed"
+            },
+            "failure_diagnostic": {
+              "$ref": "#/$defs/failure_diagnostic"
             }
           }
         }
@@ -513,6 +849,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "failure_diagnostic": {
+          "$ref": "#/$defs/failure_diagnostic"
         }
       }
     },
@@ -520,25 +859,20 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "baseline_id",
+        "selected_test_id",
         "declared_test_ids",
         "discovered_test_ids",
         "executed_test_ids",
-        "skipped_test_ids",
-        "removed_baseline_test_ids",
-        "renamed_baseline_tests",
-        "unexpected_test_ids",
-        "newly_skipped_test_ids",
-        "undispositioned_coverage_test_ids"
+        "skipped_test_ids"
       ],
       "properties": {
-        "baseline_id": {
-          "type": "string",
-          "pattern": "^coverage-baseline-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        "selected_test_id": {
+          "$ref": "#/$defs/test_id"
         },
         "declared_test_ids": {
           "type": "array",
-          "uniqueItems": true,
+          "minItems": 1,
+          "maxItems": 1,
           "items": {
             "$ref": "#/$defs/test_id"
           }
@@ -563,58 +897,9 @@
           "items": {
             "$ref": "#/$defs/test_id"
           }
-        },
-        "removed_baseline_test_ids": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/test_id"
-          }
-        },
-        "renamed_baseline_tests": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/renamed_test"
-          }
-        },
-        "unexpected_test_ids": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/test_id"
-          }
-        },
-        "newly_skipped_test_ids": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/test_id"
-          }
-        },
-        "undispositioned_coverage_test_ids": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "$ref": "#/$defs/test_id"
-          }
         }
-      }
-    },
-    "renamed_test": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "baseline_test_id",
-        "observed_test_id"
-      ],
-      "properties": {
-        "baseline_test_id": {
-          "$ref": "#/$defs/test_id"
-        },
-        "observed_test_id": {
-          "$ref": "#/$defs/test_id"
-        }
-      }
+      },
+      "description": "The complete launcher-observed test population of the candidate run, beside the one declaratively selected test the proof executes. No authored baseline participates: preservation of an unlisted earlier test is not claimed here."
     },
     "boundary_traversal": {
       "type": "object",
@@ -629,6 +914,7 @@
         "observation_mechanism",
         "observation_seam",
         "status",
+        "limitation",
         "evidence_artifact_ids"
       ],
       "properties": {
@@ -664,7 +950,9 @@
         },
         "observation_mechanism": {
           "enum": [
+            "function_entry_probe",
             "node_test_v8_coverage",
+            "python_call_trace",
             "registry_unsupported"
           ]
         },
@@ -674,7 +962,17 @@
             "null"
           ],
           "enum": [
+            "ava_selected_test_body",
+            "cargo_selected_test_function",
+            "deno_selected_test_body",
+            "go_selected_test_function",
+            "jest_selected_test_body",
+            "lib0_selected_test_body",
+            "mocha_selected_test_body",
             "node_test_structured_assertion",
+            "pytest_selected_call",
+            "stestr_selected_test_method",
+            "vitest_selected_test_attempt",
             null
           ]
         },
@@ -683,6 +981,16 @@
             "not_proven",
             "proven",
             "review_only"
+          ]
+        },
+        "limitation": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/check_limitation"
+            }
           ]
         },
         "evidence_artifact_ids": {
@@ -702,14 +1010,66 @@
           "then": {
             "type": "object",
             "properties": {
-              "authenticated": {
-                "const": true
-              },
               "observation_seam": {
                 "type": "null"
               },
               "status": {
                 "const": "review_only"
+              },
+              "evidence_artifact_ids": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "observation_mechanism": {
+                "const": "registry_unsupported"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "provider_support": {
+                "const": "unsupported"
+              },
+              "authenticated": {
+                "const": true
+              },
+              "boundary_kind": {
+                "type": "null"
+              },
+              "limitation": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": [
+              "limitation"
+            ],
+            "properties": {
+              "limitation": {
+                "type": "object"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "provider_support": {
+                "const": "unsupported"
+              },
+              "authenticated": {
+                "const": false
               }
             }
           }
@@ -733,7 +1093,19 @@
                 "const": true
               },
               "observation_seam": {
-                "const": "node_test_structured_assertion"
+                "enum": [
+                  "ava_selected_test_body",
+                  "cargo_selected_test_function",
+                  "deno_selected_test_body",
+                  "go_selected_test_function",
+                  "jest_selected_test_body",
+                  "lib0_selected_test_body",
+                  "mocha_selected_test_body",
+                  "node_test_structured_assertion",
+                  "pytest_selected_call",
+                  "stestr_selected_test_method",
+                  "vitest_selected_test_attempt"
+                ]
               }
             }
           }
@@ -748,12 +1120,14 @@
         "attempt_id",
         "target_verification_id",
         "provider",
+        "provider_support",
         "isolated",
         "candidate_status",
         "falsified_status",
         "failure_reason_code",
         "mutation",
         "status",
+        "limitation",
         "evidence_artifact_ids"
       ],
       "properties": {
@@ -772,6 +1146,12 @@
         "provider": {
           "$ref": "#/$defs/provider_evidence"
         },
+        "provider_support": {
+          "enum": [
+            "supported",
+            "unsupported"
+          ]
+        },
         "isolated": {
           "type": "boolean"
         },
@@ -785,6 +1165,7 @@
         "falsified_status": {
           "enum": [
             "failed",
+            "not_run",
             "passed",
             "skipped"
           ]
@@ -813,13 +1194,24 @@
               "pattern": "^mutation-[a-z0-9]+(?:-[a-z0-9]+)*$"
             },
             "strategy": {
-              "const": "dependency_failure"
+              "enum": [
+                "dependency_failure",
+                "forced_invocation",
+                "result_inversion"
+              ]
             },
             "mechanism": {
-              "const": "module_substitution"
+              "enum": [
+                "module_substitution",
+                "python_scalar_return_substitution",
+                "scalar_return_substitution"
+              ]
             },
             "target_kind": {
-              "const": "module"
+              "enum": [
+                "module",
+                "function"
+              ]
             },
             "module_path": {
               "type": "string",
@@ -834,7 +1226,18 @@
           "enum": [
             "detected",
             "execution_error",
-            "not_detected"
+            "not_detected",
+            "review_only"
+          ]
+        },
+        "limitation": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/check_limitation"
+            }
           ]
         },
         "evidence_artifact_ids": {
@@ -854,6 +1257,9 @@
           "then": {
             "type": "object",
             "properties": {
+              "provider_support": {
+                "const": "supported"
+              },
               "isolated": {
                 "const": true
               },
@@ -876,8 +1282,112 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "provider_support": {
+                "const": "unsupported"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "isolated": {
+                "const": false
+              },
+              "falsified_status": {
+                "const": "not_run"
+              },
+              "failure_reason_code": {
+                "type": "null"
+              },
+              "status": {
+                "const": "review_only"
+              },
+              "mutation": {
+                "type": "object",
+                "properties": {
+                  "observed": {
+                    "const": false
+                  }
+                }
+              },
+              "limitation": {
+                "$ref": "#/$defs/check_limitation"
+              },
+              "evidence_artifact_ids": {
+                "type": "array",
+                "maxItems": 0
+              }
+            }
+          }
         }
       ]
+    },
+    "check_limitation": {
+      "description": "Why one additional proof check could not be applied to its declared subject. A limitation records an absent observation; it is never proof credit and never stands for a satisfied check.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason_code",
+        "detail"
+      ],
+      "properties": {
+        "reason_code": {
+          "enum": [
+            "test_proof_native_instrumentation_unsupported",
+            "test_proof_native_runner_unsupported",
+            "test_proof_native_selection_unsupported",
+            "test_proof_registry_falsification_unsupported"
+          ]
+        },
+        "detail": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          }
+        }
+      }
+    },
+    "capability_limitation": {
+      "description": "One member of the attempt's limitation population: a check limitation beside the check it belongs to. A falsification the binding never declared names no check identity.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_kind",
+        "check_id",
+        "reason_code",
+        "detail"
+      ],
+      "properties": {
+        "check_kind": {
+          "enum": [
+            "falsifier",
+            "traversal"
+          ]
+        },
+        "check_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "reason_code": {
+          "$ref": "#/$defs/check_limitation/properties/reason_code"
+        },
+        "detail": {
+          "$ref": "#/$defs/check_limitation/properties/detail"
+        }
+      }
     },
     "artifact": {
       "type": "object",
@@ -897,6 +1407,8 @@
           "enum": [
             "boundary_trace",
             "falsifier_result",
+            "native_phase_observation",
+            "native_test_observation",
             "structured_test_result",
             "test_inventory"
           ]
@@ -908,7 +1420,209 @@
           "const": "launcher"
         },
         "payload": {
-          "type": "object"
+          "type": "object",
+          "allOf": [
+            {
+              "if": {
+                "required": [
+                  "strategy"
+                ],
+                "properties": {
+                  "strategy": {
+                    "const": "forced_invocation"
+                  }
+                }
+              },
+              "then": {
+                "$ref": "#/$defs/forced_invocation_observation"
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["kind"],
+            "properties": { "kind": { "const": "structured_test_result" } }
+          },
+          "then": {
+            "properties": { "payload": { "$ref": "#/$defs/structured_result" } }
+          }
+        }
+      ]
+    },
+    "forced_invocation_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mutation_id",
+        "target_module_path",
+        "entry_export",
+        "fault_module_identity",
+        "observer_module_path",
+        "target_test_id",
+        "mechanism",
+        "strategy",
+        "invocation",
+        "attempt_nonce",
+        "witness_identity",
+        "structured_event_digest",
+        "operation",
+        "observation"
+      ],
+      "properties": {
+        "mutation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_module_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_export": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fault_module_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observer_module_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_test_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mechanism": {
+          "const": "module_substitution"
+        },
+        "strategy": {
+          "const": "forced_invocation"
+        },
+        "invocation": {
+          "const": "first_original_return_no_arguments"
+        },
+        "attempt_nonce": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "witness_identity": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "structured_event_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "operation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "module_path",
+            "export_name"
+          ],
+          "properties": {
+            "module_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "export_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$"
+            }
+          }
+        },
+        "observation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "original_entry_count",
+            "operation_entry_count",
+            "inspector_original_entry_count",
+            "inspector_ordered_operation_count",
+            "invalid_order_count",
+            "inspection_failure_count",
+            "reached_assertion",
+            "observed",
+            "selected_test_only"
+          ],
+          "properties": {
+            "original_entry_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "operation_entry_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inspector_original_entry_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inspector_ordered_operation_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "invalid_order_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inspection_failure_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "reached_assertion": {
+              "type": "boolean"
+            },
+            "observed": {
+              "type": "boolean"
+            },
+            "selected_test_only": {
+              "type": "boolean"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "observed": {
+                    "const": true
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "original_entry_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "operation_entry_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "inspector_original_entry_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "inspector_ordered_operation_count": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "invalid_order_count": {
+                    "const": 0
+                  },
+                  "inspection_failure_count": {
+                    "const": 0
+                  },
+                  "selected_test_only": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          ]
         }
       }
     }

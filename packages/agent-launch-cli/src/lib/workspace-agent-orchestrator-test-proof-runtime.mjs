@@ -1,6 +1,9 @@
 import { realpathSync } from "node:fs";
 import path from "node:path";
 
+import { prepareCompiledValidatorCache } from
+  "@agent-chassis/controlled-contract/validator-cache";
+
 import {
   assertMaterializedImmutableCandidateCurrent,
   ImmutableCandidateError,
@@ -12,6 +15,8 @@ import { resolveAuthenticatedConfiguredWorktree } from
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import { mintOrchestratorProofAuthority } from
   "./workspace-agent-test-proof-runtime-identity.mjs";
+import { standaloneValidatorCacheBinds } from
+  "./workspace-agent-dispatch-run-lifecycle-launch.mjs";
 
 export const ORCHESTRATOR_TEST_PROOF_RUNTIME_SCHEMA_VERSION =
   "workspace-agent-orchestrator-test-proof-runtime.v1";
@@ -22,7 +27,9 @@ export const ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES = Object.freeze({
   INPUT_INVALID: "verify_proof.orchestrator_runtime_input_invalid.v1",
   REPOSITORY_IDENTITY: "verify_proof.configured_repository_identity_refused.v1",
   WORKTREE_BINDING: "verify_proof.existing_worktree_binding_refused.v1",
-  WORKTREE_MOVED: "verify_proof.existing_worktree_moved.v1"
+  WORKTREE_MOVED: "verify_proof.existing_worktree_moved.v1",
+  EXACT_DEPENDENCY_PROJECTION:
+    "verify_proof.exact_candidate_dependency_projection_refused.v1"
 });
 
 const OID_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -183,6 +190,25 @@ async function useExactCommit(input, use, runGit) {
   let value;
   let primary = null;
   try {
+    let validatorCacheReadOnlyBinds;
+    try {
+
+      const verifiedValidatorCache = await prepareCompiledValidatorCache({ mode: "verify" });
+      validatorCacheReadOnlyBinds = standaloneValidatorCacheBinds({
+        ensured: verifiedValidatorCache,
+        verified: verifiedValidatorCache,
+        workspaceDir: materialized.checkout.worktree_path
+      });
+    } catch (error) {
+      fail(ORCHESTRATOR_TEST_PROOF_RUNTIME_CODES.EXACT_DEPENDENCY_PROJECTION,
+        "exact-commit proof dependency projection could not be authenticated",
+        {
+          selector: "exact_sha",
+          cause_code: typeof error?.code === "string"
+            ? error.code
+            : "dependency_projection_authentication_failed"
+        }, error);
+    }
     const authority = mintOrchestratorProofAuthority({
       mainRepo: input.mainRepo,
       repository: input.repository,
@@ -193,7 +219,8 @@ async function useExactCommit(input, use, runGit) {
       tree: candidate.tree,
       clean: true,
       candidateKind: "immutable_exact_commit",
-      authenticatedCandidateIdentity: candidate.authenticated_candidate_identity
+      authenticatedCandidateIdentity: candidate.authenticated_candidate_identity,
+      validatorCacheReadOnlyBinds
     });
     const assertCurrentIdentity = () => assertMaterializedImmutableCandidateCurrent({
       materialized, runGit

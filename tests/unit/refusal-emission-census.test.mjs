@@ -2,14 +2,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-import {
-  isRuntimeBlockerCode,
-  getRuntimeBlockerEntry
-} from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 const REPO_ROOT = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 const CENSUS_PATH = path.join(
@@ -18,6 +14,30 @@ const CENSUS_PATH = path.join(
 );
 
 const census = JSON.parse(readFileSync(CENSUS_PATH, "utf8"));
+
+const HISTORICAL_TAXONOMY = Object.freeze({
+  path: path.join(REPO_ROOT, "tests/fixtures/refusal-emission-census-taxonomy.v1.json"),
+  source_commit: "e7baa73af0285d088e3e522b3b4c56e64192a1f8",
+  source_path: "packages/wiki-core/data/runtime-blocker-codes.v1.json",
+  sha256: "fbcafdbe9e762d1fb79bff910fd8c2b63d2f410029c69a4f9fbb7230504fe2c5",
+  code_count: 113
+});
+const historicalTaxonomyBytes = readFileSync(HISTORICAL_TAXONOMY.path);
+
+function historicalRegistryViolations(entries, taxonomy) {
+  const registered = new Map(taxonomy.codes.map((entry) => [entry.code, entry]));
+  const violations = [];
+  for (const entry of entries) {
+    const historical = registered.get(entry.emitted_code);
+    if (!historical) {
+      violations.push({ kind: "unregistered", source_id: entry.source_id, code: entry.emitted_code });
+    } else if (historical.category !== entry.registry_category) {
+      violations.push({ kind: "category", source_id: entry.source_id, code: entry.emitted_code,
+        recorded: entry.registry_category, registered: historical.category });
+    }
+  }
+  return violations;
+}
 
 const SEMANTIC_CATEGORIES = [
   "authenticity",
@@ -117,23 +137,59 @@ test("DEC-0177: no procedure-only rule is registered in the mechanical taxonomy"
   }
 });
 
-test("every emitted code is registered in the canonical taxonomy", () => {
-  for (const entry of census.entries) {
-    assert.equal(
-      isRuntimeBlockerCode(entry.emitted_code),
-      true,
-      `${entry.source_id} emits unregistered code ${entry.emitted_code}`
-    );
-  }
+test("the historical registry snapshot is the exact pinned publication", () => {
+  assert.equal(
+    createHash("sha256").update(historicalTaxonomyBytes).digest("hex"),
+    HISTORICAL_TAXONOMY.sha256,
+    `${HISTORICAL_TAXONOMY.path} must be the exact ${HISTORICAL_TAXONOMY.source_path} bytes at ${HISTORICAL_TAXONOMY.source_commit}`
+  );
+  const taxonomy = JSON.parse(historicalTaxonomyBytes.toString("utf8"));
+  assert.equal(taxonomy.schema_version, "runtime-blocker-codes.v1");
+  assert.equal(taxonomy.codes.length, HISTORICAL_TAXONOMY.code_count);
+
+  assert.match(census.provenance.base_identity, /^[0-9a-f]{40}$/u);
+  assert.notEqual(census.provenance.base_identity, HISTORICAL_TAXONOMY.source_commit);
 });
 
-test("each entry's recorded registry category matches the canonical registry", () => {
+test("every emitted code is registered in the historical taxonomy the census describes", () => {
+  const taxonomy = JSON.parse(historicalTaxonomyBytes.toString("utf8"));
+  const unregistered = historicalRegistryViolations(census.entries, taxonomy)
+    .filter((violation) => violation.kind === "unregistered");
+  assert.deepEqual(unregistered, [], "every census code must exist in the pinned historical registry");
+  assert.equal(new Set(census.entries.map((entry) => entry.emitted_code)).size, 39);
+});
 
-  for (const entry of census.entries) {
-    const registered = getRuntimeBlockerEntry(entry.emitted_code);
-    assert.equal(entry.registry_category, registered.category,
-      `${entry.source_id} records a stale registry category`);
-  }
+test("each entry's recorded registry category matches the historical registry", () => {
+
+  const taxonomy = JSON.parse(historicalTaxonomyBytes.toString("utf8"));
+  const mismatched = historicalRegistryViolations(census.entries, taxonomy)
+    .filter((violation) => violation.kind === "category");
+  assert.deepEqual(mismatched, [], "every census entry must record its historical registry category");
+});
+
+test("historical registry checks discriminate altered membership, category and bytes", () => {
+  const taxonomy = JSON.parse(historicalTaxonomyBytes.toString("utf8"));
+  const [first] = census.entries;
+
+  const withoutCode = { ...taxonomy, codes: taxonomy.codes.filter((entry) => entry.code !== first.emitted_code) };
+  assert.ok(historicalRegistryViolations(census.entries, withoutCode)
+    .some((violation) => violation.kind === "unregistered" && violation.code === first.emitted_code),
+  "a snapshot missing a census code must be detected");
+
+  const recategorized = { ...taxonomy, codes: taxonomy.codes.map((entry) => entry.code === first.emitted_code
+    ? { ...entry, category: `${entry.category}_altered` } : entry) };
+  assert.ok(historicalRegistryViolations(census.entries, recategorized)
+    .some((violation) => violation.kind === "category" && violation.code === first.emitted_code),
+  "a snapshot with a changed category must be detected");
+
+  const misrecorded = census.entries.map((entry, index) => index === 0
+    ? { ...entry, registry_category: `${entry.registry_category}_altered` } : entry);
+  assert.ok(historicalRegistryViolations(misrecorded, taxonomy)
+    .some((violation) => violation.kind === "category"), "a census entry with a changed category must be detected");
+
+  const alteredBytes = Buffer.concat([historicalTaxonomyBytes, Buffer.from(" ")]);
+  assert.notEqual(createHash("sha256").update(alteredBytes).digest("hex"), HISTORICAL_TAXONOMY.sha256,
+    "altered snapshot bytes cannot satisfy the pinned digest");
 });
 
 test("operator_recovery_needed census entries are external-only break-glass emissions", () => {

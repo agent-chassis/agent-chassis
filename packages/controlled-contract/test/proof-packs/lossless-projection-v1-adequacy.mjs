@@ -14,7 +14,7 @@ import {
 } from "./lossless-projection-v1-harness.mjs";
 
 const LOSSLESS_PROJECTION_V1_PROFILE_DIGEST =
-  "9242a7d656d1b54f1cafdeb0ac9f105248cdee209c4f7696fca41a9c5375e18f";
+  "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2";
 const LOSSLESS_PROJECTION_V1_GUARANTEE_DIGEST =
   "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80";
 

@@ -1,11 +1,13 @@
 
 
 import {
+  WORK_RECORD_CLOSURE_FIELD_NAMES
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+import {
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest,
-  projectSliceReviewReceiptContracts,
-  WORK_RECORD_CLOSURE_FIELD_NAMES
-} from "@agent-chassis/wiki-core";
+  projectSliceReviewReceiptContracts
+} from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
   evaluateWorkRecordParentLifecycleContract
 } from "@agent-chassis/wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
@@ -39,7 +41,7 @@ export function projectTerminalReviewCandidateVersionLifecycle({
   const nextCall = state === "unreviewed" && typeof reviewSubject === "string"
     ? Object.freeze({
         tool: "workspace_agent_dispatch",
-        arguments: Object.freeze({ role: "reviewer", assigned_unit: reviewSubject })
+        arguments: Object.freeze({ role: "reviewer", subject: reviewSubject })
       })
     : state === "blocked" && decision.state === "recovery"
       ? Object.freeze({
@@ -60,6 +62,18 @@ export function resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId) {
   const record = readCanonicalWorkRecord(mainRepo, wkId);
   if (!record || record.id !== wkId) {
     throw new Error(`canonical ${wkId} record is unavailable for whole-WK review`);
+  }
+  return resolveCanonicalFindingsOnlyReviewUnitFromRecord(record, wkId);
+}
+
+export function resolveDeclaredCanonicalFindingsOnlyReviewUnit(mainRepo, wkId) {
+  const record = readCanonicalWorkRecord(mainRepo, wkId);
+  if (!record || record.id !== wkId) {
+    throw new Error(`canonical ${wkId} record is unavailable for terminal review declaration`);
+  }
+  if (evaluateWorkRecordParentLifecycleContract(record)
+    .terminal_review_designation?.eligible_count === 0) {
+    return null;
   }
   return resolveCanonicalFindingsOnlyReviewUnitFromRecord(record, wkId);
 }

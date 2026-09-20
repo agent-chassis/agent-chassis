@@ -290,6 +290,18 @@ function normalizeCanonicalSummary(canonicalSummary) {
     validation_commands: Array.isArray(canonicalSummary.validation_commands)
       ? canonicalSummary.validation_commands.filter(isNonEmptyString)
       : [],
+
+    operative_tasks: Array.isArray(canonicalSummary.operative_tasks)
+      ? canonicalSummary.operative_tasks
+          .filter((entry) => isObject(entry) && isNonEmptyString(entry.text))
+          .map((entry) => ({
+            text: entry.text,
+            status: isNonEmptyString(entry.status) ? entry.status : null
+          }))
+      : [],
+    operative_notes: isNonEmptyString(canonicalSummary.operative_notes)
+      ? canonicalSummary.operative_notes
+      : null,
     dispatch_intent: isObject(canonicalSummary.dispatch_intent)
       ? cloneJson(canonicalSummary.dispatch_intent)
       : null,
@@ -340,6 +352,8 @@ function evaluateWorkRecordWrapperGateInternal({
   agentBrief,
   workerAdmission = null,
   remoteWorkerAdmission = null,
+
+  preparedLaunchPacket = null,
   launchTimestamp = new Date().toISOString(),
   supplementalInstructions = [],
 
@@ -542,6 +556,26 @@ function evaluateWorkRecordWrapperGateInternal({
     };
   }
 
+  const preparedPacketDiagnostic = preparedLaunchPacketBindingDiagnostic(preparedLaunchPacket, {
+    role,
+    unitAddress: unit.address,
+    sourceDigest: sourceDigestText
+  });
+  if (preparedPacketDiagnostic !== null) {
+    return {
+      schema_version: WORK_RECORD_WRAPPER_GATE_SCHEMA_VERSION,
+      allowed: false,
+      wrapper_gate_code: "invalid_gate_input",
+      role,
+      unit_address: unit.address,
+      expected_unit_address: normalizedReadiness.value.unit.address,
+      diagnostics: [preparedPacketDiagnostic],
+      readiness: normalizedReadiness.value,
+      agent_brief: normalizedBrief.value,
+      launch_packet: null
+    };
+  }
+
   const nodeEngineAdmissibility = evaluateRemoteWorkerAdmissionWrapperGate({
     localAllowed: true,
     remote: remoteWorkerAdmission,
@@ -582,7 +616,7 @@ function evaluateWorkRecordWrapperGateInternal({
     agent_brief: normalizedBrief.value,
 
     remote_worker_admission: nodeEngineAdmissibility,
-    launch_packet: buildWorkRecordLaunchPacket({
+    launch_packet: preparedLaunchPacket ?? buildWorkRecordLaunchPacket({
       role,
       unitAddress: unit.address,
       readiness: normalizedReadiness.value,
@@ -594,6 +628,31 @@ function evaluateWorkRecordWrapperGateInternal({
       terminalStructuredRoleResultMode
     })
   };
+}
+
+function preparedLaunchPacketBindingDiagnostic(preparedLaunchPacket, {
+  role,
+  unitAddress,
+  sourceDigest
+}) {
+  if (preparedLaunchPacket === null || preparedLaunchPacket === undefined) return null;
+  if (!isObject(preparedLaunchPacket) || !isNonEmptyString(preparedLaunchPacket.prompt)) {
+    return createDiagnostic(
+      "invalid_gate_input",
+      "prepared launch packet must carry the composed worker prompt",
+      { path: "prepared_launch_packet" }
+    );
+  }
+  if (preparedLaunchPacket.unit_address !== unitAddress ||
+      preparedLaunchPacket.role !== role ||
+      preparedLaunchPacket.source_digest !== sourceDigest) {
+    return createDiagnostic(
+      "invalid_gate_input",
+      `prepared launch packet does not bind ${unitAddress}`,
+      { path: "prepared_launch_packet" }
+    );
+  }
+  return null;
 }
 
 export function buildWorkRecordLaunchPacket({

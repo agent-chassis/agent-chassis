@@ -203,12 +203,35 @@ async function scanAllocatorState(targetDir, manifest) {
 
 export async function collectOccupiedAllocatedRecordValues(targetDir, definition) {
   const occupied = new Set();
-  await collectAllocatedMarkdownValues(targetDir, definition, occupied);
+  if (definition.stateKey === "initiative") {
+    await collectAllocatedJsonKindRecordValues(targetDir, definition, occupied);
+  } else {
+    await collectAllocatedMarkdownValues(targetDir, definition, occupied);
+  }
   if (definition.directory === "wiki/issues") {
     await collectAllocatedJsonWorkRecordValues(targetDir, definition, occupied);
     await collectAllocatedControlledCarrierValues(targetDir, definition, occupied);
   }
   return occupied;
+}
+
+async function collectAllocatedJsonKindRecordValues(targetDir, definition, occupied) {
+  const directoryPath = path.join(targetDir, definition.directory);
+  if (!(await pathExists(directoryPath))) {
+    return;
+  }
+
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+  const pattern = new RegExp(`^${definition.prefix}-(\\d{4})\\.json$`);
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    const match = entry.name.match(pattern);
+    if (match) {
+      occupied.add(Number.parseInt(match[1], 10));
+    }
+  }
 }
 
 async function scanHighestAllocatedValue(targetDir, definition) {

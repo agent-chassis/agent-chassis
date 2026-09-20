@@ -36,36 +36,7 @@ test("session-contract monitor projection preserves the launcher digest", () => 
   assert.equal(statusProjection.contract_digest, contract.contract_digest);
 });
 
-const SLICE_REVIEW = Object.freeze({
-  review_subject: "WK-2310#SLICE-001",
-  slice_ref: "refs/heads/slice/IN-0022/WK-2310/SLICE-001",
-  reviewed_sha: "a".repeat(40),
-  diff_base_sha: "b".repeat(40)
-});
-
-function sliceLifecycle() {
-  return Object.freeze({
-    phase: POST_WORKER_LIFECYCLE_PHASES.AWAITING_SLICE_REVIEW,
-    slice_review: SLICE_REVIEW,
-    reviewer_dispatch: Object.freeze({
-      tool: "workspace_agent_dispatch",
-      args: Object.freeze({ role: "reviewer", subject: SLICE_REVIEW.review_subject })
-    })
-  });
-}
-
-function evidence({ findings }) {
-  return Object.freeze({
-    schema_version: "workspace-agent-slice-review-advisory-evidence.v1",
-    authority: "advisory_only",
-    unit_address: SLICE_REVIEW.review_subject,
-    slice_ref: SLICE_REVIEW.slice_ref,
-    reviewed_sha: SLICE_REVIEW.reviewed_sha,
-    diff_base_sha: SLICE_REVIEW.diff_base_sha,
-    clean_review_run_ids: findings ? [] : ["clean-run"],
-    findings_review_run_ids: findings ? ["findings-run"] : []
-  });
-}
+const SLICE_SUBJECT = "WK-2310#SLICE-001";
 
 test("hot checkpoint and cold recovered lifecycle project identical terminal resolution", () => {
   const lifecycle = Object.freeze({
@@ -142,11 +113,11 @@ test("post-integration cleanup failure stays an immutable finalized delivery", a
         },
         validation_worktree_path: "/tmp/wk-2310-parity"
       }),
-      resolveCanonicalReviewUnit: () => {
-        throw new Error("non-final delivery must not resolve terminal review");
+      resolveDeclaredTerminalReviewUnit: () => {
+        throw new Error("non-final delivery must not resolve a terminal review unit");
       },
-      bindFrozenReviewContext: () => {
-        throw new Error("non-final delivery must not bind terminal review");
+      prepareTerminalCandidate: () => {
+        throw new Error("non-final delivery must not prepare a terminal candidate");
       }
     }
   });
@@ -159,93 +130,72 @@ test("post-integration cleanup failure stays an immutable finalized delivery", a
   assert.equal(result.integration.cleanup.code, "targeted_cleanup_failure.v1");
 });
 
-test("slice findings and clean output have the same integration continuation authority", async () => {
-  const status = Object.freeze({ subject: SLICE_REVIEW.review_subject });
-  const lifecycle = sliceLifecycle();
-  const clean = await buildCloseoutWorkflowContinuation({
-    status,
-    lifecycle,
-    dispatchBackend: { resolveSliceReviewEvidenceSet: async () => evidence({ findings: false }) }
+test("a managed worker slice status never yields closeout guidance from findings or lifecycle state", async () => {
+  let reads = 0;
+  const dispatchBackend = {
+    resolveSliceReviewEvidenceSet: async () => { reads += 1; return { findings: ["x"] }; },
+    resolveTerminalReviewPublicationState: async () => {
+      reads += 1;
+      return { binding: { canonical_wk_id: "WK-2310" }, version_decision: { state: "selected" } };
+    }
+  };
+  const status = Object.freeze({
+    role: "worker",
+    subject: SLICE_SUBJECT,
+    terminal: true,
+    status: "succeeded"
   });
-  const findings = await buildCloseoutWorkflowContinuation({
-    status,
-    lifecycle,
-    dispatchBackend: { resolveSliceReviewEvidenceSet: async () => evidence({ findings: true }) }
+  const lifecycle = Object.freeze({
+    phase: POST_WORKER_LIFECYCLE_PHASES.FINALIZED,
+    integrated: true,
+    wk_transitioned_to_review: true,
+    reviewer_dispatch: Object.freeze({
+      tool: "workspace_agent_dispatch",
+      args: Object.freeze({ role: "reviewer", subject: SLICE_SUBJECT })
+    })
   });
-
-  for (const continuation of [clean, findings]) {
-    assert.equal(continuation.stage, "slice_review_required");
-    assert.equal(continuation.current_safe_call.tool, "workspace_agent_dispatch");
-    assert.equal(continuation.current_safe_call.arguments.subject, SLICE_REVIEW.review_subject);
-    assert.equal(continuation.grants_authority, false);
-  }
-  assert.equal(clean.decision_required, false);
-  assert.equal(findings.decision_required, false);
+  assert.equal(await buildCloseoutWorkflowContinuation({ status, lifecycle, dispatchBackend }), null);
+  assert.equal(reads, 0);
+  assert.equal(Object.values(POST_WORKER_LIFECYCLE_PHASES).includes("awaiting-slice-review"), false);
 });
 
 test("terminal findings and clean output have the same forge continuation authority", async () => {
-  const baseStatus = Object.freeze({
+  const state = Object.freeze({
+    binding: Object.freeze({ canonical_wk_id: "WK-2310" }),
+    version_decision: Object.freeze({ state: "selected" })
+  });
+  const status = (text) => Object.freeze({
     role: "reviewer",
-    subject: SLICE_REVIEW.review_subject,
+    subject: SLICE_SUBJECT,
     terminal: true,
     run_id: "review-run",
-    monitor_handle: "review-handle"
+    monitor_handle: "review-handle",
+    final_result: Object.freeze({ kind: "advisory_review", full_response: Object.freeze({ text }) })
   });
-  const state = (review) => Object.freeze({
-    advisory_review_evidence: Object.freeze({ reviews: Object.freeze([review]) })
-  });
-  const retained = (outcome, reviewResult) => Object.freeze({
-    run_id: baseStatus.run_id,
-    monitor_handle: baseStatus.monitor_handle,
-    terminal: true,
-    provenance_valid: true,
-    outcome,
-    review_result: reviewResult
-  });
-  const cleanResult = Object.freeze({
-    blocking_finding_count: 0,
-    clean_review: true,
-    medium_finding_count: 0,
-    no_findings: true,
-    review_outcome: "no_findings",
-    reviewed_controls: Object.freeze([])
-  });
+  const dispatchBackend = { resolveTerminalReviewPublicationState: async () => state };
   const clean = await buildCloseoutWorkflowContinuation({
-    status: baseStatus,
-    dispatchBackend: {
-      resolveTerminalCandidatePublicationState: async () =>
-        state(retained("clean", cleanResult))
-    }
+    status: status("No findings."), dispatchBackend
   });
   const findings = await buildCloseoutWorkflowContinuation({
-    status: baseStatus,
-    dispatchBackend: {
-      resolveTerminalCandidatePublicationState: async () =>
-        state(retained("changes_requested", null))
-    }
+    status: status("HIGH: blocking finding."), dispatchBackend
   });
 
-  for (const continuation of [clean, findings]) {
-    assert.equal(continuation.stage, "forge_handoff_ready");
-    assert.equal(continuation.current_safe_call.tool, "workspace_wk_forge_handoff");
-    assert.equal(continuation.current_safe_call.arguments.assigned_unit, "WK-2310");
-    assert.equal(continuation.grants_authority, false);
-  }
-  assert.equal(clean.decision_required, false);
-  assert.equal(findings.decision_required, true);
+  assert.deepEqual(findings, clean);
+  assert.equal(clean.stage, "forge_handoff_ready");
+  assert.equal(clean.current_safe_call.tool, "workspace_wk_forge_handoff");
+  assert.equal(clean.current_safe_call.arguments.assigned_unit, "WK-2310");
+  assert.equal(clean.grants_authority, false);
+  assert.equal(clean.decision_required, true);
 });
 
-test("an unavailable advisory observer never manufactures continuation authority", async () => {
+test("an unavailable publication observer never manufactures continuation authority", async () => {
   const continuation = await buildCloseoutWorkflowContinuation({
-    status: { subject: SLICE_REVIEW.review_subject },
-    lifecycle: sliceLifecycle(),
+    status: { role: "reviewer", subject: SLICE_SUBJECT, terminal: true },
     dispatchBackend: {
-      resolveSliceReviewEvidenceSet: async () => {
+      resolveTerminalReviewPublicationState: async () => {
         throw new Error("targeted observer failure");
       }
     }
   });
-  assert.equal(continuation.stage, "slice_review_required");
-  assert.equal(continuation.current_safe_call.tool, "workspace_agent_dispatch");
-  assert.equal(continuation.current_safe_call.arguments.role, "reviewer");
+  assert.equal(continuation, null);
 });

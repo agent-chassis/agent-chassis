@@ -4,10 +4,17 @@ import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { parseWorkRecordUnitAddress } from "@agent-chassis/agent-launch-core";
-import { loadWorkRecordById } from "@agent-chassis/wiki-core";
+import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
 import { isWithinRepo } from "./launch-isolation.mjs";
 import { LANDING_AUTHORITY_WORK_RECORD_RE } from "./backend-worker-scope-authority.mjs";
-import { SCOPE_TREE_PATH_KINDS, createWorkerScopeTreeReader } from "./backend-worker-scope-tree.mjs";
+import {
+  CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
+import {
+  SCOPE_TREE_PATH_KINDS,
+  createWorkerScopeTreeReader,
+  resolveWritableScopeCoverage
+} from "./backend-worker-scope-tree.mjs";
 
 import { defaultRunGit } from "./worktree-substrate-primitives.mjs";
 import {
@@ -96,6 +103,14 @@ export function classifyAssignedSourceSet({
   }
   const writeSet = new Set(writeScope);
   const repoSet = new Set(repoPaths);
+
+  let coverage = null;
+  const writableCovers = (value) => {
+    coverage ??= resolveWritableScopeCoverage(scopeExistenceReader, writeScope, {
+      exclusions: [CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]
+    });
+    return coverage.covers(value);
+  };
   const allPaths = uniqueSortedStringList(readScope, repoPaths, writeScope);
   let repoReal = workspaceDir;
   try { repoReal = realpathFn(workspaceDir); } catch {   }
@@ -122,7 +137,7 @@ export function classifyAssignedSourceSet({
       result.refusals.push({ path: value, path_class, cause: "assigned_source_outside_proven_scope" });
       continue;
     }
-    if (writeSet.has(value)) {
+    if (writeSet.has(value) || writableCovers(value)) {
       result.createTargets.push({ path: value, path_class: "write_scope" });
     } else {
       result.refusals.push({ path: value, path_class, cause: "assigned_source_absent" });

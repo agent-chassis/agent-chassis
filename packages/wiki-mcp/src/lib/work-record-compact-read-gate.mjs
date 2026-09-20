@@ -1,11 +1,16 @@
+import { ordinaryFieldSelectionIssues, ORDINARY_FIELD_CODES } from "@agent-chassis/wiki-core/src/lib/work-record-ordinary-field-read.mjs";
+import { runOrdinaryFieldRead } from "./work-record-ordinary-field-read.mjs";
 import { types as utilTypes } from "node:util";
-import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import {
   parseWorkRecordSummaryUnit,
   WORK_RECORD_SLICE_PAGE_MAX_LIMIT,
   workRecordDetailSelectorSupported
 } from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
+import {
+  buildSelectedRecordMemberCall,
+  selectedRecordMemberSelectorIssues
+} from "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
 
 import {
   classifyReadPagePath,
@@ -14,8 +19,6 @@ import {
   isSafeWorkspaceRelativePath,
   isWorkRecordReadPath,
   projectSelectedReadResult,
-  projectSelectedSummaryResult,
-  requestedSummaryIdentity,
   throwSelectedIdentityError,
   WORK_RECORD_ID_PATTERN,
   WORK_RECORD_ID_PREFIX_PATTERN
@@ -23,22 +26,25 @@ import {
 
 import {
   buildContinuationMetadata,
-  buildRefusal,
   GET_RECORD_TOOL_FAMILY,
   READ_PAGE_TOOL_FAMILY,
-  responseSizeMetadata,
   runSelectedRecordContractFields,
+  runSelectedRecordMember,
   runSliceEnumeration,
   SUMMARY_TOOL_FAMILY
 } from "./work-record-compact-read-continuation.mjs";
-import { buildNextCall } from "./mcp-response.mjs";
+import {
+  projectWorkRecordDetailMenu,
+  projectWorkRecordNavigation,
+  toolVisibleToSession,
+  workRecordDetailsSelectorIssues
+} from "./work-record-read-navigation.mjs";
 
-export { workRecordDetailSelectorSchemaShape } from "./work-record-compact-read-continuation.mjs";
+export {
+  selectedRecordMemberSchema,
+  workRecordDetailSelectorSchemaShape
+} from "./work-record-compact-read-continuation.mjs";
 
-const COMPACT_READ_TOKEN_ACCEPTED = "compact_read_token_accepted";
-const COMPACT_READ_NOT_REQUIRED = "compact_read_not_required";
-
-const COMPACT_READ_ACK_SCHEMA_VERSION = "work-record-compact-read-ack.v1";
 const SELECTOR_REFUSAL_SCHEMA_VERSION = "work-record-selector-refusal.v1";
 const MAX_SELECTOR_DIAGNOSTICS = 8;
 const SELECTOR_REFUSAL_CODES = Object.freeze({
@@ -52,9 +58,15 @@ const SELECTOR_REFUSAL_CODES = Object.freeze({
   SELECTED_RECORD_INVALID: "selector_selected_record_invalid",
   CONFLICT: "selector_conflict",
   PATH_UNSUPPORTED: "selector_path_unsupported",
-  ACCEPT_FULL_READ_INVALID: "selector_accept_full_read_invalid",
-  SLICE_PAGE_INVALID: "selector_slice_page_invalid"
+  SLICE_PAGE_INVALID: "selector_slice_page_invalid",
+  DETAILS_INVALID: "selector_details_invalid",
+  MEMBER_INVALID: "selector_member_invalid"
 });
+
+const DETAILS_EXCLUSIVE_FIELDS = Object.freeze([
+  "ordinary_field", "selected_record", "slice_offset", "slice_limit", "slice_status",
+  "expected_source_digest", "member"
+]);
 
 const SLICE_PAGE_ARGUMENT_FIELDS = Object.freeze([
   "slice_offset",
@@ -62,60 +74,46 @@ const SLICE_PAGE_ARGUMENT_FIELDS = Object.freeze([
   "slice_status",
   "expected_source_digest"
 ]);
-const LARGE_RECORD_SLICE_THRESHOLD = 8;
-const LARGE_RECORD_BYTE_THRESHOLD = 32768;
 
-const COMPACT_READ_ACK_LIFETIME_MS = 15 * 60 * 1000;
-
-const MAX_COMPACT_READ_ACK_ENCODED_LENGTH = 4096;
-const COMPACT_READ_ACK_FIELDS = Object.freeze([
-  "schema_version",
-  "tool_family",
-  "workspace_repo",
-  "record_id",
-  "selector",
-  "source_digest",
-  "issued_at_ms",
-  "expires_at_ms"
+const MEMBER_EXCLUSIVE_FIELDS = Object.freeze([
+  "ordinary_field", "details", "selected_record", "include_body", ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
-const BASE64URL_SEGMENT_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+const RECORD_PROJECTION_PAGE_KINDS = new Set(["work-records", "issues", "initiatives", "decisions"]);
 const SUMMARY_ARGUMENT_FIELDS = new Set([
+  "ordinary_field",
   "repo",
   "id",
   "unit",
   "path",
-  "verbose",
-  "include_full_summary",
-  "accept_full_read",
-  "compact_read_token",
+  "details",
+  "member",
   ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
+
+const READ_PAGE_PRIMARY_FIELDS = Object.freeze(["path", "id", "unit"]);
+const READ_PAGE_DELEGATED_FIELDS = Object.freeze(["entry", "content_reference"]);
 const READ_PAGE_ARGUMENT_FIELDS = new Set([
   "path",
+  "id",
+  "unit",
   "repo",
   "profile",
   "extensionNamespaces",
-  "verbose",
   "include_body",
-  "include_raw",
-  "include_record",
   "selected_slice",
   "selected_record",
-  "accept_full_read",
-  "compact_read_token"
+  "member",
+  ...READ_PAGE_DELEGATED_FIELDS
 ]);
 const GET_RECORD_ARGUMENT_FIELDS = new Set([
   "id",
   "repo",
   "profile",
   "extensionNamespaces",
-  "verbose",
-  "include_record",
   "include_body",
-  "include_raw",
   "selected_slice",
-  "accept_full_read",
-  "compact_read_token",
+  "member",
   ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
 
@@ -173,30 +171,6 @@ function throwSelectorValidationError(toolFamily, issues) {
   throw error;
 }
 
-function base64UrlEncode(value) {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
-}
-
-function base64UrlDecodeJson(value) {
-  try {
-    return JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function encodeCompactReadAck(payload) {
-  return base64UrlEncode(payload);
-}
-
-function decodeCompactReadAck(token) {
-  if (typeof token !== "string") return null;
-  if (token.length === 0 || token.length > MAX_COMPACT_READ_ACK_ENCODED_LENGTH) return null;
-  if (!BASE64URL_SEGMENT_PATTERN.test(token)) return null;
-  const decoded = base64UrlDecodeJson(token);
-  return isObject(decoded) ? decoded : null;
-}
-
 function sliceStatusFilterIsWellFormed(value) {
   const entries = Array.isArray(value) ? value : [value];
   if (entries.length === 0) return true;
@@ -236,7 +210,7 @@ function getSlicePageSelectorValidationIssues(args, toolFamily) {
       `${toolFamily} expected_source_digest must be the non-empty source_digest a prior page returned`
     ));
   }
-  if (hasOwn(args, "expected_source_digest") &&
+  if (hasOwn(args, "expected_source_digest") && !hasOwn(args, "ordinary_field") &&
       !SLICE_PAGE_ARGUMENT_FIELDS.some((field) => field !== "expected_source_digest" && hasOwn(args, field))) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
@@ -249,7 +223,8 @@ function getSlicePageSelectorValidationIssues(args, toolFamily) {
 }
 
 function slicePageRequested(args) {
-  return SLICE_PAGE_ARGUMENT_FIELDS.some((field) => hasOwn(args, field));
+  return SLICE_PAGE_ARGUMENT_FIELDS.some((field) =>
+    !(hasOwn(args, "ordinary_field") && field === "expected_source_digest") && hasOwn(args, field));
 }
 
 function normalizeSlicePageRequest(args) {
@@ -266,6 +241,24 @@ function normalizeSlicePageRequest(args) {
       ? normalizeString(args.expected_source_digest)
       : null
   };
+}
+
+function getMemberSelectorValidationIssues(args, toolFamily) {
+  if (!hasOwn(args, "member")) return [];
+  const issues = selectedRecordMemberSelectorIssues(args.member).map((issue) => selectorIssue(
+    SELECTOR_REFUSAL_CODES.MEMBER_INVALID,
+    ["member", ...issue.path],
+    `${toolFamily} ${issue.message}`
+  ));
+  const conflicting = MEMBER_EXCLUSIVE_FIELDS.filter((field) => hasOwn(args, field));
+  if (conflicting.length > 0) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.CONFLICT,
+      ["member"],
+      `${toolFamily} member is mutually exclusive with ${conflicting.join(", ")}`
+    ));
+  }
+  return issues;
 }
 
 export function getSummarySelectorValidationIssues(args) {
@@ -312,14 +305,29 @@ export function getSummarySelectorValidationIssues(args) {
       `${SUMMARY_TOOL_FAMILY} selected_record and slice enumeration are mutually exclusive`
     ));
   }
-  if (hasOwn(args, "accept_full_read") && args.accept_full_read !== true) {
-    issues.push(selectorIssue(
-      SELECTOR_REFUSAL_CODES.ACCEPT_FULL_READ_INVALID,
-      ["accept_full_read"],
-      `${SUMMARY_TOOL_FAMILY} accept_full_read must be literal true when supplied`
-    ));
-  }
   issues.push(...getSlicePageSelectorValidationIssues(args, SUMMARY_TOOL_FAMILY));
+  issues.push(...getMemberSelectorValidationIssues(args, SUMMARY_TOOL_FAMILY));
+  if (hasOwn(args, "details")) {
+    for (const issue of workRecordDetailsSelectorIssues(args.details)) {
+      issues.push(selectorIssue(SELECTOR_REFUSAL_CODES.DETAILS_INVALID, issue.path,
+        `${SUMMARY_TOOL_FAMILY} ${issue.message}`));
+    }
+    const conflicting = DETAILS_EXCLUSIVE_FIELDS.filter((field) => hasOwn(args, field));
+    if (conflicting.length > 0) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        ["details"],
+        `${SUMMARY_TOOL_FAMILY} details is mutually exclusive with ${conflicting.join(", ")}`
+      ));
+    }
+  }
+  if (hasOwn(args, "ordinary_field")) {
+    issues.push(...ordinaryFieldSelectionIssues(args.ordinary_field, args.expected_source_digest));
+    if (args.slice_offset > 0 && args.expected_source_digest == null) {
+      issues.push(selectorIssue(ORDINARY_FIELD_CODES.RANGE_INVALID, ["expected_source_digest"],
+        "Noninitial compound slice pages require source_digest"));
+    }
+  }
 
   if (suppliedSelectors.length === 1) {
     const selectorField = suppliedSelectors[0];
@@ -385,24 +393,105 @@ function validateAndNormalizeSummarySelector(args) {
   delete normalizedArgs.path;
   normalizedArgs[selectorField] = selected;
 
-  const id = selectorField === "id" ? selected : null;
-  const unit = selectorField === "unit" ? selected : null;
-  const path = selectorField === "path" ? selected : null;
   const selectedAddress = selectorField === "unit"
     ? parseWorkRecordSummaryUnit(selected)
     : null;
   return {
     args: normalizedArgs,
     selector: {
-      id,
-      unit,
-      path,
+      id: selectorField === "id" ? selected : null,
+      unit: selectorField === "unit" ? selected : null,
+      path: selectorField === "path" ? selected : null,
       selected,
-      selected_slice: selectedAddress?.kind === "slice",
+      selected_slice: selectedAddress?.kind === "slice" ? selectedAddress.slice_id : null,
       selected_record: args.selected_record === true,
-      slice_page: normalizeSlicePageRequest(args)
+      slice_page: normalizeSlicePageRequest(args),
+      member: hasOwn(args, "member") ? args.member : null
     }
   };
+}
+
+function getOrdinaryReaderSelectorIssues(args, primaryField) {
+  const issues = [];
+  const delegated = READ_PAGE_DELEGATED_FIELDS.filter((field) => hasOwn(args, field));
+  const primaries = READ_PAGE_PRIMARY_FIELDS.filter((field) => hasOwn(args, field));
+
+  if (delegated.length > 1) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.CONFLICT,
+      [delegated[1]],
+      `${READ_PAGE_TOOL_FAMILY} reads one of ${READ_PAGE_DELEGATED_FIELDS.join(" or ")}, not both`
+    ));
+    return boundedSelectorIssues(issues);
+  }
+
+  if (hasOwn(args, "content_reference")) {
+
+    for (const field of [...READ_PAGE_PRIMARY_FIELDS, "selected_slice", "selected_record", "member",
+      "include_body", "profile", "extensionNamespaces"]) {
+      if (!hasOwn(args, field)) continue;
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        [field],
+        `${READ_PAGE_TOOL_FAMILY} content_reference reads one retained reference and accepts no ${field}`
+      ));
+    }
+    return boundedSelectorIssues(issues);
+  }
+
+  if (hasOwn(args, "entry")) {
+
+    for (const field of ["selected_slice", "selected_record", "member", "include_body"]) {
+      if (!hasOwn(args, field)) continue;
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        [field],
+        `${READ_PAGE_TOOL_FAMILY} entry selects inside one unit and accepts no ${field}`
+      ));
+    }
+    if (!hasOwn(args, "id") && !hasOwn(args, "unit")) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.COUNT_INVALID,
+        ["unit"],
+        `${READ_PAGE_TOOL_FAMILY} entry requires the canonical id or unit that owns the entry`
+      ));
+    }
+    if (hasOwn(args, "path")) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        ["path"],
+        `${READ_PAGE_TOOL_FAMILY} entry is addressed by canonical id or unit, not by path`
+      ));
+    }
+    return boundedSelectorIssues(issues);
+  }
+
+  if (primaries.length === 0) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.COUNT_INVALID,
+      [primaryField],
+      `${READ_PAGE_TOOL_FAMILY} requires exactly one of ${READ_PAGE_PRIMARY_FIELDS.join(", ")}`
+    ));
+    return boundedSelectorIssues(issues);
+  }
+  if (primaries.length > 1) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.CONFLICT,
+      [primaries[1]],
+      `${READ_PAGE_TOOL_FAMILY} accepts exactly one of ${READ_PAGE_PRIMARY_FIELDS.join(", ")}; ` +
+        `received ${primaries.join(", ")}`
+    ));
+  }
+
+  if (hasOwn(args, "unit") && hasOwn(args, "selected_slice") &&
+      normalizeString(args.unit)?.includes("#")) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.CONFLICT,
+      ["selected_slice"],
+      `${READ_PAGE_TOOL_FAMILY} unit already names its slice; selected_slice would address a second one`
+    ));
+  }
+  return boundedSelectorIssues(issues);
 }
 
 export function getReadSelectorValidationIssues(args, toolFamily) {
@@ -431,14 +520,9 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
       ));
     }
   }
-  const primaryField = toolFamily === GET_RECORD_TOOL_FAMILY ? "id" : "path";
-  if (hasOwn(args, "accept_full_read") && args.accept_full_read !== true) {
-    issues.push(selectorIssue(
-      SELECTOR_REFUSAL_CODES.ACCEPT_FULL_READ_INVALID,
-      ["accept_full_read"],
-      `${toolFamily} accept_full_read must be literal true when supplied`
-    ));
-  }
+  const primaryField = toolFamily === GET_RECORD_TOOL_FAMILY
+    ? "id"
+    : (READ_PAGE_PRIMARY_FIELDS.find((field) => hasOwn(args, field)) ?? "path");
   if (toolFamily === GET_RECORD_TOOL_FAMILY) {
     issues.push(...getSlicePageSelectorValidationIssues(args, toolFamily));
     if (slicePageRequested(args) && hasOwn(args, "selected_slice")) {
@@ -449,28 +533,47 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
       ));
     }
   }
-  const unsupportedPrimaryFields = ["id", "unit", "path"].filter(
-    (field) => field !== primaryField && hasOwn(args, field)
-  );
-  if (unsupportedPrimaryFields.length > 0) {
-    issues.push(selectorIssue(
-      SELECTOR_REFUSAL_CODES.UNSUPPORTED,
-      [unsupportedPrimaryFields[0]],
-      `${toolFamily} does not support selector${unsupportedPrimaryFields.length === 1 ? "" : "s"} ` +
-        unsupportedPrimaryFields.join(", ")
-    ));
-  }
-  if (!hasOwn(args, primaryField)) {
-    issues.push(selectorIssue(
-      SELECTOR_REFUSAL_CODES.COUNT_INVALID,
-      [primaryField],
-      `${toolFamily} requires a non-empty ${primaryField} selector`
-    ));
+  issues.push(...getMemberSelectorValidationIssues(args, toolFamily));
+  if (toolFamily === READ_PAGE_TOOL_FAMILY) {
+    issues.push(...getOrdinaryReaderSelectorIssues(args, primaryField));
+  } else {
+    const unsupportedPrimaryFields = ["id", "unit", "path"].filter(
+      (field) => field !== primaryField && hasOwn(args, field)
+    );
+    if (unsupportedPrimaryFields.length > 0) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.UNSUPPORTED,
+        [unsupportedPrimaryFields[0]],
+        `${toolFamily} does not support selector${unsupportedPrimaryFields.length === 1 ? "" : "s"} ` +
+          unsupportedPrimaryFields.join(", ")
+      ));
+    }
+    if (!hasOwn(args, primaryField)) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.COUNT_INVALID,
+        [primaryField],
+        `${toolFamily} requires a non-empty ${primaryField} selector`
+      ));
+    }
   }
   const selected = hasOwn(args, primaryField) ? normalizeString(args[primaryField]) : null;
-  const readPagePath = selected && toolFamily === READ_PAGE_TOOL_FAMILY
+
+  const pathIdentity = toolFamily !== READ_PAGE_TOOL_FAMILY || primaryField === "path";
+  const canonicalRecordId = pathIdentity || selected === null
+    ? null
+    : (primaryField === "unit" ? parseWorkRecordSummaryUnit(selected)?.record_id ?? selected : selected);
+  const readPagePath = selected && toolFamily === READ_PAGE_TOOL_FAMILY && pathIdentity
     ? classifyReadPagePath(selected)
     : null;
+  if (!pathIdentity && selected && canonicalRecordId !== null &&
+      WORK_RECORD_ID_PREFIX_PATTERN.test(canonicalRecordId) &&
+      !WORK_RECORD_ID_PATTERN.test(canonicalRecordId)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.RECORD_ID_MALFORMED,
+      [primaryField],
+      `${READ_PAGE_TOOL_FAMILY} ${primaryField} must match the canonical WK-0000 grammar`
+    ));
+  }
   if (hasOwn(args, primaryField) && !selected) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.COUNT_INVALID,
@@ -495,6 +598,7 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
   } else if (
     selected &&
     toolFamily === READ_PAGE_TOOL_FAMILY &&
+    pathIdentity &&
     !isSafeWorkspaceRelativePath(selected)
   ) {
     issues.push(selectorIssue(
@@ -559,6 +663,7 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
     toolFamily === READ_PAGE_TOOL_FAMILY &&
     selectedSlice &&
     selected &&
+    pathIdentity &&
     !isWorkRecordReadPath(selected) &&
     !isGraphEvidenceReadPath(selected)
   ) {
@@ -568,11 +673,25 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
       `${READ_PAGE_TOOL_FAMILY} selected_slice requires a canonical work-record or graph-evidence path`
     ));
   }
+
+  if (
+    toolFamily === READ_PAGE_TOOL_FAMILY &&
+    selectedSlice &&
+    !pathIdentity &&
+    canonicalRecordId !== null &&
+    !WORK_RECORD_ID_PATTERN.test(canonicalRecordId)
+  ) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.UNSUPPORTED,
+      ["selected_slice"],
+      `${READ_PAGE_TOOL_FAMILY} selected_slice requires a canonical work-record id or unit`
+    ));
+  }
   if (
     toolFamily === READ_PAGE_TOOL_FAMILY &&
     selectedRecord &&
     selected &&
-    !isGraphEvidenceReadPath(selected)
+    (!pathIdentity || !isGraphEvidenceReadPath(selected))
   ) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.PATH_UNSUPPORTED,
@@ -580,18 +699,33 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
       `${READ_PAGE_TOOL_FAMILY} selected_record requires a canonical graph-evidence path`
     ));
   }
+
   if (
     toolFamily === READ_PAGE_TOOL_FAMILY &&
-    hasOwn(args, "compact_read_token") &&
+    hasOwn(args, "member") &&
     readPagePath &&
-    readPagePath.kind !== "work_record" &&
-    readPagePath.kind !== "graph_evidence" &&
-    !selected.endsWith(".json")
+    (readPagePath.kind === "graph_evidence" ||
+      (readPagePath.kind === "generic" && !selected.endsWith(".json")))
   ) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.PATH_UNSUPPORTED,
-      ["compact_read_token"],
-      `${READ_PAGE_TOOL_FAMILY} compact_read_token requires a canonical work-record or graph-evidence path`
+      ["member"],
+      `${READ_PAGE_TOOL_FAMILY} member requires a canonical WK, initiative or decision JSON path`
+    ));
+  }
+
+  if (
+    toolFamily === READ_PAGE_TOOL_FAMILY &&
+    args?.include_body === true &&
+    (!pathIdentity ||
+      (readPagePath &&
+        (readPagePath.kind === "work_record" || readPagePath.kind === "graph_evidence")))
+  ) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.PATH_UNSUPPORTED,
+      ["include_body"],
+      `${READ_PAGE_TOOL_FAMILY} include_body reads Markdown page bodies; select record content with ` +
+        "member:{path}, or one WK entry body with entry:{entry_id,include_body:true}"
     ));
   }
   return boundedSelectorIssues(issues);
@@ -603,77 +737,57 @@ function validateAndNormalizeReadSelector(args, toolFamily) {
     throwSelectorValidationError(toolFamily, issues);
   }
 
-  const primaryField = toolFamily === GET_RECORD_TOOL_FAMILY ? "id" : "path";
+  const primaryField = toolFamily === GET_RECORD_TOOL_FAMILY
+    ? "id"
+    : (READ_PAGE_PRIMARY_FIELDS.find((field) => hasOwn(args, field)) ?? "path");
   const selected = normalizeString(args[primaryField]);
   const selectedSliceSupplied = hasOwn(args, "selected_slice");
-  const selectedSlice = selectedSliceSupplied ? normalizeString(args.selected_slice) : null;
+  let selectedSlice = selectedSliceSupplied ? normalizeString(args.selected_slice) : null;
   const selectedRecord = args.selected_record === true;
+
+  let canonicalId = null;
+  if (primaryField === "unit") {
+    const parsed = parseWorkRecordSummaryUnit(selected);
+    canonicalId = parsed?.record_id ?? selected;
+    selectedSlice = parsed?.slice_id ?? selectedSlice;
+  } else if (primaryField === "id") {
+    canonicalId = selected;
+  }
 
   const normalizedArgs = { ...args };
   delete normalizedArgs.id;
   delete normalizedArgs.unit;
   delete normalizedArgs.path;
-  normalizedArgs[primaryField] = selected;
-  if (selectedSliceSupplied) normalizedArgs.selected_slice = selectedSlice;
+  delete normalizedArgs.entry;
+  delete normalizedArgs.content_reference;
+
+  normalizedArgs[canonicalId === null ? primaryField : "id"] = canonicalId ?? selected;
+  if (selectedSlice !== null) normalizedArgs.selected_slice = selectedSlice;
 
   return {
     args: normalizedArgs,
     selector: {
-      id: primaryField === "id" ? selected : null,
+      id: canonicalId ?? (primaryField === "id" ? selected : null),
       path: primaryField === "path" ? selected : null,
+      identity_kind: primaryField,
+      identity_argument: primaryField === "path" ? { path: selected } : { [primaryField]: selected },
       selected,
       selected_slice: selectedSlice,
       selected_record: selectedRecord,
       selected_detail: Boolean(selectedSlice || selectedRecord),
-      slice_page: toolFamily === GET_RECORD_TOOL_FAMILY ? normalizeSlicePageRequest(args) : null
+      slice_page: toolFamily === GET_RECORD_TOOL_FAMILY ? normalizeSlicePageRequest(args) : null,
+      member: hasOwn(args, "member") ? args.member : null
     }
   };
 }
 
-function buildSummaryArgs(args, overrides = {}) {
-  return {
-    id: args.id ?? null,
-    unit: args.unit ?? null,
-    pathInput: args.path ?? null,
-    verbose: false,
-    include_full_summary: false,
-    ...overrides
-  };
-}
-
-function buildReadArgs(args, overrides = {}) {
-  return {
-    ...args,
-    verbose: false,
-    include_record: false,
-    include_body: false,
-    include_raw: false,
-    ...overrides
-  };
-}
-
-function isLargePayload(value) {
-  if (value === undefined) {
-    return false;
-  }
-  return responseSizeMetadata(value).bytes >= LARGE_RECORD_BYTE_THRESHOLD;
-}
-
-function isLargeOrTracker(summary) {
-  return summary?.work_kind === "tracker" || Number(summary?.slice_count ?? 0) > LARGE_RECORD_SLICE_THRESHOLD;
-}
-
-function isLargeOrTrackerReadResult(result, loadedRecord = null) {
-  return (
-    result?.format === "json-kind-record" ||
-    (result?.format === "json-work-record" &&
-    (
-      result?.work_kind === "tracker" ||
-      Number(result?.slice_counts?.total ?? 0) > LARGE_RECORD_SLICE_THRESHOLD ||
-      isLargePayload(result) ||
-      isLargePayload(loadedRecord?.record)
-    ))
-  );
+function throwRecordBodyUnsupported(toolFamily) {
+  throwSelectorValidationError(toolFamily, [selectorIssue(
+    SELECTOR_REFUSAL_CODES.PATH_UNSUPPORTED,
+    ["include_body"],
+    `${toolFamily} include_body reads Markdown page bodies, not canonical records or their ` +
+      "projections; select record content with member"
+  )]);
 }
 
 function kindRecordCompactMembers(result, record) {
@@ -706,7 +820,6 @@ function projectKindRecordCompactDisclosure(result) {
   delete compactResult.record;
   return {
     compactResult,
-    sourceRecord,
     memberLedger: {
       source_members: sourceMembers,
       compact_members: compactMembers,
@@ -724,21 +837,10 @@ function projectKindRecordCompactDisclosure(result) {
   };
 }
 
-function kindRecordRecoveryCall(toolFamily, compactResult) {
-  const identity = toolFamily === READ_PAGE_TOOL_FAMILY
-    ? { path: compactResult.relativePath }
-    : { id: compactResult.record_id };
-  return buildNextCall({
-    tool: toolFamily,
-    arguments: { ...identity, include_record: true, accept_full_read: true },
-    recommended: true
-  });
-}
-
 function buildKindRecordContinuation({
   toolFamily,
+  workspaceRepo,
   compactResult,
-  compactToken,
   selector,
   args,
   memberLedger
@@ -746,7 +848,6 @@ function buildKindRecordContinuation({
   const continuation = buildContinuationMetadata({
     toolFamily,
     compactResult,
-    compactToken,
     selector,
     args
   });
@@ -757,14 +858,22 @@ function buildKindRecordContinuation({
       ...continuation.omitted_detail_counts,
       record_members: omittedMembers
     },
-    detail_available_via: ["accept_full_read"],
+    detail_available_via: ["member"],
     selected_resources: {
       type: "canonical_record",
       id: compactResult.record_id,
       record_kind: compactResult.record_kind,
       selection_reason: "compact_read_compact_first_scope"
     },
-    next_calls: [kindRecordRecoveryCall(toolFamily, compactResult)],
+    next_calls: [buildSelectedRecordMemberCall({
+      tool: toolFamily,
+      repository: workspaceRepo,
+      identity: toolFamily === READ_PAGE_TOOL_FAMILY
+        ? { path: compactResult.relativePath }
+        : { id: compactResult.record_id },
+      member: { path: [] },
+      recommended: true
+    })],
     next_calls_coverage: {
       omitted_record_members: omittedMembers,
       omitted_record_members_addressed: omittedMembers,
@@ -775,109 +884,17 @@ function buildKindRecordContinuation({
   };
 }
 
-function expensiveOptions(args) {
-  const blocked = [];
-  if (args.verbose === true) blocked.push("verbose");
-  if (args.include_full_summary === true) blocked.push("include_full_summary");
-  return blocked;
-}
-
-function expensiveReadOptions(args) {
-  const blocked = [];
-  if (args.verbose === true) blocked.push("verbose");
-  if (args.include_record === true) blocked.push("include_record");
-  if (args.include_raw === true) blocked.push("include_raw");
-  if (args.include_body === true) blocked.push("include_body");
-  return blocked;
-}
-
-function createToken({
-  workspaceRepo,
-  recordId,
-  selector,
-  sourceDigest,
-  toolFamily = SUMMARY_TOOL_FAMILY,
-  now = Date.now()
-}) {
-  return encodeCompactReadAck({
-    schema_version: COMPACT_READ_ACK_SCHEMA_VERSION,
-    tool_family: toolFamily,
-    workspace_repo: workspaceRepo,
-    record_id: recordId,
-    selector,
-    source_digest: sourceDigest,
-    issued_at_ms: now,
-    expires_at_ms: now + COMPACT_READ_ACK_LIFETIME_MS
-  });
-}
-
-function malformedAck() {
-  return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MALFORMED };
-}
-
-function ackShapeIsWellFormed(decoded) {
-  const keys = Object.keys(decoded);
-  if (keys.length !== COMPACT_READ_ACK_FIELDS.length) return false;
-  for (const field of COMPACT_READ_ACK_FIELDS) {
-    if (!Object.hasOwn(decoded, field)) return false;
-  }
-  for (const field of ["schema_version", "tool_family", "workspace_repo", "record_id", "selector"]) {
-    if (typeof decoded[field] !== "string") return false;
-  }
-  if (decoded.source_digest !== null && typeof decoded.source_digest !== "string") return false;
-  if (!Number.isInteger(decoded.issued_at_ms) || !Number.isInteger(decoded.expires_at_ms)) return false;
-  if (decoded.expires_at_ms - decoded.issued_at_ms !== COMPACT_READ_ACK_LIFETIME_MS) return false;
-  return true;
-}
-
-function validateToken({
-  token,
-  workspaceRepo,
-  recordId,
-  selector,
-  sourceDigest,
-  toolFamily = SUMMARY_TOOL_FAMILY,
-  now = Date.now()
-}) {
-  if (!token) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING };
-  }
-  const decoded = decodeCompactReadAck(token);
-  if (!decoded || !ackShapeIsWellFormed(decoded)) {
-    return malformedAck();
-  }
-  if (decoded.schema_version !== COMPACT_READ_ACK_SCHEMA_VERSION) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SCHEMA };
-  }
-  if (decoded.tool_family !== toolFamily) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_TOOL_FAMILY };
-  }
-  if (decoded.workspace_repo !== workspaceRepo || decoded.record_id !== recordId) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SCOPE };
-  }
-  if (decoded.selector !== selector) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_WRONG_SELECTOR };
-  }
-  if (decoded.source_digest !== sourceDigest) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_STALE_SOURCE_DIGEST };
-  }
-
-  if (decoded.issued_at_ms > now) {
-    return malformedAck();
-  }
-  if (now > decoded.expires_at_ms) {
-    return { accepted: false, reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_EXPIRED };
-  }
-  return { accepted: true, reason_code: COMPACT_READ_TOKEN_ACCEPTED };
+async function loadNavigationUnit({ workspaceDir, recordId, unitAddress, readWorkRecordById }) {
+  const loaded = await readWorkRecordById({ dir: workspaceDir, id: recordId });
+  return { loaded, unit: parseWorkRecordSummaryUnit(unitAddress ?? recordId) };
 }
 
 export async function runWorkRecordSummaryWithCompactGate({
   workspaceRepo,
   workspaceDir,
   args,
-  getWorkRecordSummary,
-  readSelectedWorkRecordSummary = getWorkRecordSummary,
-  readWorkRecordById
+  readWorkRecordById,
+  isToolVisible = toolVisibleToSession
 }) {
   const normalized = validateAndNormalizeSummarySelector(args);
   const normalizedArgs = normalized.args;
@@ -887,6 +904,11 @@ export async function runWorkRecordSummaryWithCompactGate({
     parseWorkRecordSummaryUnit(selector.selected)?.record_id ??
     extractWorkRecordReadPath(selector.selected)?.record_id ??
     selector.selected;
+
+  if (hasOwn(normalizedArgs, "ordinary_field")) {
+    return runOrdinaryFieldRead({ workspaceDir, workspaceRepo, recordId: selectedRecordId,
+      args: normalizedArgs, selector, readWorkRecordById });
+  }
 
   if (selector.slice_page) {
     return runSliceEnumeration({
@@ -907,121 +929,31 @@ export async function runWorkRecordSummaryWithCompactGate({
     });
   }
 
-  if (selector.selected_slice) {
-    const pendingSummaryResult = readSelectedWorkRecordSummary({
-      dir: workspaceDir,
-      ...buildSummaryArgs(normalizedArgs, {
-        verbose: true,
-        include_full_summary: true
-      })
-    });
-    if (pendingSummaryResult &&
-        typeof pendingSummaryResult === "object" &&
-        utilTypes.isProxy(pendingSummaryResult)) {
-      throwSelectedIdentityError(SUMMARY_TOOL_FAMILY);
-    }
-    const fullSummaryResult = await pendingSummaryResult;
-    const selectedResult = projectSelectedSummaryResult(
-      fullSummaryResult,
-      requestedSummaryIdentity(selector)
-    );
-    if (!selectedResult) {
-      throwSelectedIdentityError(SUMMARY_TOOL_FAMILY);
-    }
-    return selectedResult;
-  }
-
-  const compactResult = await getWorkRecordSummary({
-    dir: workspaceDir,
-    ...buildSummaryArgs(normalizedArgs)
-  });
-
-  if (!compactResult.valid || !compactResult.record_id) {
-    return compactResult;
-  }
-
-  const loadedRecord = typeof readWorkRecordById === "function"
-    ? await readWorkRecordById({ dir: workspaceDir, id: compactResult.record_id })
-    : null;
-  const sourceDigest = loadedRecord?.source_digest ?? compactResult.source_digest ?? null;
-  compactResult.source_digest = sourceDigest;
-
-  const compactToken = createToken({
-    workspaceRepo,
-    recordId: compactResult.record_id,
-    selector: selector.selected,
-    sourceDigest,
-    toolFamily: SUMMARY_TOOL_FAMILY
-  });
-
-  const blockedOptions = expensiveOptions(normalizedArgs);
-  const fullReadAcknowledged = normalizedArgs.accept_full_read === true;
-  const largeUnscopedExpensiveRequest =
-    blockedOptions.length > 0 &&
-    isLargeOrTracker(compactResult.summary) &&
-    !selector.selected_slice &&
-    !fullReadAcknowledged;
-  const tokenDecision = largeUnscopedExpensiveRequest
-    ? validateToken({
-        token: normalizeString(normalizedArgs.compact_read_token),
-        workspaceRepo,
-        recordId: compactResult.record_id,
-        selector: selector.selected,
-        sourceDigest,
-        toolFamily: SUMMARY_TOOL_FAMILY
-      })
-    : { accepted: true, reason_code: COMPACT_READ_NOT_REQUIRED };
-
-  if (largeUnscopedExpensiveRequest) {
-    const refusalDecision = tokenDecision.accepted
-      ? {
-          accepted: false,
-          reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_SELECTED_DETAIL_REQUIRED
-        }
-      : tokenDecision;
-    return buildRefusal({
+  if (selector.member) {
+    return runSelectedRecordMember({
       toolFamily: SUMMARY_TOOL_FAMILY,
-      compactResult,
-      blockedOptions,
-      tokenDecision: refusalDecision,
-      selector,
-      args: normalizedArgs,
-      record: loadedRecord?.record ?? null
+      workspaceRepo,
+      workspaceDir,
+      recordId: selectedRecordId,
+      sliceId: selector.selected_slice,
+      identity: { unit: selector.selected_slice ? `${selectedRecordId}#${selector.selected_slice}` : selectedRecordId },
+      member: selector.member,
+      readWorkRecordById
     });
   }
 
-  if (blockedOptions.length > 0 && !tokenDecision.accepted) {
-    return buildRefusal({
-      toolFamily: SUMMARY_TOOL_FAMILY,
-      compactResult,
-      blockedOptions,
-      tokenDecision,
-      selector,
-      args: normalizedArgs,
-      record: loadedRecord?.record ?? null
-    });
+  const { loaded, unit } = await loadNavigationUnit({ workspaceDir, recordId: selectedRecordId,
+    unitAddress: normalizedArgs.unit, readWorkRecordById });
+  if (hasOwn(normalizedArgs, "details")) {
+    const menu = projectWorkRecordDetailMenu({ loaded, unit, repository: workspaceRepo,
+      details: normalizedArgs.details, isToolVisible });
+    if (!menu) throwSelectedIdentityError(SUMMARY_TOOL_FAMILY);
+    return menu;
   }
 
-  if (blockedOptions.length > 0) {
-    return getWorkRecordSummary({
-      dir: workspaceDir,
-      id: normalizedArgs.id ?? null,
-      unit: normalizedArgs.unit ?? null,
-      pathInput: normalizedArgs.path ?? null,
-      verbose: Boolean(normalizedArgs.verbose),
-      include_full_summary: Boolean(normalizedArgs.include_full_summary)
-    });
-  }
-
-  compactResult.compact_read = buildContinuationMetadata({
-    toolFamily: SUMMARY_TOOL_FAMILY,
-    compactResult,
-    compactToken,
-    selector,
-    args: normalizedArgs,
-    record: loadedRecord?.record ?? null
-  });
-  return compactResult;
+  const navigation = projectWorkRecordNavigation({ loaded, unit, repository: workspaceRepo, isToolVisible });
+  if (!navigation) throwSelectedIdentityError(SUMMARY_TOOL_FAMILY);
+  return navigation;
 }
 
 export async function runWorkRecordReadWithCompactGate({
@@ -1031,11 +963,29 @@ export async function runWorkRecordReadWithCompactGate({
   toolFamily,
   readCompact,
   readExpensive,
-  readWorkRecordById
+
+  readCompactById = null,
+  readExpensiveById = null,
+  readWorkRecordById,
+  loadKindRecordById,
+  loadKindRecordByPath,
+  isToolVisible = toolVisibleToSession
 }) {
   const normalized = validateAndNormalizeReadSelector(args, toolFamily);
   const normalizedArgs = normalized.args;
   const selector = normalized.selector;
+  const canonicalIdentity = toolFamily === READ_PAGE_TOOL_FAMILY &&
+    selector.identity_kind !== undefined && selector.identity_kind !== "path";
+  if (canonicalIdentity && typeof readCompactById !== "function") {
+    throwSelectorValidationError(toolFamily, [selectorIssue(
+      SELECTOR_REFUSAL_CODES.UNSUPPORTED,
+      [selector.identity_kind],
+      `${toolFamily} has no canonical identity reader available in this runtime`
+    )]);
+  }
+  const selectedCompactReader = canonicalIdentity ? readCompactById : readCompact;
+  const selectedExpensiveReader = canonicalIdentity
+    ? (readExpensiveById ?? readCompactById) : readExpensive;
 
   if (selector.slice_page) {
     return runSliceEnumeration({
@@ -1047,8 +997,31 @@ export async function runWorkRecordReadWithCompactGate({
     });
   }
 
-  const pendingCompactResult = readCompact({
-    ...buildReadArgs(normalizedArgs),
+  if (selector.member) {
+    const workRecordId = toolFamily === GET_RECORD_TOOL_FAMILY || canonicalIdentity
+      ? (WORK_RECORD_ID_PATTERN.test(selector.id ?? "") ? selector.id : null)
+      : extractWorkRecordReadPath(selector.path)?.record_id ?? null;
+    return runSelectedRecordMember({
+      toolFamily,
+      workspaceRepo,
+      workspaceDir,
+      recordId: workRecordId ?? selector.selected,
+      workRecord: workRecordId !== null,
+      sliceId: selector.selected_slice,
+      identity: toolFamily === GET_RECORD_TOOL_FAMILY
+        ? { id: selector.id }
+        : { ...(selector.identity_argument ?? { path: selector.path }) },
+      member: selector.member,
+      readWorkRecordById,
+      loadKindRecordById,
+      loadKindRecordByPath
+    });
+  }
+
+  const bodyRequested = normalizedArgs.include_body === true;
+  const pendingCompactResult = selectedCompactReader({
+    ...normalizedArgs,
+    include_body: false,
     dir: workspaceDir
   });
   if (pendingCompactResult &&
@@ -1059,6 +1032,22 @@ export async function runWorkRecordReadWithCompactGate({
   const readResult = await pendingCompactResult;
   const kindDisclosure = projectKindRecordCompactDisclosure(readResult);
   const compactResult = kindDisclosure?.compactResult ?? readResult;
+
+  if (toolFamily === READ_PAGE_TOOL_FAMILY && compactResult?.format === "json-work-record" &&
+      (canonicalIdentity || isWorkRecordReadPath(selector.path))) {
+    const recordId = canonicalIdentity
+      ? selector.id : extractWorkRecordReadPath(selector.path).record_id;
+    const { loaded, unit } = await loadNavigationUnit({ workspaceDir, recordId,
+      unitAddress: selector.selected_slice ? `${recordId}#${selector.selected_slice}` : recordId,
+      readWorkRecordById });
+    const navigation = projectWorkRecordNavigation({ loaded, unit, repository: workspaceRepo, isToolVisible });
+
+    if (!navigation || (selector.selected_slice && navigation.ok === false &&
+        navigation.diagnostics?.[0]?.code === "missing_slice")) {
+      throwSelectedIdentityError(toolFamily);
+    }
+    return navigation;
+  }
 
   if (selector.selected_detail) {
     const selectedResult = projectSelectedReadResult(compactResult, selector);
@@ -1072,105 +1061,37 @@ export async function runWorkRecordReadWithCompactGate({
     !["json-work-record", "json-kind-record"].includes(compactResult?.format) ||
     !compactResult.record_id
   ) {
-    if (expensiveReadOptions(normalizedArgs).length > 0) {
-      return readExpensive({
-        ...normalizedArgs,
-        dir: workspaceDir
-      });
-    }
+    if (!bodyRequested) return compactResult;
+    if (compactResult?.format !== "markdown") throwRecordBodyUnsupported(toolFamily);
+    const page = await selectedExpensiveReader({ ...normalizedArgs, include_body: true,
+      dir: workspaceDir });
+    if (RECORD_PROJECTION_PAGE_KINDS.has(page?.pageKind)) throwRecordBodyUnsupported(toolFamily);
+    return page;
+  }
+  if (bodyRequested) throwRecordBodyUnsupported(toolFamily);
+
+  if (kindDisclosure) {
+    compactResult.compact_read = buildKindRecordContinuation({
+      toolFamily,
+      workspaceRepo,
+      compactResult,
+      selector,
+      args: normalizedArgs,
+      memberLedger: kindDisclosure.memberLedger
+    });
     return compactResult;
   }
 
-  const loadedRecord = compactResult.format === "json-kind-record"
-    ? {
-        record: kindDisclosure?.sourceRecord ?? null,
-        source_digest: compactResult.source_digest ?? null
-      }
-    : (typeof readWorkRecordById === "function"
-        ? await readWorkRecordById({ dir: workspaceDir, id: compactResult.record_id })
-        : null);
-  const sourceDigest = loadedRecord?.source_digest ?? compactResult.source_digest ?? null;
-  compactResult.source_digest = sourceDigest;
-
-  const compactToken = createToken({
-    workspaceRepo,
-    recordId: compactResult.record_id,
-    selector: selector.selected,
-    sourceDigest,
-    toolFamily
+  const loadedRecord = typeof readWorkRecordById === "function"
+    ? await readWorkRecordById({ dir: workspaceDir, id: compactResult.record_id })
+    : null;
+  compactResult.source_digest = loadedRecord?.source_digest ?? compactResult.source_digest ?? null;
+  compactResult.compact_read = buildContinuationMetadata({
+    toolFamily,
+    compactResult,
+    selector,
+    args: normalizedArgs,
+    record: loadedRecord?.record ?? null
   });
-
-  const blockedOptions = expensiveReadOptions(normalizedArgs);
-  const fullReadAcknowledged = normalizedArgs.accept_full_read === true;
-  const largeUnscopedExpensiveRequest =
-    blockedOptions.length > 0 &&
-    isLargeOrTrackerReadResult(compactResult, loadedRecord) &&
-    !selector.selected_detail &&
-    !fullReadAcknowledged;
-  const tokenDecision = largeUnscopedExpensiveRequest
-    ? validateToken({
-        token: normalizeString(normalizedArgs.compact_read_token),
-        workspaceRepo,
-        recordId: compactResult.record_id,
-        selector: selector.selected,
-        sourceDigest,
-        toolFamily
-      })
-    : { accepted: true, reason_code: COMPACT_READ_NOT_REQUIRED };
-
-  if (largeUnscopedExpensiveRequest) {
-    const refusalDecision = tokenDecision.accepted
-      ? {
-          accepted: false,
-          reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_SELECTED_DETAIL_REQUIRED
-        }
-      : tokenDecision;
-    return buildRefusal({
-      toolFamily,
-      compactResult,
-      blockedOptions,
-      tokenDecision: refusalDecision,
-      selector,
-      args: normalizedArgs,
-      record: loadedRecord?.record ?? null
-    });
-  }
-
-  if (blockedOptions.length > 0 && !tokenDecision.accepted) {
-    return buildRefusal({
-      toolFamily,
-      compactResult,
-      blockedOptions,
-      tokenDecision,
-      selector,
-      args: normalizedArgs,
-      record: loadedRecord?.record ?? null
-    });
-  }
-
-  if (blockedOptions.length > 0) {
-    return readExpensive({
-      ...normalizedArgs,
-      dir: workspaceDir
-    });
-  }
-
-  compactResult.compact_read = kindDisclosure
-    ? buildKindRecordContinuation({
-        toolFamily,
-        compactResult,
-        compactToken,
-        selector,
-        args: normalizedArgs,
-        memberLedger: kindDisclosure.memberLedger
-      })
-    : buildContinuationMetadata({
-        toolFamily,
-        compactResult,
-        compactToken,
-        selector,
-        args: normalizedArgs,
-        record: loadedRecord?.record ?? null
-      });
   return compactResult;
 }

@@ -23,7 +23,7 @@ import { buildStableTestProofPopulation } from
 
 const PACK = Object.freeze({
   profile_id: "proof.authorization.refusal-before-effects",
-  profile_version: "2.0.0"
+  profile_version: "3.0.0"
 });
 const INTENT = "controlled-proof-intent.refusal-before-effects";
 const EVALUATION_INPUT_PATH = "WK-9001.evaluation-input.json";
@@ -211,35 +211,22 @@ test("the server-owned source declaration is closed and typed", async () => {
   assert.equal(notAnArray.details.pointer, "/expected_sources");
 });
 
-test("the operation bound admits 0, 1, and 64 and refuses 65", () => {
+test("the proposal admits 78 operations and still validates every operation", () => {
   const sources = fixtureCarriers();
-  for (const count of [0, 1, 64]) {
+  for (const count of [0, 1, 64, 78]) {
     const proposal = proposalFor(sources, {
       carrier_operations: Array.from({ length: count }, (value, index) =>
         annotationOperation(index))
     });
     assert.equal(validateProofGraphProposal(proposal).operation_count, count);
   }
-  const proposal = proposalFor(sources, {
-    carrier_operations: Array.from({ length: 65 }, (value, index) =>
-      annotationOperation(index))
+  const malformed = proposalFor(sources, {
+    carrier_operations: Array.from({ length: 78 }, (value, index) =>
+      index === 77 ? { kind: "nonsense" } : annotationOperation(index))
   });
-  const error = refusalSync(() => validateProofGraphProposal(proposal));
-  assert.equal(error.code, "controlled_contract_proof_graph_bound_exceeded");
-  assert.equal(error.details.bound, "carrier_operations");
-  assert.equal(error.details.minimum, 0);
-  assert.equal(error.details.maximum, PROOF_GRAPH_PROPOSAL_LIMITS.carrier_operations);
-  assert.equal(error.details.actual, 65);
-});
-
-test("both bounds are measured before any candidate operation detail exists", () => {
-  const sources = fixtureCarriers();
-
-  const proposal = proposalFor(sources, {
-    carrier_operations: Array.from({ length: 65 }, () => ({ kind: "nonsense" }))
-  });
-  assert.equal(refusalSync(() => validateProofGraphProposal(proposal)).code,
-    "controlled_contract_proof_graph_bound_exceeded");
+  const error = refusalSync(() => validateProofGraphProposal(malformed));
+  assert.equal(error.code, "controlled_contract_proof_graph_proposal_invalid");
+  assert.equal(error.details.pointer, "/carrier_operations/77/kind");
 });
 
 test("the byte bound admits exactly 1,048,576 bytes and refuses one byte more", () => {
@@ -301,6 +288,7 @@ test("an unchanged present carrier set composes as an idempotent no-op", async (
   assert.deepEqual(result.delegated_validations, [
     "validateAndResolveNativeContractV1",
     "validateSuppliedProofPackBindings",
+    "validateSuppliedClaimPatternBindings",
     "buildProofPlan"
   ]);
   assert.deepEqual(result.carriers.map(({ carrier_kind: kind }) => kind),
@@ -337,11 +325,18 @@ test("the composed result is deeply immutable and compact", async () => {
   assert.deepEqual(Object.keys(result), [
     "schema_version", "status", "reason_code", "wk_id", "focus", "selected_pack",
     "requested_intents", "contract_content_digest", "proposal_operation_count",
-    "proposal_projection_bytes", "permitted_cross_carrier_join", "counts",
+    "proposal_projection_bytes", "permitted_cross_carrier_joins", "counts",
     "carriers", "manifest_inputs", "cross_carrier_bindings",
+    "claim_pattern_bindings",
     "delegated_validations", "proof_plan_digest", "proof_plan_derivation",
     "unresolved_pointers", "no_op", "authority", "carriers_written",
     "semantics_chosen", "proof_claimed", "dispatch_authorized"
+  ]);
+
+  assert.deepEqual(result.permitted_cross_carrier_joins.map(
+    ({ source_path: source }) => source), [
+    "/reference_bindings/{binding}/reference_ids/{member}",
+    "/claim_pattern_bindings/{binding}/claim_id"
   ]);
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.proof_plan_derivation), true);
@@ -407,17 +402,17 @@ test("one composed operation changes exactly its carrier and its digest", async 
   }
 });
 
-test("sixty-four composed operations compose in one request per carrier", async () => {
+test("seventy-eight composed operations compose in one request per carrier", async () => {
   const sources = fixtureCarriers();
   const proposal = proposalFor(sources, {
-    carrier_operations: Array.from({ length: 64 }, (value, index) =>
+    carrier_operations: Array.from({ length: 78 }, (value, index) =>
       annotationOperation(index))
   });
   const result = await compose({ proposal, sources });
-  assert.equal(result.counts.carrier_operations, 64);
+  assert.equal(result.counts.carrier_operations, 78);
   const contract = result.carriers.find(
     ({ carrier_kind: kind }) => kind === "contract");
-  assert.equal(contract.content.annotations.length, 64);
+  assert.equal(contract.content.annotations.length, 78);
 });
 
 test("an absent carrier is created and its exact replay is an idempotent no-op",
@@ -474,7 +469,7 @@ test("an absent carrier is created and its exact replay is an idempotent no-op",
 
 const OTHER_PACK = Object.freeze({
   profile_id: "proof.result-shape.conformance",
-  profile_version: "2.0.0"
+  profile_version: "3.0.0"
 });
 const OTHER_INTENT = "controlled-proof-intent.result-shape-conformance";
 const OTHER_EVALUATION_INPUT_PATH = "WK-9001-shape.evaluation-input.json";
@@ -550,7 +545,8 @@ test("an existing multi-pack request keeps its whole population and intent union
     });
     assert.equal(result.delegated_validations.includes("buildProofPlan"), false);
     assert.deepEqual(result.delegated_validations, [
-      "validateAndResolveNativeContractV1", "validateSuppliedProofPackBindings"
+      "validateAndResolveNativeContractV1", "validateSuppliedProofPackBindings",
+      "validateSuppliedClaimPatternBindings"
     ]);
 
     const evaluationInput = result.carriers.find(
@@ -629,32 +625,6 @@ test("an addressed carrier with no declared source expectation is unresolved",
       reason: "addressed_carrier_source_expectation_missing"
     });
   });
-
-test("a created evaluation input without a chosen stage is unresolved", async () => {
-  const sources = { contract: fixtureCarriers().contract };
-  const proposal = proposalFor(sources, {
-    carrier_operations: [{
-      kind: "carrier_patch", carrier_kind: "evaluation_input", op: "upsert",
-      target: "reference_bindings",
-      value: { role: "subject", reference_ids: ["ref-subject"] }
-    }]
-  });
-  const result = await compose({
-    proposal,
-    sources,
-    expected_sources: [
-      ...presentExpectations(sources),
-      { carrier_kind: "evaluation_input", presence: "absent",
-        expected_content_digest: null }
-    ]
-  });
-  assert.equal(result.status, "incomplete");
-  assert.deepEqual(result.unresolved_pointers, [{
-    carrier_kind: "evaluation_input",
-    pointer: "/evaluation_stage",
-    reason: "evaluation_stage_unresolved"
-  }]);
-});
 
 test("a request that binds no evaluation-input path for the selected pack is unresolved",
   async () => {
@@ -806,10 +776,6 @@ test("any other proposed semantic carrier join refuses as unowned", async () => 
       resolver_kind: "repository", fact_key: "fact-one",
       argument_reference_ids: ["ref-subject"]
     }],
-    ["claim_pattern_bindings", "claim_id", {
-      pattern_id: "attempt-performs-operation",
-      claim_id: "claim-attempt-performs-operation"
-    }],
     ["delivered_evidence", "verification_claim_id", {
       evidence_kind: "trace", verification_claim_id: "claim-verification"
     }]
@@ -861,6 +827,210 @@ test("an unowned proposed join refuses with no declared contract source",
     assert.equal(withoutContract.details.proposal_pointer, "/carrier_operations/0");
     assert.deepEqual(withoutContract.details, withContract.details);
   });
+
+const EXPLICIT_PATTERN_ID = "attempt-performs-operation";
+const EXPLICIT_CLAIM_ID = "claim-attempt-performs-operation";
+
+function claimBindingOperation(value) {
+  return {
+    kind: "carrier_patch", carrier_kind: "evaluation_input", op: "upsert",
+    target: "claim_pattern_bindings", value
+  };
+}
+
+test("a valid explicit claim-pattern binding publishes through the wrapper path",
+  async () => {
+    const sources = fixtureCarriers({ verification_method: "analysis" });
+    const proposal = proposalFor(sources, {
+      carrier_operations: [claimBindingOperation({
+        pattern_id: EXPLICIT_PATTERN_ID, claim_id: EXPLICIT_CLAIM_ID
+      })]
+    });
+    const result = await compose({ proposal, sources });
+    assert.equal(result.status, "composed");
+    assert.equal(result.counts.claim_pattern_bindings, 1);
+    assert.deepEqual(result.claim_pattern_bindings, [{
+      pattern_id: EXPLICIT_PATTERN_ID,
+      claim_id: EXPLICIT_CLAIM_ID,
+      claim_kind: "evidence",
+      modality: "MUST",
+      contract_pointer: "/claims/0/claim_id",
+      evaluation_input_pointer: "/claim_pattern_bindings/0/claim_id"
+    }]);
+
+    const evaluationInput = result.carriers.find(
+      ({ carrier_kind: kind }) => kind === "evaluation_input");
+    assert.equal(evaluationInput.changed, true);
+    assert.deepEqual(evaluationInput.content.claim_pattern_bindings, [{
+      claim_id: EXPLICIT_CLAIM_ID, pattern_id: EXPLICIT_PATTERN_ID
+    }]);
+    assert.equal(
+      result.delegated_validations.includes("validateSuppliedClaimPatternBindings"),
+      true);
+
+    assert.match(result.proof_plan_digest, /^sha256:[0-9a-f]{64}$/u);
+  });
+
+test("a claim authored in the same proposal is joinable by its own binding",
+  async () => {
+
+    const sources = fixtureCarriers({ verification_method: "analysis" });
+    const authored = {
+      claim_id: "claim-composed-evidence",
+      kind: "evidence",
+      modality: "MUST",
+      proposition_id: "prop-attempt-performs-operation"
+    };
+    const proposal = proposalFor(sources, {
+      carrier_operations: [
+        { kind: "carrier_patch", carrier_kind: "contract", op: "upsert",
+          target: "claims", value: authored },
+        claimBindingOperation({
+          pattern_id: EXPLICIT_PATTERN_ID, claim_id: authored.claim_id
+        })
+      ]
+    });
+    const result = await compose({ proposal, sources });
+
+    assert.equal(result.status, "composed");
+    assert.deepEqual(
+      result.claim_pattern_bindings.map(({ claim_id: id }) => id),
+      [authored.claim_id]);
+    assert.equal(result.claim_pattern_bindings[0].contract_pointer,
+      `/claims/${result.carriers.find(({ carrier_kind: kind }) => kind === "contract")
+        .content.claims.findIndex(({ claim_id: id }) => id === authored.claim_id)
+      }/claim_id`);
+  });
+
+test("a dangling explicit claim identity refuses at its evaluation-input pointer",
+  async () => {
+    const sources = fixtureCarriers({ verification_method: "analysis" });
+    const proposal = proposalFor(sources, {
+      carrier_operations: [claimBindingOperation({
+        pattern_id: EXPLICIT_PATTERN_ID, claim_id: "claim-absent-from-contract"
+      })]
+    });
+    const error = await refusal(() => compose({ proposal, sources }));
+    assert.equal(error.code,
+      "controlled_contract_proof_graph_cross_carrier_identity_conflict");
+    assert.equal(error.details.carrier_kind, "evaluation_input");
+    assert.equal(error.details.reason, "contract_claim_missing");
+    assert.equal(error.details.claim_id, "claim-absent-from-contract");
+    assert.equal(error.details.pointer, "/claim_pattern_bindings/0/claim_id");
+  });
+
+test("unknown, duplicate, and disallowed explicit bindings refuse without publication",
+  async () => {
+    const sources = fixtureCarriers({ verification_method: "analysis" });
+
+    const unknown = await refusal(() => compose({
+      proposal: proposalFor(sources, {
+        carrier_operations: [claimBindingOperation({
+          pattern_id: "pattern-this-pack-does-not-declare",
+          claim_id: EXPLICIT_CLAIM_ID
+        })]
+      }),
+      sources
+    }));
+    assert.equal(unknown.code,
+      "controlled_contract_proof_graph_prospective_carrier_invalid");
+    assert.equal(unknown.details.owner, "validateSuppliedClaimPatternBindings");
+    assert.equal(unknown.details.cause_code,
+      "claim_pattern_binding_admission_not_valid");
+    assert.deepEqual(unknown.details.admission_diagnostics.map(({ code }) => code),
+      ["unknown_claim_pattern_binding"]);
+
+    const duplicated = await refusal(() => compose({
+      proposal: proposalFor(sources, {
+        carrier_operations: [
+          claimBindingOperation({
+            pattern_id: EXPLICIT_PATTERN_ID, claim_id: EXPLICIT_CLAIM_ID
+          }),
+          claimBindingOperation({
+            pattern_id: EXPLICIT_PATTERN_ID,
+            claim_id: "claim-attempt-uses-subject"
+          })
+        ]
+      }),
+      sources
+    }));
+    assert.equal(duplicated.details.owner, "validateSuppliedClaimPatternBindings");
+    assert.deepEqual(
+      duplicated.details.admission_diagnostics.map(({ code }) => code),
+      ["duplicate_claim_pattern_binding"]);
+
+    for (const error of [unknown, duplicated]) {
+      assert.equal(Object.hasOwn(error.details, "carriers"), false);
+    }
+  });
+
+test("an explicit binding the pattern did not select refuses before composition",
+  async () => {
+
+    const sources = fixtureCarriers({ verification_method: "analysis" });
+    const proposal = proposalFor(sources, {
+      carrier_operations: [claimBindingOperation({
+        pattern_id: EXPLICIT_PATTERN_ID, claim_id: "claim-refusal-rejects-attempt"
+      })]
+    });
+    const error = await refusal(() => compose({ proposal, sources }));
+    assert.equal(error.code,
+      "controlled_contract_proof_graph_prospective_carrier_invalid");
+    assert.equal(error.details.owner, "validateSuppliedClaimPatternBindings");
+    assert.equal(error.details.cause_code,
+      "claim_pattern_binding_admission_not_valid");
+    assert.deepEqual(error.details.admission_diagnostics.map(({ code }) => code),
+      ["claim_pattern_binding_mismatch"]);
+
+    for (const field of ["carriers", "claim_pattern_bindings", "proof_plan_digest"]) {
+      assert.equal(Object.hasOwn(error.details, field), false, field);
+    }
+  });
+
+test("an unproven graph carrying no inadmissible binding still composes", async () => {
+
+  const sources = fixtureCarriers({
+    verification_method: "analysis",
+    mutate_contract: (contract) => {
+      contract.propositions.find(
+        ({ proposition_id: id }) => id === "prop-refusal-rejects-attempt"
+      ).operands = [{ kind: "reference", reference_id: "ref-operation" }];
+    }
+  });
+  const unsatisfied = await compose({ proposal: proposalFor(sources), sources });
+  assert.equal(unsatisfied.status, "composed");
+  assert.equal(
+    unsatisfied.delegated_validations.includes("validateSuppliedClaimPatternBindings"),
+    true);
+  assert.match(unsatisfied.proof_plan_digest, /^sha256:[0-9a-f]{64}$/u);
+
+  const bound = await compose({
+    proposal: proposalFor(sources, {
+      carrier_operations: [claimBindingOperation({
+        pattern_id: EXPLICIT_PATTERN_ID, claim_id: EXPLICIT_CLAIM_ID
+      })]
+    }),
+    sources
+  });
+  assert.equal(bound.status, "composed");
+  assert.deepEqual(bound.claim_pattern_bindings.map(({ claim_id: id }) => id),
+    [EXPLICIT_CLAIM_ID]);
+});
+
+test("an explicit claim identity with no contract source is unresolved", async () => {
+  const complete = fixtureCarriers({ verification_method: "analysis" });
+  complete.evaluation_input.claim_pattern_bindings = [{
+    pattern_id: EXPLICIT_PATTERN_ID, claim_id: EXPLICIT_CLAIM_ID
+  }];
+  const sources = { evaluation_input: complete.evaluation_input };
+  const result = await compose({ proposal: proposalFor(sources), sources });
+  assert.equal(result.status, "incomplete");
+  assert.equal(result.unresolved_pointers.some(({ pointer, reason }) =>
+    pointer === "/claim_pattern_bindings/0/claim_id" &&
+    reason === "claim_identity_contract_source_expectation_missing"), true);
+  assert.deepEqual(result.claim_pattern_bindings, []);
+  assert.equal(result.counts.claim_pattern_bindings, 0);
+});
 
 test("an evaluation-input reference identity with no contract source is unresolved",
   async () => {
@@ -1007,6 +1177,8 @@ test("the published proof-graph declarations and the runtime exports agree",
 
     const publicName = {
       PERMITTED_CROSS_CARRIER_JOIN: "PROOF_GRAPH_PERMITTED_CROSS_CARRIER_JOIN",
+      PERMITTED_CROSS_CARRIER_JOINS: "PROOF_GRAPH_PERMITTED_CROSS_CARRIER_JOINS",
+      PERMITTED_CLAIM_PATTERN_JOIN: "PROOF_GRAPH_PERMITTED_CLAIM_PATTERN_JOIN",
       FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS:
         "PROOF_GRAPH_FORBIDDEN_CROSS_CARRIER_JOIN_TARGETS"
     };

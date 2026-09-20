@@ -1,0 +1,52 @@
+{
+  "digests": {
+    "catalog": "9988a22893518fd1457de1ffa5301f82f913db00e4c688f74f0bb9602ba4ba78",
+    "contract": "536ac3aae19e225085a4515d08acc5012067ed5a674bb06c7369dfa56a285df5",
+    "intent_artifact": "5e118e13bf801f4e0d5673aa0487e2df4190be4552bbfe89df13e2ee1877aca1",
+    "profiles": "10e9dbcd36dfbddf8e12635b6b1203973b81c487d56874b99eaff9f89c0c5bf5",
+    "vocabulary": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+  },
+  "packs": [
+    {
+      "evaluation_input": {
+        "path": "WK-2092.evaluation-input.json"
+      },
+      "profile_id": "proof.atomicity.failure-boundary",
+      "profile_version": "3.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.atomic-failure-boundary"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "39ee2bb237d87655bf96d73e1b89d8ed2aec2281c3c0b6779d0563873fac99b2",
+        "adequacy_result": "ea1ea1c566b6c8f64b2237a475a9a6f0e89ebafeb74bcfc9a95aec91a402d5bc",
+        "admission": "59971f8466923814f90265532a0ddada71f05d72a54394db9e84fc6c97e744f5",
+        "evaluation_input": "724ef80ed800f48b25c283325e04e5861563a938bfc4eff543a6b1bc634feb66",
+        "guarantee": "3d9681b4aa9e3f75889648eb4d87f995da443f7768f7c7d1938d4e93701a9a98",
+        "profile": "8f19412e130bc6f7a687c507d3287d7fa93b170c374ce01c5a0aafcfa479352c"
+      }
+    },
+    {
+      "evaluation_input": {
+        "path": "WK-2092.pack-sha256-b0f693d6be58df66d9d5b7b8dbd510119b3127c080f865901bf65a56b146f090.evaluation-input.json"
+      },
+      "profile_id": "proof.design.implementation-readiness",
+      "profile_version": "3.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.implementation-readiness"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "b211b1a092805acf1079ff632e229437424160039025cf5b690b1c0b0c03b98b",
+        "adequacy_result": "84455a531f5c613b3b92f9edfc5e55953d73d69083c37cdbeb82010b725be73e",
+        "admission": "7359d548a59fb2cc2b6f205312ee9f7fe57f30164a1c7f76ef46581a8f972096",
+        "evaluation_input": "1f8109f9843b26c119ffd783e7d19c395f79c5029c9a852890bbc0ded4c84b33",
+        "guarantee": "4a2c1a5cfc099cfecef4b0983db5bb81b941ddcfb5dcddfae7d23fd0437c228c",
+        "profile": "f2bc560180b7f84d6f4e63ecac56e5bc04a4dd55986cb199ccd9a2e5d9476575"
+      }
+    }
+  ],
+  "requested_intents": [
+    "controlled-proof-intent.atomic-failure-boundary",
+    "controlled-proof-intent.implementation-readiness"
+  ],
+  "schema_version": "controlled-contract-proof-plan.v1"
+}

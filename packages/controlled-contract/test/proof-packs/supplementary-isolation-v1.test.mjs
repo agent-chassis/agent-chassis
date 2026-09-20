@@ -20,8 +20,7 @@ test("supplementary-isolation transformer is registered with exact projection su
   const fixture = buildSupplementaryIsolationSources();
   const resultBytes = executeDeterministicProjection(transformerId, fixture.sourceBytes);
   const result = assertCanonicalProjectionResult(transformerId, resultBytes);
-  assert.equal(result.schema_version,
-    "controlled-acceptance-contract.experimental.v0.2");
+  assert.equal(result.schema_version, "controlled-acceptance-contract.v1");
   const prepared = prepareDeterministicProjection(transformerId, resultBytes);
   assert.deepEqual(prepared.population("core-members"), ["ref-core-member-a", "ref-core-member-b"]);
   assert.deepEqual(prepared.population("supplementary-results"), []);

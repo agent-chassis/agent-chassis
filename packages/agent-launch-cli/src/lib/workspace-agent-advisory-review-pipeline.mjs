@@ -1,4 +1,8 @@
+import { realpathSync } from "node:fs";
 import path from "node:path";
+
+import { effectiveWorkRecordMaterialRefs } from
+  "@agent-chassis/wiki-core/src/lib/work-record-entry-material.mjs";
 
 import {
   readCanonicalWorkRecord
@@ -38,20 +42,40 @@ function git(runGit, repo, args, reason) {
   return String(result.stdout ?? "").trim();
 }
 
+function plainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function wellFormedSlice(slice) {
+  return plainObject(slice) && typeof slice.id === "string" && slice.id.length > 0;
+}
+
 function canonicalSubjectContext(mainRepo, subject) {
   const match = typeof subject === "string" ? subject.match(SUBJECT_RE) : null;
   if (match === null) fail("canonical_subject_malformed");
-  let record;
-  try {
-    record = readCanonicalWorkRecord(mainRepo, match[1]);
-  } catch (error) {
-    fail("canonical_subject_unavailable", { cause_code: error?.code ?? null });
+  const recordId = match[1];
+  const sliceId = match[2] ?? null;
+  const record = readCanonicalWorkRecord(mainRepo, recordId);
+  if (record === null || record === undefined) fail("canonical_subject_unavailable");
+  if (!plainObject(record)) fail("canonical_subject_shape_invalid", { field: "record" });
+  if (typeof record.id !== "string") fail("canonical_subject_shape_invalid", { field: "id" });
+  if (record.id !== recordId) fail("canonical_subject_identity_mismatch", { field: "id" });
+
+  const hasSlices = record.slices !== undefined && record.slices !== null;
+  if (hasSlices && (!Array.isArray(record.slices) || !record.slices.every(wellFormedSlice))) {
+    fail("canonical_subject_shape_invalid", { field: "slices" });
   }
-  const selected = match[2] === undefined
-    ? record
-    : record?.slices?.find((slice) => slice?.id === match[2]) ?? null;
-  if (selected === null || selected === undefined) fail("canonical_subject_unavailable");
-  return Object.freeze({ record, selected, record_id: match[1], slice_id: match[2] ?? null });
+  let selected = record;
+  if (sliceId !== null) {
+    const matches = hasSlices ? record.slices.filter((slice) => slice.id === sliceId) : [];
+    if (matches.length > 1) {
+      fail("canonical_subject_selection_ambiguous",
+        { field: "slices", match_count: matches.length });
+    }
+    if (matches.length === 0) fail("canonical_subject_unavailable");
+    selected = matches[0];
+  }
+  return Object.freeze({ record, selected, record_id: recordId, slice_id: sliceId });
 }
 
 function currentCommitRange(runGit, mainRepo) {
@@ -75,8 +99,9 @@ function refusal(error) {
       code: ADVISORY_REVIEW_MATERIAL_INVALID,
       reason,
       detail: Object.freeze({
-        cause_code: error?.code ?? null,
-        ...(error?.detail ?? {})
+        ...(error?.detail ?? {}),
+
+        cause_code: error?.code ?? null
       })
     }),
     refusal: Object.freeze({
@@ -88,21 +113,69 @@ function refusal(error) {
   });
 }
 
+function canonicalDirectory(value) {
+  if (typeof value !== "string" || !path.isAbsolute(value)) return null;
+  try {
+    return realpathSync(value);
+  } catch {
+    return null;
+  }
+}
+
+function dispatchRepositoryIdentity(mainRepo, resolveConfiguredWorkspaceRepo, alias) {
+  if (typeof alias !== "string" || alias.length === 0 || alias.trim() !== alias ||
+      typeof resolveConfiguredWorkspaceRepo !== "function") {
+    return null;
+  }
+  let configured;
+  try {
+    configured = resolveConfiguredWorkspaceRepo(alias);
+  } catch {
+    return null;
+  }
+  if (configured?.repo !== alias || typeof configured?.dir !== "string") return null;
+  const configuredDir = canonicalDirectory(configured.dir);
+  if (configuredDir === null || configuredDir !== canonicalDirectory(mainRepo)) {
+    fail("review_repository_binding_mismatch");
+  }
+  return alias;
+}
+
+function candidateRefusalDetail(selection) {
+  const refusal = selection?.refusal?.refusal ?? selection?.refusal ?? null;
+  return Object.freeze({
+    candidate_refusal: refusal === null ? null : Object.freeze({
+      code: refusal.code ?? null,
+      reason: refusal.reason ?? null,
+      detail: refusal.detail ?? null
+    })
+  });
+}
+
 export function createWorkspaceAgentAdvisoryReviewPipeline({
   lifecycle,
   worktreeProvisioningConfig,
-  runGit
+  runGit,
+  resolveTerminalCandidate = null,
+
+  resolveConfiguredWorkspaceRepo = null
 } = {}) {
   const mainRepo = worktreeProvisioningConfig?.mainRepo ?? null;
   const worktreeRoot = worktreeProvisioningConfig?.worktreeRoot ?? null;
 
-  async function resolveMaterial({ subject, diff_base_sha: diffBaseSha,
-    reviewed_sha: reviewedSha, terminal_candidate: terminalCandidate = null } = {}) {
+  async function resolveMaterial(input = {}) {
+    const { subject, diff_base_sha: diffBaseSha, reviewed_sha: reviewedSha } = input;
     if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
         typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot)) {
       fail("review_repository_unavailable");
     }
     const context = canonicalSubjectContext(mainRepo, subject);
+
+    const materialRepository = () =>
+      effectiveWorkRecordMaterialRefs(context.record, context.selected).length === 0
+        ? null
+        : dispatchRepositoryIdentity(mainRepo, resolveConfiguredWorkspaceRepo,
+          input.workspace_alias);
     const hasBase = diffBaseSha !== undefined;
     const hasReviewed = reviewedSha !== undefined;
     if (hasBase !== hasReviewed) fail("locator_pair_incomplete");
@@ -113,15 +186,25 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
     let reviewUnit = Object.freeze({ subject });
     let designCapture = null;
 
-    if (terminalCandidate !== null) {
-      selector = "launcher_terminal_candidate";
-      selectedBase = terminalCandidate.diff_base_sha ??
-        terminalCandidate.binding?.base ?? terminalCandidate.review_target?.diff_base_sha;
-      selectedReviewed = terminalCandidate.reviewed_sha ??
-        terminalCandidate.binding?.candidate ?? terminalCandidate.review_target?.candidate_sha ??
-        terminalCandidate.review_target?.sha;
-    } else if (hasBase) {
+    if (hasBase) {
       selector = "explicit_sha_range";
+    } else if (context.slice_id !== null &&
+        context.selected.review_purpose === "terminal_whole_wk") {
+
+      selector = "launcher_terminal_candidate";
+      if (typeof resolveTerminalCandidate !== "function") {
+        fail("terminal_candidate_selection_unavailable");
+      }
+      const selection = await resolveTerminalCandidate({
+        subject,
+        record_id: context.record_id,
+        slice_id: context.slice_id
+      });
+      if (selection?.ok !== true) {
+        fail("terminal_candidate_unavailable", candidateRefusalDetail(selection));
+      }
+      selectedBase = selection.candidate.diff_base_sha;
+      selectedReviewed = selection.candidate.reviewed_sha;
     } else if (context.slice_id !== null &&
         Array.isArray(context.selected.write_scope) && context.selected.write_scope.length > 0) {
       selector = "canonical_implementation_slice";
@@ -135,11 +218,24 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
       designCapture = await captureCanonicalDesignReviewInputs({
         mainRepo,
         recordId: context.record_id,
-        initiallyAuthenticatedRecord: context.record
+        initiallyAuthenticatedRecord: context.record,
+        selectedSliceId: context.slice_id,
+        repository: materialRepository()
       });
       const current = currentCommitRange(runGit, mainRepo);
       selectedBase = current.diff_base_sha;
       selectedReviewed = current.reviewed_sha;
+    }
+
+    if (designCapture === null && ((context.record.sections?.material_refs?.length ?? 0) > 0 ||
+        (context.selected.sections?.material_refs?.length ?? 0) > 0)) {
+      designCapture = await captureCanonicalDesignReviewInputs({
+        mainRepo,
+        recordId: context.record_id,
+        initiallyAuthenticatedRecord: context.record,
+        selectedSliceId: context.slice_id,
+        repository: materialRepository()
+      });
     }
 
     const normalized = resolveImmutableAdvisoryReviewTarget({
@@ -187,7 +283,8 @@ export function createWorkspaceAgentAdvisoryReviewPipeline({
         role,
         subject,
         parent: resolvedMaterial.context.record,
-        selected: resolvedMaterial.context.selected
+        selected: resolvedMaterial.context.selected,
+        entryMaterial: resolvedMaterial.design_capture?.entry_material ?? null
       }),
       formalResultContract: input.formal_result_contract ?? null,
       materialPaths: resolvedMaterial.material_paths

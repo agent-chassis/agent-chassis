@@ -1,0 +1,58 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2327",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "WK-2327 controlled-contract carrier-set fixture",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "status": "active",
+  "priority": "high",
+  "owner": "unassigned",
+  "created": "2026-08-17",
+  "updated": "2026-08-17",
+  "read_scope": [
+    "docs/mcp-integration.md"
+  ],
+  "repo_paths": [
+    "packages/controlled-contract/current.mjs"
+  ],
+  "write_scope": [
+    "packages/controlled-contract/current.mjs"
+  ],
+  "depends_on": [],
+  "blocks": [],
+  "related": [],
+  "dispatch_intent": {
+    "intended_agent_role": "worker",
+    "target_unit": "record",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "The registered route round-trips."
+    ],
+    "validation": []
+  },
+  "sections": {
+    "summary": "Own the fixture carrier set under the canonical read lease.",
+    "why_it_matters": "A canonical carrier write leases the record it binds.",
+    "scope": {
+      "items": [
+        "Own the fixture carrier set."
+      ],
+      "out_of_scope": []
+    },
+    "tasks": [],
+    "references": [],
+    "agent_notes": "",
+    "closure": null
+  },
+  "children": [],
+  "slices": [],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "derived_evidence": [],
+  "initiative": "IN-0042"
+}

@@ -1,9 +1,7 @@
+import { referenceRoleCardinalityMatches, referenceRoleTypeMatches, referenceRoleIdentityMatches } from './proof-parameter-refinements.mjs';
 import {
   GRAPH_SELECTION_TRACE_VERSION
 } from "./projected-contract-graph.mjs";
-
-const EVALUATION_STAGES = Object.freeze(["pre_dispatch", "post_delivery"]);
-const STAGE_RANK = Object.freeze({ pre_dispatch: 0, post_delivery: 1 });
 
 function compareIds(left, right) {
   const leftString = String(left);
@@ -98,9 +96,6 @@ function invalidResult(
         ? profile.profile_version
         : null
     },
-    evaluation_stage: EVALUATION_STAGES.includes(input?.evaluation_stage)
-      ? input.evaluation_stage
-      : null,
     profile_valid: flags.profile_valid ?? false,
     input_valid: flags.input_valid ?? false,
     contract_valid: flags.contract_valid ?? false,
@@ -146,23 +141,9 @@ function buildReferenceBindings(profile, contract, input) {
     }
     const ids = [...binding.reference_ids].sort(compareIds);
     bindingByRole.set(binding.role, ids);
-    if (role.cardinality === "exactly_one" && ids.length !== 1) diagnostics.push({
-      code: "reference_role_cardinality_invalid",
-      role: binding.role,
-      expected: role.cardinality,
-      actual: ids.length
-    });
-    if (role.cardinality === "one_or_more" && ids.length < 1) diagnostics.push({
-      code: "reference_role_cardinality_invalid",
-      role: binding.role,
-      expected: role.cardinality,
-      actual: ids.length
-    });
-    if (role.cardinality === "zero_or_one" && ids.length > 1) diagnostics.push({
-      code: "reference_role_cardinality_invalid",
-      role: binding.role,
-      expected: role.cardinality,
-      actual: ids.length
+    if (!referenceRoleCardinalityMatches(role, ids.length)) diagnostics.push({
+      code: 'reference_role_cardinality_invalid', role: binding.role,
+      expected: role.cardinality, actual: ids.length
     });
     for (const referenceId of ids) {
       const reference = referenceById.get(referenceId);
@@ -172,15 +153,14 @@ function buildReferenceBindings(profile, contract, input) {
         reference_id: referenceId
       });
       else {
-        if (!role.allowed_type_terms.includes(reference.type_term)) diagnostics.push({
+        if (!referenceRoleTypeMatches(role, reference.type_term)) diagnostics.push({
           code: "reference_role_binding_type_mismatch",
           role: binding.role,
           reference_id: referenceId,
           actual_type_term: reference.type_term,
           allowed_type_terms: [...role.allowed_type_terms]
         });
-        if (role.allowed_identity_kinds &&
-            !role.allowed_identity_kinds.includes(reference.identity.kind)) {
+        if (!referenceRoleIdentityMatches(role, reference.identity.kind)) {
           diagnostics.push({
             code: "reference_role_binding_identity_kind_mismatch",
             role: binding.role,
@@ -223,8 +203,8 @@ function buildReferenceBindings(profile, contract, input) {
         type_term: typeTerm,
         identity
       }) =>
-        allowedTypeTerms.includes(typeTerm) &&
-        (!allowedIdentityKinds || allowedIdentityKinds.includes(identity.kind)) &&
+        referenceRoleTypeMatches({ allowed_type_terms: allowedTypeTerms }, typeTerm) &&
+        referenceRoleIdentityMatches({ allowed_identity_kinds: allowedIdentityKinds }, identity.kind) &&
         !unavailableReferenceIds.has(referenceId)
       );
     })
@@ -645,10 +625,6 @@ function patternResult(pattern, status, matchedIds = []) {
   };
 }
 
-function activeAt(pattern, evaluationStage) {
-  return STAGE_RANK[pattern.required_by_stage] <= STAGE_RANK[evaluationStage];
-}
-
 function unresolvedDependencyStatus(patternIds, resultsByPattern) {
   const statuses = patternIds.map((patternId) =>
     resultsByPattern.get(patternId)?.status ?? "indeterminate"
@@ -703,9 +679,8 @@ function evaluateExpressionNode(expression, statusByPattern, diagnostics,
   canonicalizeChildren = false, branchSelectorPatternIds = new Set()) {
   if (expression.pattern) {
     const patternStatus = statusByPattern.get(expression.pattern) ?? "indeterminate";
-    const status = patternStatus === "inactive" ? "satisfied" : patternStatus;
+    const status = patternStatus;
     return {
-      active: patternStatus !== "inactive",
       trace: {
         kind: "pattern",
         status,
@@ -725,12 +700,9 @@ function evaluateExpressionNode(expression, statusByPattern, diagnostics,
     evaluateExpressionNode(child, statusByPattern, diagnostics,
       canonicalizeChildren || exactOne, branchSelectorPatternIds)
   );
-  const activeChildren = evaluatedChildren.filter(({ active }) => active);
-  const results = activeChildren.map(({ trace }) => trace.status);
+  const results = evaluatedChildren.map(({ trace }) => trace.status);
   let status;
-  if (activeChildren.length === 0) {
-    status = "satisfied";
-  } else if (key === "all_of") {
+  if (key === "all_of") {
     if (results.includes("unsatisfied")) status = "unsatisfied";
     else if (results.includes("indeterminate")) status = "indeterminate";
     else status = "satisfied";
@@ -777,7 +749,6 @@ function evaluateExpressionNode(expression, statusByPattern, diagnostics,
     status = "unsatisfied";
   }
   return {
-    active: activeChildren.length > 0,
     trace: {
       kind: key,
       status,
@@ -1038,10 +1009,6 @@ function evaluateVerificationProfileWithRuntime(
     code: "verification_profile_input_schema_invalid",
     errors: structuredClone(validateEvaluationInput.errors)
   }], { profile_valid: true });
-  if (!profile.evaluation_stages.includes(input.evaluation_stage)) return invalid(
-    [{ code: "profile_stage_not_supported", evaluation_stage: input.evaluation_stage }],
-    { profile_valid: true, input_valid: true }
-  );
   const contractEvaluation = validateContract(contract);
   if (!contractEvaluation.schema_valid || contractEvaluation.diagnostics.length > 0) {
     return invalid([{
@@ -1153,10 +1120,6 @@ function evaluateVerificationProfileWithRuntime(
   const downstreamAmbiguousPatternIds = new Set();
   for (const originalPattern of profile.binding_constraint_patterns ?? []) {
     const pattern = { ...originalPattern, pattern_kind: "binding_constraint" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     const count = pattern.role_kind === "reference"
       ? (binding.bindingByRole.get(pattern.role)?.length ?? 0)
       : (numberBinding.bindingByRole.has(pattern.role) ? 1 : 0);
@@ -1193,10 +1156,6 @@ function evaluateVerificationProfileWithRuntime(
   }
   for (const originalPattern of profile.reference_binding_patterns ?? []) {
     const pattern = { ...originalPattern, pattern_kind: "reference_binding" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     const contextualRoles = pattern.applicability_context?.operand_roles ?? [];
     const missingRoles = [...new Set([...pattern.roles, ...contextualRoles])].filter((role) =>
       !binding.bindingByRole.has(role)
@@ -1303,10 +1262,6 @@ function evaluateVerificationProfileWithRuntime(
   }
   for (const originalPattern of profile.claim_patterns) {
     const pattern = { ...originalPattern, pattern_kind: "claim" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     if (pattern.for_each) {
       const populationMembers = binding.bindingByRole.get(
         pattern.for_each.population_role
@@ -1809,10 +1764,6 @@ function evaluateVerificationProfileWithRuntime(
 
   for (const originalPattern of profile.relation_patterns) {
     const pattern = { ...originalPattern, pattern_kind: "relation" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     if (failedOccurrenceJoinRelationPatternIds.has(pattern.pattern_id)) {
       resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "unsatisfied"));
       continue;
@@ -1987,10 +1938,6 @@ function evaluateVerificationProfileWithRuntime(
 
   for (const originalPattern of profile.collection_patterns) {
     const pattern = { ...originalPattern, pattern_kind: "collection" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     const expandedMemberGroups = pattern.member_claim_pattern_ids.map((patternId) => {
       const iteration = selectedIterationClaimsByPattern.get(patternId);
       if (iteration) return [...iteration.entries()].sort(([left], [right]) =>
@@ -2178,10 +2125,6 @@ function evaluateVerificationProfileWithRuntime(
 
   for (const originalPattern of profile.resolver_fact_patterns) {
     const pattern = { ...originalPattern, pattern_kind: "resolver_fact" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     const argumentReferenceIds = pattern.argument_roles.flatMap((role) =>
       binding.bindingByRole.get(role) ?? []
     );
@@ -2217,10 +2160,6 @@ function evaluateVerificationProfileWithRuntime(
 
   for (const originalPattern of profile.evidence_patterns) {
     const pattern = { ...originalPattern, pattern_kind: "evidence" };
-    if (!activeAt(pattern, input.evaluation_stage)) {
-      resultsByPattern.set(pattern.pattern_id, patternResult(pattern, "inactive"));
-      continue;
-    }
     const verificationClaimId = selectedClaimByPattern.get(
       pattern.verification_claim_pattern_id
     );
@@ -2299,7 +2238,6 @@ function evaluateVerificationProfileWithRuntime(
       profile_id: profile.profile_id,
       profile_version: profile.profile_version
     },
-    evaluation_stage: input.evaluation_stage,
     profile_valid: true,
     input_valid: true,
     contract_valid: true,
@@ -2335,6 +2273,5 @@ function evaluateVerificationProfileWithRuntime(
 }
 
 export {
-  EVALUATION_STAGES,
   evaluateVerificationProfileWithRuntime
 };

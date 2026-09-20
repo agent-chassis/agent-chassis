@@ -1,0 +1,13 @@
+{
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "requested_intents": [
+    "controlled-proof-intent.forbidden-operation-noninvocation"
+  ],
+  "selected_packs": [
+    {
+      "profile_id": "proof.operation.forbidden-noninvocation",
+      "profile_version": "3.0.0",
+      "evaluation_input_path": "WK-2063.pack-sha256-a18f2d2fd5ee73191441ab825375b5917787db3bdbd89deae850b76b30972406.evaluation-input.json"
+    }
+  ]
+}

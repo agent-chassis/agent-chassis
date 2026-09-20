@@ -1,0 +1,13 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.atomic-failure-boundary"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2470.evaluation-input.json",
+      "profile_id": "proof.atomicity.failure-boundary",
+      "profile_version": "4.0.0"
+    }
+  ]
+}

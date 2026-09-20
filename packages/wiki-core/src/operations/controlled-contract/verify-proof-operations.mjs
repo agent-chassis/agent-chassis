@@ -1,23 +1,31 @@
-import { createHash } from "node:crypto";
+import { deepFreeze, canonicalDigest } from "../../../../controlled-contract/lib/deterministic-projection-primitives.mjs";
 
 import {
-  STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS,
-  classifyStableTestProofRuntimeReadiness,
-  resolveStableTestProofProviderBindings,
-  validateStableTestProofContract
+  buildStableTestProofRecoveryCall,
+  resolveStableTestProofProviderBindings
 } from "@agent-chassis/controlled-contract";
 
-import { validateObligationCoverageCarrier } from
-  "../../../../controlled-contract/lib/obligation-coverage-carrier.mjs";
-import { assertAdmittedProofPackSnapshot } from
-  "../../../../controlled-contract/lib/admitted-proof-packs.mjs";
+import { assertProofAuthoringDraft } from "../../../../controlled-contract/lib/proof-contract.mjs";
+import { prepareProofObligationRuntime, PROOF_OBLIGATION_NOT_EXECUTABLE_CODES,
+  ProofObligationResolutionError, resolveProofObligationRuntime } from
+  "../../../../controlled-contract/lib/proof-obligation-runtime-resolver.mjs";
 import {
-  projectWorkRecordTestProofValidation,
-  resolveAuthorizedDeclaredTestTarget
+  resolveAuthorizedDeclaredTestTarget,
+  resolveNativeCaseDeclaredTestTarget
 } from
   "../../lib/work-record-test-proof-bindings.mjs";
+import { controlledContractFocusCause, isControlledContractFocus } from
+  "../../lib/controlled-contract-tools.mjs";
+import { parseProofSourceUnitAddress as parseProofAuthoringUnitAddress } from "./saved-proof-source.mjs";
 
-const PUBLIC_KEYS = new Set(["git_sha", "repo", "subject"]);
+const PUBLIC_KEYS = new Set(["git_sha", "repo", "source", "subject", "timeout"]);
+const SOURCE_KEYS = new Set(["focus", "unit"]);
+
+const VERIFY_PROOF_TIMEOUT_PRESET_SECONDS = Object.freeze({ short: 30, medium: 300, long: 1800 });
+const VERIFY_PROOF_DEFAULT_TIMEOUT = "medium";
+const VERIFY_PROOF_TIMEOUT_MAX_SECONDS = 2147483;
+const VERIFY_PROOF_TIMEOUT_DESCRIPTION =
+  "Optional proof/test execution budget: short=30s, medium=300s (default), long=1800s, or {seconds:N} with integer N in 1..2147483. One monotonic budget starts after canonical proof population and runtime binding resolution and is shared by provider preparation and every candidate, falsifier and traversal attempt; expiry or request cancellation interrupts the active attempt and starts no further attempt.";
 const FORBIDDEN_AUTHORITY_KEYS = Object.freeze([
   "verification_id", "target", "command", "environment", "path", "root", "unit",
   "provider", "evaluator", "candidate", "receipt", "receipts", "policy", "authority"
@@ -26,46 +34,102 @@ const ELIGIBLE_ROLES = new Set(["orchestrator", "reviewer", "worker"]);
 const EXACT_GIT_OBJECT_ID_RE = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
 const RESOLUTION_SCHEMA_VERSION =
-  "controlled-contract-verify-proof-population-resolution.v1";
-
-const READINESS_REASON_CODES = Object.freeze({
-  [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_INVENTORY]:
-    "verify_proof.runtime_test_inventory_missing.v1",
-  [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_SELECTION]:
-    "verify_proof.runtime_test_selection_missing.v1",
-  [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.INVALID_SELECTION]:
-    "verify_proof.runtime_test_selection_invalid.v1"
-});
+  "controlled-contract-verify-proof-population-resolution.v3";
+const ATTRIBUTABLE_RESOLUTION_FAILURE_CODES = new Set([
+  "verify_proof.explicit_relation_disagreement.v1",
+  "verify_proof.explicit_verification_disagreement.v1"
+]);
+const ATTRIBUTABLE_TARGET_INTEGRITY_CODES = new Set([
+  "test_proof_declared_target_duplicate",
+  "validation_verification_binding_duplicate"
+]);
 
 class VerifyProofOperationError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
+  constructor(code, message, details = {}, options = undefined) {
+    super(message, options);
     this.name = "VerifyProofOperationError";
     this.code = code;
-    this.details = structuredClone(details);
+    this.details = { authority_limb: "mechanical_failure", ...structuredClone(details) };
   }
 }
 
-const compare = (left, right) => String(left).localeCompare(String(right));
+const compare = (a, b) => String(a).localeCompare(String(b));
 
-function deepFreeze(value) {
-  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
-  for (const child of Object.values(value)) deepFreeze(child);
-  return Object.freeze(value);
+function parseVerifyProofTimeout(value) {
+  const accepted = (kind, label, seconds) => Object.freeze({ kind, label, seconds,
+    milliseconds: seconds * 1000 });
+  if (value === undefined) return accepted("preset", VERIFY_PROOF_DEFAULT_TIMEOUT,
+    VERIFY_PROOF_TIMEOUT_PRESET_SECONDS[VERIFY_PROOF_DEFAULT_TIMEOUT]);
+  if (typeof value === "string" && Object.hasOwn(VERIFY_PROOF_TIMEOUT_PRESET_SECONDS, value)) {
+    return accepted("preset", value, VERIFY_PROOF_TIMEOUT_PRESET_SECONDS[value]);
+  }
+  if (value !== null && typeof value === "object" && !Array.isArray(value) &&
+      Object.getPrototypeOf(value) === Object.prototype &&
+      Object.keys(value).length === 1 && Object.hasOwn(value, "seconds") &&
+      Number.isSafeInteger(value.seconds) && value.seconds >= 1 &&
+      value.seconds <= VERIFY_PROOF_TIMEOUT_MAX_SECONDS) {
+    return accepted("custom", null, value.seconds);
+  }
+  throw new VerifyProofOperationError("verify_proof.timeout_invalid.v1",
+    "timeout must be short, medium, long, or a closed { seconds } object with an integer from 1 to 2147483",
+    { accepted_presets: { ...VERIFY_PROOF_TIMEOUT_PRESET_SECONDS },
+      maximum_seconds: VERIFY_PROOF_TIMEOUT_MAX_SECONDS });
 }
 
-function canonicalValue(value) {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (value !== null && typeof value === "object") return Object.fromEntries(
-    Object.keys(value).sort(compare).map((key) => [key, canonicalValue(value[key])])
-  );
-  return value;
+function verifyProofTimeoutInputSchema(z) {
+  return z.union([
+    z.enum(Object.keys(VERIFY_PROOF_TIMEOUT_PRESET_SECONDS)),
+    z.object({ seconds: z.number().int().min(1).max(VERIFY_PROOF_TIMEOUT_MAX_SECONDS) }).strict()
+  ]).optional().describe(VERIFY_PROOF_TIMEOUT_DESCRIPTION);
 }
 
-function canonicalDigest(value) {
-  return `sha256:${createHash("sha256").update(
-    `${JSON.stringify(canonicalValue(value), null, 2)}\n`
-  ).digest("hex")}`;
+function verifyProofPopulationSubject(subject) {
+  try {
+    return parseProofAuthoringUnitAddress(subject);
+  } catch (error) {
+    if (error?.code === "obligation_coverage_unit_invalid") return null;
+    throw error;
+  }
+}
+
+function refuseVerifyProofSource(field, cause, details = {}) {
+  throw new VerifyProofOperationError("verify_proof.source_invalid.v1",
+    "source must be a closed { unit, focus? } canonical proof-source selection",
+    { field, cause, ...details });
+}
+
+function parseVerifyProofSource(args) {
+  if (!Object.hasOwn(args, "source")) return null;
+  const { source } = args;
+  if (source === null || typeof source !== "object" || Array.isArray(source) ||
+      Object.getPrototypeOf(source) !== Object.prototype) {
+    refuseVerifyProofSource("source", "verify_proof.source_not_object.v1");
+  }
+  const unsupported = Object.keys(source).filter((key) => !SOURCE_KEYS.has(key)).sort();
+  if (unsupported.length > 0) refuseVerifyProofSource("source",
+    "verify_proof.source_member_unsupported.v1", { unsupported_keys: unsupported });
+  if (!Object.hasOwn(source, "unit")) refuseVerifyProofSource("source.unit",
+    "verify_proof.source_unit_missing.v1");
+  let address;
+  try {
+    address = parseProofAuthoringUnitAddress(source.unit);
+  } catch (error) {
+    if (error?.code !== "obligation_coverage_unit_invalid") throw error;
+    refuseVerifyProofSource("source.unit", error.code, {
+      rejected_type: Array.isArray(source.unit) ? "array" : source.unit === null ? "null" : typeof source.unit });
+  }
+  if (Object.hasOwn(source, "focus") &&
+      (source.focus === null || source.focus === undefined || !isControlledContractFocus(source.focus))) {
+    const { cause, ...facts } = controlledContractFocusCause(source.focus);
+    refuseVerifyProofSource("source.focus", cause, { ...facts, field: "source.focus" });
+  }
+  if (verifyProofPopulationSubject(args.subject) !== null) throw new VerifyProofOperationError(
+    "verify_proof.source_subject_conflict.v1",
+    "source qualifies only an individual saved proof or obligation subject",
+    { field: "source", cause: "verify_proof.population_subject_with_source.v1",
+      subject: args.subject, source_unit: source.unit });
+  return Object.freeze({ unit: source.unit, wkId: address.wkId,
+    selectedUnit: address.selectedUnit, focus: source.focus ?? null });
 }
 
 function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
@@ -77,13 +141,14 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
   if (unsupported.length > 0) throw new VerifyProofOperationError(
     authority.length > 0 ? "verify_proof.caller_authority_forbidden.v1"
       : "verify_proof.input_invalid.v1",
-    "verify_proof accepts one canonical subject plus optional repository and orchestrator git_sha",
+    "verify_proof accepts one canonical subject plus optional repository, source, timeout and orchestrator git_sha",
     { unsupported_keys: unsupported.sort() }
   );
   if (typeof args.subject !== "string" || args.subject.length === 0 ||
       args.subject.length > 512) throw new VerifyProofOperationError(
     "verify_proof.subject_invalid.v1", "subject is required and must be a bounded canonical identity"
   );
+  if (Object.hasOwn(args, "timeout")) parseVerifyProofTimeout(args.timeout);
   if (!ELIGIBLE_ROLES.has(authenticatedRole)) throw new VerifyProofOperationError(
     "verify_proof.role_ineligible.v1",
     "verify_proof requires an authenticated eligible session role"
@@ -99,344 +164,269 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
       "git_sha must be one complete lowercase hexadecimal Git object identity"
     );
   }
+  parseVerifyProofSource(args);
 }
 
-function notExecutable({ subject, kind = null, wkId = null, generation = null,
-  reasonCode, diagnostics = [] }) {
-  return deepFreeze({
-    schema_version: RESOLUTION_SCHEMA_VERSION,
-    status: "not_executable",
-    authority: "non_authoritative",
-    subject: { requested: subject, kind, canonical_id: kind === null ? null : subject },
-    wk_id: wkId,
-    contract_generation: generation,
-    reason_code: reasonCode,
-    diagnostics: structuredClone(diagnostics),
-    proof_count: 0,
-    relationship_count: 0,
-    proofs: []
-  });
+function forcedInvocationCoverageDiagnostics(proof, contract) {
+  const forced = (proof.falsifiers ?? []).filter(({ strategy }) =>
+    strategy === "forced_invocation");
+  if (forced.length === 0) return [];
+  const propositions = new Map((contract.propositions ?? []).map((entry) =>
+    [entry.proposition_id, entry]));
+  const references = new Map((contract.references ?? []).map((entry) =>
+    [entry.reference_id, entry]));
+  const diagnostics = [];
+  for (const propositionId of [...new Set(forced.map(({ proposition_id: id }) => id))]
+    .sort(compare)) {
+    const proposition = propositions.get(propositionId);
+    if (proposition?.operator !== "reference:uses") continue;
+    const subject = references.get(proposition.subject_reference_id);
+    const subjectPath = subject?.identity?.kind === "repository_path"
+      ? subject.identity.path : null;
+    const operations = (proposition.operands ?? [])
+      .filter(({ kind }) => kind === "reference")
+      .map(({ reference_id: id }) => references.get(id))
+      .filter((reference) => reference?.identity?.kind === "code_symbol");
+    const covering = forced.filter((falsifier) => falsifier.proposition_id === propositionId &&
+      (subjectPath === null || falsifier.mutation?.module_path === subjectPath));
+    const uncovered = operations.filter((reference) => !covering.some((falsifier) =>
+      falsifier.mutation?.operation?.module_path === reference.identity.path &&
+      falsifier.mutation?.operation?.export_name === reference.identity.symbol));
+    if (uncovered.length === 0) continue;
+    diagnostics.push({
+      test_proof_id: proof.test_proof_id,
+      verification_id: proof.verification_claim_id,
+      reason_code: "verify_proof.forbidden_operation_falsifier_coverage_incomplete.v1",
+      details: {
+        proposition_id: propositionId,
+        subject_module_path: subjectPath,
+        declared_operation_count: operations.length,
+        covering_falsifier_ids: covering.map(({ falsifier_id: id }) => id).sort(compare),
+        uncovered_operations: uncovered.map((reference) => ({
+          reference_id: reference.reference_id,
+          module_path: reference.identity.path,
+          export_name: reference.identity.symbol
+        }))
+      }
+    });
+  }
+  return diagnostics;
 }
 
-function subjectMatches(subject, context) {
-  const record = context.workRecord;
-  const matches = [];
-  if (record?.id === subject) matches.push({ kind: "wk", value: record });
-  for (const slice of record?.slices ?? []) {
-    if (`${record.id}#${slice.id}` === subject) matches.push({ kind: "slice", value: slice });
+function resolveAttributableProofRuntime(input) {
+  try {
+    return resolveProofObligationRuntime(input);
+  } catch (error) {
+    if (!(error instanceof ProofObligationResolutionError)) throw error;
+    if (ATTRIBUTABLE_RESOLUTION_FAILURE_CODES.has(error?.code)) return {
+      status: "not_executable", reason_code: error.code, details: error.details ?? {}
+    };
+    if (error?.code === "verify_proof.declared_target_integrity_refused.v1" &&
+        error.details?.diagnostics?.length > 0 && error.details.diagnostics.every(
+          ({ code }) => ATTRIBUTABLE_TARGET_INTEGRITY_CODES.has(code))) return {
+      status: "not_executable",
+      reason_code: PROOF_OBLIGATION_NOT_EXECUTABLE_CODES.DECLARED_TARGET_AMBIGUOUS,
+      details: error.details
+    };
+    throw error;
   }
-  for (const proof of context.controlledContract?.test_proofs ?? []) {
-    if (proof?.test_proof_id === subject) matches.push({ kind: "test_proof", value: proof });
-  }
-  for (const obligation of context.obligationCoverage?.obligations ?? []) {
-    if (obligation?.obligation_id === subject) matches.push({ kind: "obligation", value: obligation });
-  }
-  return matches;
 }
 
-function graphForObligation(row, contract) {
-  const claims = new Map((contract.claims ?? []).map((claim) => [claim.claim_id, claim]));
-  const named = new Set(row.controlled_contract_node_ids ?? []);
-  const explicitBehaviors = [...named].filter((id) => claims.get(id)?.kind === "behavior");
-  const explicitVerifications = [...named].filter((id) =>
-    claims.get(id)?.kind === "verification" &&
-    claims.get(id)?.verification_method === "test_execution");
-  const candidates = (contract.relations ?? []).filter((relation) =>
-    relation.role === "verifies" && (named.has(relation.relation_id) ||
-      named.has(relation.target_claim_id) || named.has(relation.source_claim_id)));
-  const behaviorIds = [...new Set([
-    ...explicitBehaviors,
-    ...candidates.map(({ target_claim_id: id }) => id)
-      .filter((id) => claims.get(id)?.kind === "behavior")
-  ])].sort(compare);
-  const verificationIds = [...new Set([
-    ...explicitVerifications,
-    ...candidates.filter((relation) => behaviorIds.includes(relation.target_claim_id) &&
-      claims.get(relation.source_claim_id)?.kind === "verification" &&
-      claims.get(relation.source_claim_id)?.verification_method === "test_execution")
-      .map(({ source_claim_id: id }) => id)
-  ])].sort(compare);
-  return {
-    behaviorIds,
-    verificationIds,
-    relationIds: candidates.filter((relation) =>
-      behaviorIds.includes(relation.target_claim_id) &&
-      verificationIds.includes(relation.source_claim_id))
-      .map(({ relation_id: id }) => id).sort(compare)
+function resolveAttributableDeclaredTarget(input) {
+  const retain = entry => !Array.isArray(entry?.verification_ids) ||
+    entry.verification_ids.includes(input.verificationId);
+  const workRecord = {
+    ...input.workRecord,
+    acceptance: { ...input.workRecord.acceptance,
+      validation: (input.workRecord.acceptance?.validation ?? []).filter(retain) },
+    slices: (input.workRecord.slices ?? []).map(slice => ({ ...slice,
+      acceptance: { ...slice.acceptance,
+        validation: (slice.acceptance?.validation ?? []).filter(retain) } }))
   };
-}
-
-function planEntriesFor(row, proofPlan) {
-  if (row?.proof?.kind !== "pack_mapping") return [];
-  return (proofPlan?.packs ?? []).filter((entry) =>
-    entry.profile_id === row.proof.profile_id &&
-    entry.profile_version === row.proof.profile_version &&
-    entry.requested_intents?.includes(row.proof.requested_intent));
-}
-
-function allRelationships(context) {
-  const proofByVerification = new Map();
-  for (const proof of context.controlledContract.test_proofs) {
-    const id = proof.verification_claim_id;
-    const population = proofByVerification.get(id) ?? [];
-    population.push(proof);
-    proofByVerification.set(id, population);
-  }
-  const relationships = [];
-  for (const obligation of context.obligationCoverage.obligations) {
-    if (obligation.mechanism?.kind !== "test" || obligation.proof?.kind !== "pack_mapping") {
-      continue;
-    }
-    const graph = graphForObligation(obligation, context.controlledContract);
-    for (const verificationId of graph.verificationIds) {
-      for (const proof of proofByVerification.get(verificationId) ?? []) relationships.push({
-        obligation,
-        proof,
-        verification_id: verificationId,
-        behavior_claim_ids: graph.behaviorIds,
-        relation_ids: graph.relationIds,
-        plan_entries: planEntriesFor(obligation, context.proofPlan)
-      });
-    }
-  }
-  return relationships.sort((left, right) =>
-    compare(left.proof.test_proof_id, right.proof.test_proof_id) ||
-    compare(left.obligation.obligation_id, right.obligation.obligation_id));
-}
-
-function validationVerificationIds(unit) {
-  const projection = projectWorkRecordTestProofValidation({ selectedUnit: unit });
-  return projection.status === "valid"
-    ? [...new Set(projection.executable_declarations.flatMap(
-      ({ verification_ids: ids }) => ids))].sort(compare)
-    : [];
-}
-
-function selectedProofs(match, context, relationships) {
-  const all = context.controlledContract.test_proofs;
-  if (match.kind === "wk") return [...all];
-  if (match.kind === "slice") {
-    const ids = new Set(validationVerificationIds(match.value));
-    return all.filter((proof) => ids.has(proof.verification_claim_id));
-  }
-  if (match.kind === "test_proof") return [match.value];
-  const obligationId = match.value.obligation_id;
-  return relationships.filter(({ obligation }) => obligation.obligation_id === obligationId)
-    .map(({ proof }) => proof);
-}
-
-function readinessDetails(readiness, verificationId, wkId) {
-  const candidates = readiness.current_test_ids.slice(0, 16);
-  return {
-    readiness_reason: readiness.reason,
-    verification_id: verificationId,
-    selected_test_id: readiness.selected_test_id,
-    candidate_test_ids: candidates,
-    candidate_total: readiness.candidate_total,
-    candidate_test_ids_omitted: readiness.candidate_total - candidates.length,
-    authority_limb: "mechanical_failure",
-    admissibility_effect: "none",
-    recovery_operation: "workspace_controlled_test_proof_patch",
-    complete_retrieval: {
-      tool: "workspace_controlled_test_proof_query",
-      arguments: { wk_id: wkId, verification_ids: [verificationId] }
-    }
-  };
-}
-
-function assertContext(context) {
-  if (!context || typeof context !== "object") throw new VerifyProofOperationError(
-    "verify_proof.server_context_unavailable.v1",
-    "verify_proof requires server-resolved canonical context"
-  );
-  const wkId = context.workRecord?.id;
-  if (typeof wkId !== "string" || context.obligationCoverage?.wk_id !== wkId ||
-      (context.contractWkId !== undefined && context.contractWkId !== wkId) ||
-      !DIGEST_RE.test(context.contractGeneration ?? "")) throw new VerifyProofOperationError(
-    "verify_proof.contract_generation_mismatch.v1",
-    "canonical work record, relationship carriers, and contract generation are cross-bound",
-    { work_record_id: wkId ?? null, obligation_coverage_wk_id:
-      context.obligationCoverage?.wk_id ?? null, contract_wk_id: context.contractWkId ?? null }
-  );
-  const contractValidation = validateStableTestProofContract(context.controlledContract);
-  if (!contractValidation.valid) throw new VerifyProofOperationError(
-    "verify_proof.controlled_contract_invalid.v1",
-    "canonical controlled contract is invalid", { diagnostics: contractValidation.diagnostics }
-  );
-  const coverageValidation = validateObligationCoverageCarrier(context.obligationCoverage);
-  if (!coverageValidation.valid) throw new VerifyProofOperationError(
-    "verify_proof.obligation_coverage_invalid.v1",
-    "canonical obligation coverage is invalid", { diagnostics: coverageValidation.diagnostics }
-  );
-  return wkId;
+  const selectedUnit = input.selectedUnit?.id === workRecord.id ? workRecord :
+    workRecord.slices.find(({ id }) => id === input.selectedUnit?.id) ?? input.selectedUnit;
+  return resolveAuthorizedDeclaredTestTarget({ ...input, workRecord, selectedUnit });
 }
 
 function resolveVerifyProofOperation({ args, context }) {
   assertVerifyProofCallerShape(args, { authenticatedRole: context?.authenticatedRole });
-  const wkId = assertContext(context);
-  const matches = subjectMatches(args.subject, context);
-  if (matches.length === 0) return notExecutable({
-    subject: args.subject,
-    wkId,
-    generation: context.contractGeneration,
-    reasonCode: "verify_proof.subject_unknown.v1",
-    diagnostics: [{ recovery_operation: "workspace_controlled_test_proof_query" }]
-  });
-  if (matches.length !== 1) throw new VerifyProofOperationError(
-    "verify_proof.subject_ambiguous.v1",
-    "subject matches more than one canonical identity",
-    { subject: args.subject, match_kinds: matches.map(({ kind }) => kind).sort() }
-  );
-  const [match] = matches;
-  const relationships = allRelationships(context);
-  const selected = selectedProofs(match, context, relationships);
-  const unique = new Map();
-  for (const proof of selected) {
-    const existing = unique.get(proof.test_proof_id);
-    if (existing && existing.verification_claim_id !== proof.verification_claim_id) {
-      throw new VerifyProofOperationError(
-        "verify_proof.test_proof_identity_ambiguous.v1",
-        "one test proof identity is bound to multiple verifications",
-        { test_proof_id: proof.test_proof_id }
-      );
-    }
-    unique.set(proof.test_proof_id, proof);
+  const wkId = context?.workRecord?.id;
+  const source = assertProofAuthoringDraft(context?.obligationCoverage);
+  if (source.wk_id !== wkId || context.contractWkId !== wkId ||
+      !DIGEST_RE.test(context.contractGeneration ?? '') ||
+      !context.executionSourceBinding || !context.authoringResolution) {
+    throw new VerifyProofOperationError('verify_proof.contract_generation_mismatch.v1',
+      'Saved source, native generation and invocation binding must identify the same candidate');
   }
-  const proofs = [...unique.values()].sort((left, right) =>
-    compare(left.test_proof_id, right.test_proof_id));
-  if (proofs.length === 0) return notExecutable({
-    subject: args.subject,
-    kind: match.kind,
-    wkId,
-    generation: context.contractGeneration,
-    reasonCode: "verify_proof.proof_population_empty.v1",
-    diagnostics: [{ recovery_operation: "workspace_controlled_test_proof_patch" }]
-  });
+  const prepared = prepareProofObligationRuntime({ wkId, focus: source.focus,
+    obligationCoverage: source, obligationCoverageDigest: context.obligationCoverageDigest,
+    controlledContract: context.controlledContract, contractDigest: context.contractDigest,
+    contractGeneration: context.contractGeneration });
+  const rows = prepared.rows;
+  const nodes = new Map(context.authoringResolution.dependencies.map(node => [node.identity, node]));
+  const targetArities = new Map();
+  for (const declaration of context.testTargetDeclarations.executable_declarations) {
+    for (const id of declaration.verification_ids) targetArities.set(id, (targetArities.get(id) ?? 0) + 1);
+  }
+  const proofs = new Map(), diagnostics = [];
+  for (const resolved of context.authoringResolution.rows) {
+    const row = rows.get(resolved.obligation_id);
+    const graph = context.nativeGraphs.get(row.obligation_id);
+    const declaredRelationIds = [...new Set([
+      ...(graph?.relationIds ?? []), ...(graph?.explicitRelations ?? [])
+    ])].sort(compare);
+    const verificationId = graph?.qualifying.length === 1 ? graph.qualifying[0] : null;
+    const nativeProofs = verificationId === null ? [] :
+      (context.controlledContract.test_proofs ?? []).filter(
+        proof => proof.verification_claim_id === verificationId);
+    const nativeProof = nativeProofs.length === 1 ? nativeProofs[0] : null;
+    const selectedAssessment = resolved.selected_proof_assessment ?? null;
+    const testExecutionRequired =
+      selectedAssessment?.requirements?.test_execution_evidence === 'required';
+    const authoredCaseUnavailable = testExecutionRequired && row.case_id != null &&
+      selectedAssessment.authored_case?.status !== 'complete';
+    if (!testExecutionRequired || authoredCaseUnavailable) {
+      const retainedProblems = resolved.diagnostics ?? [];
+      const retainedCategories = new Set(retainedProblems.map(entry =>
+        entry.problem?.category));
+      const stageOrder = ['authored_inputs', 'canonical_sources', 'system_capability'];
+      const unavailableStage = selectedAssessment === null
+        ? retainedCategories.has('author_input') ? 'authored_inputs'
+          : retainedCategories.has('canonical_source') ? 'canonical_sources'
+            : retainedCategories.has('system_capability')
+              ? 'system_capability' : 'authored_inputs'
+        : stageOrder.find(stage => !['complete', 'current', 'available'].includes(
+          selectedAssessment.stages?.[stage]?.status)) ?? 'execution_evidence';
+      const stageFacts = selectedAssessment?.stages?.[unavailableStage] ?? null;
+      const reasonCode = unavailableStage === 'authored_inputs'
+        ? 'verify_proof.author_inputs_unavailable.v1'
+        : unavailableStage === 'canonical_sources'
+          ? 'verify_proof.canonical_source_unavailable.v1'
+          : 'verify_proof.execution_capability_unavailable.v1';
+      const diagnostic = { obligation_id: row.obligation_id,
+        test_proof_id: nativeProof?.test_proof_id ?? null,
+        verification_id: verificationId, reason_code: reasonCode,
+        authority_limb: 'mechanical_failure', details: {
+          stage: unavailableStage,
+          execution_family: selectedAssessment?.execution_family ?? null,
+          owner_codes: stageFacts?.diagnostic_codes ?? retainedProblems.map(entry => entry.code),
+          responsible_owner: unavailableStage === 'system_capability'
+            ? '@agent-chassis/controlled-contract' : null,
+          selected_proof_assessment: selectedAssessment,
+          retained_diagnostics: retainedProblems,
+          path: `/obligations/${source.obligations.indexOf(row)}`,
+          resolved_node_identity: resolved.resolved_identity
+        } };
+      diagnostics.push(diagnostic);
+      proofs.set(`unavailable:${row.obligation_id}`, {
+        test_proof_id: nativeProof?.test_proof_id ?? null,
+        verification_id: verificationId, declared_target: null,
+        relationships: [{ obligation_id: row.obligation_id,
+          relation_ids: declaredRelationIds,
+          selected_definition: resolved.definition,
+          resolved_node_identity: resolved.resolved_identity }], failure: diagnostic });
+      continue;
+    }
 
-  const diagnostics = [];
-  const resolvedProofs = proofs.map((proof) => {
-    const proofRelationships = relationships.filter(({ proof: related }) =>
-      related.test_proof_id === proof.test_proof_id);
-    const readiness = classifyStableTestProofRuntimeReadiness(proof);
-    if (readiness.status !== "ready") diagnostics.push({
-      test_proof_id: proof.test_proof_id,
-      verification_id: proof.verification_claim_id,
-      reason_code: READINESS_REASON_CODES[readiness.reason],
-      details: readinessDetails(readiness, proof.verification_claim_id, wkId)
-    });
-    try {
-      resolveStableTestProofProviderBindings(proof);
-    } catch (error) {
-      diagnostics.push({ test_proof_id: proof.test_proof_id,
-        verification_id: proof.verification_claim_id,
-        reason_code: "verify_proof.provider_binding_invalid.v1",
-        details: { package_code: error?.code ?? null } });
-    }
-    const target = resolveAuthorizedDeclaredTestTarget({
-      workRecord: context.workRecord,
-      selectedUnit: context.selectedUnit,
-      reviewedTargetBinding: context.reviewedTargetBinding ?? null,
-      orchestrator: context.authenticatedRole === "orchestrator",
-      verificationId: proof.verification_claim_id,
-      controlledContractGeneration: context.contractGeneration,
-      sourceSnapshotDigest: context.sourceSnapshotDigest ?? null
-    });
-    if (target.status !== "resolved") diagnostics.push({
-      test_proof_id: proof.test_proof_id,
-      verification_id: proof.verification_claim_id,
-      reason_code: target.reason_code ?? "verify_proof.declared_target_invalid.v1",
-      details: { target_status: target.status, diagnostics: target.diagnostics ?? [] }
-    });
-    if (proofRelationships.length === 0) diagnostics.push({
-      test_proof_id: proof.test_proof_id,
-      verification_id: proof.verification_claim_id,
-      reason_code: "verify_proof.obligation_relationship_missing.v1",
-      details: {}
-    });
-    const projectedRelationships = proofRelationships.map((relationship) => {
-      if (relationship.plan_entries.length !== 1) diagnostics.push({
-        test_proof_id: proof.test_proof_id,
-        verification_id: proof.verification_claim_id,
-        obligation_id: relationship.obligation.obligation_id,
-        reason_code: relationship.plan_entries.length === 0
-          ? "verify_proof.proof_plan_entry_missing.v1"
-          : "verify_proof.proof_plan_entry_ambiguous.v1",
-        details: { count: relationship.plan_entries.length }
+    const candidates = context.controlledContract.test_proofs ?? [];
+
+    const nativeCaseTarget = nativeProof?.test_selector?.provider_id !== undefined;
+    const ownedTarget = verificationId === null ? null : nativeCaseTarget
+      ? resolveNativeCaseDeclaredTestTarget({ verificationId,
+        selector: nativeProof.test_selector,
+        unit: source.selected_unit === null ? wkId : `${wkId}#${source.selected_unit}`,
+        controlledContractGeneration: context.contractGeneration,
+        sourceSnapshotDigest: context.sourceSnapshotDigest })
+      : resolveAttributableDeclaredTarget({
+        workRecord: context.workRecord, selectedUnit: context.selectedUnit,
+        reviewedTargetBinding: context.reviewedTargetBinding ?? null,
+        orchestrator: false, verificationId,
+        controlledContractGeneration: context.contractGeneration,
+        sourceSnapshotDigest: context.sourceSnapshotDigest
       });
-      return {
-        obligation_id: relationship.obligation.obligation_id,
-        obligation: structuredClone(relationship.obligation),
-        behavior_claim_ids: [...relationship.behavior_claim_ids],
-        relation_ids: [...relationship.relation_ids],
-        proof_plan_entry: relationship.plan_entries.length === 1
-          ? structuredClone(relationship.plan_entries[0]) : null,
-        proof_plan_entry_digest: relationship.plan_entries.length === 1
-          ? canonicalDigest(relationship.plan_entries[0]) : null
-      };
-    }).sort((left, right) => compare(left.obligation_id, right.obligation_id));
-    return {
-      test_proof_id: proof.test_proof_id,
-      verification_id: proof.verification_claim_id,
-      test_proof: structuredClone(proof),
-      declared_target: structuredClone(target),
-      relationships: projectedRelationships
-    };
-  });
-  if (context.postDeliveryPack === null || context.postDeliveryPack === undefined) {
-    diagnostics.push({ reason_code: "verify_proof.post_delivery_pack_unavailable.v1",
-      details: {} });
-  } else {
-    assertAdmittedProofPackSnapshot(context.postDeliveryPack);
-    if (context.postDeliveryPack.evaluation_stage !== "post_delivery" ||
-        context.postDeliveryPack.test_validity_evaluator?.status !== "resolved") {
-      diagnostics.push({ reason_code: "verify_proof.evaluator_unavailable.v1", details: {} });
+    const target = ownedTarget === null ? null : { ...ownedTarget,
+      binding_count: nativeCaseTarget ? 1 : targetArities.get(verificationId) ?? 0 };
+    const resolution = resolveAttributableProofRuntime({
+      prepared, obligationId: row.obligation_id, resolvedRow: resolved,
+      resolvedNode: nodes.get(resolved.resolved_identity),
+      executionSourceBinding: context.executionSourceBinding,
+      declaredTargetProjection: target, executionPack: context.executionPack
+    });
+    if (resolution.status !== 'executable') {
+      const joinKind = resolution.reason_code.includes('test_proof_binding') ? 'test_proof' :
+        resolution.reason_code.includes('target') ? 'declared_target' : 'native_verification';
+      const arity = resolution.details.arity ?? (joinKind === 'test_proof' ? candidates.filter(p => p.verification_claim_id === verificationId).length :
+        joinKind === 'declared_target' ? target?.declaration_count ?? target?.details?.count ?? null : graph.qualifying.length);
+      diagnostics.push({ obligation_id: row.obligation_id, verification_id: verificationId,
+        reason_code: resolution.reason_code, authority_limb: 'mechanical_failure',
+        details: { ...resolution.details, join_kind: joinKind, arity,
+          verification_ids: graph.qualifying, owner_code: resolution.details.owner_code ?? resolution.reason_code,
+          path: resolution.details.path ?? `/obligations/${source.obligations.indexOf(row)}`, resolved_node_identity: resolved.resolved_identity } });
+      const proof = nativeProofs.length === 1 ? nativeProofs[0] : null;
+      const failureKey = `unavailable:${row.obligation_id}`;
+      const diagnostic = diagnostics.at(-1);
+      if (proof) diagnostic.test_proof_id = proof.test_proof_id;
+      if (resolution.reason_code === 'verify_proof.test_selector_invalid.v1') {
+        diagnostic.details.recovery_call = buildStableTestProofRecoveryCall({ wkId, focus: source.focus });
+      }
+      proofs.set(failureKey, { test_proof_id: proof?.test_proof_id ?? null, verification_id: verificationId,
+        declared_target: target, relationships: [{ obligation_id: row.obligation_id,
+          relation_ids: declaredRelationIds, selected_definition: resolved.definition,
+          resolved_node_identity: resolved.resolved_identity }], failure: diagnostic });
+      continue;
     }
-    for (const proof of resolvedProofs) for (const relationship of proof.relationships) {
-      if (relationship.obligation.proof.profile_id !==
-          context.postDeliveryPack.profile.profile_id) diagnostics.push({
+    const proof = resolution.test_proof;
+    const proofDiagnostics = [];
+    try { resolveStableTestProofProviderBindings(proof); }
+    catch (error) {
+      proofDiagnostics.push({ obligation_id: row.obligation_id,
         test_proof_id: proof.test_proof_id,
-        verification_id: proof.verification_id,
-        obligation_id: relationship.obligation_id,
-        reason_code: "verify_proof.post_delivery_pack_binding_mismatch.v1",
-        details: { profile_id: relationship.obligation.proof.profile_id }
-      });
+        verification_id: verificationId, reason_code: 'verify_proof.provider_binding_invalid.v1',
+        authority_limb: 'mechanical_failure', details: { package_code: error.code } });
+    }
+    proofDiagnostics.push(...forcedInvocationCoverageDiagnostics(proof, context.controlledContract));
+    const key = canonicalDigest({ source: context.executionSourceBinding.binding_digest, node: resolved.resolved_identity,
+      proof, target, evaluator: context.executionPack.test_validity_evaluator.implementation_digest });
+    if (!proofs.has(key)) {
+      diagnostics.push(...proofDiagnostics);
+      proofs.set(key, { execution_key: key, test_proof_id: proof.test_proof_id,
+        verification_id: verificationId, test_proof: proof, declared_target: target,
+        relationships: [], ...(proofDiagnostics.length
+          ? { failure_diagnostics: proofDiagnostics } : {}) });
+    }
+    proofs.get(key).relationships.push({ obligation_id: row.obligation_id, obligation: row,
+      behavior_claim_ids: resolution.behavior_claim_ids, relation_ids: resolution.relation_ids,
+      ...(resolution.authored_case ? { authored_case: resolution.authored_case } : {}),
+      selected_definition: resolution.selected_definition, resolved_node_identity: resolution.resolved_node_identity });
+  }
+  const population = [...proofs.values()];
+  for (const proof of population.filter(entry => entry.failure_diagnostics)) {
+    const obligationIds = proof.relationships.map(({ obligation_id: id }) => id);
+    for (const diagnostic of proof.failure_diagnostics) {
+      diagnostic.obligation_ids = obligationIds;
     }
   }
-  diagnostics.sort((left, right) => compare(
-    `${left.test_proof_id ?? ""}:${left.obligation_id ?? ""}:${left.reason_code}`,
-    `${right.test_proof_id ?? ""}:${right.obligation_id ?? ""}:${right.reason_code}`
-  ));
-  if (diagnostics.length > 0) return deepFreeze({
-    ...notExecutable({ subject: args.subject, kind: match.kind, wkId,
-      generation: context.contractGeneration,
-      reasonCode: "verify_proof.population_not_ready.v1", diagnostics }),
-    proof_count: resolvedProofs.length,
-    relationship_count: resolvedProofs.reduce((total, proof) =>
-      total + proof.relationships.length, 0),
-    proofs: resolvedProofs
-  });
+  const eligible = population.filter(proof => proof.failure === undefined &&
+    proof.failure_diagnostics === undefined);
+  const ineligible = population.filter(proof => proof.failure !== undefined ||
+    proof.failure_diagnostics !== undefined);
+  const status = diagnostics.length || !population.length ? 'not_executable' : 'executable';
   return deepFreeze({
-    schema_version: RESOLUTION_SCHEMA_VERSION,
-    status: "executable",
-    authority: "non_authoritative",
-    subject: { requested: args.subject, kind: match.kind, canonical_id: args.subject },
-    wk_id: wkId,
-    contract_generation: context.contractGeneration,
-    contract_digest: context.contractDigest,
-    obligation_coverage_digest: context.obligationCoverageDigest,
-    proof_plan_digest: context.proofPlanDigest,
-    post_delivery_pack: context.postDeliveryPack,
-    proof_count: resolvedProofs.length,
-    relationship_count: resolvedProofs.reduce((total, proof) =>
-      total + proof.relationships.length, 0),
-    proofs: resolvedProofs
+    schema_version: RESOLUTION_SCHEMA_VERSION, status, authority: 'non_authoritative',
+    ...(status === 'not_executable' ? { authority_limb: 'mechanical_failure',
+      reason_code: diagnostics.length ? 'verify_proof.population_not_ready.v1' : 'verify_proof.proof_population_empty.v1' } : {}),
+    subject: { requested: args.subject, kind: context.subjectKind, canonical_id: args.subject },
+    wk_id: wkId, focus: source.focus, contract_generation: context.contractGeneration,
+    contract_digest: context.canonicalContractDigest, obligation_coverage_digest: context.obligationCoverageDigest,
+    execution_source_binding: context.executionSourceBinding, execution_pack: context.executionPack,
+    diagnostics, proof_count: population.length, relationship_count: context.authoringResolution.rows.length,
+    proofs: population, eligible, ineligible
   });
 }
 
-export {
-  FORBIDDEN_AUTHORITY_KEYS as VERIFY_PROOF_FORBIDDEN_AUTHORITY_KEYS,
+export { FORBIDDEN_AUTHORITY_KEYS as VERIFY_PROOF_FORBIDDEN_AUTHORITY_KEYS,
   RESOLUTION_SCHEMA_VERSION as VERIFY_PROOF_POPULATION_RESOLUTION_SCHEMA_VERSION,
-  VerifyProofOperationError,
-  assertVerifyProofCallerShape,
-  resolveVerifyProofOperation
-};
+  VERIFY_PROOF_DEFAULT_TIMEOUT, VERIFY_PROOF_TIMEOUT_MAX_SECONDS, VERIFY_PROOF_TIMEOUT_PRESET_SECONDS,
+  VerifyProofOperationError, assertVerifyProofCallerShape, parseVerifyProofSource,
+  parseVerifyProofTimeout, resolveVerifyProofOperation, verifyProofPopulationSubject,
+  verifyProofTimeoutInputSchema };

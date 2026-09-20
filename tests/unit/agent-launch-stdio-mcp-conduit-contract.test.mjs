@@ -1,4 +1,4 @@
-
+import { RUNTIME_BLOCKER_DESCRIPTOR as composedTaxonomy } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -336,7 +336,8 @@ test("WK-1689#SLICE-002: a cleanup-only failure discovered during settlement is 
     readinessFailure: null,
     cleanupFailure: null,
     settleCleanup: async () => {
-      conduit.cleanupFailure = Object.assign(new Error("rmdir failed"), { code: "c" });
+      conduit.cleanupFailure = Object.assign(new Error("rmdir failed"),
+        { code: STDIO_MCP_CONDUIT_ERROR_CODES.CLEANUP_FAILED });
       return conduit.cleanupFailure;
     }
   };
@@ -347,7 +348,8 @@ test("WK-1689#SLICE-002: a cleanup-only failure discovered during settlement is 
   const projected = await wrapped.probe();
   assert.equal(projected.status, "failed");
   assert.equal(readStdioMcpConduitTerminalFailure(projected).reason, STDIO_MCP_CLEANUP_BLOCKER_REASON);
-  assert.equal(readStdioMcpConduitTerminalFailure(projected).detail.conduit_error_code, "c");
+  assert.equal(readStdioMcpConduitTerminalFailure(projected).detail.conduit_error_code,
+    STDIO_MCP_CONDUIT_ERROR_CODES.CLEANUP_FAILED);
 });
 
 test("WK-1678: the Claude command line reports its prompt structurally", () => {
@@ -473,7 +475,7 @@ test("WK-1678: the launcher plan module has no cyclic conduit dependency", async
 test("WK-1678: exact role profiles keep worker delivery-only and findings roles read-only", () => {
 
   assert.deepEqual(resolveLauncherRoleToolNames("worker"),
-    ["commit", "workspace_worker_run_declared_test"]);
+    ["commit", "workspace_verify_proof"]);
   for (const role of ["reviewer", "redteam"]) {
     const tools = resolveLauncherRoleToolNames(role);
     assert.equal(tools.includes("commit"), false);
@@ -529,6 +531,9 @@ function mintWorker(overrides = {}) {
   });
 }
 
+const FROZEN_REVIEW_MATERIALIZATION_ROOT =
+  path.join(AUTH_REPO, ".agent-runs", "frozen-review-contract", "run-1");
+
 function frozenReviewBinding(overrides = {}) {
   const contract = createTrustedFrozenReviewContract({
     subject: AUTH_UNIT,
@@ -543,6 +548,8 @@ function frozenReviewBinding(overrides = {}) {
     schema_version: snapshot.schema_version,
     digest: snapshot.digest,
     path_class: STDIO_MCP_FROZEN_REVIEW_CONTRACT_PATH_CLASS,
+
+    materialization_root: FROZEN_REVIEW_MATERIALIZATION_ROOT,
     credential: Object.freeze({ launch_ref: "refs/agent-launch/WK-1678", run_id: "run-1", retry_id: "0" }),
     ...overrides
   };
@@ -560,6 +567,7 @@ test("WK-2203#SLICE-044: managed reviewer authority binds the exact frozen snaps
     schemaVersion: "frozen-review-contract-snapshot.v1",
     digest: frozenReviewBinding().snapshot.digest,
     pathClass: STDIO_MCP_FROZEN_REVIEW_CONTRACT_PATH_CLASS,
+    materializationRoot: FROZEN_REVIEW_MATERIALIZATION_ROOT,
     credential: { launch_ref: "refs/agent-launch/WK-1678", run_id: "run-1", retry_id: "0" }
   });
   assertTrustedStdioMcpConduitAuthority(authority, {
@@ -608,7 +616,10 @@ test("WK-2203#SLICE-053: contract provenance, serialization, and identity tuple 
     { ...genuine, snapshot: Object.freeze({ ...genuine.snapshot, bytes: new Uint8Array(genuine.snapshot.bytes).fill(0) }) },
     { ...genuine, credential: Object.freeze({ launch_ref: "other", run_id: "run-1", retry_id: "0" }) },
     { ...genuine, credential: Object.freeze({ launch_ref: "refs/agent-launch/WK-1678", run_id: "run-1" }) },
-    { ...genuine, credential: Object.freeze({ launch_ref: "refs/agent-launch/WK-1678", run_id: "run-1", retry_id: "0", extra: "x" }) }
+    { ...genuine, credential: Object.freeze({ launch_ref: "refs/agent-launch/WK-1678", run_id: "run-1", retry_id: "0", extra: "x" }) },
+
+    (({ materialization_root: _omitted, ...rest }) => rest)(genuine),
+    { ...genuine, materialization_root: "relative/frozen-review" }
   ]) {
     assert.throws(() => mintTrustedStdioMcpConduitAuthority({
       family: "codex", role: "reviewer", assignedUnit: AUTH_UNIT, workspaceDir: AUTH_REPO,
@@ -622,7 +633,9 @@ test("WK-1678: the launcher derives the mode and scopes from the role, not from 
   assert.equal(worker.mode, STDIO_MCP_CONDUIT_AUTHORITY_MODES.ASSIGNED);
   assert.equal(worker.source, "launcher-frozen-scope-authority");
   assert.deepEqual(worker.writeScope, ["packages/agent-launch-cli/src/lib"]);
-  assert.deepEqual(worker.readScope, ["docs", "tests"]);
+
+  assert.deepEqual(worker.readScope, ["docs"]);
+  assert.deepEqual(worker.repoPaths, ["tests"]);
   assert.equal(worker.sourceDigest, `sha256:${"a".repeat(64)}`);
   assert.equal(Object.isFrozen(worker), true);
   assert.equal(Object.isFrozen(worker.worktreeIdentity), true);
@@ -771,9 +784,8 @@ test("WK-1678: an unmanaged launch still gets a launcher-derived worktree identi
 });
 
 test("WK-1678: the conduit-requires-bubblewrap blocker is a registered taxonomy code", () => {
-  const taxonomy = JSON.parse(readFileSync(
-    path.join(REPO_ROOT, "packages/wiki-core/data/runtime-blocker-codes.v1.json"), "utf8"));
-  const codes = new Set((taxonomy.codes ?? taxonomy.blockers ?? []).map((entry) => entry.code));
+  const taxonomy = composedTaxonomy;
+  const codes = new Set(taxonomy.codes.map((entry) => entry.code));
   for (const reason of [
     STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
     STDIO_MCP_CLIENT_READINESS_BLOCKER_REASON,

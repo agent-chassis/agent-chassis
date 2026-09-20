@@ -1,0 +1,255 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2461",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK2461-01",
+      "statement": "Reproduce the live near-bound workspace_controlled_contract_assess failure at the final registered MCP envelope and prove the repaired response returns assessment_identity, exact counts, omitted counts, and the supported query route within the declared delivery bound.",
+      "controlled_contract_node_ids": [
+        "claim-final-envelope-success",
+        "claim-final-envelope-verified",
+        "claim-envelope-complete"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:tests/unit/controlled-contract-semantic-projection-boundaries.test.mjs",
+        "kind": "test",
+        "selector": "near-bound final registered proof-assessment envelope reproduction"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The obligation, test boundary, N-1/N/N+1 cases, and falsifying lost-identity/oversize outcomes are authored pre-dispatch. No currently admitted proof pack establishes final registered-envelope boundary behavior; this is a proof-catalog coverage gap, not implementation status."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-02",
+      "statement": "Eliminate double budgeting between wiki-core semantic summary projection and wiki-MCP adapter fields so the final envelope cannot exceed 8,192 bytes after snapshot binding and cannot lose its assessment identity.",
+      "controlled_contract_node_ids": [
+        "claim-single-budget-owner",
+        "claim-final-envelope-verified",
+        "ref-assessment-materializer"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "kind": "code_symbol",
+        "selector": "materializeControlledContractAssessmentResponse"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The single-owner invariant, implementation locus, and double-budget/lost-identity falsifiers are authored pre-dispatch. No currently admitted proof pack establishes final-envelope budget ownership; this is a proof-catalog coverage gap, not implementation status."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-03",
+      "statement": "Make one shared wiki-MCP assessment-response materializer the sole final-envelope owner for both assessment families, reserving every transport-added field once and returning summary, identity, exact counts, omitted counts, and supported query route deterministically.",
+      "controlled_contract_node_ids": [
+        "claim-single-budget-owner",
+        "claim-final-envelope-success",
+        "claim-envelope-complete",
+        "claim-final-envelope-verified",
+        "ref-final-envelope",
+        "ref-assessment-materializer"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
+        "kind": "code_symbol",
+        "selector": "materializeControlledContractAssessmentResponse"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The sole-owner requirement, both handler bindings, required result members, and competing-owner/missing-member falsifiers are authored pre-dispatch. No currently admitted proof pack covers exact ownership plus final-envelope shape; this is a proof-catalog coverage gap, not implementation status."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-04",
+      "statement": "Honor DEC-0118 by treating 8,192-byte summaries and 16,384-byte pages only as delivery bounds: every omitted task-relevant semantic row remains reachable through assessment identity and the existing authenticated snapshot/cursor owner without content caps, inaccessible snapshots, reruns, or a second registry.",
+      "controlled_contract_node_ids": [
+        "claim-lossless-query",
+        "claim-lossless-traversal-verified",
+        "claim-oversized-continuation",
+        "ref-dec0118",
+        "ref-snapshot-registry"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:packages/wiki-mcp/src/lib/controlled-contract-assessment-snapshots.mjs",
+        "kind": "code_symbol",
+        "selector": "controlledContractAssessmentSnapshots.query lossless traversal"
+      },
+      "selection": {
+        "proof_name": "proof.completeness.lossless-projection",
+        "proof_version": "4.0.0",
+        "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+        "parameter_contract_digest": "bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800",
+        "admission_digest": "2e22230c09a87dce93de8fb74b1f9842e7a2703d1f8af4fe715aab2a316a64c7",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-05",
+      "statement": "Expose only task-relevant semantic summaries and typed collection, row-field, and scalar-range continuations through the two existing assessment query operations; omit non-task-relevant source-derived digests and provide an operative complete semantic source path for every compact omission.",
+      "controlled_contract_node_ids": [
+        "claim-task-relevant-only",
+        "claim-lossless-query",
+        "claim-semantic-population-verified",
+        "ref-semantic-results",
+        "ref-tool-discovery"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:wiki-mcp",
+        "kind": "tool_operation",
+        "selector": "workspace_controlled_contract_assessment_query and workspace_controlled_contract_integration_test_design_query"
+      },
+      "selection": {
+        "proof_name": "proof.completeness.lossless-projection",
+        "proof_version": "4.0.0",
+        "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+        "parameter_contract_digest": "bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800",
+        "admission_digest": "2e22230c09a87dce93de8fb74b1f9842e7a2703d1f8af4fe715aab2a316a64c7",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-06",
+      "statement": "Preserve WK-2426 as the sole owner of no raw registered transport, generic-spill exclusion, role posture, and filesystem-confidentiality distinctions; WK-2461 grants no raw carrier, artifact, join-graph, filesystem, or generic content-reference route.",
+      "controlled_contract_node_ids": [
+        "claim-wk2426-preserved",
+        "claim-non-goals",
+        "ref-wk2426",
+        "ref-raw-sources"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:tests/unit/controlled-contract-mcp-package-parity.test.mjs",
+        "kind": "test",
+        "selector": "WK-2426 raw-route, spill, role, and authority preservation"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The inherited-policy boundary, parity mechanism, and any-new-raw-route falsifier are authored pre-dispatch. No currently admitted proof pack establishes this exact negative route population; this is a proof-catalog coverage gap, not the state of the existing mechanism."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-07",
+      "statement": "Remove assessment raw-source completeness exemptions, the public completeness_exemption member, and non-task-relevant detail_digest, result_digest, population_digest, and requirement_digest fields; package descriptors own only task-relevant public semantic collections and encapsulation wording.",
+      "controlled_contract_node_ids": [
+        "claim-vocabulary-clean",
+        "claim-task-relevant-only",
+        "claim-semantic-population-verified",
+        "ref-descriptors",
+        "ref-source-digests"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:packages/controlled-contract/lib/assessment-collection-descriptors.mjs",
+        "kind": "schema",
+        "selector": "assessment collection descriptor public schema and declarations"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The required and forbidden member populations, schema locus, and reintroduced-exemption/digest falsifiers are authored pre-dispatch. No currently admitted proof pack proves this exact result-shape exclusion; this is a proof-catalog coverage gap, not implementation status."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-08",
+      "statement": "Retain every complete task-relevant public row in the existing snapshot registry and reconstruct oversized nested values through typed field projection and oversized scalars through authenticated offset/length/total retrieval bound to assessment identity, collection, row identity, currentness, and expiry.",
+      "controlled_contract_node_ids": [
+        "claim-oversized-continuation",
+        "claim-oversized-values-verified",
+        "claim-lossless-query",
+        "ref-oversized-values",
+        "ref-snapshot-registry"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:WK-2461",
+        "kind": "test",
+        "selector": "SLICE-010 and SLICE-012 exact nested-field and scalar-range reconstruction tests"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The row/field/range traversal mechanisms, exact reassembly oracle, and missing/duplicated/misordered segment falsifiers are authored pre-dispatch. The admitted lossless-projection pack explicitly excludes range/cursor semantics and member-byte equality, so an exact pagination/value proof pack remains a catalog coverage gap."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-09",
+      "statement": "Apply final-envelope, lossless-continuation, currentness, ordering, selector, and shared non-authority invariants to both proof assessment and integration-test-design assessment plus their two query routes.",
+      "controlled_contract_node_ids": [
+        "claim-both-families",
+        "claim-both-families-verified",
+        "claim-envelope-complete",
+        "ref-proof-assess",
+        "ref-integration-assess",
+        "ref-non-authorizing-result"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:tests/unit/controlled-contract-mcp-package-parity.test.mjs",
+        "kind": "test",
+        "selector": "both assessment families, registered routes, and shared non-authority parity"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The two-family population, parity mechanism, and asymmetric-family/authority-drift falsifiers are authored pre-dispatch. No currently admitted proof pack establishes this exact cross-family parity; this is a proof-catalog coverage gap, not implementation status."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-10",
+      "statement": "Deliver regression and mutation coverage for final registered N-1/N/N+1 envelopes, complete multi-page and oversized-value traversal, exact totals, expiry/currentness, the lost-identity reproduction, double budgeting, missing identity or rows, miscounts, content caps, removed vocabulary reintroduction, second paginator, and authority/rationale regressions.",
+      "controlled_contract_node_ids": [
+        "claim-regression-coverage",
+        "claim-final-envelope-verified",
+        "claim-lossless-traversal-verified",
+        "claim-semantic-population-verified",
+        "claim-oversized-values-verified",
+        "claim-both-families-verified",
+        "ref-regression-suite"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:WK-2461",
+        "kind": "test",
+        "selector": "SLICE-009, SLICE-010, SLICE-011, and SLICE-012 declared Node test targets"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The complete required test and mutant population, exact test loci, and per-mutant discriminating outcomes are authored pre-dispatch. The admitted lossless pack proves only its projection graph; test-execution validity for this full regression population remains a proof-catalog coverage gap."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-11",
+      "statement": "Update docs/mcp-controlled-contract-operations.md as semantic owner and docs/mcp-integration.md as transport owner to document server-owned raw sources, complete task-relevant typed continuation, one final-envelope owner, registered error forwarding, and budgeting failures as defects without duplicating the diagnostic contract.",
+      "controlled_contract_node_ids": [
+        "claim-docs-coverage",
+        "claim-guidance-nongoals-verified",
+        "ref-docs-operations",
+        "ref-docs-integration"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:controlled-contract-assessment-docs",
+        "kind": "durable_record",
+        "selector": "docs/mcp-controlled-contract-operations.md and docs/mcp-integration.md assessment sections"
+      },
+      "gap": {
+        "gap_kind": "catalog_gap",
+        "reason": "The two durable owners, required guidance propositions, non-duplication rule, and stale/contradictory-guidance falsifiers are authored pre-dispatch. No currently admitted proof pack establishes this exact multi-document guidance contract; this is a proof-catalog coverage gap, not implementation status."
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2461-12",
+      "statement": "Confine WK-2461 to assessment final-envelope budgeting, task-relevant descriptors and typed continuation, the existing snapshot/query path, tests, discovery, and two owning docs; do not add raw access, change proof/CCE authority, broaden roles, alter WK-2426 policy, add a second paginator/registry, or move runtime protocol guidance into AGENTS.md.",
+      "controlled_contract_node_ids": [
+        "claim-non-goals",
+        "claim-guidance-nongoals-verified",
+        "claim-wk2426-preserved",
+        "ref-second-registry",
+        "ref-raw-sources",
+        "ref-wk2426"
+      ],
+      "mechanism": {
+        "owner": "agent-chassis:WK-2461",
+        "kind": "durable_record",
+        "selector": "wiki/work-records/WK-2461.json acceptance criteria, scopes, slice graph, and design-review dispositions"
+      },
+      "gap": {
+        "gap_kind": "review_only",
+        "reason": "This scope/non-goal obligation is verified through the authenticated canonical record, DRY and all-decision dispositions, the single design redteam/blueteam disposition, exact slice scopes, and each later implementation review."
+      }
+    }
+  ]
+}

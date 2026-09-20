@@ -12,9 +12,9 @@ import {
 
 const packageRoot = path.resolve(new URL("../../", import.meta.url).pathname);
 const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.pagination.snapshot-consistency/2.0.0");
+  "test/certification/profiles/proof.pagination.snapshot-consistency/3.0.0");
 const runtimeDirectory = path.join(packageRoot,
-  "profiles/proof.pagination.snapshot-consistency/2.0.0");
+  "profiles/proof.pagination.snapshot-consistency/3.0.0");
 
 async function json(directory, name) {
   return JSON.parse(await readFile(path.join(directory, name), "utf8"));
@@ -34,19 +34,6 @@ test("snapshot pagination profile requires exact snapshot resolution", async () 
   ).proposition_template.operator, "reference:resolves_to");
 });
 
-test("snapshot exact declaration binds stable state and distinct live versions", async () => {
-  const declaration = await json(certificationDirectory, "exact-binding.json");
-  assert.deepEqual(declaration.relations.map(({ operator }) => operator), [
-    "distinct_content_sha256", "deterministic_projection", "same_content_sha256"
-  ]);
-  const projectedRoles = declaration.requirements.find(
-    ({ requirement_id: id }) => id === "f-projection"
-  ).role_coverage.map(({ role }) => role);
-  for (const role of [
-    "page_attempts", "returned_pages", "member_occurrences", "snapshot",
-    "snapshot_state", "relevant_mutation", "first_page_attempt", "later_page_attempt"
-  ]) assert.ok(projectedRoles.includes(role));
-});
 
 test("snapshot pack passes its executable adequacy and published admission", async () => {
   const result = await runProofPackAdequacy(certificationDirectory, {
@@ -58,7 +45,4 @@ test("snapshot pack passes its executable adequacy and published admission", asy
   assert.equal(result.coverage_witness_count, 126);
   const admission = await json(runtimeDirectory, "admission.json");
   assert.ok(admission.explicit_exclusions.includes("standalone-traversal-completeness"));
-  assert.equal(admission.exact_binding.relation_operators.includes(
-    "distinct_content_sha256"
-  ), true);
 });

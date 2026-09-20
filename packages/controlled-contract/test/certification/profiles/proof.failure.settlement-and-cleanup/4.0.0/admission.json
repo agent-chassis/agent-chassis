@@ -1,0 +1,28 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "897a438015e3a2b356cf96afdab8bfe629c02d831b913f6e318bbd40f16dd87b",
+  "profile_id": "proof.failure.settlement-and-cleanup",
+  "profile_version": "4.0.0",
+  "profile_digest": "fe733bcbc83de3f5519b133b5a87abf20b65481e3013dcbdd6fb0edcdf181051",
+  "guarantee": "Given one grounded operation attempt, one declared failure injection and injected failure carrying one grounded original cause, one cleanup event, one settlement event after both failure and cleanup, one complete declared residue population whose integer cardinality may be zero or greater, complete cause-state observations at failure and after settlement, and a settled failure record: satisfaction establishes that the injected failure targets the operation during the attempt, cleanup targets the residue population after failure, settlement follows cleanup and failure, the complete residue population has cardinality zero after settlement, the settled failure record retains the same cause, and the cause state after settlement equals its state at failure.",
+  "guarantee_digest": "a29c4f79b079c6dbf4b8b35bc31e426c08a56a114376f79565566124499eccbc",
+  "explicit_exclusions": [
+    "cause-truthfulness-beyond-declared-observations",
+    "cleanup-side-effects-outside-population",
+    "concurrent-or-distributed-settlement",
+    "delivered-evidence-authenticity",
+    "failure-prevention-or-retry-semantics",
+    "pack-applicability",
+    "residue-reappearance-after-observation",
+    "resources-outside-declared-population",
+    "transient-residue-before-settlement"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "258a14019dab6b960b4735ba46d6aeddfd8a4f4836b36a9a0a86d651acbe8805",
+    "adequacy_result_digest": "88e51c65c479db096e9a5efe0fa12b668182ed519726127fb9050eb84155d374",
+    "executable_control_count": 40,
+    "negative_fixture_count": 15,
+    "coverage_witness_count": 150
+  }
+}

@@ -14,11 +14,13 @@
       ],
       "routes": [
         {
-          "tool": "workspace_work_record_set_list_field",
+          "tool": "workspace_work_record_edit",
           "args": {
-            "field": "read_scope"
+            "kind": "list",
+            "field": "read_scope",
+            "action": "replace"
           },
-          "note": "Set or correct the WK's read-first reference list with the canonical `read_scope` field name. `docs:` is the back-compat alias for the same list; prefer `read_scope`. Populate it with the durable read-first references the worker needs (`docs/**`, shipped operating guidance, relevant `wiki/**`) before dispatch."
+          "note": "Set or correct the WK's read-first reference list through the ordinary editor with the canonical `read_scope` field name. The separate schema-level `docs:` alias is not an editable field. Supply the complete intended replacement value, or use action `append` with one missing durable reference (`docs/**`, shipped operating guidance, relevant `wiki/**`)."
         }
       ],
       "related_codes": [
@@ -32,33 +34,43 @@
       "id": "graph-impact-required-unavailable",
       "title": "Graph impact required but unavailable or stale",
       "symptom": "`workspace_validate_dispatch` or `workspace_coordination_preflight` reports graph impact required but unavailable, or you hit a `missing_graph_impact` / `graph_impact_*` blocker.",
-      "cause": "The work record requires graph-impact evidence and the base artifact is missing or stale. There are two distinct responses depending on whether a usable dirty-worktree overlay exists: an agent-recoverable degraded-overlay path, and an operator-only rebuild path. Choosing the wrong one either leaves the blocker unresolved or attempts a forbidden dirty-worktree rebuild / shell-persist fallback.",
+      "cause": "Graph-dependent operations automatically ensure the shared committed-HEAD index. Missing, stale, corrupt, and incompatible cache state normally rebuilds through the incumbent atomic/coalesced owner and the requesting operation continues. A remaining unavailable result therefore means the actual rebuild, verification, or captured-HEAD stabilization failed; dirty-worktree content is never substituted for the committed base.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "paid_cce"
       ],
-      "routes": [],
+      "routes": [
+        {
+          "tool": "workspace_code_index_impact",
+          "note": "Retry the original graph-dependent operation after correcting the reported rebuild cause. It ensures the shared committed index again; a separate status/build discovery round trip is not required."
+        }
+      ],
       "fork": [
         {
           "when": "graph_impact_degraded_overlay: a dirty worktree with a usable overlay is available (the proceed_degraded outcome).",
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_code_index_graph_impact_paths",
-              "note": "Query graph-impact paths against the dirty-worktree overlay to produce the impact evidence."
+              "tool": "workspace_code_index_impact",
+              "note": "Query committed impact for the changed paths; dirty worktree bytes stay excluded from the committed graph and are only disclosed."
             },
             {
               "tool": "workspace_record_graph_impact_evidence",
-              "note": "Persist the verbose `graph_impact_raw` envelope into the work record. The compact ref alone lacks `input` and `validated_paths`, so persisting only the ref leaves the work record in `missing_graph_impact`. Record the degraded-overlay evidence in the closure separately from canonical authority."
+              "note": "Persist the complete impact answer (verbose:true or the retained full_result) into the work record. A compact projection lacks the complete populations, so persisting it alone leaves the work record in `missing_graph_impact`. Record dirty-worktree limitations in the closure separately from canonical authority."
             }
           ],
           "note": "Agent-recoverable. Do not request an operator rebuild for this sub-state; the overlay is usable, so persist real evidence from it."
         },
         {
-          "when": "graph_impact_rebuild_required / graph_impact_artifact_missing / graph_impact_unavailable: no usable dirty-worktree overlay (the operator_refresh / block outcomes).",
-          "actor": "operator",
-          "routes": [],
-          "note": "Operator-only. Stop and request an operator graph-impact rebuild. Do not rebuild inside a dirty worktree, and do not fall back to a shell-persist of evidence. Report the blocker and the exact command/condition for the operator to rerun."
+          "when": "graph_impact_unavailable after automatic ensure: the returned cause names a real builder, cache-publication, repository, or unstable-HEAD failure.",
+          "actor": "agent_or_operator",
+          "routes": [
+            {
+              "tool": "workspace_code_index_impact",
+              "note": "After the named cause is corrected, retry this original operation; it automatically retries ensure/rebuild."
+            }
+          ],
+          "note": "Do not substitute stale or dirty-overlay data for a failed committed build. Report the exact returned cause when its correction requires operator access."
         }
       ],
       "related_codes": [
@@ -76,19 +88,19 @@
       "id": "graph-impact-evidence-rejected-envelope-shape",
       "title": "workspace_record_graph_impact_evidence rejects the evidence payload shape",
       "symptom": "`workspace_record_graph_impact_evidence` rejects your evidence with an error like `requires graph_impact or graph_impact_summary_ref` or `graph_impact must be a graph-impact envelope`, so the work record stays in `missing_graph_impact`.",
-      "cause": "You passed the compact summary ref alone, or a hand-built summary object, instead of the full graph-impact envelope. The persistence route requires the verbose envelope produced by `workspace_code_index_graph_impact_paths` because that envelope carries `input` and `validated_paths`; a bare ref or hand-assembled summary lacks those fields and is rejected. (Through some MCP clients an unknown-schema object argument can also be dropped before it reaches the server, which surfaces as the same rejection.)",
+      "cause": "You passed the compact summary ref alone, or a hand-built summary object, instead of the full graph-impact envelope. The persistence route requires the complete impact answer produced by `workspace_code_index_impact` (verbose:true or its retained full_result) because that answer carries `structural_impacts`, `summary`, `input_paths` and `validated_paths`; a bare ref or hand-assembled summary lacks those fields and is rejected. (Through some MCP clients an unknown-schema object argument can also be dropped before it reaches the server, which surfaces as the same rejection.)",
       "actor": "agent",
       "tier_visibility": [
         "paid_cce"
       ],
       "routes": [
         {
-          "tool": "workspace_code_index_graph_impact_paths",
-          "note": "Produce the graph-impact envelope for the changed paths first; this is the envelope the persistence route expects, carrying `input` and `validated_paths`."
+          "tool": "workspace_code_index_impact",
+          "note": "Produce the complete impact answer for the changed paths first with verbose:true; it is the envelope the persistence route expects, carrying `input_paths` and `validated_paths`."
         },
         {
           "tool": "workspace_record_graph_impact_evidence",
-          "note": "Persist the ENVELOPE produced above (the verbose `graph_impact_raw` envelope), not the compact summary ref alone and not a hand-built summary object. Persisting only the ref leaves the work record in `missing_graph_impact`. See the active follow-up for envelope-size handling when the envelope is large."
+          "note": "Persist the complete impact answer produced above, not a compact projection and not a hand-built summary object. Persisting only the ref leaves the work record in `missing_graph_impact`. See the active follow-up for envelope-size handling when the envelope is large."
         }
       ],
       "related_codes": [
@@ -194,7 +206,7 @@
           "actor": "agent",
           "routes": [
             {
-              "tool": "workspace_code_index_graph_impact_paths",
+              "tool": "workspace_code_index_impact",
               "note": "Reduce, split, or narrow the selected unit until the graph precondition is admissible, then rerun."
             }
           ],
@@ -245,7 +257,7 @@
       "id": "dispatch-readiness-multi-cluster-or-critical-blast-radius",
       "title": "validate_dispatch non-dispatchable on multi_cluster or critical_blast_radius_*",
       "symptom": "workspace_validate_dispatch reports the selected unit non-dispatchable with decision code `multi_cluster` (the unit's write_scope spans more than one cohesive change cluster) or a `critical_blast_radius_*` code (the change reaches a critical surface with no current, in-scope accepted escalation).",
-      "cause": "Both are LOCAL dispatch-readiness structural gates an agent can see before any launch — not Node-Engine threshold verdicts — so they need no paid tool. multi_cluster wants one cohesive write_scope cluster per unit; critical_blast_radius_* wants a recorded, accepted, in-scope `critical_blast_radius` escalation whose scope matches the change.",
+      "cause": "Both are LOCAL dispatch-readiness structural gates an agent can see before any launch \u2014 not Node-Engine threshold verdicts \u2014 so they need no paid tool. multi_cluster wants one cohesive write_scope cluster per unit; critical_blast_radius_* wants a recorded, accepted, in-scope `critical_blast_radius` escalation whose scope matches the change.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local"
@@ -301,7 +313,7 @@
       "routes": [
         {
           "tool": "workspace_run_validation",
-          "note": "Re-run with a target from the refusal's authorized_targets, or author exactly {operation: node_test, target, verification_ids} in the selected unit's acceptance.validation[] before resubmitting. Text notes never authorize execution."
+          "note": "Re-run with a target from the refusal's authorized_targets, or have the coordinator author or amend the verification's test case through workspace_controlled_contract_obligation_coverage_upsert, the sole author of acceptance.validation node_test bindings, before resubmitting. Ordinary acceptance edits and text notes never authorize execution."
         }
       ],
       "related_codes": [
@@ -370,28 +382,6 @@
       ],
       "related_records": [
         "WK-1906"
-      ]
-    },
-    {
-      "id": "proof-pack-binding-result-too-large",
-      "title": "Legacy complete proof-pack binding inspection exceeds its presentation bound",
-      "symptom": "Binding inspection refuses with proof_pack_binding_result_too_large.",
-      "cause": "The legacy complete-inspection projection exceeded its 65,536-byte presentation bound. This does not mean the proof plan or its complete supplied bindings are invalid.",
-      "actor": "agent",
-      "tier_visibility": [
-        "free_local"
-      ],
-      "routes": [
-        {
-          "tool": "workspace_controlled_proof_pack_bindings_inspect",
-          "note": "Use targeted roles/statuses and digest-bound pagination. Do not retry complete inspection, read the complete carrier, invoke the package CLI as fallback, or generate a token-heavy substitute projection."
-        }
-      ],
-      "related_codes": [
-        "proof_pack_binding_result_too_large"
-      ],
-      "related_docs": [
-        "docs/mcp-operation-reference.md"
       ]
     },
     {
@@ -517,7 +507,7 @@
       "id": "verify-proof-execution-not-executable",
       "title": "workspace_verify_proof reports an execution or receipt prerequisite failure",
       "symptom": "workspace_verify_proof returns a workspace-verify-proof-refusal.v1 execution, provider, observation, or receipt code instead of a proof outcome.",
-      "cause": "A valid structured run of the predeclared selected assertion is proof evidence: a passing assertion may satisfy the proof and a failing assertion is unsatisfied, independently of sibling assertions and the whole-file exit code. Siblings remain bounded audit observations and are not attributed to the proof. not_executable or refused instead means the selected proof could not be evaluated because a canonical binding, launcher isolation/spawn/timeout prerequisite, structured node:test reporter protocol, candidate/falsifier/traversal provider, candidate identity, or authenticated receipt failed. Ordinary validation diagnostics use bounded head/tail capture. The proof reporter uses a separate lossless machine-protocol channel on a launcher-owned pipe with its own fixed byte limit and is never parsed after diagnostic elision. test_proof_structured_events_oversized means the authenticated envelope exceeded that protocol limit; reduce the declared test's structured event population or repair the reporter protocol owner before retrying, without treating the bytes as malformed JSON. test_proof_selected_identity_not_observed means the authenticated whole-file run terminated or completed without exposing the selected assertion; use its expected_test_id, target, bounded counts, wrapper status/error codes, and at most eight observed_identity_candidates to repair test startup or reporter observation before retrying. test_proof_bound_identity_mismatch is reserved for a genuine disagreement between the declared identity and its authenticated binding; repair the canonical file/name/nesting identity or the shared identity owner. Read the bounded outer_wrapper_code, deepest_stable_cause_code, execution_stage, declared_target, verification_id, test_proof_id, run disposition, blocker/observation code, and truncation facts in the response. Repair a binding or declared test in the controlled proof contract when those facts name the contract boundary; repair the launcher/runtime or reporter/provider prerequisite when they name execution infrastructure. The compact public result returns only the requested subject, one common subject-binding summary, aggregate counts/status, proof and verification identities with status, and minimal reason/recovery facts. It never exposes raw output, stacks, absolute paths, commands, argv, environment, provider payloads, or complete inventories, and never exceeds 65,536 UTF-8 bytes.",
+      "cause": "A valid structured run of the predeclared selected assertion is proof evidence: a passing assertion may satisfy the proof and a failing assertion is unsatisfied, independently of sibling assertions and the whole-file exit code. Siblings remain bounded audit observations and are not attributed to the proof. not_executable or refused instead means the selected proof could not be evaluated because a canonical binding, launcher isolation/spawn/timeout prerequisite, structured node:test reporter protocol, candidate/falsifier/traversal provider, candidate identity, or authenticated receipt failed. Ordinary validation diagnostics use bounded head/tail capture. The proof reporter uses a separate lossless machine-protocol channel on a launcher-owned pipe with its own fixed byte limit and is never parsed after diagnostic elision. test_proof_structured_events_oversized means the authenticated envelope exceeded that protocol limit; reduce the declared test's structured event population or repair the reporter protocol owner before retrying, without treating the bytes as malformed JSON. test_proof_selected_identity_not_observed means the authenticated whole-file run terminated or completed without exposing the selected assertion; use its expected_test_id, target, bounded counts, wrapper status/error codes, and at most eight observed_identity_candidates to repair test startup or reporter observation before retrying. test_proof_bound_identity_mismatch is reserved for a genuine disagreement between the declared identity and its authenticated binding; repair the canonical file/name/nesting identity or the shared identity owner. Read the bounded outer_wrapper_code, deepest_stable_cause_code, execution_stage, declared_target, verification_id, test_proof_id, run disposition, blocker/observation code, and truncation facts in the response. Repair a binding or declared test in the controlled proof contract when those facts name the contract boundary; repair the launcher/runtime or reporter/provider prerequisite when they name execution infrastructure. A completed verification returns the compact workspace-verify-proof-summary.v1: requested subject, one common subject binding, aggregate status, exact proof and obligation-relationship counts, per-proof and per-obligation verdicts, shared reason/recovery entries for unmet or unevaluated items, and an evidence reference. Complete diagnostics, observed inventories and bindings are read on demand through repeated workspace_read_mcp_content_reference calls named by the summary's evidence_retrieval. An authenticated failed-event diagnostic preserves available error names, messages, codes, stacks, assertion expected/actual/operator values, nested causes and aggregate children, associated with the candidate, falsifier, or traversal artifact that observed them. Diagnostic data is complete below the reporter protocol bound; only exact producer-declared protected strings use the existing closed redaction reasons and structured field signals. Raw stdout/stderr, commands, argv, environment, and private provider payloads remain outside the public result.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -558,6 +548,59 @@
         "docs/test-proof-runtime-identity.md",
         "docs/mcp-controlled-contract-operations.md",
         "docs/mcp-operation-reference.md"
+      ]
+    },
+    {
+      "id": "committed-slice-redispatch-refused",
+      "title": "Worker redispatch finds an existing committed slice delivery",
+      "symptom": "workspace_agent_dispatch refuses a worker call with managed_run_prior_attempt_proven_dead for a slice whose prior attempt already committed a delivery.",
+      "cause": "The refusal protects the committed delivery and means this dispatch launched no replacement worker. It is not an integration decision. The supported next request is workspace_integrate_committed_slice with the canonical slice subject; that operation independently authenticates the exact target and applies its existing CAS and configured CCE checks. Only an accepted integration result permits remaining already-dispositioned remediation to proceed in a follow-up slice of the same WK. Nothing here automatically integrates, creates a slice, redispatches, or claims success.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_integrate_committed_slice",
+          "args": {
+            "subject": "$canonical_slice_subject"
+          },
+          "note": "Make this separate request with a canonical subject such as WK-2528#SLICE-007. Optionally include the configured repo alias and registered dispositions array. Do not pass comment_dispositions, refs, SHAs, receipts, review verdicts, policy decisions, or authority carriers. Preserve and report this operation's own success or typed refusal."
+        }
+      ],
+      "related_codes": [
+        "managed_run_prior_attempt_proven_dead"
+      ],
+      "related_docs": [
+        "docs/mcp-dispatch-managed-run-lifecycle.md",
+        "docs/mcp-dispatch-slice-integration.md"
+      ],
+      "related_records": [
+        "WK-2528"
+      ]
+    },
+    {
+      "id": "claude-permission-configuration",
+      "title": "Claude permission configuration and empirical testing",
+      "symptom": "Does normal Claude launch empirically test native permissions?",
+      "cause": "Normal worker/reviewer and headless orchestrator launch mint and validate native permission settings, apply settings isolation and preserve scope/confinement, executable checks, credentials/network configuration, MCP readiness and supervision. Redteam remains settings-free and probe-free. Applied configuration is not empirical certification: ordinary launch runs no auxiliary Claude permission test and needs no report, canary or positive cache. Genuine setup failures retain their stage-specific diagnostics. Empirical checks belong to explicitly opted-in integration tests; RUN_LIVE_CLAUDE_PERMISSION_TESTS=1 must be selected before binary discovery or invocation. Test results do not confer launch authority.",
+      "actor": "agent_or_operator",
+      "routes": [],
+      "related_codes": [
+        "claude_native_permission_settings_unavailable"
+      ],
+      "related_docs": [
+        "docs/claude-native-permission-probe.md",
+        "docs/mcp-dispatch-launch-and-admission.md"
+      ],
+      "related_records": [
+        "WK-2524"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce",
+        "operator_only"
       ]
     }
   ]

@@ -22,108 +22,70 @@ import {
 import { buildLintFindingsResponse } from "@agent-chassis/wiki-core/src/operations/generate-and-lint.mjs";
 import { autofixDocsBacklinks } from "@agent-chassis/wiki-core/src/operations/autofix-docs-backlinks.mjs";
 import { getManifestRecordTypeVocabulary } from "@agent-chassis/wiki-core/src/lib/contract.mjs";
+import { readSearchSource } from "@agent-chassis/wiki-core/src/operations/read-search-source.mjs";
+import {
+  buildNextCall,
+  measureMcpInlineResultBytes,
+  readSpilledMcpContentReference
+} from "./mcp-response.mjs";
+
+import {
+  boundedEntryReadResult,
+  createWorkRecordEntryReadSchema,
+  projectEntryCallsForOrdinaryReader,
+  workRecordEntryReadArguments
+} from "./work-record-entry-tools.mjs";
+import { readWorkRecordEntry } from "@agent-chassis/wiki-core";
+import {
+  createSelectedResponseSession,
+  selectedResponseCollectionCounts,
+  selectedResponseDetailSchema,
+  selectedResponseQueryInvalidError,
+  selectedResponseRequestSchema
+} from "./selected-response-snapshot.mjs";
+import {
+  getSearchSelectedReadValidationIssues,
+  getWorkspaceSearchValidationIssues,
+  isSearchSelectedRead,
+  searchSelectedReadSchemaShape
+} from "./search-read-tools.mjs";
 
 import {
   getReadSelectorValidationIssues,
   runWorkRecordReadWithCompactGate,
+  selectedRecordMemberSchema,
   workRecordDetailSelectorSchemaShape
 } from "./work-record-compact-read-gate.mjs";
+import { isWorkRecordNavigationResult, toolVisibleToSession } from "./work-record-read-navigation.mjs";
 
 import {
+  createToolInputValidationError,
   MCP_CALLABLE_OWNER_PROJECTION_PARAM,
   MCP_WRITE_SEMANTICS,
   projectMcpCallableOwnerIssues
 } from "./register-tool.mjs";
 
-export function registerWikiCoreTools({
-  registerTool,
-  workspaceRepos,
-  z,
-  emptySchema,
-  extensionNamespacesSchema,
-  jsonContent,
-  errorContent,
-  resolveWorkspaceRepo,
-  section = "all"
-}) {
-  const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
-    message: "Expected a non-empty string"
-  });
-  const recordTypeVocabulary = getManifestRecordTypeVocabulary();
-  const caseInsensitiveLiteral = (value) => [...value].map((character) => {
-    if (/[a-z]/iu.test(character)) {
-      return `[${character.toLowerCase()}${character.toUpperCase()}]`;
+function selectorDeclaresSourceDigest(schema) {
+  let current = schema;
+  for (let depth = 0; depth < 8 && current?._def !== undefined; depth += 1) {
+    if (current._def.typeName === "ZodObject") {
+      return Object.hasOwn(current.shape, "expected_source_digest");
     }
-    return character.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
-  }).join("");
-  const acceptedRecordTypePattern = new RegExp(
-    `^(?:${recordTypeVocabulary.accepted.map(caseInsensitiveLiteral).join("|")})$`,
-    "u"
+    current = current._def.innerType ?? current._def.schema;
+  }
+  return false;
+}
+
+function isGraphEvidenceSidecarReadPath(value) {
+  return (
+    typeof value === "string" &&
+    value.startsWith("wiki/work-records/evidence/") &&
+    value.endsWith(".graph.json")
   );
-  const createRecordTypeSchema = z.union([
-    z.enum(recordTypeVocabulary.canonical).describe("Canonical manifest-owned record kinds."),
-    z.enum(recordTypeVocabulary.aliases).describe("Canonical lowercase manifest-owned aliases."),
-    z.string().regex(
-      acceptedRecordTypePattern,
-      "Expected a manifest-owned record kind or alias (case-insensitive)."
-    ).describe("Case-insensitive record-kind or alias input normalized by wiki-core.")
-  ]);
-  function strictReadSchema(shape, toolFamily) {
-    return z.object(shape).strict().superRefine((args, context) => {
-      const issues = getReadSelectorValidationIssues(args, toolFamily);
-      const ownerProjection = projectMcpCallableOwnerIssues({
-        ownerId: "work-record-compact-read-gate",
-        tool: toolFamily,
-        issues
-      });
-      for (const issue of issues) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: issue.path,
-          message: issue.message,
-          params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection }
-        });
-      }
-    });
-  }
+}
 
-  const workspaceReadPageInputSchema = strictReadSchema({
-    path: nonEmptyString,
-    repo: z.string().optional(),
-    profile: z.string().optional(),
-    extensionNamespaces: extensionNamespacesSchema,
-    verbose: z.boolean().optional(),
-    include_body: z.boolean().optional(),
-    include_raw: z.boolean().optional(),
-    include_record: z.boolean().optional(),
-    accept_full_read: z.literal(true).optional(),
-    compact_read_token: z.string().optional(),
-    ...workRecordDetailSelectorSchemaShape(z, "workspace_read_page")
-  }, "workspace_read_page");
-
-  const workspaceGetRecordInputSchema = strictReadSchema({
-    id: nonEmptyString,
-    repo: z.string().optional(),
-    profile: z.string().optional(),
-    extensionNamespaces: extensionNamespacesSchema,
-    verbose: z.boolean().optional(),
-    include_record: z.boolean().optional(),
-    include_body: z.boolean().optional(),
-    include_raw: z.boolean().optional(),
-    accept_full_read: z.literal(true).optional(),
-    compact_read_token: z.string().optional(),
-    ...workRecordDetailSelectorSchemaShape(z, "workspace_get_record")
-  }, "workspace_get_record");
-
-  function isGraphEvidenceSidecarReadPath(value) {
-    return (
-      typeof value === "string" &&
-      value.startsWith("wiki/work-records/evidence/") &&
-      value.endsWith(".graph.json")
-    );
-  }
-
-  function resolveWorkspaceReadPageRepo(args) {
+export function createWorkspaceReadRepoResolver({ workspaceRepos, resolveWorkspaceRepo }) {
+  return function resolveWorkspaceReadPageRepo(args) {
     const frozenReviewRoot = String(
       process.env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR ?? ""
     ).trim();
@@ -169,7 +131,158 @@ export function registerWikiCoreTools({
     }
 
     return resolveWorkspaceRepo(workspaceRepos, args.repo);
+  };
+}
+
+export function registerWikiCoreTools({
+  registerTool,
+  workspaceRepos,
+  z,
+  emptySchema,
+  extensionNamespacesSchema,
+  jsonContent,
+  errorContent,
+  resolveWorkspaceRepo,
+  section = "all",
+  isToolVisible = toolVisibleToSession,
+
+  searchSelection = null
+}) {
+  const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
+    message: "Expected a non-empty string"
+  });
+  const recordTypeVocabulary = getManifestRecordTypeVocabulary();
+  const caseInsensitiveLiteral = (value) => [...value].map((character) => {
+    if (/[a-z]/iu.test(character)) {
+      return `[${character.toLowerCase()}${character.toUpperCase()}]`;
+    }
+    return character.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
+  }).join("");
+  const acceptedRecordTypePattern = new RegExp(
+    `^(?:${recordTypeVocabulary.accepted.map(caseInsensitiveLiteral).join("|")})$`,
+    "u"
+  );
+  const createRecordTypeSchema = z.union([
+    z.enum(recordTypeVocabulary.canonical).describe("Canonical manifest-owned record kinds."),
+    z.enum(recordTypeVocabulary.aliases).describe("Canonical lowercase manifest-owned aliases."),
+    z.string().regex(
+      acceptedRecordTypePattern,
+      "Expected a manifest-owned record kind or alias (case-insensitive)."
+    ).describe("Case-insensitive record-kind or alias input normalized by wiki-core.")
+  ]);
+  function strictReadSchema(shape, toolFamily) {
+    return z.object(shape).strict().superRefine((args, context) => {
+      const issues = getReadSelectorValidationIssues(args, toolFamily);
+      const ownerProjection = projectMcpCallableOwnerIssues({
+        ownerId: "work-record-compact-read-gate",
+        tool: toolFamily,
+        issues
+      });
+      for (const issue of issues) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: issue.path,
+          message: issue.message,
+          params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection }
+        });
+      }
+    });
   }
+
+  const ordinaryReadPageShape = {
+    path: nonEmptyString.optional(),
+    id: nonEmptyString.optional(),
+    unit: nonEmptyString.optional(),
+    repo: z.string().optional(),
+    profile: z.string().optional(),
+    extensionNamespaces: extensionNamespacesSchema,
+    include_body: z.boolean().optional().describe(
+      "Markdown page bodies only. A canonical WK/IN/DEC record or its generated page refuses it; read " +
+        "record content with member:{path}, and one WK entry body with entry:{entry_id,include_body:true}. " +
+        "Not combinable with member, entry or content_reference."
+    ),
+    member: selectedRecordMemberSchema(z),
+    entry: createWorkRecordEntryReadSchema(z).optional(),
+    content_reference: z.object({
+      ref_id: nonEmptyString,
+      offset: z.number().int().nonnegative().optional(),
+      length: z.number().int().positive().optional()
+    }).strict().optional(),
+    ...workRecordDetailSelectorSchemaShape(z, "workspace_read_page")
+  };
+  const ordinaryReadPageFields = Object.keys(ordinaryReadPageShape)
+    .filter((field) => !["path", "repo"].includes(field));
+  const workspaceReadPageInputSchema = z.object({
+    ...ordinaryReadPageShape,
+    ...searchSelectedReadSchemaShape(z)
+  }).strict().superRefine((args, context) => {
+    const issues = isSearchSelectedRead(args)
+      ? getSearchSelectedReadValidationIssues(args, ordinaryReadPageFields)
+      : [...getSearchSelectedReadValidationIssues(args, ordinaryReadPageFields),
+          ...getReadSelectorValidationIssues(args, "workspace_read_page")];
+    const ownerProjection = projectMcpCallableOwnerIssues({
+      ownerId: isSearchSelectedRead(args) ? "search-read-tools" : "work-record-compact-read-gate",
+      tool: "workspace_read_page",
+      issues
+    });
+    for (const issue of issues) context.addIssue({ code: z.ZodIssueCode.custom,
+      path: issue.path, message: issue.message,
+      params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection } });
+  });
+
+  const readPageDigestSelectors = Object.keys(ordinaryReadPageShape)
+    .filter((field) => selectorDeclaresSourceDigest(ordinaryReadPageShape[field]));
+
+  const projectReadPageInputFailure = ({ args, validationError, tool }) => {
+    const misplaced = validationError.issues.some((issue) => issue.code === "unrecognized_keys" &&
+      issue.path.length === 0 && issue.keys.includes("expected_source_digest"));
+    if (!misplaced) return null;
+    const selectedRead = readPageDigestSelectors.find((field) => args[field] !== undefined) ?? null;
+    const { expected_source_digest: _misplaced, ...withoutDigest } = args;
+    const retry = workspaceReadPageInputSchema.safeParse(withoutDigest).success
+      ? [buildNextCall({ tool, arguments: withoutDigest, recommended: true })]
+      : [];
+    return {
+      terminal_result: errorContent(createToolInputValidationError({
+        tool,
+        validationError,
+        details: {
+          digest_placement: {
+            rejected_argument: "expected_source_digest",
+            applied: false,
+            selected_read: selectedRead,
+            pinned_by: selectedRead === null ? null : `${selectedRead}.expected_source_digest`,
+            accepted_placements: readPageDigestSelectors.map((field) =>
+              `${field}.expected_source_digest`),
+            statement: selectedRead === null
+              ? "This read takes no source digest. A digest pins only a read selected through one of " +
+                "accepted_placements, using the source_digest that kind of read returned."
+              : `Pin this read with ${selectedRead}.expected_source_digest, using the source_digest ` +
+                `a prior ${selectedRead} read returned.`
+          }
+        },
+        nextCalls: retry
+      }))
+    };
+  };
+
+  const workspaceGetRecordInputSchema = strictReadSchema({
+    id: nonEmptyString,
+    repo: z.string().optional(),
+    profile: z.string().optional(),
+    extensionNamespaces: extensionNamespacesSchema,
+    include_body: z.boolean().optional().describe(
+      "Markdown page bodies only. A canonical WK/IN/DEC record or its generated page refuses it; read " +
+        "record content with member:{path}. Not combinable with member."
+    ),
+    member: selectedRecordMemberSchema(z),
+    ...workRecordDetailSelectorSchemaShape(z, "workspace_get_record")
+  }, "workspace_get_record");
+
+  const resolveWorkspaceReadPageRepo = createWorkspaceReadRepoResolver({
+    workspaceRepos,
+    resolveWorkspaceRepo
+  });
 
   function registerWriteLintTools() {
     registerTool(
@@ -398,12 +511,47 @@ export function registerWikiCoreTools({
     "workspace_read_page",
     {
       description:
-        "Read a workspace Markdown page, canonical JSON work/kind record, or graph-evidence sidecar. Read-only; no caller filesystem root. Canonical records are compact-first; selected_slice returns only a work-record slice, while accept_full_read:true enables an unscoped full read. Sidecars are replay/debug data without dispatch authority; select at most one slice or record entry.",
-      inputSchema: workspaceReadPageInputSchema
+        "Read workspace Markdown, canonical records or graph sidecars. Address one page by path, or a canonical record by id or unit; entry reads one exact entry of that unit and content_reference reads one retained spill. Compact first; selected_slice narrows WKs, member:{path} pages one canonical WK/IN/DEC field, include_body reads Markdown bodies. No whole-record mode or caller root. Sidecars grant no dispatch authority.",
+      inputSchema: workspaceReadPageInputSchema,
+      inputValidationErrorProjector: projectReadPageInputFailure
     },
     async (args) => {
       try {
         const workspace = resolveWorkspaceReadPageRepo(args);
+        if (isSearchSelectedRead(args)) {
+          return jsonContent({
+            workspaceRepo: workspace.repo,
+            ...(await readSearchSource({
+              dir: workspace.dir,
+              repository: workspace.repo,
+              path: args.path,
+              searchMatch: args.search_match,
+              length: args.length
+            }))
+          });
+        }
+
+        if (args.content_reference !== undefined) {
+          return jsonContent({
+            workspaceRepo: workspace.repo,
+            ...readSpilledMcpContentReference({
+              ref_id: args.content_reference.ref_id,
+              offset: args.content_reference.offset ?? 0,
+              length: args.content_reference.length ?? null
+            })
+          });
+        }
+        if (args.entry !== undefined) {
+          const entryResult = boundedEntryReadResult(await readWorkRecordEntry(
+            workRecordEntryReadArguments({ dir: workspace.dir, repository: workspace.repo,
+              unit: args.unit ?? args.id, selector: args.entry })
+          ));
+          return jsonContent(projectEntryCallsForOrdinaryReader(entryResult, {
+            tool: "workspace_read_page",
+            identity: args.unit === undefined ? { id: args.id } : { unit: args.unit },
+            repo: args.repo
+          }));
+        }
         const result = await runWorkRecordReadWithCompactGate({
           workspaceRepo: workspace.repo,
           workspaceDir: workspace.dir,
@@ -411,8 +559,12 @@ export function registerWikiCoreTools({
           toolFamily: "workspace_read_page",
           readCompact: readWikiPage,
           readExpensive: readWikiPage,
-          readWorkRecordById
+          readCompactById: getWikiRecord,
+          readExpensiveById: getWikiRecord,
+          readWorkRecordById,
+          isToolVisible
         });
+        if (isWorkRecordNavigationResult(result)) return jsonContent(result);
         return jsonContent({
           ...result,
           workspaceRepo: workspace.repo,
@@ -449,12 +601,13 @@ export function registerWikiCoreTools({
     "workspace_get_record",
     {
       description:
-        "Read a canonical workspace wiki record by durable ID, including registered initiative and decision records. Read-only; no caller filesystem root. Canonical records are compact-first; selected_slice returns only a work-record slice, while accept_full_read:true enables an unscoped full read.",
+        "Read a canonical wiki record by ID. Compact first; selected_slice narrows WKs and member:{path} pages one canonical WK/IN/DEC field. No whole-record mode or caller root.",
       inputSchema: workspaceGetRecordInputSchema
     },
     async (args) => {
       try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+
+        const workspace = resolveWorkspaceReadPageRepo(args);
         const result = await runWorkRecordReadWithCompactGate({
           workspaceRepo: workspace.repo,
           workspaceDir: workspace.dir,
@@ -464,6 +617,8 @@ export function registerWikiCoreTools({
           readExpensive: getWikiRecord,
           readWorkRecordById
         });
+
+        if (isWorkRecordNavigationResult(result)) return jsonContent(result);
         return jsonContent({
           workspaceRepo: workspace.repo,
           id: result?.id ?? result?.record_id ?? null,
@@ -480,7 +635,7 @@ export function registerWikiCoreTools({
     {
       writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Create a canonical workspace wiki record through the shared allocator and template path. Write-capable; no caller filesystem root. Compact by default; verbose:true adds allocator/template detail.",
+        "Allocate a bare canonical inbox WK or other wiki record. No contract or lifecycle input; use obligation upsert for authoring. Writes records; verbose:true adds detail. No caller filesystem root.",
       inputSchema: z.object({
         type: createRecordTypeSchema,
         title: z.string(),
@@ -499,13 +654,21 @@ export function registerWikiCoreTools({
           id: args.id ?? null
         });
         const verbose = Boolean(args.verbose);
+        const nextCall = /^WK-[0-9]{4}$/u.test(result.id ?? "") ? {
+          tool: "workspace_controlled_contract_obligation_coverage_query",
+          arguments: { unit: result.id },
+          follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert",
+          recommended: true
+        } : null;
         if (verbose) {
-          return jsonContent({ workspaceRepo: workspace.repo, verbose: true, ...result });
+          return jsonContent({ workspaceRepo: workspace.repo, verbose: true, ...result,
+            ...(nextCall === null ? {} : { next_call: nextCall }) });
         }
         const compactResult = {
           workspaceRepo: workspace.repo,
           id: result.id,
-          created: result.created ?? true
+          created: result.created ?? true,
+          ...(nextCall === null ? {} : { next_call: nextCall })
         };
         return jsonContent(compactResult);
       } catch (error) {
@@ -601,15 +764,13 @@ export function registerWikiCoreTools({
     "search_repo",
     {
       description:
-        "Search canonical wiki/docs content with structured filters.",
-      inputSchema: {
+        "Search canonical wiki/docs content in continuation pages.",
+      inputSchema: z.object({
         dir: z.string(),
-        query: z.string(),
-        limit: z.number().optional(),
-        offset: z.number().int().min(0).optional(),
-        unbounded: z.boolean().optional(),
-        reindex: z.boolean().optional(),
-        verbose: z.boolean().optional(),
+        query: nonEmptyString.optional(),
+        continuation: z.string().min(1).optional(),
+        limit: z.number().int().positive().max(50).optional(),
+        history: z.boolean().optional(),
         profile: z.string().optional(),
         extensionNamespaces: extensionNamespacesSchema,
         kind: z.string().optional(),
@@ -628,7 +789,14 @@ export function registerWikiCoreTools({
         lifecycle: z.string().optional(),
         sensitivity: z.string().optional(),
         topic: z.string().optional()
-      }
+      }).strict().superRefine((args, context) => {
+        const issues = getWorkspaceSearchValidationIssues(args);
+        const ownerProjection = projectMcpCallableOwnerIssues({ ownerId: "search-read-tools", tool: "search_repo", issues });
+        for (const issue of issues) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: issue.path, message: issue.message,
+            params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection } });
+        }
+      })
     },
     async (args) => {
       try {
@@ -639,18 +807,73 @@ export function registerWikiCoreTools({
     }
   );
 
+  const WORKSPACE_SEARCH_ROUTE = "workspace_search_repo";
+  const selectedSearch = searchSelection ?? createSelectedResponseSession({
+    route: WORKSPACE_SEARCH_ROUTE,
+    requestSchema: selectedResponseRequestSchema(z.object({
+      repo: z.string().optional(),
+      detail: selectedResponseDetailSchema(z)
+    }).strict()),
+    buildDetailArguments: (binding, selection) => ({ repo: binding.repository, detail: selection })
+  });
+  const searchBinding = (repository, request) => ({ route: WORKSPACE_SEARCH_ROUTE, repository, unit: null,
+    query_identity: request, observation_identity: null });
+
+  function retainedSearchSummary(repository, request, carrier) {
+    const binding = searchBinding(repository, request);
+    const { source, snapshot_identity: snapshotIdentity } = selectedSearch.retain({ binding, carrier });
+    return {
+      workspaceRepo: repository,
+      query_utf8_bytes: Buffer.byteLength(String(carrier.query ?? ""), "utf8"),
+      total_count: carrier.total_count,
+      returned_count: carrier.returned_count,
+      limit: carrier.limit,
+      has_more: carrier.has_more,
+      selected_detail: {
+        source,
+        snapshot_identity: snapshotIdentity,
+        omitted_members: ["query", "results", "next_calls", "diagnostics"],
+        collections: selectedResponseCollectionCounts(carrier),
+        next_calls: [selectedSearch.detailCall(binding, { source, snapshot_identity: snapshotIdentity,
+          collection: carrier.results.length > 0 ? "results" : "next_calls" })]
+      }
+    };
+  }
+
+  function boundedSearchRefusal(error, repository, request) {
+    const envelope = error?.envelope;
+    if (repository === null || envelope === null || typeof envelope !== "object" ||
+        measureMcpInlineResultBytes(envelope, { isError: true }) <= selectedSearch.maximumBytes) {
+      return error;
+    }
+    const binding = searchBinding(repository, request);
+    const { source, snapshot_identity: snapshotIdentity } = selectedSearch.retain({ binding, carrier: envelope });
+    const bounded = new Error(error.message);
+    bounded.code = error.code;
+    bounded.envelope = {
+      schema_version: envelope.schema_version,
+      accepted: false,
+      code: envelope.code,
+      reason: envelope.reason,
+      next_calls: [selectedSearch.detailCall(binding,
+        { source, snapshot_identity: snapshotIdentity, collection: "next_calls" })],
+      selected_detail: { source, snapshot_identity: snapshotIdentity, omitted_members: ["next_calls"],
+        collections: selectedResponseCollectionCounts(envelope) }
+    };
+    return bounded;
+  }
+
   registerTool(
-    "workspace_search_repo",
+    WORKSPACE_SEARCH_ROUTE,
     {
       description:
-        "Search canonical workspace wiki/docs content. Read-only; no caller filesystem root. Compact results are limit/offset paged with complete counts and next_offset; unbounded:true returns every ranked match, and verbose:true adds full entries and diagnostics.",
+        "Search canonical workspace wiki/docs content in bounded ranked pages. next_calls continuations and selected-source read calls preserve complete traversal without caller offsets.",
       inputSchema: z.object({
-        query: z.string(),
+        query: nonEmptyString.optional(),
         repo: z.string().optional(),
-        limit: z.number().optional(),
-        offset: z.number().int().min(0).optional(),
-        unbounded: z.boolean().optional(),
-        verbose: z.boolean().optional(),
+        continuation: z.string().min(1).optional(),
+        limit: z.number().int().positive().max(50).optional(),
+        history: z.boolean().optional(),
         profile: z.string().optional(),
         extensionNamespaces: extensionNamespacesSchema,
         kind: z.string().optional(),
@@ -668,20 +891,48 @@ export function registerWikiCoreTools({
         retrieval_visibility: z.string().optional(),
         lifecycle: z.string().optional(),
         sensitivity: z.string().optional(),
-        topic: z.string().optional()
-      }).strict()
+        topic: z.string().optional(),
+        detail: selectedResponseDetailSchema(z).optional()
+      }).strict().superRefine((args, context) => {
+
+        if (args.detail !== undefined) return;
+        const issues = getWorkspaceSearchValidationIssues(args);
+        const ownerProjection = projectMcpCallableOwnerIssues({ ownerId: "search-read-tools", tool: "workspace_search_repo", issues });
+        for (const issue of issues) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: issue.path, message: issue.message,
+            params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection } });
+        }
+      })
     },
     async (args) => {
+      let repository = null;
+      const { repo: _repo, ...request } = args;
       try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+        const workspace = resolveWorkspaceReadPageRepo(args);
+        repository = workspace.repo;
+        if (args.detail !== undefined) {
+          const searchArguments = Object.keys(request).filter((field) => field !== "detail").sort();
+          if (searchArguments.length > 0) {
+            throw selectedResponseQueryInvalidError(WORKSPACE_SEARCH_ROUTE, "detail_excludes_search_arguments",
+              { arguments: searchArguments });
+          }
+          return jsonContent(await selectedSearch.detail({
+            expected: { route: WORKSPACE_SEARCH_ROUTE, repository: workspace.repo },
+            detail: args.detail
+          }));
+        }
+        const frame = (result) => ({ workspaceRepo: workspace.repo, ...result });
+        const fits = (payload) => measureMcpInlineResultBytes(payload) <= selectedSearch.maximumBytes;
         const result = await searchRepo({
           ...args,
-          verbose: Boolean(args.verbose),
-          dir: workspace.dir
+          repository: workspace.repo,
+          dir: workspace.dir,
+          fits: (candidate) => fits(frame(candidate))
         });
-        return jsonContent({ workspaceRepo: workspace.repo, ...result });
+        if (fits(frame(result))) return jsonContent(frame(result));
+        return jsonContent(retainedSearchSummary(workspace.repo, request, frame(result)));
       } catch (error) {
-        return errorContent(error);
+        return errorContent(boundedSearchRefusal(error, repository, request));
       }
     }
   );

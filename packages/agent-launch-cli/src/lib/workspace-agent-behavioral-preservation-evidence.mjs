@@ -107,17 +107,24 @@ function resolveSide(position, bundle) {
     subject: `${position} side bundle`
   });
   const context = assertLauncherTestProofAttemptContext(bundle.context);
-  const receipt = projectTestProofRuntimeEvidenceReceipt(bundle.attempt);
-  const evidence = bundle.attempt.evidence;
+  const evidence = bundle.attempt?.evidence;
+
   if (context.schema_version !== TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION ||
-      evidence.schema_version !== TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2 ||
-      evidence.authority !== TEST_PROOF_ATTEMPT_AUTHORITY ||
-      receipt.authority !== TEST_PROOF_ATTEMPT_AUTHORITY) fail(
+      evidence?.schema_version !== TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2 ||
+      evidence?.authority !== TEST_PROOF_ATTEMPT_AUTHORITY) fail(
     BEHAVIORAL_PRESERVATION_PAIR_REFUSAL_CODES.ASSEMBLY_UNSUPPORTED,
     "pair assembly supports only the current authenticated runtime-evidence family", {
       position,
       context_schema_version: context.schema_version ?? null,
-      evidence_schema_version: evidence.schema_version ?? null
+      evidence_schema_version: evidence?.schema_version ?? null
+    });
+  const receipt = projectTestProofRuntimeEvidenceReceipt(bundle.attempt);
+  if (receipt.authority !== TEST_PROOF_ATTEMPT_AUTHORITY) fail(
+    BEHAVIORAL_PRESERVATION_PAIR_REFUSAL_CODES.ASSEMBLY_UNSUPPORTED,
+    "pair assembly supports only the current authenticated runtime-evidence family", {
+      position,
+      context_schema_version: context.schema_version,
+      evidence_schema_version: evidence.schema_version
     });
 
   const { evidence_id: evidenceId, ...attemptIdentity } = receipt.evidence_identity;
@@ -147,7 +154,9 @@ function sideBinding(side) {
     command_target: side.identity.command_target,
     evidence_id: side.receipt.evidence_identity.evidence_id,
     evidence_digest: side.receipt.evidence_digest,
-    inventory_change_count: side.receipt.inventory_change_count,
+    selected_test_id: side.receipt.selected_test_id,
+    observed_test_count: side.receipt.observed_test_count,
+    selected_test_executed: side.receipt.selected_test_executed,
     artifacts: side.evidence.artifacts.map(
       ({ artifact_id: artifactId, kind, digest }) => ({ artifact_id: artifactId, kind, digest })
     )

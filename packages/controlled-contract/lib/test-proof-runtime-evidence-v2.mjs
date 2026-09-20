@@ -4,7 +4,9 @@ import { compiledValidators } from "./compiled-validator-cache.mjs";
 import TEST_PROOF_RUNTIME_EVIDENCE_SCHEMA_V2 from
   "../schema/controlled-contract-test-proof-runtime-evidence.v2.schema.json" with { type: "json" };
 import {
-  resolveTestProofProviderCompatibility
+  resolveTestProofProviderCompatibility,
+  testProofSchemaVocabularyMismatches,
+  testProofWitnessValidator
 } from "./test-proof-provider-registry.mjs";
 import { canonicalizeStableValue, compareCodeUnits } from
   "./equality-normalization-v1.mjs";
@@ -12,6 +14,12 @@ import { projectBoundedDiagnostics } from "./bounded-diagnostic-projection.mjs";
 
 const TEST_PROOF_RUNTIME_EVIDENCE_VERSION_V2 =
   "controlled-contract-test-proof-runtime-evidence.v2";
+const STALE_PROVIDER_VOCABULARY = testProofSchemaVocabularyMismatches("evidence",
+  TEST_PROOF_RUNTIME_EVIDENCE_SCHEMA_V2);
+if (STALE_PROVIDER_VOCABULARY.length > 0) {
+  throw new Error("runtime evidence schema disagrees with the provider catalog at " +
+    STALE_PROVIDER_VOCABULARY.join(", "));
+}
 const { validateSchema } = await compiledValidators(
   "controlled-contract.test-proof-runtime-evidence.v2",
   { validators: { validateSchema: TEST_PROOF_RUNTIME_EVIDENCE_SCHEMA_V2 } }
@@ -20,6 +28,70 @@ const { validateSchema } = await compiledValidators(
 const canonical = (value) => JSON.stringify(canonicalizeStableValue(value));
 const canonicalArray = (values) => values.every((value, index) => index === 0 ||
   compareCodeUnits(values[index - 1], value) < 0);
+
+function failureDiagnosticReferences(diagnostic) {
+  const errorIds = diagnostic.errors.map(({ id }) => id);
+  const valueIds = diagnostic.values.map(({ id }) => id);
+  const errorSet = new Set(errorIds);
+  const valueSet = new Set(valueIds);
+  const dangling = [];
+  const duplicateEntries = [];
+  const invalidShapes = [];
+  const requireError = (id, path) => {
+    if (!errorSet.has(id)) dangling.push({ id, path, kind: "error" });
+  };
+  const requireValue = (id, path) => {
+    if (!valueSet.has(id)) dangling.push({ id, path, kind: "value" });
+  };
+  if (diagnostic.root_error !== null) requireError(diagnostic.root_error, "/root_error");
+  diagnostic.errors.forEach((entry, index) => {
+    for (const field of ["expected", "actual", "value"]) {
+      if (entry[field] !== undefined) requireValue(entry[field], `/errors/${index}/${field}`);
+    }
+    if (entry.cause !== undefined) requireError(entry.cause, `/errors/${index}/cause`);
+    (entry.aggregate_errors ?? []).forEach((id, offset) =>
+      requireError(id, `/errors/${index}/aggregate_errors/${offset}`));
+  });
+  diagnostic.values.forEach((entry, index) => {
+    const propertyKeys = (entry.properties ?? []).map(({ key }) => key);
+    if (new Set(propertyKeys).size !== propertyKeys.length) {
+      duplicateEntries.push(`/values/${index}/properties`);
+    }
+    (entry.properties ?? []).forEach(({ value }, offset) =>
+      requireValue(value, `/values/${index}/properties/${offset}/value`));
+    const elementIndices = (entry.elements ?? []).map(({ index: offset }) => offset);
+    if (new Set(elementIndices).size !== elementIndices.length) {
+      duplicateEntries.push(`/values/${index}/elements`);
+    }
+    (entry.elements ?? []).forEach(({ index: offset, value }, position) => {
+      requireValue(value, `/values/${index}/elements/${position}/value`);
+      if (offset >= entry.length) invalidShapes.push(`/values/${index}/elements/${position}/index`);
+    });
+    if (entry.type === "map") {
+      entry.entries.forEach(({ key, value }, offset) => {
+        requireValue(key, `/values/${index}/entries/${offset}/key`);
+        requireValue(value, `/values/${index}/entries/${offset}/value`);
+      });
+      if (entry.entries.length !== entry.size) invalidShapes.push(`/values/${index}/size`);
+    }
+    if (entry.type === "set") {
+      entry.entries.forEach((id, offset) =>
+        requireValue(id, `/values/${index}/entries/${offset}`));
+      if (entry.entries.length !== entry.size) invalidShapes.push(`/values/${index}/size`);
+    }
+    if (["array_buffer", "typed_array", "buffer"].includes(entry.type)) {
+      const byteLength = Buffer.from(entry.bytes, "base64").byteLength;
+      if (byteLength !== entry.byte_length) invalidShapes.push(`/values/${index}/byte_length`);
+    }
+  });
+  return {
+    duplicate_error_ids: errorIds.filter((id, index) => errorIds.indexOf(id) !== index),
+    duplicate_value_ids: valueIds.filter((id, index) => valueIds.indexOf(id) !== index),
+    dangling,
+    duplicateEntries,
+    invalidShapes
+  };
+}
 
 function validateTestProofRuntimeEvidenceV2(evidence) {
   if (!validateSchema(evidence)) return Object.freeze({
@@ -43,6 +115,7 @@ function validateTestProofRuntimeEvidenceV2(evidence) {
       identity.selected_unit !== identity.wk_id) emit(
     "runtime_selected_unit_wk_mismatch", "/evidence_identity/selected_unit"
   );
+
   const validateProvider = (provider, capability, pointer) => {
     const result = resolveTestProofProviderCompatibility({
       provider,
@@ -55,31 +128,8 @@ function validateTestProofRuntimeEvidenceV2(evidence) {
         ? undefined : provider?.evidence_artifact_types
     });
     if (!result.valid) diagnostics.push(result.diagnostic);
+    return result.descriptor;
   };
-  validateProvider(evidence.execution_result.provider, "candidate_execution",
-    "/execution_result/provider");
-  evidence.falsifier_executions.forEach((entry, index) => {
-    validateProvider(entry.provider, "falsifier_execution",
-      `/falsifier_executions/${index}/provider`);
-    if (entry.target_verification_id !== binding.verification_claim_id) emit(
-      "runtime_falsifier_verification_identity_mismatch",
-      `/falsifier_executions/${index}/target_verification_id`
-    );
-    if (entry.status === "detected" && (entry.mutation.observed !== true ||
-        entry.evidence_artifact_ids.length === 0)) emit(
-      "runtime_falsifier_launcher_evidence_missing", `/falsifier_executions/${index}`
-    );
-  });
-  evidence.boundary_traversals.forEach((entry, index) => {
-    validateProvider(entry.provider, entry.provider_support === "unsupported"
-      ? "traversal_unsupported" : "boundary_traversal",
-    `/boundary_traversals/${index}/provider`);
-    if (entry.status === "proven" && (entry.observation_mechanism !==
-        "node_test_v8_coverage" || entry.observation_seam !==
-        "node_test_structured_assertion" || entry.evidence_artifact_ids.length === 0)) emit(
-      "runtime_traversal_launcher_evidence_missing", `/boundary_traversals/${index}`
-    );
-  });
   const artifactById = new Map();
   for (const [index, artifact] of evidence.artifacts.entries()) {
     const digest = `sha256:${createHash("sha256").update(
@@ -90,6 +140,49 @@ function validateTestProofRuntimeEvidenceV2(evidence) {
     }
     artifactById.set(artifact.artifact_id, artifact);
   }
+  const linkedPayloads = (row, kind) => row.evidence_artifact_ids
+    .map((artifactId) => artifactById.get(artifactId))
+    .filter((artifact) => artifact?.kind === kind)
+    .map(({ payload }) => payload);
+
+  const witnessed = (row, kind, mechanism, context) => {
+    const validator = testProofWitnessValidator(kind, mechanism);
+    return validator !== null && linkedPayloads(row, kind).some((payload) =>
+      validator(payload, identity.test_id, context));
+  };
+  const candidateDescriptor = validateProvider(evidence.execution_result.provider,
+    "candidate_execution", "/execution_result/provider");
+  evidence.falsifier_executions.forEach((entry, index) => {
+    validateProvider(entry.provider, "falsifier_execution",
+      `/falsifier_executions/${index}/provider`);
+    if (entry.target_verification_id !== binding.verification_claim_id) emit(
+      "runtime_falsifier_verification_identity_mismatch",
+      `/falsifier_executions/${index}/target_verification_id`
+    );
+    if (entry.status === "detected" && (entry.mutation.observed !== true ||
+        entry.evidence_artifact_ids.length === 0 ||
+        !witnessed(entry, "falsifier_result", entry.mutation.mechanism, entry.mutation))) emit(
+      "runtime_falsifier_launcher_evidence_missing", `/falsifier_executions/${index}`
+    );
+  });
+  evidence.boundary_traversals.forEach((entry, index) => {
+    const descriptor = validateProvider(entry.provider,
+      entry.provider_support === "unsupported" ? "traversal_unsupported" : "boundary_traversal",
+      `/boundary_traversals/${index}/provider`);
+    if (entry.status === "proven" && (descriptor === null ||
+        !descriptor.observation_mechanisms.includes(entry.observation_mechanism) ||
+        !descriptor.observation_seams.includes(entry.observation_seam) ||
+        entry.evidence_artifact_ids.length === 0 ||
+        !witnessed(entry, "boundary_trace", entry.observation_mechanism, entry))) emit(
+      "runtime_traversal_launcher_evidence_missing", `/boundary_traversals/${index}`
+    );
+  });
+  if (candidateDescriptor !== null && evidence.execution_result.structured_result.mechanism !==
+      candidateDescriptor.observation_mechanisms[0]) emit(
+    "runtime_structured_result_mechanism_mismatch", "/execution_result/structured_result/mechanism",
+    { expected_identity: candidateDescriptor.observation_mechanisms[0],
+      actual_identity: evidence.execution_result.structured_result.mechanism }
+  );
   const evidenceRows = [evidence.execution_result, ...evidence.boundary_traversals,
     ...evidence.falsifier_executions];
   for (const [index, row] of evidenceRows.entries()) for (const artifactId of
@@ -103,6 +196,41 @@ function validateTestProofRuntimeEvidenceV2(evidence) {
         actual_identity: artifact.kind }
     );
   }
+  const linkedExecutionArtifacts = evidence.execution_result.evidence_artifact_ids
+    .map((artifactId) => artifactById.get(artifactId))
+    .filter((artifact) => artifact?.kind === "structured_test_result");
+  if (linkedExecutionArtifacts.length !== 1 ||
+      canonical(linkedExecutionArtifacts[0]?.payload) !==
+        canonical(evidence.execution_result.structured_result)) emit(
+    "runtime_structured_result_artifact_mismatch", "/execution_result/structured_result"
+  );
+  const diagnosticPopulations = [evidence.execution_result.structured_result,
+    ...evidence.artifacts.filter(({ kind }) => kind === "structured_test_result")
+      .map(({ payload }) => payload)];
+  diagnosticPopulations.forEach((structuredResult, populationIndex) => {
+    structuredResult.fail_events.forEach((event, eventIndex) => {
+      const pointer = `/failure_diagnostics/${populationIndex}/${eventIndex}`;
+      const refs = failureDiagnosticReferences(event.failure_diagnostic);
+      if (refs.duplicate_error_ids.length > 0) emit(
+        "runtime_failure_diagnostic_error_identity_duplicate", `${pointer}/errors`,
+        { actual_identity: [...new Set(refs.duplicate_error_ids)] }
+      );
+      if (refs.duplicate_value_ids.length > 0) emit(
+        "runtime_failure_diagnostic_value_identity_duplicate", `${pointer}/values`,
+        { actual_identity: [...new Set(refs.duplicate_value_ids)] }
+      );
+      for (const dangling of refs.dangling) emit(
+        "runtime_failure_diagnostic_reference_dangling", `${pointer}${dangling.path}`,
+        { actual_identity: dangling.id, expected_identity: dangling.kind }
+      );
+      for (const path of refs.duplicateEntries) emit(
+        "runtime_failure_diagnostic_graph_entry_duplicate", `${pointer}${path}`
+      );
+      for (const path of refs.invalidShapes) emit(
+        "runtime_failure_diagnostic_value_shape_invalid", `${pointer}${path}`
+      );
+    });
+  });
   const ordered = [
     ...Object.entries(evidence.test_inventory).filter(([key]) => key.endsWith("_test_ids")),
     ["boundary_traversals", evidence.boundary_traversals.map(({ boundary_id: id }) => id)],
@@ -126,6 +254,12 @@ function validateTestProofRuntimeEvidenceV2(evidence) {
     "runtime_structured_result_count_mismatch", "/execution_result/structured_result/summary"
   );
   const discovered = new Set(evidence.test_inventory.discovered_test_ids);
+  if (evidence.test_inventory.selected_test_id !== identity.test_id ||
+      evidence.test_inventory.declared_test_ids[0] !== identity.test_id) emit(
+    "runtime_selected_test_identity_mismatch", "/test_inventory/selected_test_id",
+    { expected_identity: identity.test_id,
+      actual_identity: evidence.test_inventory.selected_test_id }
+  );
   if (!discovered.has(identity.test_id)) emit(
     "runtime_selected_test_not_discovered", "/evidence_identity/test_id"
   );

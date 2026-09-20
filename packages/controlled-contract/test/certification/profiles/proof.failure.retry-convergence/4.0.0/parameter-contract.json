@@ -1,0 +1,1124 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.failure.retry-convergence",
+  "profile_version": "4.0.0",
+  "profile_digest": "d02af58e4476a861dec78a43e484fd0f22e095f541be604953c23cd217ef4241",
+  "description": "For one caller-declared history containing exactly one failed attempt and one later retry of the same operation and input, failure is followed by cleanup and settlement with zero declared residue before the retry; the retry succeeds, creates exactly one declared final effect that the failed attempt does not create, and the selected final durable state equals the expected state.",
+  "parameters": [
+    {
+      "name": "operation",
+      "purpose": "Declare operation for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "operation"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/3",
+        "/claim_patterns/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "input",
+      "purpose": "Declare input for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "input"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/6"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "attempt_population",
+      "purpose": "Declare attempt population for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "attempt_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/2"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/reference_binding_patterns/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "attempts",
+      "purpose": "Declare attempts for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "attempts"
+      ],
+      "refinement_refs": [
+        "/reference_roles/3"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failed_attempt",
+      "purpose": "Declare failed attempt for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failed_attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/4"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/22",
+        "/claim_patterns/28",
+        "/claim_patterns/29",
+        "/claim_patterns/3",
+        "/claim_patterns/32",
+        "/claim_patterns/5",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failure_event",
+      "purpose": "Declare failure event for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failure_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/5"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/28",
+        "/claim_patterns/29",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "cleanup_event",
+      "purpose": "Declare cleanup event for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "cleanup_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/6"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/28",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "settlement_event",
+      "purpose": "Declare settlement event for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "settlement_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/7"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/16",
+        "/claim_patterns/28",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "residue_population",
+      "purpose": "Declare residue population for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "residue_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/8"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/14",
+        "/claim_patterns/28",
+        "/reference_binding_patterns/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "residue_members",
+      "purpose": "Declare residue members for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "residue_members"
+      ],
+      "refinement_refs": [
+        "/reference_roles/9"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "retry_attempt",
+      "purpose": "Declare retry attempt for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "retry_attempt"
+      ],
+      "refinement_refs": [
+        "/reference_roles/12"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/2",
+        "/claim_patterns/20",
+        "/claim_patterns/28",
+        "/claim_patterns/31",
+        "/claim_patterns/4",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "success_event",
+      "purpose": "Declare success event for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "success_event"
+      ],
+      "refinement_refs": [
+        "/reference_roles/13"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/24",
+        "/claim_patterns/28",
+        "/claim_patterns/31",
+        "/distinct_reference_role_sets/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "effect_resource",
+      "purpose": "Declare effect resource for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "effect_resource"
+      ],
+      "refinement_refs": [
+        "/reference_roles/14"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/25"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "final_effect_population",
+      "purpose": "Declare final effect population for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "final_effect_population"
+      ],
+      "refinement_refs": [
+        "/reference_roles/15"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/21",
+        "/claim_patterns/28",
+        "/reference_binding_patterns/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "final_effect_members",
+      "purpose": "Declare final effect members for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "complete_population",
+      "roles": [
+        "final_effect_members"
+      ],
+      "refinement_refs": [
+        "/reference_roles/16"
+      ],
+      "applicability_refs": [
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "final_effect",
+      "purpose": "Declare final effect for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "final_effect"
+      ],
+      "refinement_refs": [
+        "/reference_roles/17"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/20",
+        "/claim_patterns/21",
+        "/claim_patterns/22",
+        "/claim_patterns/32"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "final_state",
+      "purpose": "Declare final state for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "final_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/20"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/26",
+        "/claim_patterns/27",
+        "/claim_patterns/28",
+        "/claim_patterns/34"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "expected_state",
+      "purpose": "Declare expected state for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "expected_state"
+      ],
+      "refinement_refs": [
+        "/reference_roles/21"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/27",
+        "/claim_patterns/34"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "verification",
+      "purpose": "Declare verification for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "verification"
+      ],
+      "refinement_refs": [
+        "/reference_roles/22"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/28",
+        "/claim_patterns/29",
+        "/claim_patterns/30",
+        "/claim_patterns/31",
+        "/claim_patterns/32",
+        "/claim_patterns/33",
+        "/claim_patterns/34"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failed_accepted_condition",
+      "purpose": "Declare failed accepted condition for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failed_accepted_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/23"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/29",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/0"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "residue_survives_condition",
+      "purpose": "Declare residue survives condition for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "residue_survives_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/24"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/30",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/1"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "retry_rejected_condition",
+      "purpose": "Declare retry rejected condition for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "retry_rejected_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/25"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/31",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/2"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "failed_effect_condition",
+      "purpose": "Declare failed effect condition for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "failed_effect_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/26"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/32",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/3"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "non_single_effect_condition",
+      "purpose": "Declare non single effect condition for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "non_single_effect_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/27"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/33",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/4"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    },
+    {
+      "name": "wrong_final_state_condition",
+      "purpose": "Declare wrong final state condition for proof.failure.retry-convergence. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "wrong_final_state_condition"
+      ],
+      "refinement_refs": [
+        "/reference_roles/28"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/34",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/5"
+      ],
+      "source": {
+        "policy": "configurable",
+        "default": null,
+        "mapping": null
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "operation",
+      "kind": "semantic_parameter",
+      "parameter": "operation",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/3",
+        "/claim_patterns/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "input",
+      "kind": "semantic_parameter",
+      "parameter": "input",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/5",
+        "/claim_patterns/6"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "attempt_population",
+      "kind": "semantic_parameter",
+      "parameter": "attempt_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/2",
+        "/reference_binding_patterns/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "attempts",
+      "kind": "semantic_parameter",
+      "parameter": "attempts",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/0",
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failed_attempt",
+      "kind": "semantic_parameter",
+      "parameter": "failed_attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/claim_patterns/22",
+        "/claim_patterns/28",
+        "/claim_patterns/29",
+        "/claim_patterns/3",
+        "/claim_patterns/32",
+        "/claim_patterns/5",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failure_event",
+      "kind": "semantic_parameter",
+      "parameter": "failure_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/28",
+        "/claim_patterns/29",
+        "/claim_patterns/7",
+        "/claim_patterns/8",
+        "/claim_patterns/9",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "cleanup_event",
+      "kind": "semantic_parameter",
+      "parameter": "cleanup_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/10",
+        "/claim_patterns/11",
+        "/claim_patterns/12",
+        "/claim_patterns/28",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "settlement_event",
+      "kind": "semantic_parameter",
+      "parameter": "settlement_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/12",
+        "/claim_patterns/13",
+        "/claim_patterns/16",
+        "/claim_patterns/28",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_population",
+      "kind": "semantic_parameter",
+      "parameter": "residue_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/11",
+        "/claim_patterns/14",
+        "/claim_patterns/28",
+        "/reference_binding_patterns/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_members",
+      "kind": "semantic_parameter",
+      "parameter": "residue_members",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/1",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_observation",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/13",
+        "/claim_patterns/14"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire residue_observation for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.failure.retry-convergence/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "residue_count_signal",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/15",
+        "/claim_patterns/30"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire residue_count_signal for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.failure.retry-convergence/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "retry_attempt",
+      "kind": "semantic_parameter",
+      "parameter": "retry_attempt",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/16",
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/2",
+        "/claim_patterns/20",
+        "/claim_patterns/28",
+        "/claim_patterns/31",
+        "/claim_patterns/4",
+        "/claim_patterns/6",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "success_event",
+      "kind": "semantic_parameter",
+      "parameter": "success_event",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/17",
+        "/claim_patterns/18",
+        "/claim_patterns/19",
+        "/claim_patterns/24",
+        "/claim_patterns/28",
+        "/claim_patterns/31",
+        "/distinct_reference_role_sets/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "effect_resource",
+      "kind": "semantic_parameter",
+      "parameter": "effect_resource",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/25"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "final_effect_population",
+      "kind": "semantic_parameter",
+      "parameter": "final_effect_population",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/21",
+        "/claim_patterns/28",
+        "/reference_binding_patterns/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "final_effect_members",
+      "kind": "semantic_parameter",
+      "parameter": "final_effect_members",
+      "inputs": [],
+      "rule_refs": [
+        "/reference_binding_patterns/2",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "final_effect",
+      "kind": "semantic_parameter",
+      "parameter": "final_effect",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/20",
+        "/claim_patterns/21",
+        "/claim_patterns/22",
+        "/claim_patterns/32"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "effect_count_signal",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/23",
+        "/claim_patterns/33"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire effect_count_signal for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.failure.retry-convergence/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "final_state_observation",
+      "kind": "observation_requirement",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/24",
+        "/claim_patterns/25",
+        "/claim_patterns/26"
+      ],
+      "capability": "observation",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "Acquire final_state_observation for the exact subject, attempt and applicability in this profile.",
+        "source": "profiles/proof.failure.retry-convergence/4.0.0/profile.json",
+        "consequence": "A reference or expected assertion cannot stand in for the required observation."
+      }
+    },
+    {
+      "role": "final_state",
+      "kind": "semantic_parameter",
+      "parameter": "final_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/26",
+        "/claim_patterns/27",
+        "/claim_patterns/28",
+        "/claim_patterns/34"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "expected_state",
+      "kind": "semantic_parameter",
+      "parameter": "expected_state",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/27",
+        "/claim_patterns/34"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "verification",
+      "kind": "semantic_parameter",
+      "parameter": "verification",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/28",
+        "/claim_patterns/29",
+        "/claim_patterns/30",
+        "/claim_patterns/31",
+        "/claim_patterns/32",
+        "/claim_patterns/33",
+        "/claim_patterns/34"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failed_accepted_condition",
+      "kind": "semantic_parameter",
+      "parameter": "failed_accepted_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/29",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_survives_condition",
+      "kind": "semantic_parameter",
+      "parameter": "residue_survives_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/30",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "retry_rejected_condition",
+      "kind": "semantic_parameter",
+      "parameter": "retry_rejected_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/31",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "failed_effect_condition",
+      "kind": "semantic_parameter",
+      "parameter": "failed_effect_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/32",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/3"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "non_single_effect_condition",
+      "kind": "semantic_parameter",
+      "parameter": "non_single_effect_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/33",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/4"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "wrong_final_state_condition",
+      "kind": "semantic_parameter",
+      "parameter": "wrong_final_state_condition",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/34",
+        "/distinct_reference_role_sets/2",
+        "/falsifier_condition_bindings/5"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "attempt_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/reference_role_count_bindings/0"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "residue_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/15",
+        "/claim_patterns/30",
+        "/reference_role_count_bindings/1"
+      ],
+      "capability": null,
+      "gap": null
+    },
+    {
+      "role": "effect_count",
+      "kind": "definition_constant",
+      "parameter": null,
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/23",
+        "/claim_patterns/33",
+        "/reference_role_count_bindings/2"
+      ],
+      "capability": null,
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "operation",
+      "input",
+      "attempt_population",
+      "attempts",
+      "failed_attempt",
+      "failure_event",
+      "cleanup_event",
+      "settlement_event",
+      "residue_population",
+      "residue_members",
+      "retry_attempt",
+      "success_event",
+      "effect_resource",
+      "final_effect_population",
+      "final_effect_members",
+      "final_effect",
+      "final_state",
+      "expected_state",
+      "verification",
+      "failed_accepted_condition",
+      "residue_survives_condition",
+      "retry_rejected_condition",
+      "failed_effect_condition",
+      "non_single_effect_condition",
+      "wrong_final_state_condition"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [
+      "residue_observation",
+      "residue_count_signal",
+      "effect_count_signal",
+      "final_state_observation"
+    ],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.failure.retry-convergence.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.failure.retry-convergence constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 owns canonical instance source resolution; metadata does not resolve a WK.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.failure.retry-convergence.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#evaluateVerificationProfileV1",
+      "evidence": "lib/verification-profile-v1.mjs: incumbent exact profile evaluation; certification is distinct from implementation truth.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

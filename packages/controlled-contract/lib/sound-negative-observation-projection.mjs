@@ -15,12 +15,17 @@ import {
 } from "./authentication-provenance-occurrence-projection.mjs";
 import { validateProjectedContractWithStableCore } from
   "./projected-contract-validation.mjs";
+import {
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "./native-contract-carrier-v1.mjs";
 import { GRAPH_VERSION } from "./projected-contract-graph.mjs";
 
 const TRANSFORMER_ID = "sound-negative-observation-capture.v1";
 const EVIDENCE_VERSION = "controlled-contract.sound-negative-observation-evidence.v1";
 const PROOF_VERSION = "controlled-contract.sound-negative-observation-capture-proof.v1";
-const CONTRACT_VERSION = "controlled-acceptance-contract.experimental.v0.2";
+const CONTRACT_VERSION = SCHEMA_VERSION_V1;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const REFERENCE_ID = /^ref-[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const TARGET_TYPES = new Set([
@@ -759,8 +764,8 @@ function deriveContract(evidenceValue, sourceDigests) {
 
   return {
     schema_version: CONTRACT_VERSION,
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1,
     references: [...state.references.values()].sort((a, b) =>
       compareCodeUnits(a.reference_id, b.reference_id)),
     propositions: state.propositions.sort((a, b) =>
@@ -840,14 +845,14 @@ function assertResult(value) {
     "annotations", "claims", "collections", "profile_id", "propositions", "references",
     "relations", "residue", "schema_version", "vocabulary_version"
   ]) || value.schema_version !== CONTRACT_VERSION ||
-      value.vocabulary_version !== "cv.experimental.0.34" ||
-      value.profile_id !== "acceptance-contract.standard.experimental.v0.2" ||
+      value.vocabulary_version !== VOCABULARY_VERSION_V1 ||
+      value.profile_id !== PROFILE_ID_V1 ||
       !Array.isArray(value.references) || !Array.isArray(value.propositions) ||
       !Array.isArray(value.claims) || !Array.isArray(value.relations) ||
       !Array.isArray(value.collections) || value.collections.length !== 0 ||
       !Array.isArray(value.residue) || value.residue.length !== 0 ||
       !Array.isArray(value.annotations) || value.annotations.length !== 0) fail(
-    "sound_negative_projection_result_invalid", "projection is not a closed v0.2 contract"
+    "sound_negative_projection_result_invalid", "projection is not a closed v1 contract"
   );
   const graph = validateProjectedContractWithStableCore(value);
   if (!graph.schema_valid || graph.diagnostics.length !== 0) fail(

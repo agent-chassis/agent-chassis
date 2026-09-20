@@ -59,28 +59,34 @@ function expectedEvidenceIdentity(resolution, expected) {
 function normalizedFacts(evidence, binding) {
   const expectedFalsifiers = [...binding.falsifiers].map(({ falsifier_id: id }) => id)
     .sort(compare);
+
+  const falsificationDeclaredUnsupported =
+    binding.falsification_provider?.mode === "registry_unsupported";
   const observedFalsifiers = evidence.falsifier_executions.map((entry) => ({
     falsifier_id: entry.falsifier_id,
     status: entry.status,
-    detected: entry.status === "detected"
+    detected: entry.status === "detected",
+
+    capability_available: entry.provider_support !== "unsupported"
   })).sort((left, right) => compare(left.falsifier_id, right.falsifier_id));
   const traversals = evidence.boundary_traversals.map((entry) => ({
     boundary_id: entry.boundary_id,
     observable_id: entry.observable_id,
     provider_support: entry.provider_support,
     status: entry.status,
-    proven: entry.status === "proven"
+    proven: entry.status === "proven",
+    capability_available: entry.provider_support !== "unsupported"
   })).sort((left, right) => compare(left.boundary_id, right.boundary_id));
   const selectedTestId = evidence.evidence_identity.test_id;
   const selected = (field) => evidence.test_inventory[field].includes(selectedTestId)
     ? [selectedTestId] : [];
+
   const inventory = {
     declared_test_ids: [selectedTestId],
     discovered_test_ids: selected("discovered_test_ids"),
     executed_test_ids: selected("executed_test_ids"),
     skipped_test_ids: selected("skipped_test_ids"),
-    newly_skipped_test_ids: selected("newly_skipped_test_ids"),
-    unexpected_test_ids: []
+    observed_test_count: evidence.test_inventory.discovered_test_ids.length
   };
   const selectedPassObserved = evidence.execution_result.structured_result.pass_events.some(
     ({ test_id: testId, status }) => testId === selectedTestId && status === "passed"
@@ -97,12 +103,26 @@ function normalizedFacts(evidence, binding) {
       complete: expectedFalsifiers.length === observedFalsifiers.length &&
         expectedFalsifiers.every((id, index) => observedFalsifiers[index]?.falsifier_id === id),
       all_detected: observedFalsifiers.length > 0 &&
-        observedFalsifiers.every(({ detected }) => detected)
+        observedFalsifiers.every(({ detected }) => detected),
+      capability_available: !falsificationDeclaredUnsupported &&
+        observedFalsifiers.every(({ capability_available: available }) => available)
     },
     traversal: {
       observations: traversals,
       complete: traversals.length === 1,
-      all_proven: traversals.length > 0 && traversals.every(({ proven }) => proven)
+      all_proven: traversals.length > 0 && traversals.every(({ proven }) => proven),
+      capability_available: traversals.length > 0 &&
+        traversals.every(({ capability_available: available }) => available)
+    },
+
+    limitations: {
+      observations: [...evidence.capability_limitations].map((entry) => ({
+        check_kind: entry.check_kind,
+        check_id: entry.check_id,
+        reason_code: entry.reason_code
+      })).sort((left, right) => compare(left.check_kind, right.check_kind) ||
+        compare(left.check_id, right.check_id)),
+      count: evidence.capability_limitations.length
     },
     prohibited_shortcuts: {
       observed: [...evidence.observed_shortcuts],

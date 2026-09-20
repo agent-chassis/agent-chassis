@@ -9,10 +9,10 @@
     "profile_version": "2.0.0",
     "profile_digest": "e8236db6201793762140c3999ff605ac52829a36940d5f383d2ec2df9950575e",
     "guarantee_digest": "93cd1b6fdab1f2173ab1d256c99f7b56f3ddf568dc9554596cee2dabf9e6a62c",
-    "adequacy_digest": "5e0b700c40fc267f5835b8718ecebb471fa28a4e79c3d185734be40bd0f69bb7"
+    "adequacy_digest": "8bb08212db2b1d7fe193cc68d1787471f5515c1c8152458a5a9623196943effa"
   },
   "passed": true,
-  "control_count": 95,
+  "control_count": 93,
   "negative_fixture_count": 136,
   "coverage_witness_count": 136,
   "diagnostics": [],
@@ -76,12 +76,6 @@
         "category": "exclusion",
         "implementation_outcome": "boundary_demonstrated",
         "profile_satisfaction": "not_evaluated"
-      },
-      {
-        "control_id": "fabricated-resolver-facts",
-        "category": "mutant",
-        "implementation_outcome": "killed",
-        "profile_satisfaction": "unsatisfied"
       },
       {
         "control_id": "fact-declaration-order-invariant-missing-argument-input-snapshot",
@@ -511,12 +505,6 @@
       },
       {
         "control_id": "punctuation-stripping-comparison",
-        "category": "mutant",
-        "implementation_outcome": "killed",
-        "profile_satisfaction": "unsatisfied"
-      },
-      {
-        "control_id": "resolver-facts-bound-to-different-artifacts",
         "category": "mutant",
         "implementation_outcome": "killed",
         "profile_satisfaction": "unsatisfied"

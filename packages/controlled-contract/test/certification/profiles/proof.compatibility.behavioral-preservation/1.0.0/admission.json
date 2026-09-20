@@ -27,34 +27,5 @@
     "executable_control_count": 41,
     "negative_fixture_count": 87,
     "coverage_witness_count": 87
-  },
-  "exact_binding": {
-    "declaration_digest": "ff26a984d7316d0dc1eed461f8dc3ee88eaf840da1110c513d81116e7c0ef0a7",
-    "certification_result_digest": "7f5525c063dbed7168b245ce852e7e555cb9552b2b62b9e728d73b2efe5691a8",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "distinct_source_descriptor",
-      "same_content_sha256"
-    ],
-    "corpus_id": "behavioral-preservation-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "fd6216a2d0c3ab984972bd8ce64f6e8d4d6313a7c133761066b9538e8baac062",
-    "passed_control_ids": [
-      "artifact-bytes-match",
-      "artifact-bytes-mismatch-rejected",
-      "contract-context-splice-rejected",
-      "declaration-digest-stale-rejected",
-      "deterministic-source-order",
-      "evaluation-context-splice-rejected",
-      "extra-source-invalid",
-      "missing-baseline-indeterminate",
-      "missing-candidate-indeterminate",
-      "noncanonical-declaration-rejected",
-      "role-coverage-swap-rejected",
-      "source-descriptors-distinct"
-    ]
   }
 }

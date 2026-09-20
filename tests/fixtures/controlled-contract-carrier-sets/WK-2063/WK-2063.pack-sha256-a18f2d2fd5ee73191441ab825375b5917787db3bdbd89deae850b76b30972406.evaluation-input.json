@@ -1,0 +1,41 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-bounded-integration-context"
+      ],
+      "role": "execution_context"
+    },
+    {
+      "reference_ids": [
+        "ref-forbidden-history-population"
+      ],
+      "role": "forbidden_operation_population"
+    },
+    {
+      "reference_ids": [
+        "ref-legacy-full-history-walk",
+        "ref-root-rev-list-history-walk"
+      ],
+      "role": "forbidden_operations"
+    },
+    {
+      "reference_ids": [
+        "ref-integration-request"
+      ],
+      "role": "subject_operation"
+    },
+    {
+      "reference_ids": [
+        "ref-test-authorization"
+      ],
+      "role": "verification"
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

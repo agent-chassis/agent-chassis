@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import {
   assertValidSidecarResultEnvelope,
-  classifySidecarGraphArtifactSchema,
   cloneSidecarTrustEnvelopeFixture,
   compareSidecarCliMcpParity,
   createSidecarGraphState,
@@ -25,7 +24,6 @@ import {
   validateSidecarResultEnvelope
 } from "../../packages/wiki-core/src/index.mjs";
 import {
-  inspectSidecarGraphStructure,
   SIDECAR_GRAPH_PROVENANCE_EVIDENCE_BASIS_VALUES,
   SIDECAR_GRAPH_PROVENANCE_SOURCE_KIND_VALUES
 } from "../../packages/wiki-core/src/lib/sidecar-graph-schema.mjs";
@@ -34,8 +32,7 @@ test("sidecar graph schema version constant is pinned", () => {
   assert.equal(SIDECAR_GRAPH_SCHEMA_VERSION, "repo-code-graph.v1");
 });
 
-test("sidecar graph schema helpers validate optional artifact graph sections", () => {
-  const expectedGeneratorIdentity = `sha256:${"a".repeat(64)}`;
+test("sidecar graph schema validates selected native graph results", () => {
   const graph = {
     graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
     graph_nodes: [
@@ -59,43 +56,9 @@ test("sidecar graph schema helpers validate optional artifact graph sections", (
   assert.deepEqual(validateSidecarGraphSection(graph), []);
   assert.deepEqual(validateSidecarGraphState(createSidecarGraphState()), []);
 
-  assert.deepEqual(inspectSidecarGraphStructure({}), {
-    structurally_valid: true,
-    graph_present: false,
-    graph_schema_version: null,
-    errors: []
-  });
-  assert.deepEqual(inspectSidecarGraphStructure({ graph }), {
-    structurally_valid: true,
-    graph_present: true,
-    graph_schema_version: SIDECAR_GRAPH_SCHEMA_VERSION,
-    errors: []
-  });
-
-  const unbound = classifySidecarGraphArtifactSchema({ graph });
-  assert.equal(unbound.compatible, false);
-  assert.equal(unbound.graph_state.graph_available, false);
-  assert.match(unbound.errors.join("\n"), /expectedGeneratorIdentity/);
-
-  const present = classifySidecarGraphArtifactSchema({
-    graph: { ...graph, generator_identity: expectedGeneratorIdentity }
-  }, { expectedGeneratorIdentity });
-  assert.equal(present.compatible, true);
-  assert.equal(present.graph_state.graph_available, true);
-  assert.equal(present.graph_state.graph_schema_version, SIDECAR_GRAPH_SCHEMA_VERSION);
-
-  const incompatible = classifySidecarGraphArtifactSchema({
-    graph: {
-      graph_schema_version: "repo-code-graph.v0",
-      generator_identity: expectedGeneratorIdentity
-    }
-  }, { expectedGeneratorIdentity });
-  assert.equal(incompatible.compatible, false);
-  assert.equal(incompatible.graph_state.graph_available, false);
-  assert.equal(incompatible.graph_state.status_reason, "graph_schema_incompatible");
-  assert.deepEqual(validateSidecarGraphState(incompatible.graph_state), []);
-  assert.equal(incompatible.graph_state.observed_graph_schema_version, "repo-code-graph.v0");
-  assert.match(incompatible.errors.join("\n"), /repo-code-graph\.v1/);
+  assert.match(validateSidecarGraphSection({
+    ...graph, graph_schema_version: "repo-code-graph.v0"
+  }).join("\n"), /repo-code-graph\.v1/);
 
   assert.match(
     validateSidecarGraphSection({
@@ -195,7 +158,7 @@ test("sidecar graph schema accepts SCIP symbol node and edge kinds", () => {
   assert.deepEqual(validateSidecarGraphSection(graph), []);
 });
 
-test("sidecar artifact schema accepts scip source_kind and evidence_basis provenance", () => {
+test("sidecar result schema accepts scip source_kind and evidence_basis provenance", () => {
   assert.ok(SIDECAR_SOURCE_KIND_VALUES.includes("scip"));
   assert.ok(SIDECAR_EVIDENCE_BASIS_VALUES.includes("scip"));
 

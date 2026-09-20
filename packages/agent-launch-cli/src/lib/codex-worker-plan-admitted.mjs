@@ -3,9 +3,12 @@ import path from "node:path";
 import {
   collectSliceDeclaredWritableFiles,
   isolationWritableDirectoriesForLaunch,
+  planResolvedWritableDirectories,
   planWorkerWriteScopeNewDirectories,
+  projectPermissionWritesForResolvedScope,
   projectPermissionWritesForWorkerLaunch
 } from "./codex-worker-write-scope-plan.mjs";
+import { deriveWritableMountsFromResolvedScope } from "./workspace-agent-write-scope.mjs";
 
 import { resolveDispatchedRoleModel } from "./agent-launch-profiles.mjs";
 import {
@@ -35,21 +38,28 @@ export async function buildAdmittedCodexWorkerPlan({
   ROLE_CONFIG
 }) {
 
-  const writeScope = frozenWorkerScopeAuthority?.write_scope
-    ?? gate.launch_packet.canonical_summary.write_scope;
-  const projectPermissionWrites = await projectPermissionWritesForWorkerLaunch(repo, writeScope);
-  const preparedNewWriteRoots = await planWorkerWriteScopeNewDirectories(repo, writeScope);
+  const resolvedScope = frozenWorkerScopeAuthority?.resolved_scope ?? null;
+  const resolvedMounts = resolvedScope
+    ? deriveWritableMountsFromResolvedScope({ workspaceDir: repo, resolvedScope })
+    : null;
+  const writeScope = gate.launch_packet.canonical_summary.write_scope;
+  const projectPermissionWrites = resolvedScope
+    ? projectPermissionWritesForResolvedScope(resolvedScope)
+    : await projectPermissionWritesForWorkerLaunch(repo, writeScope);
+  const preparedNewWriteRoots = resolvedScope
+    ? await planResolvedWritableDirectories(repo, resolvedScope)
+    : await planWorkerWriteScopeNewDirectories(repo, writeScope);
   const selectedSliceForWritables = sliceId && Array.isArray(loaded.record.slices)
     ? loaded.record.slices.find((slice) => slice && slice.id === sliceId) || null
     : null;
-  const declaredWritableFiles = await collectSliceDeclaredWritableFiles({
+  const isolationWritableProjectRoots = resolvedMounts?.writableRoots
+    ?? await isolationWritableDirectoriesForLaunch(repo, writeScope);
+  const isolationWritableFiles = resolvedMounts?.writableFiles ?? (await collectSliceDeclaredWritableFiles({
     repo,
     record: loaded.record,
     selectedSlice: selectedSliceForWritables,
     writeScope
-  });
-  const isolationWritableProjectRoots = await isolationWritableDirectoriesForLaunch(repo, writeScope);
-  const isolationWritableFiles = declaredWritableFiles.map((relPath) => path.resolve(repo, relPath));
+  })).map((relPath) => path.resolve(repo, relPath));
   const sandboxArgs = buildCodexWritableSandboxArgs(repo, {
     writableProjectRoots: projectPermissionWrites
   });

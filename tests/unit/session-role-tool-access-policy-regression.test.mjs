@@ -50,12 +50,11 @@ import {
 const AGENT_ROLES = Object.freeze(["orchestrator", "reviewer", "worker", "redteam"]);
 
 const SLICE_008_POLICY_SHA256 =
-  "c3e962cdc5f608b664f2054d6e1c2263af406a4ed933686afdf3b9e35776c5bd";
+  "d8e0d6dc86f4f878625c4e66e2f4898de08557fe3cb5fd5afbadab10ae56e2ad";
 const SLICE_008_NORMALIZED_ACCESS_GRANT_SHA256 =
-  "f30f3a3de767f5c4a97809571055685790b8d93d352229fdb2a7c09b73234135";
+  "38afd07ac573def02a6bbf58f61feeff1e19c680ecd172682b350b9fb96f89c2";
 const SLICE_008_PROTECTED_ROLE_GRANTS = Object.freeze({
   commit: Object.freeze(["operator"]),
-  workspace_worker_run_declared_test: Object.freeze(["operator"]),
   workspace_verify_proof: Object.freeze(["orchestrator"]),
   workspace_submit_for_review: Object.freeze(["operator"])
 });
@@ -454,6 +453,15 @@ test("guard: disposition/grant and resolved audience/tier conflicts fail loudly"
     indirectWithAgentGrant
   ).some((finding) => finding.code === "session_role_policy_disposition_grant_conflict"));
 
+  const continuationWithAgentGrant = policyFor(
+    { tool_a: ["orchestrator", "operator"] },
+    { tool_a: [SESSION_ROLE_TOOL_DISPOSITIONS.SERVER_ISSUED_CONTINUATION] }
+  );
+  assert.deepEqual(collectFindings(
+    { tools: [registeredTool("tool_a")] },
+    continuationWithAgentGrant
+  ), [], "a server-issued continuation is an agent-callable authority gate");
+
   const operatorAudienceOnly = {
     ...registeredTool("tool_a"),
     audience: ["operator"]
@@ -641,13 +649,13 @@ test("SLICE-008 retain-only evidence inventories every orchestrator/operator gra
     candidates.filter(({ evidence_classification: value }) => value === classification).length
   ]));
 
-  assert.deepEqual(byRole, { orchestrator: 112, operator: 142 });
+  assert.deepEqual(byRole, { orchestrator: 66, operator: 85 });
   assert.deepEqual(byEvidence, {
-    retained_protected_decision_required: 4,
-    retained_unproven_authenticated_client: 12,
-    retained_unproven_non_read_only_or_non_descriptor_authority: 238
+    retained_protected_decision_required: 3,
+    retained_unproven_authenticated_client: 4,
+    retained_unproven_non_read_only_or_non_descriptor_authority: 144
   });
-  assert.equal(candidates.length, 254);
+  assert.equal(candidates.length, 151);
   assert.equal(candidates.every(({ disposition }) => disposition === "retain"), true);
   assert.deepEqual(
     candidates.filter(({ evidence_classification }) =>
@@ -656,8 +664,7 @@ test("SLICE-008 retain-only evidence inventories every orchestrator/operator gra
     [
       "orchestrator:workspace_verify_proof",
       "operator:commit",
-      "operator:workspace_submit_for_review",
-      "operator:workspace_worker_run_declared_test"
+      "operator:workspace_submit_for_review"
     ]
   );
 
@@ -665,4 +672,131 @@ test("SLICE-008 retain-only evidence inventories every orchestrator/operator gra
   context.diagnostic(
     `SLICE-008 retained ${JSON.stringify({ by_role: byRole, by_evidence: byEvidence })}`
   );
+});
+
+test("proof-tool retirement preserves the exact remaining role populations", () => {
+  const policy = loadPolicy();
+  assert.equal(Object.hasOwn(policy.access,
+    "workspace_controlled_contract_private_scope_census"), false);
+  assert.equal(Object.hasOwn(policy.dispositions,
+    "workspace_controlled_contract_private_scope_census"), false);
+  assert.deepEqual(Object.fromEntries(policy.roles.map((role) => [
+    role,
+    Object.values(policy.access).filter((grants) => grants.includes(role)).length
+  ])), {
+    orchestrator: 66,
+    reviewer: 30,
+    worker: 2,
+    redteam: 29,
+    operator: 85
+  });
+});
+
+test("the descriptor-derived retained proof surface is classified once",
+  async () => {
+    const descriptor = await loadToolDiscoveryDescriptor();
+    const policy = loadPolicy();
+    const controlled = descriptor.tools.filter(({ tool_name: name }) =>
+      name.startsWith("workspace_controlled_") || name === "workspace_verify_proof");
+    assert.equal(controlled.length, 5);
+    const counts = Object.fromEntries(SESSION_ROLE_TOOL_DISPOSITION_VALUES.map((value) => [
+      value,
+      controlled.filter(({ tool_name: name }) => policy.dispositions[name]?.[0] === value)
+        .length
+    ]));
+    assert.deepEqual(counts, {
+      direct: 5,
+      closed_typed_front_door: 0,
+      server_issued_continuation: 0,
+      operator_recovery_only: 0,
+      outside_current_contract: 0
+    });
+    assert.equal(controlled.every(({ tool_name: name }) =>
+      policy.dispositions[name]?.length === 1), true);
+    assert.equal(policy.access.workspace_controlled_contract_authoring_state, undefined);
+    assert.equal(policy.access.workspace_controlled_contract_prepare_design, undefined);
+    assert.equal(policy.dispositions.workspace_controlled_contract_prepare_design, undefined);
+    for (const operation of ["upsert", "remove"]) {
+      const name = `workspace_controlled_contract_obligation_coverage_${operation}`;
+      assert.deepEqual(policy.access[name], ["orchestrator", "operator"], name);
+      assert.deepEqual(policy.dispositions[name],
+        [SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT], name);
+    }
+    assert.deepEqual(policy.access.workspace_controlled_contract_obligation_coverage_query,
+      ["orchestrator", "reviewer", "redteam", "operator"]);
+    assert.deepEqual(policy.dispositions.workspace_controlled_contract_obligation_coverage_query,
+      [SESSION_ROLE_TOOL_DISPOSITIONS.DIRECT]);
+  });
+
+test("WK-2533 entry routes preserve exact mutation and read role grants", () => {
+  const policy = loadPolicy();
+  assert.deepEqual(policy.access.workspace_work_record_entry_upsert, ["orchestrator", "operator"]);
+  assert.deepEqual(policy.access.workspace_work_record_entry_read,
+    ["orchestrator", "reviewer", "redteam", "operator"]);
+  assert.deepEqual(policy.dispositions.workspace_work_record_entry_upsert, ["direct"]);
+  assert.deepEqual(policy.dispositions.workspace_work_record_entry_read, ["direct"]);
+  const grants = resolveRoleToolGrantsFromPolicy(policy);
+  for (const role of AGENT_ROLES) {
+    assert.equal(shouldExposeTool(role, "workspace_work_record_entry_upsert"), role === "orchestrator", role);
+    assert.equal(shouldExposeTool(role, "workspace_work_record_entry_read"), role !== "worker", role);
+    assert.equal(grants.get(role)?.has("workspace_work_record_entry_upsert") ?? false, role === "orchestrator", role);
+    assert.equal(grants.get(role)?.has("workspace_work_record_entry_read") ?? false, role !== "worker", role);
+  }
+  assert.equal(shouldExposeTool("operator", "workspace_work_record_entry_upsert"), true);
+  assert.equal(shouldExposeTool("operator", "workspace_work_record_entry_read"), true);
+});
+
+test("WK-2653 the ordinary code question grants exactly what its delegated routes grant", () => {
+  const policy = loadPolicy();
+  const question = "workspace_code_index_impact";
+  const delegated = ["workspace_code_index_context_for_path", "workspace_code_index_definition",
+    "workspace_code_index_find_references", "workspace_code_index_callers",
+    "workspace_code_index_callees"];
+  const expected = ["orchestrator", "reviewer", "redteam", "operator"];
+  assert.deepEqual(policy.access[question], expected);
+  assert.deepEqual(policy.dispositions[question], ["direct"]);
+  for (const route of delegated) {
+    assert.deepEqual(policy.access[route], expected,
+      `${route} must grant exactly what ${question} grants`);
+    assert.deepEqual(policy.dispositions[route], policy.dispositions[question],
+      `${route} must deploy exactly as ${question} does`);
+  }
+  const grants = resolveRoleToolGrantsFromPolicy(policy);
+  for (const role of AGENT_ROLES) {
+    const granted = expected.includes(role);
+    for (const route of [question, ...delegated]) {
+      assert.equal(shouldExposeTool(role, route), granted, `${role} -> ${route}`);
+      assert.equal(grants.get(role)?.has(route) ?? false, granted, `${role} grant -> ${route}`);
+    }
+  }
+
+  for (const route of [question, ...delegated]) {
+    assert.equal(shouldExposeTool("worker", route), false, `worker must not reach ${route}`);
+  }
+});
+
+test("WK-2653 the ordinary reader grants exactly what its delegated read routes grant", () => {
+  const policy = loadPolicy();
+  const reader = "workspace_read_page";
+  const delegated = ["workspace_work_record_entry_read", "workspace_read_mcp_content_reference",
+    "workspace_get_record"];
+  const expected = policy.access[reader];
+  assert.deepEqual([...expected].sort(), ["operator", "orchestrator", "redteam", "reviewer"].sort());
+  for (const route of delegated) {
+    assert.deepEqual([...policy.access[route]].sort(), [...expected].sort(),
+      `${route} must grant exactly what ${reader} grants`);
+  }
+  const grants = resolveRoleToolGrantsFromPolicy(policy);
+  for (const role of AGENT_ROLES) {
+    const granted = expected.includes(role);
+    for (const route of [reader, ...delegated]) {
+      assert.equal(shouldExposeTool(role, route), granted, `${role} -> ${route}`);
+      assert.equal(grants.get(role)?.has(route) ?? false, granted, `${role} grant -> ${route}`);
+    }
+  }
+
+  for (const route of [reader, ...delegated]) {
+    assert.ok(Object.hasOwn(policy.access, route), `${route} has an explicit policy entry`);
+    assert.ok(Object.hasOwn(policy.dispositions, route), `${route} has an explicit disposition`);
+  }
 });

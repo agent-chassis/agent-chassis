@@ -83,6 +83,32 @@ export const RUNTIME_BLOCKER_CLASSIFIER_STATE_TABLE = Object.freeze({
     ),
     no_supported_route: "worker_admission_recovery_route_unavailable"
   }),
+
+  launch: Object.freeze({
+    failed_before_start: "agent_launch.launch_failed_before_start.v1"
+  }),
+  monitor: Object.freeze({
+    subject_observation_unavailable:
+      "agent_launch.monitor.subject_observation_unavailable.v1",
+    run_detail_unavailable: "agent_launch.monitor.run_detail_unavailable.v1",
+    proof_verification_evidence_unavailable:
+      "agent_launch.monitor.proof_verification_evidence_unavailable.v1",
+    post_worker_lifecycle_recovery_unresponsive:
+      "agent_launch.post_worker_lifecycle.recovery_unresponsive.v1",
+    post_worker_lifecycle_recovery_failed:
+      "agent_launch.post_worker_lifecycle.recovery_failed.v1"
+  }),
+  managed_corrective_status: Object.freeze({
+    launcher_retirement_incomplete:
+      "agent_launch.managed_corrective_status.launcher_retirement_incomplete.v1"
+  }),
+  slice_integration: Object.freeze({
+    classification_unavailable:
+      "agent_launch.slice_integration.classification_unavailable.v1"
+  }),
+  composition: Object.freeze({
+    lifecycle_protocol_incompatible: "stdio_mcp_lifecycle_protocol_incompatible"
+  }),
   mcp_response: Object.freeze({
     handler_exception: "mcp_response.handler_exception.v1",
     platform_failure: "mcp_response.platform_failure.v1",
@@ -309,6 +335,11 @@ const PRODUCER_OWNING_BOUNDARIES = Object.freeze({
   validation: "wiki-mcp.registered-route-validation",
   role_policy: "wiki-mcp.role-policy",
   operator_recovery: "agent-launch.launcher-contract",
+  launch: "agent-launch.launcher-runtime",
+  monitor: "agent-launch.run-monitoring",
+  managed_corrective_status: "agent-launch.managed-corrective-status",
+  slice_integration: "agent-launch.committed-slice-integration",
+  composition: "agent-launch.stdio-mcp-composition",
   recovery_contract: "cce.worker-admission-recovery-producer",
   mcp_response: "wiki-mcp.mcp-response",
   unexpected_external: "external.authenticated-condition"
@@ -319,7 +350,18 @@ const NO_ROUTE_PRODUCERS = new Set([
   "operator_recovery",
   "recovery_contract",
   "mcp_response",
-  "unexpected_external"
+  "unexpected_external",
+
+  "launch",
+  "slice_integration",
+  "composition"
+]);
+
+const NO_ROUTE_CONDITIONS = new Set([
+  "monitor.subject_observation_unavailable",
+  "monitor.run_detail_unavailable",
+  "monitor.proof_verification_evidence_unavailable",
+  "monitor.post_worker_lifecycle_recovery_failed"
 ]);
 
 function normalizeModeledCause(producer, condition, detail) {
@@ -358,7 +400,8 @@ export function classifyMechanicalRuntimeBlocker(facts) {
   const publicDetail = Object.freeze({
     ...(detail ?? {}),
     owning_boundary: owningBoundary,
-    ...(NO_ROUTE_PRODUCERS.has(producer)
+    ...(NO_ROUTE_PRODUCERS.has(producer) ||
+      NO_ROUTE_CONDITIONS.has(`${producer}.${condition}`)
       ? { no_supported_route: true, next_calls: Object.freeze([]) }
       : {})
   });

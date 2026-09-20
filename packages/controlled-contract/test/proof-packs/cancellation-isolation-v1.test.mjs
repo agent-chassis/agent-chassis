@@ -32,7 +32,7 @@ const controlledContractRoot = path.resolve(
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.cancellation.isolation/2.0.0"
+  "certification/profiles/proof.cancellation.isolation/3.0.0"
 );
 
 async function readJson(name) {
@@ -194,10 +194,6 @@ function weakenCollectionProfileSurface(profile, pointer) {
   } else if (leaf === "member_claim_pattern_ids") {
     profile.collection_patterns[0].member_claim_pattern_ids =
       profile.collection_patterns[0].member_claim_pattern_ids.slice(0, -1);
-  } else if (leaf === "required_by_stage") {
-    profile.evaluation_stages.push("post_delivery");
-    profile.collection_patterns[0].required_by_stage = "post_delivery";
-    makeAnyPatternSufficient(profile);
   }
   return true;
 }
@@ -320,8 +316,8 @@ test("cancellation-isolation pack passes executable and fixed controls", async (
   const result = await runProofPackAdequacy(packDirectory);
   assert.equal(result.passed, true);
   assert.equal(result.control_count, 95);
-  assert.equal(result.negative_fixture_count, 261);
-  assert.equal(result.coverage_witness_count, 261);
+  assert.equal(result.negative_fixture_count, 260);
+  assert.equal(result.coverage_witness_count, 260);
   assert.equal(result.negative_fixture_results.every(
     ({ outcome }) => outcome === "rejected"
   ), true);

@@ -6,7 +6,7 @@ import {
 
   validateLauncherFamilyRole
 } from "./workspace-agent-dispatch-backend.mjs";
-import { loadWorkRecordById } from "@agent-chassis/wiki-core";
+import { loadWorkRecordById } from "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
 
 import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
 
@@ -44,6 +44,10 @@ import { resolveLauncherSchemaConstrainedTierIsPaid } from
   "@agent-chassis/agent-launch-core/src/lib/config.mjs";
 import { selectWorkerLifecycleFromEffectiveWriteScope } from
   "./workspace-agent-worker-lifecycle.mjs";
+import {
+  assertManagedWorkerAssignment,
+  workerAssignmentRefusal
+} from "./worker-assignment-authority.mjs";
 
 const CODEX_LAUNCH_TRANSPORT_SEAMS = Object.freeze([
   "buildPlan", "buildBwrapPlan", "spawn", "plainSpawn"
@@ -173,6 +177,21 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
       });
     }
 
+    let managedAssignment = null;
+    if (codexRole === "worker" && input?.worktree_provisioning != null) {
+      try {
+        managedAssignment = assertManagedWorkerAssignment(input?.worker_assignment ?? null, {
+          role: "worker",
+          subject,
+          runId: input?.run_id ?? null,
+          monitorHandle: input?.monitor_handle ?? null,
+          worktreePath: input.worktree_provisioning.worktree_path
+        });
+      } catch (error) {
+        return workerAssignmentRefusal(makeRefusal, error, { role, subject });
+      }
+    }
+
     const launcherSelectedModel = normalizeDispatchModelHint(input?.model);
     if (managedWorkerAuthorityRequired && launcherSelectedModel === null) {
       return makeRefusal(
@@ -212,15 +231,16 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
 
     const planCwd = workspaceDir ?? defaultCwd;
 
-    const schemaConstrainedTierIsPaid = advisoryReviewInput !== null
-      ? advisoryReviewInput.formal_result_contract?.mode === "schema_constrained"
-      : workspaceDir
-        ? resolveSchemaConstrainedTier({ workspaceDir }) === true
-        : false;
-    const terminalStructuredRoleResultMode = resolveCodexTerminalStructuredRoleResultMode({
-      schemaConstrainedTierIsPaid,
-      codexRole
-    });
+    const terminalStructuredRoleResultMode = managedAssignment !== null
+      ? managedAssignment.terminal_result_mode
+      : resolveCodexTerminalStructuredRoleResultMode({
+          schemaConstrainedTierIsPaid: advisoryReviewInput !== null
+            ? advisoryReviewInput.formal_result_contract?.mode === "schema_constrained"
+            : workspaceDir
+              ? resolveSchemaConstrainedTier({ workspaceDir }) === true
+              : false,
+          codexRole
+        });
 
     const launchResult = await launchCodexWorkspaceAgentInProcess({
       input,

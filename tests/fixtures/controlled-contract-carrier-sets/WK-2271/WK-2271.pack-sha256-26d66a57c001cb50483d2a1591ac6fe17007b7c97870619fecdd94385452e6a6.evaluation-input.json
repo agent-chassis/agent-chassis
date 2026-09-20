@@ -1,0 +1,71 @@
+{
+  "claim_pattern_bindings": [],
+  "delivered_evidence": [],
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "number_bindings": [
+    {
+      "role": "protected_effect_count",
+      "value": 3
+    }
+  ],
+  "reference_bindings": [
+    {
+      "reference_ids": [
+        "ref-stale-generation-attempt"
+      ],
+      "role": "attempt"
+    },
+    {
+      "reference_ids": [
+        "ref-terminal-candidate-authority"
+      ],
+      "role": "authority"
+    },
+    {
+      "reference_ids": [
+        "ref-generation-authority-operation"
+      ],
+      "role": "operation"
+    },
+    {
+      "reference_ids": [
+        "ref-protected-effect-population"
+      ],
+      "role": "protected_effect_population"
+    },
+    {
+      "reference_ids": [
+        "ref-candidate-ref-state",
+        "ref-remote-branch-state",
+        "ref-pull-request-state"
+      ],
+      "role": "protected_effects"
+    },
+    {
+      "reference_ids": [
+        "ref-protected-interval"
+      ],
+      "role": "protected_interval"
+    },
+    {
+      "reference_ids": [
+        "ref-refusal-event"
+      ],
+      "role": "refusal"
+    },
+    {
+      "reference_ids": [
+        "ref-stale-generation-subject"
+      ],
+      "role": "subject"
+    },
+    {
+      "reference_ids": [
+        "ref-authority-test-suite"
+      ],
+      "role": "verification"
+    }
+  ],
+  "resolver_facts": [],
+  "stable_evaluation": {}
+}

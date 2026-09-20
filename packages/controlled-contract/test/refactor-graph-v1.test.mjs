@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ControlledContractRefactorError,
   buildControlledContractRefactorClosure } from "../lib/refactor-graph-v1.mjs";
+import {
+  REFACTOR_IDENTITY_ROLES,
+  classifyControlledContractRefactorIdentityRole
+} from "../lib/refactor-identity-taxonomy.mjs";
+import { buildForbiddenOperationNoninvocationFixture } from
+  "./proof-packs/forbidden-operation-noninvocation-v1-fixture.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
 
 function population() {
   return [
@@ -13,7 +21,7 @@ function population() {
       collections: [{ collection_id: "K-1", node_ids: ["P-old"] }]
     } },
     { carrier_kind: "stable_test_proof", mutable: false, content: {
-      test_proofs: [{ proof_id: "T-1", verification_id: "P-old" }] } },
+      test_proofs: [{ proof_id: "T-1", verification_id: "C-1" }] } },
     { carrier_kind: "obligation_coverage", content: { obligations: [
       { obligation_id: "O-1", controlled_contract_node_ids: ["P-old"] }] } },
     { carrier_kind: "acceptance_coverage", content: { rows: [
@@ -39,6 +47,15 @@ function replaceContractOperations(newIdentities) {
   return [{ carrier_kind: "contract", operations }];
 }
 
+function runtimeSelectorPopulation({ selector = { name: "alpha assertion", nesting: 0 } } = {}) {
+  const contract = buildForbiddenOperationNoninvocationFixture({
+    verification_method: "test_execution"
+  }).contract;
+  contract.test_proofs = buildStableTestProofPopulation(contract);
+  contract.test_proofs[0].test_selector = selector;
+  return contract;
+}
+
 test("rename_identity closes and rewrites every live carrier reference", () => {
   const result = buildControlledContractRefactorClosure({ live_carriers: population(),
     mode: { kind: "rename_identity", old_identity: "P-old",
@@ -60,7 +77,7 @@ for (const field of ["modality", "applicability", "verification_method",
         new_node: { proposition_id: "P-new", [field]: "after" } }
     }), (error) => error instanceof ControlledContractRefactorError &&
       error.code === "controlled_contract_refactor_rename_semantic_change" &&
-      error.recovery.operation === "workspace_controlled_contract_refactor_plan");
+      error.recovery === null);
   });
 }
 
@@ -151,6 +168,7 @@ test("unresolved live identities refuse with exact bounded identities", () => {
     mode: { kind: "rename_identity", old_identity: "P-old",
       new_identity: "P-new" } }), (error) =>
     error.code === "controlled_contract_refactor_closure_incomplete" &&
+    error.recovery === null &&
     error.deciding_facts.some(({ field, value }) => field === "unresolved_identities" &&
       value.length === 1 && value[0] === "P-missing"));
 
@@ -163,6 +181,82 @@ test("unresolved live identities refuse with exact bounded identities", () => {
     error.code === "controlled_contract_refactor_bound_exceeded" &&
     error.deciding_facts.find(({ field }) =>
       field === "bounded_unresolved_identities").value.length === 256);
+});
+
+test("schema-role taxonomy keeps runtime test IDs outside graph closure", () => {
+
+  for (const [field, pointer] of [
+    ["test_id", "/evidence_identity/test_id"],
+    ["selected_test_id", "/test_inventory/selected_test_id"],
+    ["observed_test_id", "/observed_tests/0/observed_test_id"]
+  ]) assert.deepEqual(classifyControlledContractRefactorIdentityRole({
+    carrierKind: "contract", field, pointer
+  }), { role: REFACTOR_IDENTITY_ROLES.EXTERNAL_RUNTIME_SELECTOR,
+    target_domain: "runtime_inventory.test", relationship: "reference" }, field);
+  assert.equal(classifyControlledContractRefactorIdentityRole({
+    carrierKind: "contract", field: "name", pointer: "/test_proofs/0/test_selector/name"
+  }), null);
+  assert.deepEqual(classifyControlledContractRefactorIdentityRole({
+    carrierKind: "contract", field: "verification_id",
+    pointer: "/test_proofs/0/verification_id"
+  }), { role: REFACTOR_IDENTITY_ROLES.INTERNAL_GRAPH_REFERENCE,
+    target_domain: "controlled_contract.claim", relationship: "reference",
+    prospective_settlement_owner: "prospective_proof_plan_compiler" });
+  for (const [field, role, target_domain] of [
+    ["test_proof_id", REFACTOR_IDENTITY_ROLES.CARRIER_LOCAL_DECLARATION,
+      "stable_test_proof.bundle"],
+    ["pack_id", REFACTOR_IDENTITY_ROLES.EXTERNAL_CATALOG_IDENTITY,
+      "proof_pack_catalog.pack"],
+    ["repository_id", REFACTOR_IDENTITY_ROLES.EXTERNAL_REPOSITORY_SELECTOR,
+      "repository"],
+    ["mechanism_id", REFACTOR_IDENTITY_ROLES.EXTERNAL_MECHANISM_SELECTOR,
+      "runtime_mechanism"],
+    ["evidence_id", REFACTOR_IDENTITY_ROLES.EXTERNAL_EVIDENCE_SELECTOR,
+      "evidence.record"]
+  ]) assert.deepEqual(classifyControlledContractRefactorIdentityRole({
+    carrierKind: "contract", field, pointer: `/test_proofs/0/${field}`
+  }), { role, target_domain, relationship: field === "test_proof_id"
+    ? "declaration" : "reference" });
+  assert.equal(classifyControlledContractRefactorIdentityRole({
+    carrierKind: "contract", field: "unclassified_id",
+    pointer: "/arbitrary/unclassified_id"
+  }), null);
+
+  const contract = runtimeSelectorPopulation();
+  const oldIdentity = contract.propositions[0].proposition_id;
+  const result = buildControlledContractRefactorClosure({
+    live_carriers: [{ carrier_kind: "contract", content: contract }],
+    mode: { kind: "rename_identity", old_identity: oldIdentity,
+      new_identity: `${oldIdentity}-renamed` }
+  });
+  assert.equal(result.counts.grounded_external_runtime_selectors,
+    contract.test_proofs.length);
+  assert.deepEqual(result.integrity.external_runtime_selector_groundings.find(
+    ({ pointer }) => pointer === "/test_proofs/0/test_selector"), {
+    test_proof_id: contract.test_proofs[0].test_proof_id,
+    pointer: "/test_proofs/0/test_selector",
+    selector: { name: "alpha assertion", nesting: 0 },
+    target_domain: "declared_test_selector",
+    status: "declared", reason: "declarative_selector",
+    owner: "projectStableTestProofSelector"
+  });
+  assert.equal(result.closure.some(({ identity }) => identity === "alpha assertion"), false);
+  assert.deepEqual(result.carriers[0].content.test_proofs[0].test_selector,
+    contract.test_proofs[0].test_selector);
+});
+
+test("a malformed declarative selector refuses through its incumbent grounding owner", () => {
+  const contract = runtimeSelectorPopulation({ selector: { name: "", nesting: 0 } });
+  assert.throws(() => buildControlledContractRefactorClosure({
+    live_carriers: [{ carrier_kind: "contract", content: contract }],
+    mode: { kind: "rename_identity",
+      old_identity: contract.propositions[0].proposition_id,
+      new_identity: `${contract.propositions[0].proposition_id}-renamed` }
+  }), (error) => error.code === "controlled_contract_refactor_external_selector_invalid" &&
+    error.owner === "projectStableTestProofSelector" &&
+    error.recovery === null &&
+    error.deciding_facts[0].value[0].reason === "stable_test_proof_selector_invalid" &&
+    error.deciding_facts[0].value[0].pointer === "/test_proofs/0/test_selector");
 });
 
 test("replace_subgraph rejects spoofed coverage output and duplicate carriers", () => {

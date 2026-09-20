@@ -11,126 +11,11 @@ import {
 } from "../../packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs";
 
 const SUBJECT = "WK-1537#SLICE-001";
-const HANDLE = "wkmh_worker_resumable";
 
-const ZERO_FINDING_COUNTS = Object.freeze({
-  total: 0,
-  blocking: 0,
-  critical: 0,
-  high: 0,
-  medium: 0,
-  low: 0,
-  info: 0
-});
-
-function parkedFixture(evidence = null) {
-  const harness = createResumableLifecycleHarness({ sliceReviewAccepted: false });
-  const tools = createDispatchToolRegistry({
-    backend: {
-      getRunStatus: async () => harness.status,
-      waitForRunStatus: async () => harness.status,
-      runPostWorkerSliceLifecycle: harness.invoke,
-      resolveSliceReviewEvidenceSet: async () =>
-        typeof evidence === "function" ? evidence(harness) : evidence
-    }
-  });
-  const call = async (tool) => parseStructuredTextResponse(
-    await tools.get(tool).handler({ monitor_handle: HANDLE, subject: SUBJECT })
-  );
-  return { harness, call };
-}
-
-async function parkedStatusWait(fixture) {
-  const status = await fixture.call("workspace_agent_run_status");
-  const wait = await fixture.call("workspace_agent_run_wait");
-  assert.deepEqual(wait.closeout_continuation, status.closeout_continuation);
-  return status;
-}
-
-test("parked slice review gives status and wait the same ordered closeout continuation", async () => {
-  const fixture = parkedFixture();
-  const status = await fixture.call("workspace_agent_run_status");
-  const wait = await fixture.call("workspace_agent_run_wait");
-
-  assert.equal(status.next_action, "complete_slice_review_then_retry_run_status");
-  assert.deepEqual(wait.closeout_continuation, status.closeout_continuation);
-  const continuation = status.closeout_continuation;
-  assert.equal(continuation.schema_version, CLOSEOUT_WORKFLOW_CONTINUATION_SCHEMA_VERSION);
-  assert.equal(continuation.advisory, true);
-  assert.equal(continuation.grants_authority, false);
-  assert.equal(continuation.decision_required, false);
-  assert.deepEqual(continuation.ordered_steps.map(({ action, state }) => [action, state]), [
-    ["findings_only_slice_review", "current"],
-    ["coordinator_disposition", "conditional"],
-    ["workspace_integrate_committed_slice", "pending"],
-    ["resume_original_worker_monitor", "pending"]
-  ]);
-  assert.deepEqual(continuation.current_safe_call, {
-    tool: "workspace_agent_dispatch",
-    arguments: { role: "reviewer", subject: SUBJECT },
-    source: "trusted_lifecycle"
-  });
-});
-
-test("awaiting exact review never reads historical findings and always returns static guidance", async () => {
-  const historicalShapes = [
-    null,
-    { outcome: "clean", findings: [] },
-    { outcome: "changes_requested", findings: [{ severity: "critical", blocking: true }] },
-    { outcome: null, findings: "schema-invalid" },
-    new Error("receipt store unavailable")
-  ];
-  let evidenceReads = 0;
-  let expected = null;
-
-  for (const shape of historicalShapes) {
-    const fixture = parkedFixture(() => {
-      evidenceReads += 1;
-      if (shape instanceof Error) throw shape;
-      return shape;
-    });
-    const status = await parkedStatusWait(fixture);
-    expected ??= status.closeout_continuation;
-    assert.deepEqual(status.closeout_continuation, expected);
-    assert.equal(status.closeout_continuation.stage, "slice_review_required");
-  }
-  assert.equal(evidenceReads, 0,
-    "status/wait must not consult findings, receipts, results, or provenance at this boundary");
-});
-
-test("a finalized terminal-slice worker promotes the trusted terminal-review dispatch", async () => {
-  const harness = createResumableLifecycleHarness({ sliceReviewAccepted: true });
-  const tools = createDispatchToolRegistry({
-    backend: {
-      getRunStatus: async () => harness.status,
-      waitForRunStatus: async () => harness.status,
-      runPostWorkerSliceLifecycle: harness.invoke
-    }
-  });
-  const response = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
-    monitor_handle: HANDLE,
-    subject: SUBJECT
-  }));
-
-  assert.equal(response.terminal, true);
-  assert.equal(response.closeout_continuation.stage, "terminal_whole_wk_review_required");
-  assert.deepEqual(response.closeout_continuation.current_safe_call, {
-    tool: "workspace_agent_dispatch",
-    arguments: { role: "reviewer", subject: "WK-1537#SLICE-003" },
-    source: "trusted_lifecycle"
-  });
-  assert.equal(response.closeout_continuation.ordered_steps[2].state, "pending");
-});
-
-function finalizedWholeWkFixture({ canonicalWorkKind = null, perturbLifecycle = null } = {}) {
-  const harness = createResumableLifecycleHarness({ sliceReviewAccepted: true });
-  if (canonicalWorkKind !== null) {
-    const resolveCanonicalReviewUnit = harness.deps.resolveCanonicalReviewUnit;
-    harness.deps.resolveCanonicalReviewUnit = (args) => ({
-      ...resolveCanonicalReviewUnit(args),
-      review_unit_contract: JSON.stringify({ work_kind: canonicalWorkKind })
-    });
-  }
+function managedWorkerFixture({ integrationFailures = 0, perturbLifecycle = null } = {}) {
+  const harness = createResumableLifecycleHarness({ integrationFailures });
+  const observed = { evidenceReads: 0, publicationReads: 0, forbiddenEffects: 0 };
+  const forbidden = async () => { observed.forbiddenEffects += 1; };
   const tools = createDispatchToolRegistry({
     backend: {
       getRunStatus: async () => harness.status,
@@ -138,300 +23,251 @@ function finalizedWholeWkFixture({ canonicalWorkKind = null, perturbLifecycle = 
       runPostWorkerSliceLifecycle: async (request) => {
         const lifecycle = await harness.invoke(request);
         return perturbLifecycle === null ? lifecycle : perturbLifecycle(lifecycle);
-      }
+      },
+      resolveSliceReviewEvidenceSet: async () => { observed.evidenceReads += 1; return null; },
+      resolveTerminalReviewPublicationState: async () => {
+        observed.publicationReads += 1;
+        return null;
+      },
+      requestCommittedSliceIntegration: forbidden,
+      startLaunch: forbidden,
+      startAdvisoryReview: forbidden
     }
   });
-  return async (tool) => parseStructuredTextResponse(await tools.get(tool).handler({
-    monitor_handle: HANDLE,
-    subject: SUBJECT
-  }));
+  const call = async (extra = {}) => parseStructuredTextResponse(
+    await tools.get("workspace_agent_run_status").handler({ subject: SUBJECT, ...extra })
+  );
+  return { harness, call, observed };
 }
 
-function withDispatchedRole(lifecycle, role) {
-  const { role: _planned, ...rest } = lifecycle.reviewer_dispatch.args;
-  return {
-    ...lifecycle,
-    reviewer_dispatch: {
-      ...lifecycle.reviewer_dispatch,
-      args: role === undefined ? rest : { ...rest, role }
-    }
-  };
-}
+test("a finalized managed worker publishes no lifecycle closeout continuation", async () => {
+  const fixture = managedWorkerFixture();
+  const status = await fixture.call();
+  const wait = await fixture.call({ timeout_ms: 1 });
 
-function withPlannedClosure(lifecycle, closurePlan) {
-  return {
-    ...lifecycle,
-    reviewer_dispatch: {
-      ...lifecycle.reviewer_dispatch,
-      closure_plan: { ...lifecycle.reviewer_dispatch.closure_plan, ...closurePlan }
-    }
-  };
-}
-
-test("a canonical redteam whole-WK unit keeps its trusted redteam role through closeout continuation", async () => {
-  const call = finalizedWholeWkFixture({ canonicalWorkKind: "redteam" });
-  const status = await call("workspace_agent_run_status");
-  const wait = await call("workspace_agent_run_wait");
-
-  assert.deepEqual(wait.closeout_continuation, status.closeout_continuation);
-  const continuation = status.closeout_continuation;
-  assert.equal(continuation.stage, "terminal_whole_wk_review_required");
-  assert.equal(continuation.advisory, true);
-  assert.equal(continuation.grants_authority, false);
-  assert.equal(continuation.decision_required, false);
-  assert.deepEqual(continuation.ordered_steps.map(({ order, action, state }) => [order, action, state]), [
-    [1, "terminal_whole_wk_review", "current"],
-    [2, "coordinator_disposition", "conditional"],
-    [3, "workspace_wk_forge_handoff", "pending"]
-  ]);
-  assert.deepEqual(continuation.current_safe_call, {
-    tool: "workspace_agent_dispatch",
-    arguments: { role: "redteam", subject: "WK-1537#SLICE-003" },
-    source: "trusted_lifecycle"
-  });
-});
-
-test("an ordinary canonical findings whole-WK unit still keeps its trusted reviewer role", async () => {
-  for (const canonicalWorkKind of [null, "review"]) {
-    const call = finalizedWholeWkFixture({ canonicalWorkKind });
-    const status = await call("workspace_agent_run_status");
-    const wait = await call("workspace_agent_run_wait");
-
-    assert.deepEqual(wait.closeout_continuation, status.closeout_continuation);
-    assert.equal(status.closeout_continuation.stage, "terminal_whole_wk_review_required",
-      String(canonicalWorkKind));
-    assert.deepEqual(status.closeout_continuation.current_safe_call, {
-      tool: "workspace_agent_dispatch",
-      arguments: { role: "reviewer", subject: "WK-1537#SLICE-003" },
-      source: "trusted_lifecycle"
-    }, String(canonicalWorkKind));
+  for (const response of [status, wait]) {
+    assert.equal(response.terminal, true);
+    assert.equal(response.slice_lifecycle.phase, "finalized");
+    assert.equal(response.slice_lifecycle.integrated, true);
+    assert.equal(response.slice_lifecycle.wk_transitioned_to_review, true);
+    assert.equal(response.slice_lifecycle.reviewer_dispatch, undefined);
+    assert.equal(response.slice_lifecycle.slice_review, undefined);
+    assert.equal(response.closeout_continuation, undefined);
   }
+  assert.deepEqual(fixture.observed, { evidenceReads: 0, publicationReads: 0, forbiddenEffects: 0 });
+  assert.equal(fixture.harness.counts().reviewSeamCalls, 0);
 });
 
-test("worker, unknown, absent, and plan-mismatched whole-WK roles expose no dispatch call", async () => {
-  const cases = [
-    ["worker", (lifecycle) => withDispatchedRole(lifecycle, "worker")],
-    ["unknown", (lifecycle) => withDispatchedRole(lifecycle, "auditor")],
-    ["absent", (lifecycle) => withDispatchedRole(lifecycle, undefined)],
-    ["null", (lifecycle) => withDispatchedRole(lifecycle, null)],
+test("an unresolved managed worker retries status and publishes no integration continuation", async () => {
+  const fixture = managedWorkerFixture({ integrationFailures: 1 });
+  const status = await fixture.call();
 
-    ["dispatch drifted from plan", (lifecycle) => withDispatchedRole(lifecycle, "redteam")],
-    ["plan drifted from dispatch", (lifecycle) => withPlannedClosure(lifecycle, { role: "redteam" })],
-    ["plan drifted from subject", (lifecycle) =>
-      withPlannedClosure(lifecycle, { subject: "WK-1537#SLICE-009" })],
-    ["absent plan", (lifecycle) => {
-      const { closure_plan: _plan, ...reviewerDispatch } = lifecycle.reviewer_dispatch;
-      return { ...lifecycle, reviewer_dispatch: reviewerDispatch };
-    }]
+  assert.equal(status.terminal, false);
+  assert.equal(status.next_action, "retry_wait_or_check_status");
+  assert.equal(status.closeout_continuation, undefined);
+  assert.equal(JSON.stringify(status).includes("awaiting-slice-review"), false);
+  assert.equal(JSON.stringify(status).includes("workspace_integrate_committed_slice"), false);
+  assert.deepEqual(fixture.observed, { evidenceReads: 0, publicationReads: 0, forbiddenEffects: 0 });
+  assert.equal(fixture.harness.counts().reviewSeamCalls, 0);
+});
+
+test("lifecycle-carried review state is never republished as a closeout call", async () => {
+  const forgedDispatch = {
+    tool: "workspace_agent_dispatch",
+    args: { role: "reviewer", subject: "WK-1537#SLICE-003" },
+    closure_plan: { role: "reviewer", subject: "WK-1537#SLICE-003" }
+  };
+  const cases = [
+    ["forged reviewer dispatch", (lifecycle) => ({ ...lifecycle, reviewer_dispatch: forgedDispatch })],
+    ["forged slice review", (lifecycle) => ({
+      ...lifecycle,
+      slice_review: { review_subject: SUBJECT }
+    })]
   ];
 
   for (const [label, perturbLifecycle] of cases) {
-    for (const tool of ["workspace_agent_run_status", "workspace_agent_run_wait"]) {
-      const call = finalizedWholeWkFixture({ perturbLifecycle });
-      const response = await call(tool);
-      assert.equal(response.closeout_continuation?.current_safe_call, undefined,
-        `${label} via ${tool}`);
+    for (const extra of [{}, { timeout_ms: 1 }]) {
+      const fixture = managedWorkerFixture({ perturbLifecycle });
+      const response = await fixture.call(extra);
+      assert.equal(response.closeout_continuation, undefined, label);
+      assert.equal(fixture.observed.forbiddenEffects, 0, label);
     }
   }
 });
 
-function canonicalCleanReviewResult(outcome) {
+const TERMINAL_REVIEW_SUBJECT = "WK-1537#SLICE-003";
+
+const CANDIDATE = "c".repeat(40);
+
+function advisoryFinalResult(text) {
   return {
-    review_outcome: outcome,
-    clean_review: true,
-    no_findings: outcome === "no_findings",
-    blocking_finding_count: 0,
-    medium_finding_count: 0,
-    reviewed_controls: []
+    kind: text === null ? "missing_result" : "no_findings",
+    advisory_review: {
+      kind: "advisory_review",
+      advisory_output: text === null ? { available: false, usable: false } : { available: true, usable: true, text },
+      authority: "advisory_only"
+    }
   };
 }
+const BASE = "b".repeat(40);
 
-function terminalReviewerFixture({
-  reportedOutcome = "no_findings",
-  findingCounts = ZERO_FINDING_COUNTS,
-  reviewedControls = [],
+function terminalReviewStatus({
+  role = "reviewer",
   runStatus = "succeeded",
-  cleanupOnly = false,
-  retainedOutcome = "clean",
-  retainedReviewResult = undefined
+  finalResult,
+  reviewedTarget = { base_sha: BASE, reviewed_sha: CANDIDATE }
 } = {}) {
-  const canonicalReviewResult = retainedReviewResult === undefined
-    ? retainedOutcome === "clean" ? canonicalCleanReviewResult(reportedOutcome) : null
-    : retainedReviewResult;
   const status = {
     accepted: true,
     timed_out: false,
     run_id: "run-terminal-review",
     monitor_handle: "wkmh_terminal_review",
-    role: "reviewer",
-    subject: "WK-1537#SLICE-003",
+    role,
+    subject: TERMINAL_REVIEW_SUBJECT,
     status: runStatus,
     terminal: true,
     started_at: "2026-07-26T00:00:00.000Z",
     updated_at: "2026-07-26T00:01:00.000Z",
-    exit: runStatus === "succeeded" || cleanupOnly
-      ? { code: 0, signal: null }
-      : { code: 1, signal: null },
-    ...(cleanupOnly
-      ? {
-          launcher_conduit_terminal_failure: {
-            reason: "stdio_mcp_cleanup_failed",
-            cleanup_only: true
-          }
-        }
-      : {}),
-    final_result: {
-      structured_role_result: {
-        valid: true,
-        claims: {
-          reported_role: "reviewer",
-          reported_subject: "WK-1537#SLICE-003",
-          reported_outcome: reportedOutcome
-        },
-        finding_counts: findingCounts,
-        reviewed_controls: reviewedControls
-      }
-    }
+    exit: runStatus === "succeeded" ? { code: 0, signal: null } : { code: 1, signal: null },
+    final_result: finalResult ?? advisoryFinalResult("No findings.")
   };
+
+  if (reviewedTarget !== null) {
+    Object.defineProperty(status, "advisory_review_target", {
+      value: Object.freeze({ ...reviewedTarget }), enumerable: false
+    });
+  }
+  return status;
+}
+
+function currentPublicationState(overrides = {}) {
+  return {
+    binding: { canonical_wk_id: "WK-1537", candidate: CANDIDATE, base: BASE },
+    materialization: { candidate_root: "/launcher/owned/candidate" },
+    version_decision: { state: "selected" },
+    ...overrides
+  };
+}
+
+function terminalReviewerFixture({ status = terminalReviewStatus(), publication } = {}) {
+  const observed = { publicationReads: [], forbiddenEffects: 0 };
+  const forbidden = async () => { observed.forbiddenEffects += 1; };
   const tools = createDispatchToolRegistry({
     backend: {
       getRunStatus: async () => status,
       waitForRunStatus: async () => status,
-      resolveTerminalCandidatePublicationState: async () => ({
-        advisory_review_evidence: {
-          reviews: [{
-            run_id: status.run_id,
-            monitor_handle: status.monitor_handle,
-            terminal: true,
-            status: runStatus,
-            provenance_valid: true,
-            outcome: retainedOutcome,
-            review_result: canonicalReviewResult
-          }]
-        }
-      })
+      resolveTerminalReviewPublicationState: async (subject) => {
+        observed.publicationReads.push(subject);
+        return typeof publication === "function" ? publication() : publication;
+      },
+
+      requestCommittedSliceIntegration: forbidden,
+      withTerminalCandidateAdvanceExclusion: forbidden,
+      startLaunch: forbidden,
+      startAdvisoryReview: forbidden
     }
   });
-  return async (tool) => parseStructuredTextResponse(await tools.get(tool).handler({
-    monitor_handle: status.monitor_handle,
-    subject: status.subject
+  const call = async (tool, extra = {}) => parseStructuredTextResponse(await tools.get(tool).handler({
+    subject: status.subject,
+    ...extra
   }));
+  return { call, observed };
 }
 
-async function terminalStatusWait(call) {
+async function terminalStatusWait({ call }) {
   const status = await call("workspace_agent_run_status");
-  const wait = await call("workspace_agent_run_wait");
+  const wait = await call("workspace_agent_run_status", { timeout_ms: 1 });
   assert.deepEqual(wait.closeout_continuation, status.closeout_continuation);
   return status;
 }
 
-test("every accepted canonical clean outcome recommends launcher-owned forge handoff with status/wait parity", async () => {
-  for (const reportedOutcome of [
-    "no_findings",
-    "passed_no_blocking_or_medium_findings"
-  ]) {
-    const findingCounts = reportedOutcome === "no_findings"
-      ? ZERO_FINDING_COUNTS
-      : { ...ZERO_FINDING_COUNTS, total: 1, low: 1 };
-    const status = await terminalStatusWait(terminalReviewerFixture({
-      reportedOutcome,
-      findingCounts
-    }));
-    assert.equal(status.closeout_continuation.decision_required, false, reportedOutcome);
-    assert.deepEqual(status.closeout_continuation.current_safe_call, {
-      tool: "workspace_wk_forge_handoff",
-      arguments: { assigned_unit: "WK-1537" },
-      source: "trusted_terminal_review_state"
-    });
-  }
-});
-
-test("terminal-review findings remain advisory and do not suppress forge handoff", async () => {
-  const call = terminalReviewerFixture({
-    reportedOutcome: "changes_requested",
-    findingCounts: {
-      ...ZERO_FINDING_COUNTS,
-      total: 1,
-      blocking: 1,
-      high: 1
-    },
-    retainedOutcome: "changes_requested"
-  });
-  const status = await terminalStatusWait(call);
-
-  assert.equal(status.closeout_continuation.decision_required, true);
-  assert.equal(status.closeout_continuation.decision_reason,
-    "canonical_review_changes_requested");
-  assert.deepEqual(status.closeout_continuation.current_safe_call, {
+const EXPECTED_FORGE_CONTINUATION = Object.freeze({
+  schema_version: CLOSEOUT_WORKFLOW_CONTINUATION_SCHEMA_VERSION,
+  advisory: true,
+  authority: "none",
+  grants_authority: false,
+  stage: "forge_handoff_ready",
+  decision_required: true,
+  decision_reason: "terminal_review_disposition_outstanding",
+  ordered_steps: [
+    { order: 1, action: "terminal_whole_wk_review", state: "complete" },
+    { order: 2, action: "coordinator_disposition", state: "required" },
+    { order: 3, action: "workspace_wk_forge_handoff", state: "current" }
+  ],
+  current_safe_call: {
     tool: "workspace_wk_forge_handoff",
     arguments: { assigned_unit: "WK-1537" },
-    source: "trusted_terminal_review_state"
-  });
-  assert.equal(status.closeout_continuation.ordered_steps[1].state, "required");
-  assert.equal(status.closeout_continuation.ordered_steps[2].state, "current");
-});
-
-test("a failed non-cleanup terminal reviewer cannot recommend forge handoff", async () => {
-  const status = await terminalStatusWait(terminalReviewerFixture({
-    runStatus: "failed",
-    retainedOutcome: null,
-    retainedReviewResult: null
-  }));
-  assert.equal(status.closeout_continuation, undefined);
-});
-
-test("an eligible cleanup-only terminal reviewer preserves the canonical clean recommendation", async () => {
-  const status = await terminalStatusWait(terminalReviewerFixture({
-    runStatus: "failed",
-    cleanupOnly: true
-  }));
-  assert.equal(status.closeout_continuation.stage, "forge_handoff_ready");
-  assert.equal(status.closeout_continuation.current_safe_call.tool,
-    "workspace_wk_forge_handoff");
-});
-
-test("a failed reviewed control cannot recommend forge handoff", async () => {
-  const status = await terminalStatusWait(terminalReviewerFixture({
-    reviewedControls: [{ control_id: "write_scope_total_loc", result: "fail" }],
-    retainedOutcome: null,
-    retainedReviewResult: null
-  }));
-  assert.equal(status.closeout_continuation, undefined);
-});
-
-test("malformed, incomplete, null, or canonically ineligible terminal outcomes fail closed", async () => {
-  const cases = [
-    { retainedOutcome: null, retainedReviewResult: null },
-    { retainedOutcome: "invalid", retainedReviewResult: null },
-    { retainedOutcome: "clean", retainedReviewResult: null },
-    { retainedOutcome: "clean", retainedReviewResult: {} },
-    {
-      retainedOutcome: "clean",
-      retainedReviewResult: {
-        review_outcome: "no_findings",
-        clean_review: true
-      }
-    },
-    {
-      retainedOutcome: "clean",
-      retainedReviewResult: {
-        ...canonicalCleanReviewResult("no_findings"),
-        reviewed_controls: ["write_scope_total_loc", "write_scope_total_loc"]
-      }
-    },
-    { retainedOutcome: "changes_requested", retainedReviewResult: {} }
-  ];
-  for (const testCase of cases) {
-    const status = await terminalStatusWait(terminalReviewerFixture(testCase));
-    assert.equal(status.closeout_continuation, undefined, JSON.stringify(testCase));
+    source: "trusted_terminal_candidate_state"
   }
 });
 
-test("incomplete child finding counts cannot override a null retained canonical outcome", async () => {
-  const status = await terminalStatusWait(terminalReviewerFixture({
-    findingCounts: { blocking: 0, medium: 0 },
-    retainedOutcome: null,
-    retainedReviewResult: null
-  }));
-  assert.equal(status.closeout_continuation, undefined);
+test("a finished terminal review advertises forge handoff regardless of findings, outcome, or material, and labels review completion from bound material", async () => {
+  const outcomes = [
+    ["clean text", terminalReviewStatus(), "complete"],
+    ["critical findings text", terminalReviewStatus({
+      finalResult: advisoryFinalResult("CRITICAL: blocking defect.")
+    }), "complete"],
+    ["schema-nonadherent text", terminalReviewStatus({
+      finalResult: advisoryFinalResult("```agent-role-result.v1\n{not json")
+    }), "complete"],
+    ["failed run without result", terminalReviewStatus({
+      runStatus: "failed", finalResult: advisoryFinalResult(null)
+    }), "not_established"],
+    ["redteam role", terminalReviewStatus({ role: "redteam" }), "complete"],
+    ["different explicit SHA range on the terminal subject",
+      terminalReviewStatus({ reviewedTarget: { base_sha: BASE, reviewed_sha: "d".repeat(40) } }),
+      "not_established"],
+    ["candidate reviewed against another base",
+      terminalReviewStatus({ reviewedTarget: { base_sha: "e".repeat(40), reviewed_sha: CANDIDATE } }),
+      "not_established"],
+    ["no bound material observation", terminalReviewStatus({ reviewedTarget: null }), "not_established"]
+  ];
+  for (const [label, status, reviewStep] of outcomes) {
+    const fixture = terminalReviewerFixture({ status, publication: currentPublicationState() });
+    const observed = await terminalStatusWait(fixture);
+    const expected = structuredClone(EXPECTED_FORGE_CONTINUATION);
+    expected.ordered_steps[0].state = reviewStep;
+    assert.deepEqual(observed.closeout_continuation, expected, label);
+    assert.equal(JSON.stringify(observed).includes("advisory_review_target"), false,
+      `${label}: the bound-material observation is never published`);
+    assert.deepEqual(fixture.observed.publicationReads,
+      [TERMINAL_REVIEW_SUBJECT, TERMINAL_REVIEW_SUBJECT], label);
+    assert.equal(fixture.observed.forbiddenEffects, 0, `${label}: guidance performs no action`);
+  }
+});
+
+test("forge guidance fails closed without current authenticated candidate publication state", async () => {
+  const cases = [
+    ["unpublished or not the designated terminal subject", null],
+    ["superseded version", currentPublicationState({ version_decision: { state: "superseded" } })],
+    ["version decision absent", currentPublicationState({ version_decision: undefined })],
+    ["candidate for another WK", currentPublicationState({
+      binding: { canonical_wk_id: "WK-9999", candidate: "c".repeat(40), base: "b".repeat(40) }
+    })],
+    ["authentication refusal", () => {
+      const error = new Error("terminal candidate checkout drifted");
+      error.code = "agent_launch.terminal_review_materialization.verify_failed.v1";
+      throw error;
+    }]
+  ];
+  for (const [label, publication] of cases) {
+    const fixture = terminalReviewerFixture({ publication });
+    const observed = await terminalStatusWait(fixture);
+    assert.equal(observed.closeout_continuation, undefined, label);
+    assert.equal(fixture.observed.forbiddenEffects, 0, label);
+  }
+});
+
+test("worker, nonterminal, and non-slice statuses never read forge publication state", async () => {
+  const cases = [
+    ["worker", { ...terminalReviewStatus(), role: "worker" }],
+    ["nonterminal reviewer", { ...terminalReviewStatus(), status: "running", terminal: false }],
+    ["whole-WK subject", { ...terminalReviewStatus(), subject: "WK-1537" }]
+  ];
+  for (const [label, status] of cases) {
+    const fixture = terminalReviewerFixture({ status, publication: currentPublicationState() });
+    const observed = await fixture.call("workspace_agent_run_status");
+    assert.equal(observed.closeout_continuation, undefined, label);
+    assert.deepEqual(fixture.observed.publicationReads, [], label);
+  }
 });

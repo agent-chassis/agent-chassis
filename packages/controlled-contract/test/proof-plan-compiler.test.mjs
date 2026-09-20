@@ -16,9 +16,8 @@ import { inspectProofPackBindings } from
   "../lib/proof-pack-binding-assistance.mjs";
 import { canonicalJson } from "../lib/contract-assessment.mjs";
 import { validateProofPlan } from "../lib/multi-pack-assessment.mjs";
-import { migrateControlledAcceptanceContractV02ToV1 } from
-  "../lib/stable-v1-migration.mjs";
 import { buildProofPlanFixture } from "./proof-plan-fixture.mjs";
+import { TEST_PROOF_PROVIDER_CATALOG } from "../lib/test-proof-provider-registry.mjs";
 import { buildRefusalBeforeEffectsFixture } from
   "./proof-packs/refusal-before-effects-fixture.mjs";
 import { buildRetryConvergenceFixture } from
@@ -31,7 +30,7 @@ import { buildStableTestProofPopulation } from
 function stabilizeFixture(value) {
   const fixture = structuredClone(value);
   fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
-  fixture.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixture.input.input_version = "controlled-contract-verification-profile-input.v2";
   fixture.input.stable_evaluation = {};
   return fixture;
 }
@@ -44,12 +43,12 @@ const childEnvironment = () => {
 };
 const V1 = {
   profile_id: "proof.authorization.refusal-before-effects",
-  profile_version: "2.0.0"
+  profile_version: "3.0.0"
 };
 const V1_INTENT = "controlled-proof-intent.refusal-before-effects";
 const V2 = {
   profile_id: "proof.dormancy.nonactivation",
-  profile_version: "2.0.0"
+  profile_version: "3.0.0"
 };
 const V2_INTENT = "controlled-proof-intent.dormancy-nonactivation";
 
@@ -62,27 +61,27 @@ function request(intents, packs) {
 }
 
 async function testValidityFixture() {
-  const [base, input] = await Promise.all([
-    readFile(new URL("../examples/minimal-controlled-acceptance-contract-v034.json",
+  const [base, template] = await Promise.all([
+    readFile(new URL("../examples/minimal-controlled-acceptance-contract.v1.json",
       import.meta.url), "utf8").then(JSON.parse),
     readFile(new URL(
-      "../profiles/proof.verification.test-validity/1.0.0/evaluation-input.template.json",
+      "../profiles/proof.verification.test-validity/5.0.0/evaluation-input.template.json",
       import.meta.url), "utf8").then(JSON.parse)
   ]);
+
+  const input = { ...template.stable_evaluation.test_validity[0] };
   input.verification_id = "claim-suite-covers-component";
   input.test_proof_id = "test-proof-suite-covers-component";
-  input.evaluation_stage = "pre_dispatch";
   input.falsifier_executions[0].failure_proposition_id = "prop-component-absent";
   input.falsifier_executions[0].mutation.target_verification_id = input.verification_id;
   const modulePath = "packages/controlled-contract/lib/test-proof-contract.mjs";
   const provider = (provider_id, capability) => ({
-    provider_id, provider_version: "1.0.0", capability
+    provider_id, capability, provider_version: TEST_PROOF_PROVIDER_CATALOG.providers.find(
+      ({ provider_id: id }) => id === provider_id).provider_version
   });
-  const { input_version: _inputVersion, evaluation_stage, ...testValidity } = input;
+  const testValidity = input;
   return {
-    contract: migrateControlledAcceptanceContractV02ToV1({
-      contract: base,
-      testProofs: [{
+    contract: ({ ...base, test_proofs: [{
         test_proof_id: input.test_proof_id,
         verification_claim_id: input.verification_id,
         system_under_test_boundary: {
@@ -112,19 +111,13 @@ async function testValidityFixture() {
           observation_seam: "node_test_structured_assertion",
           evidence_artifact_type: "boundary_trace"
         },
-        coverage_disposition: {
-          baseline_id: "coverage-baseline-package-suite",
-          baseline_state: "complete_executed_inventory",
-          items: input.test_inventory.declared_test_ids.map((test_id) => ({
-            test_id, disposition: "preserved"
-          }))
-        },
+        test_selector: { name: "package result is returned for the covered component",
+          nesting: 0 },
         prohibited_shortcuts: ["source_text_inspection"]
       }]
     }),
     input: {
-      input_version: "controlled-contract-verification-profile-input.v1",
-      evaluation_stage,
+      input_version: "controlled-contract-verification-profile-input.v2",
       reference_bindings: [
         { role: "component", reference_ids: ["ref-component"] },
         { role: "suite", reference_ids: ["ref-suite"] }
@@ -246,14 +239,14 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
       contract: fixture.contract,
       request: request(["controlled-proof-intent.test-verification-validity"], [{
         profile_id: "proof.verification.test-validity",
-        profile_version: "2.0.0",
+        profile_version: "5.0.0",
         evaluation_input_path: evaluationPath
       }]),
       evaluationInputs: { [evaluationPath]: fixture.input }
     });
     assert.equal(plan.packs[0].profile_id, "proof.verification.test-validity");
     assert.equal(validateProofPlan(plan), true);
-    assert.equal(fixture.input.evaluation_stage, "pre_dispatch");
+
     assert.equal(Object.hasOwn(
       fixture.contract.test_proofs[0], "runtime_test_selection"), false);
     await assert.rejects(() => buildProofPlan({
@@ -270,57 +263,13 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
       contract: partial,
       request: request(["controlled-proof-intent.test-verification-validity"], [{
         profile_id: "proof.verification.test-validity",
-        profile_version: "2.0.0",
+        profile_version: "5.0.0",
         evaluation_input_path: evaluationPath
       }]),
       evaluationInputs: { [evaluationPath]: fixture.input }
     }), (error) => error.code === "proof_plan_compiler_contract_invalid" &&
       error.details.diagnostics.diagnostics.length > 0);
   });
-
-test("compiler reproduces exact-binding digests and paths without placeholders", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-compiler-v2-"));
-  try {
-    const fixture = stabilizeFixture(
-      buildDormancyNonactivationFixture({ domain: "compiler" }));
-    const sources = dormancySources(fixture);
-    const contractPath = path.join(root, "contract.json");
-    const evaluationPath = path.join(root, "evaluation.json");
-    await Promise.all([
-      writeFile(contractPath, canonicalJson(fixture.contract)),
-      writeFile(evaluationPath, canonicalJson(fixture.input))
-    ]);
-    const expected = await buildProofPlanFixture({
-      contractPath,
-      packs: [{
-        profileId: V2.profile_id,
-        requestedIntents: [V2_INTENT],
-        evaluationInputPath: evaluationPath,
-        captureRoot: root,
-        exactBindingSources: sources
-      }]
-    });
-    const actual = await buildProofPlan({
-      contract: fixture.contract,
-      request: request([V2_INTENT], [{
-        ...V2,
-        evaluation_input_path: evaluationPath,
-        exact_capture: {
-          capture_root: root,
-          contract_path: "contract.json",
-          evaluation_input_path: "evaluation.json",
-          sources
-        }
-      }]),
-      evaluationInputs: { [evaluationPath]: fixture.input }
-    });
-    assert.deepEqual(actual, expected);
-    assert.match(actual.packs[0].source_digests.exact_binding_sources,
-      /^[0-9a-f]{64}$/u);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
 
 test("property, intent, pack, and binding-map order cannot change output bytes", async () => {
   const refusal = namespaceFixture(stabilizeFixture(buildRefusalBeforeEffectsFixture()), "refusal");
@@ -334,7 +283,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
       V1_INTENT, "controlled-proof-intent.retry-convergence"
     ], [{ ...V1, evaluation_input_path: refusalPath }, {
       profile_id: "proof.failure.retry-convergence",
-      profile_version: "2.0.0",
+      profile_version: "3.0.0",
       evaluation_input_path: retryPath
     }]),
     evaluationInputs: {
@@ -350,7 +299,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
     request: {
       selected_packs: [{
         evaluation_input_path: retryPath,
-        profile_version: "2.0.0",
+        profile_version: "3.0.0",
         profile_id: "proof.failure.retry-convergence"
       }, { evaluation_input_path: refusalPath, ...V1 }],
       requested_intents: [
@@ -383,7 +332,7 @@ test("request rejects digest substitution, duplicates, stale and unadmitted pack
   }]), expectCode("proof_plan_request_pack_version_stale"));
   await assert.rejects(() => compile([{
     profile_id: "proof.unadmitted.near-match",
-    profile_version: "2.0.0",
+    profile_version: "3.0.0",
     evaluation_input_path: inputPath
   }]), expectCode("proof_plan_request_pack_unadmitted"));
 });
@@ -406,14 +355,14 @@ test("omitted, uncovered, mismatched, and ambiguous intent assignments fail clos
   }), expectCode("proof_plan_request_schema_invalid"));
   await assert.rejects(() => buildProofPlan(compilerInput([V1_INTENT], [{
     profile_id: "proof.failure.retry-convergence",
-    profile_version: "2.0.0",
+    profile_version: "3.0.0",
     evaluation_input_path: inputPath
   }])), expectCode("proof_plan_request_selection_incomplete"));
   await assert.rejects(() => buildProofPlan(compilerInput([
     "controlled-proof-intent.protected-effect-nonmutation"
   ], [{ ...V1, evaluation_input_path: inputPath }, {
     profile_id: "proof.state.bounded-interval-nonmutation",
-    profile_version: "2.0.0",
+    profile_version: "3.0.0",
     evaluation_input_path: "bounded.json"
   }])), (error) => expectCode("proof_plan_request_selection_incomplete")(error) &&
     error.details.diagnostics[0].code === "proof_plan_request_intent_ambiguous");
@@ -427,7 +376,7 @@ test("swapped or invalid evaluation inputs fail before a plan is emitted", async
   const retryPath = "retry.json";
   const selected = [{ ...V1, evaluation_input_path: refusalPath }, {
     profile_id: "proof.failure.retry-convergence",
-    profile_version: "2.0.0",
+    profile_version: "3.0.0",
     evaluation_input_path: retryPath
   }];
   await assert.rejects(() => buildProofPlan({
@@ -442,68 +391,6 @@ test("swapped or invalid evaluation inputs fail before a plan is emitted", async
     "proof_plan_request_evaluation_input_invalid",
     "proof_pack_binding_evaluation_input_invalid"
   ].includes(error.code));
-});
-
-test("missing exact caller inputs are all reported with stable typed diagnostics", async () => {
-  const fixture = stabilizeFixture(
-    buildDormancyNonactivationFixture({ domain: "missing" }));
-  await assert.rejects(() => buildProofPlan({
-    contract: fixture.contract,
-    request: request([V2_INTENT], [{ ...V2, exact_capture: {} }])
-  }), (error) => expectCode("proof_plan_request_missing_inputs")(error) &&
-    assert.deepEqual(error.details.diagnostics.map(({ code }) => code), [
-      "proof_plan_request_evaluation_input_path_missing",
-      "proof_plan_request_exact_capture_root_missing",
-      "proof_plan_request_exact_contract_path_missing",
-      "proof_plan_request_exact_evaluation_input_path_missing",
-      "proof_plan_request_exact_sources_missing"
-    ]) === undefined);
-  await assert.rejects(() => buildProofPlan({
-    contract: fixture.contract,
-    request: request([V2_INTENT], [{ ...V2 }])
-  }), (error) => expectCode("proof_plan_request_missing_inputs")(error) &&
-    error.details.diagnostics.some(({ code }) =>
-      code === "proof_plan_request_exact_sources_missing"));
-});
-
-test("exact path escape and exact-source swaps are mechanically visible", async () => {
-  const fixture = stabilizeFixture(
-    buildDormancyNonactivationFixture({ domain: "exact-swap" }));
-  const evaluationPath = "/capture/evaluation.json";
-  const sources = dormancySources(fixture);
-  const build = (exactCapture) => buildProofPlan({
-    contract: fixture.contract,
-    request: request([V2_INTENT], [{
-      ...V2, evaluation_input_path: evaluationPath, exact_capture: exactCapture
-    }]),
-    evaluationInputs: { [evaluationPath]: fixture.input }
-  });
-  await assert.rejects(() => build({
-    capture_root: "/capture",
-    contract_path: "../contract.json",
-    evaluation_input_path: "evaluation.json",
-    sources
-  }), expectCode("proof_plan_request_exact_path_invalid"));
-  const first = await build({
-    capture_root: "/capture",
-    contract_path: "contract.json",
-    evaluation_input_path: "evaluation.json",
-    sources
-  });
-  const swapped = structuredClone(sources);
-  [swapped["activation-observation-artifact"].relative_path,
-    swapped["default-configuration-artifact"].relative_path] = [
-    swapped["default-configuration-artifact"].relative_path,
-    swapped["activation-observation-artifact"].relative_path
-  ];
-  const second = await build({
-    capture_root: "/capture",
-    contract_path: "contract.json",
-    evaluation_input_path: "evaluation.json",
-    sources: swapped
-  });
-  assert.notEqual(first.packs[0].source_digests.exact_binding_sources,
-    second.packs[0].source_digests.exact_binding_sources);
 });
 
 test("file compiler binds relative request paths and CLI emits the same canonical plan", async () => {
@@ -548,36 +435,6 @@ test("CLI help exposes only genuine caller choices and explicit non-selection", 
   assert.doesNotMatch(stdout, /--catalog|--profile-path|--output/u);
 });
 
-test("file compiler rejects exact capture identities that do not bind its files", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-path-conflict-"));
-  try {
-    const fixture = stabilizeFixture(
-      buildDormancyNonactivationFixture({ domain: "path-conflict" }));
-    const contractPath = path.join(root, "contract.json");
-    const evaluationPath = path.join(root, "evaluation.json");
-    const requestPath = path.join(root, "request.json");
-    await Promise.all([
-      writeFile(contractPath, canonicalJson(fixture.contract)),
-      writeFile(evaluationPath, canonicalJson(fixture.input)),
-      writeFile(requestPath, canonicalJson(request([V2_INTENT], [{
-        ...V2,
-        evaluation_input_path: "evaluation.json",
-        exact_capture: {
-          capture_root: ".",
-          contract_path: "other-contract.json",
-          evaluation_input_path: "evaluation.json",
-          sources: dormancySources(fixture)
-        }
-      }])))
-    ]);
-    await assert.rejects(() => buildProofPlanFiles({
-      inputPath: contractPath, requestPath
-    }), expectCode("proof_plan_request_exact_contract_path_conflict"));
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
 test("compiler rejects caller substrate overrides and bounds malformed requests", async () => {
   const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   await assert.rejects(() => buildProofPlan({
@@ -591,31 +448,6 @@ test("compiler rejects caller substrate overrides and bounds malformed requests"
     contract: fixture.contract,
     request: request(excessive, [])
   }), expectCode("proof_plan_request_schema_invalid"));
-});
-
-test("schema-valid exact-source expansion fails the canonical plan byte bound", async () => {
-  const fixture = stabilizeFixture(
-    buildDormancyNonactivationFixture({ domain: "size-bound" }));
-  const evaluationPath = "/capture/evaluation.json";
-  const sources = dormancySources(fixture);
-  sources["extra-artifact"] = {
-    kind: "artifact_file",
-    relative_path: `extra/${"x".repeat(140_000)}.json`
-  };
-  await assert.rejects(() => buildProofPlan({
-    contract: fixture.contract,
-    request: request([V2_INTENT], [{
-      ...V2,
-      evaluation_input_path: evaluationPath,
-      exact_capture: {
-        capture_root: "/capture",
-        contract_path: "contract.json",
-        evaluation_input_path: "evaluation.json",
-        sources
-      }
-    }]),
-    evaluationInputs: { [evaluationPath]: fixture.input }
-  }), expectCode("compiled_proof_plan_too_large"));
 });
 
 test("compiler validates large contracts without materializing binding assistance", async () => {

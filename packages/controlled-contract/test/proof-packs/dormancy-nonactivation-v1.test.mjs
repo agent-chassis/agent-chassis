@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { assessExactBoundContractFiles, canonicalJson, writeAssessmentBundle }
+import { assessContractFiles, canonicalJson, writeAssessmentBundle }
   from "../../lib/contract-assessment.mjs";
 import { main as assessContractMain } from "../../bin/assess-contract.mjs";
 import { canonicalDigest, runProofPackAdequacy }
@@ -13,17 +13,19 @@ import { canonicalDigest, runProofPackAdequacy }
 import { buildDormancyNonactivationFixture }
   from "./dormancy-nonactivation-v1-fixture.mjs";
 import { buildProofPlanFixture } from "../proof-plan-fixture.mjs";
+import { buildStableTestProofPopulation } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const profileId = "proof.dormancy.nonactivation";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.dormancy.nonactivation/2.0.0");
+  "test/certification/profiles/proof.dormancy.nonactivation/3.0.0");
 
 async function subject() {
   const captureRoot = await mkdtemp(path.join(os.tmpdir(), "dormancy-exact-bound-"));
   const outputRoot = await mkdtemp(path.join(os.tmpdir(), "dormancy-assessment-output-"));
   const fixture = buildDormancyNonactivationFixture({ domain: "plugin-registry" });
+  fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
   const graphNodes = fixture.input.reference_bindings.find(
     ({ role }) => role === "graph_nodes").reference_ids;
   const sources = {
@@ -60,25 +62,21 @@ async function subject() {
   return { captureRoot, outputRoot, fixture, sources };
 }
 
-test("dormancy assessment joins admitted profile and exact captured sources", async () => {
+test("dormancy assessment joins the admitted profile with its evaluation input", async () => {
   const value = await subject();
   try {
-    const projected = await assessExactBoundContractFiles({
-      captureRoot: value.captureRoot,
-      contractPath: "contract.json",
+    const projected = await assessContractFiles({
+      inputPath: path.join(value.captureRoot, "contract.json"),
       profileId,
-      evaluationInputPath: "evaluation-input.json",
-      exactBindingSources: value.sources
+      evaluationInputPath: path.join(value.captureRoot, "evaluation-input.json")
     });
     assert.equal(projected.assessment.structure, "proven");
     assert.equal(projected.assessment.profile_discrimination, "proven");
-    assert.equal(projected.assessment.exact_binding, "proven");
     assert.equal(projected.assessment.assessment_scope, "planning");
     const bundle = await writeAssessmentBundle(projected, {
       repositoryRoot: value.outputRoot
     });
-    assert.equal(JSON.parse(await readFile(path.join(bundle.directory,
-      "exact-binding.full.json"), "utf8")).result.satisfaction, "satisfied");
+    assert.equal(typeof bundle.directory, "string");
 
     const contractPath = path.join(value.captureRoot, "contract.json");
     const proofPlanPath = path.join(value.captureRoot, "proof-plan.json");
@@ -87,9 +85,7 @@ test("dormancy assessment joins admitted profile and exact captured sources", as
       packs: [{
         profileId,
         requestedIntents: ["controlled-proof-intent.dormancy-nonactivation"],
-        evaluationInputPath: path.join(value.captureRoot, "evaluation-input.json"),
-        captureRoot: value.captureRoot,
-        exactBindingSources: value.sources
+        evaluationInputPath: path.join(value.captureRoot, "evaluation-input.json")
       }]
     });
     await writeFile(proofPlanPath, canonicalJson(proofPlan));
@@ -99,7 +95,6 @@ test("dormancy assessment joins admitted profile and exact captured sources", as
     ], { repositoryRoot: value.outputRoot });
     assert.equal(compact.structure, "proven");
     assert.equal(compact.profile_discrimination, "proven");
-    assert.equal(compact.exact_binding, "proven");
     assert.equal(compact.assessment_scope, "planning");
   } finally {
     await Promise.all([rm(value.captureRoot, { recursive: true, force: true }),
@@ -107,63 +102,7 @@ test("dormancy assessment joins admitted profile and exact captured sources", as
   }
 });
 
-test("omitted or substituted exact dormancy sources cannot produce proof", async () => {
-  const value = await subject();
-  try {
-    const omitted = structuredClone(value.sources);
-    delete omitted["activation-observation-artifact"];
-    const omittedResult = await assessExactBoundContractFiles({
-      captureRoot: value.captureRoot, contractPath: "contract.json", profileId,
-      evaluationInputPath: "evaluation-input.json", exactBindingSources: omitted
-    });
-    assert.equal(omittedResult.assessment.exact_binding, "not_proven");
-    assert.equal(omittedResult.assessment.profile_discrimination, "not_proven");
 
-    const substituted = structuredClone(value.sources);
-    substituted["production-reachability-snapshot"].snapshot.subject_reference_id =
-      "ref-unrelated-graph";
-    const substitutedResult = await assessExactBoundContractFiles({
-      captureRoot: value.captureRoot, contractPath: "contract.json", profileId,
-      evaluationInputPath: "evaluation-input.json", exactBindingSources: substituted
-    });
-    assert.equal(substitutedResult.assessment.exact_binding, "not_proven");
-    assert.equal(substitutedResult.assessment.profile_discrimination, "not_proven");
-  } finally {
-    await Promise.all([rm(value.captureRoot, { recursive: true, force: true }),
-      rm(value.outputRoot, { recursive: true, force: true })]);
-  }
-});
-
-test("dormancy requires distinct source descriptors without claiming filesystem provenance", async () => {
-  const value = await subject();
-  try {
-    const reused = structuredClone(value.sources);
-    reused["default-configuration-artifact"] = {
-      kind: "artifact_file", relative_path: "activation-observation.json"
-    };
-    const reusedResult = await assessExactBoundContractFiles({
-      captureRoot: value.captureRoot, contractPath: "contract.json", profileId,
-      evaluationInputPath: "evaluation-input.json", exactBindingSources: reused
-    });
-    assert.equal(reusedResult.assessment.exact_binding, "not_proven");
-    assert.equal(reusedResult.assessment.profile_discrimination, "not_proven");
-
-    const activationBytes = await readFile(
-      path.join(value.captureRoot, "activation-observation.json")
-    );
-    await writeFile(path.join(value.captureRoot, "default-configuration.json"),
-      activationBytes);
-    const distinctPaths = await assessExactBoundContractFiles({
-      captureRoot: value.captureRoot, contractPath: "contract.json", profileId,
-      evaluationInputPath: "evaluation-input.json", exactBindingSources: value.sources
-    });
-    assert.equal(distinctPaths.assessment.exact_binding, "proven");
-    assert.equal(distinctPaths.assessment.profile_discrimination, "proven");
-  } finally {
-    await Promise.all([rm(value.captureRoot, { recursive: true, force: true }),
-      rm(value.outputRoot, { recursive: true, force: true })]);
-  }
-});
 
 test("dormancy full-census admission binds every fixed negative and rebound witness", async () => {
   const fullCensus = await runProofPackAdequacy(certificationDirectory, {

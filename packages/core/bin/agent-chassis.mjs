@@ -6,6 +6,7 @@ if (command === "setup") {
   const { runSetup } = await import("../scripts/setup.mjs");
   await runSetup({ argv: commandArgs });
 } else {
-  process.stderr.write("Usage: agent-chassis setup [--agent claude|codex] [--dry-run]\n");
+  process.stderr.write("Usage: agent-chassis setup [--agent claude|codex] [--dry-run]\n" +
+    "       agent-chassis setup --test-runtimes [--runner <name>[@<project>]]... [--dry-run]\n");
   process.exitCode = 1;
 }

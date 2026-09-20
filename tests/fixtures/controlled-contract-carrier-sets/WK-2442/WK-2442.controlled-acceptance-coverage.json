@@ -1,0 +1,301 @@
+{
+  "schema_version": "wiki-core-controlled-contract-acceptance-coverage.v1",
+  "wk_id": "WK-2442",
+  "selected_unit": null,
+  "source_identity": {
+    "source_kind": "obligation-coverage",
+    "content_digest": "sha256:149ec60361c168e28aa757f9ceed5aee7a6b58876875ab5cd9a6e6d521d74dcc"
+  },
+  "source_bindings": {
+    "workRecordLocatorDigest": "sha256:909f6fea656e90322bd21dab52dce28ed176e9ebc4b25c4edb5a3548b5a94b4b",
+    "contractDigest": "sha256:f47595aa2038c7baa3df1b5c0ca67949514972fa3e6084e5a80158c704c6bfb3",
+    "contractNodeDigest": "sha256:6604c73d06abd162b618f121f1e017bed7ec8a7f240970680fbf9ae85171291d",
+    "proofPlanDigest": "sha256:53d38d5e8dec74b83f859a66db05d48ff2e36bdd619303d5e11220340eb089c1",
+    "selectedPackDigest": "sha256:37af8674a21585c7b3b2b98029eb6e914ea0fe7e0a6eed26dad3cbb82495cb55",
+    "assessmentDigest": null,
+    "proofAssessmentDigest": null,
+    "profileVersionDigest": "sha256:4ed7a366ad924ca1ba05b4633fcb350875afb14ad5359af0dbfbde5da809bb6e",
+    "selectorArtifactDigest": "sha256:246a3a354e6126f3159b041519f20a18d7cdf7a9801511aa1817e6a25af2fc89",
+    "ownershipDigest": "sha256:3c93f8c6e7ee59403b2987a0095df174165af71acfa86ec30886319ad42d85a1",
+    "verificationDigest": "sha256:8f5da43934d2f1a7aa33dc0e1afd96526203396d67cda53a52525c1701946445",
+    "optionalScopeDigest": null,
+    "sourceDigest": "sha256:149ec60361c168e28aa757f9ceed5aee7a6b58876875ab5cd9a6e6d521d74dcc",
+    "sourceKind": "obligation-coverage",
+    "mappingDigest": "sha256:de96a97aebb56eb5b207b850d5291cbeb59e065a82c472fcba192dcac7e2adfe"
+  },
+  "criterion_identities": {
+    "version": "acceptance-coverage-criterion-identity.v1",
+    "identities": [
+      {
+        "position": 0,
+        "text": "PURPOSE. Complement WK-2055 with a current quality-first verification of the landed proof-obligation and acceptance-mapping authoring tools. WK-2055 remains the canonical owner for comparative workflow measurement, reusable workflow reports, and regression-output artifacts. WK-2442 owns defining and validating whether an agent can complete the intended canonical task correctly and safely; do not optimize for a predetermined token, byte, or call ceiling.",
+        "identity": "derived:0b63940b682b06f6528395ff2d7fb3e010d7dbf28f91cda968c23769929d6b41",
+        "source": "derived"
+      },
+      {
+        "position": 1,
+        "text": "SUFFICIENT EVIDENCE, NOT MINIMUM OUTPUT. Tool output may use as many tokens as the task requires. Record calls, request bytes, result bytes, pages, continuations, and population denominators as diagnostic evidence. Treat volume as a defect only when payload is materially irrelevant, duplicated, misleading, not progressively disclosed, violates an advertised transport bound, or prevents reliable task completion.",
+        "identity": "derived:92f2f2609694095e3bb31a538314d379dfbe73c8849522beb9a92e1c91d0f1ae",
+        "source": "derived"
+      },
+      {
+        "position": 2,
+        "text": "TASK-OUTCOME RUBRIC. For obligation inventory, proof and obligation map inspection, acceptance-gap review, and mapping repair, assess semantic completeness, correctness, relevance, discoverability, schema callability, executable next calls, authority preservation, and final canonical-state verification. A compact response is not a pass if it omits necessary context; a large response is not a failure if its content is necessary and usable.",
+        "identity": "derived:5bd4af6445e03b6225d7833e3c1b926d2243f419b30ab53c284f4382b5b95906",
+        "source": "derived"
+      },
+      {
+        "position": 3,
+        "text": "STATE COVERAGE. Exercise current, absent, stale, invalid-selector, invalid-cursor, missing-contract, missing-proof-plan, multi-page, multi-row sequential mutation, and atomic batch states. Each nonterminal state must advance through an executable advertised call or give a precise no-agent-route blocker and operator action.",
+        "identity": "derived:b59e285eb2ee570afe7e573807a46fe1399baf97be0dce29e3d65c258e04d178",
+        "source": "derived"
+      },
+      {
+        "position": 4,
+        "text": "ROUTING AND PROGRESSIVE DISCLOSURE. Verify canonical task wording and natural-language variants, exact WK and four-digit slice preservation, describe-first discovery, bounded inline projections, lossless content-reference retrieval, and clear separation of server-fixed arguments from caller-authored semantic decisions.",
+        "identity": "derived:3e2deaef9e770193ab78964627ed7602777e25ee3d315a31b1961161063d371f",
+        "source": "derived"
+      },
+      {
+        "position": 5,
+        "text": "IMPLEMENTATION EXECUTION RECEIPTS. Verify every exercised mutation path returns authenticated continuation evidence sufficient to identify the operation, canonical unit and focus, before/after carrier identity or digest, effects, and the exact safe verification or continuation call. Sequential execution must consume the immediately prior receipt-derived state; batch execution must return an atomic outcome; a fresh coordinator session must be able to resume from canonical state and retained receipt authority without hidden process memory.",
+        "identity": "derived:40c2c20fbf509bfd404b71d159823ca82379f39abfe71265c0b31cf7a1dc364e",
+        "source": "derived"
+      },
+      {
+        "position": 6,
+        "text": "NO BLIND OR UNSAFE RECOVERY. Fail a workflow that requires an identical blind retry, generic source inspection, raw carrier editing, shell reconstruction, unsupported mutation, caller-invented authority, or a next-call template that cannot be invoked as returned after authored semantic fields are supplied.",
+        "identity": "derived:e507ca0108c179eb2eb06580d5d218ac67e28827e45f269351e1700a2de56105",
+        "source": "derived"
+      },
+      {
+        "position": 7,
+        "text": "COMPARATIVE EVIDENCE. Assess manual row-by-row, skeleton-assisted sequential, and atomic batch paths over equivalent fixtures only to substantiate the quality-first task-outcome rubric. Consume or link WK-2055's canonical comparative measurements and reusable reporting artifacts where available; do not duplicate its workflow-measurement or reporting ownership. Record only the finding-specific evidence needed to establish task success, unresolved semantic decisions, recovery convergence, receipt continuity, final-carrier equivalence, and concrete quality defects.",
+        "identity": "derived:8b198a23ac2b7dcdfe8abe9b89d3f8d507e22364e238d34c92168fbcc106336a",
+        "source": "derived"
+      },
+      {
+        "position": 8,
+        "text": "DURABLE OUTPUT. Update only the owning quality-rubric guidance and MCP operation documentation needed to keep task-outcome and receipt-continuation expectations discoverable after restart. WK-2055 remains owner of reusable workflow-measurement reports and regression-output artifacts; avoid duplicating operation inventories, package semantics, or that evidence.",
+        "identity": "derived:ffcf717e087022c85f45545c1f4650e4dad5c70cb980692bf949973c89c57b0d",
+        "source": "derived"
+      },
+      {
+        "position": 9,
+        "text": "GAP OWNERSHIP. Do not absorb product/runtime defects discovered by verification. Link an existing independently scoped owner or allocate a new WK for each surviving functional or tooling-ergonomics gap. WK-2442 owns the quality-first verification rubric and the finding-specific evidence needed to validate it, not the comparative workflow-reporting artifacts owned by WK-2055.",
+        "identity": "derived:b53a1ef27ebe15e5c88191f083dfc323c211521271e8200599c9ff6a102638df",
+        "source": "derived"
+      },
+      {
+        "position": 10,
+        "text": "LIFECYCLE. Treat this as the first design draft. Complete the required DRY and all-accepted-decision reviews and dispositions before authoring controlled acceptance and proof obligations or shaping implementation slices. Implementation remains blocked on the surviving WK-2439 remediation where it affects the verified public behavior.",
+        "identity": "derived:0bac3bbaf78778e2ed9afe3b59747938329880ba2e502c214ea0baea6a3f55f6",
+        "source": "derived"
+      }
+    ],
+    "bindings": {
+      "contractDigest": "sha256:f47595aa2038c7baa3df1b5c0ca67949514972fa3e6084e5a80158c704c6bfb3",
+      "proofPlanDigest": "sha256:53d38d5e8dec74b83f859a66db05d48ff2e36bdd619303d5e11220340eb089c1",
+      "selectedPackDigest": "sha256:37af8674a21585c7b3b2b98029eb6e914ea0fe7e0a6eed26dad3cbb82495cb55",
+      "mappingDigest": "sha256:de96a97aebb56eb5b207b850d5291cbeb59e065a82c472fcba192dcac7e2adfe"
+    },
+    "provenance": {
+      "selectedUnitDigest": "sha256:d3a8163c613ba93d22df27df9a1c3f8e47c7ed58e4993e7d63db3dceea26569d"
+    },
+    "digest": "bc18cd1c5912e32ffaaea64e198e891ca9b3b2e5204ec9f1657e0948f8a0741c"
+  },
+  "rows": [
+    {
+      "criterion_identity": "derived:0b63940b682b06f6528395ff2d7fb3e010d7dbf28f91cda968c23769929d6b41",
+      "node_ids": [
+        "claim-agent-completes-authoring",
+        "claim-wk2055-authoritative",
+        "claim-verify-task-matrix",
+        "claim-verify-ownership"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:92f2f2609694095e3bb31a538314d379dfbe73c8849522beb9a92e1c91d0f1ae",
+      "node_ids": [
+        "claim-volume-is-diagnostic",
+        "claim-routing-supports-authoring"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:5bd4af6445e03b6225d7833e3c1b926d2243f419b30ab53c284f4382b5b95906",
+      "node_ids": [
+        "claim-agent-completes-authoring",
+        "claim-routing-supports-authoring",
+        "claim-nonterminal-routes-next-call",
+        "claim-verify-task-matrix",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence",
+        "claim-verify-ownership"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:b59e285eb2ee570afe7e573807a46fe1399baf97be0dce29e3d65c258e04d178",
+      "node_ids": [
+        "claim-state-matrix-complete",
+        "claim-state-matrix-members-enumerated",
+        "claim-nonterminal-routes-next-call",
+        "claim-verify-task-matrix"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:3e2deaef9e770193ab78964627ed7602777e25ee3d315a31b1961161063d371f",
+      "node_ids": [
+        "claim-routing-supports-authoring",
+        "claim-nonterminal-routes-next-call",
+        "claim-complete-traversal-capture-route-unavailable",
+        "claim-complete-traversal-capture-gap-escalates",
+        "claim-versioned-cursor-capture-route-unavailable",
+        "claim-versioned-cursor-capture-gap-escalates"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:40c2c20fbf509bfd404b71d159823ca82379f39abfe71265c0b31cf7a1dc364e",
+      "node_ids": [
+        "claim-receipts-record-continuation",
+        "claim-sequential-preserves-state",
+        "claim-batch-preserves-state",
+        "claim-paths-equivalent",
+        "claim-fresh-session-restarts",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:e507ca0108c179eb2eb06580d5d218ac67e28827e45f269351e1700a2de56105",
+      "node_ids": [
+        "claim-tools-reject-unsafe-recovery",
+        "claim-nonterminal-routes-next-call",
+        "claim-gaps-escalate"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:8b198a23ac2b7dcdfe8abe9b89d3f8d507e22364e238d34c92168fbcc106336a",
+      "node_ids": [
+        "claim-wk2055-authoritative",
+        "claim-sequential-preserves-state",
+        "claim-batch-preserves-state",
+        "claim-paths-equivalent",
+        "claim-verify-equivalence"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:ffcf717e087022c85f45545c1f4650e4dad5c70cb980692bf949973c89c57b0d",
+      "node_ids": [
+        "claim-wk2442-docs-quality",
+        "claim-wk2055-authoritative",
+        "claim-verify-ownership"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:b53a1ef27ebe15e5c88191f083dfc323c211521271e8200599c9ff6a102638df",
+      "node_ids": [
+        "claim-gaps-escalate",
+        "claim-verify-ownership",
+        "claim-complete-traversal-capture-gap-escalates",
+        "claim-versioned-cursor-capture-gap-escalates"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    },
+    {
+      "criterion_identity": "derived:0bac3bbaf78778e2ed9afe3b59747938329880ba2e502c214ea0baea6a3f55f6",
+      "node_ids": [
+        "claim-verify-task-matrix",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence",
+        "claim-verify-ownership"
+      ],
+      "axes": {
+        "authored_contract_coverage": "covered",
+        "structural_verification": "covered",
+        "selected_pack_guarantee_coverage": "covered",
+        "implementation_ownership": "covered",
+        "verification_ownership": "covered",
+        "scope_feasibility": "covered"
+      }
+    }
+  ]
+}

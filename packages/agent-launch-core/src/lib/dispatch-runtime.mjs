@@ -59,10 +59,69 @@ export const BACKEND_RUN_STATUSES = Object.freeze([
 ]);
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
+export const RECOVERED_CHILD_OUTCOME_SCHEMA_VERSION =
+  "workspace-agent-recovered-child-outcome.v1";
+
+export const RECOVERED_CHILD_OUTCOME_STATES = Object.freeze({
+  SUCCEEDED: "succeeded",
+  FAILED: "failed",
+
+  UNAVAILABLE: "unavailable"
+});
+
+export const RECOVERED_CHILD_OUTCOME_UNAVAILABLE_REASONS = Object.freeze({
+  UNOBSERVED: "outcome_facts_unobserved",
+  UNREADABLE: "outcome_facts_unreadable"
+});
+
+export const RECOVERED_CHILD_OUTCOME_VOCABULARY = Object.freeze({
+  structured_result: RECOVERED_CHILD_OUTCOME_STATES.SUCCEEDED,
+  configured_structure_invalid: RECOVERED_CHILD_OUTCOME_STATES.SUCCEEDED,
+  runtime_failure: RECOVERED_CHILD_OUTCOME_STATES.FAILED,
+  confinement_failure: RECOVERED_CHILD_OUTCOME_STATES.FAILED,
+  legacy_completion: RECOVERED_CHILD_OUTCOME_STATES.UNAVAILABLE,
+  identity_unresolved: RECOVERED_CHILD_OUTCOME_STATES.UNAVAILABLE,
+  missing_output: RECOVERED_CHILD_OUTCOME_STATES.UNAVAILABLE,
+  neutral_prose: RECOVERED_CHILD_OUTCOME_STATES.UNAVAILABLE
+});
+
+function recoveredChildOutcomeUnavailable(reason) {
+  return Object.freeze({
+    schema_version: RECOVERED_CHILD_OUTCOME_SCHEMA_VERSION,
+    state: RECOVERED_CHILD_OUTCOME_STATES.UNAVAILABLE,
+    reason
+  });
+}
+
+export function recoveredChildOutcomeForResultMode({ present, mode } = {}) {
+  if (present !== true) {
+    return recoveredChildOutcomeUnavailable(
+      RECOVERED_CHILD_OUTCOME_UNAVAILABLE_REASONS.UNOBSERVED
+    );
+  }
+  if (typeof mode !== "string" ||
+      !Object.hasOwn(RECOVERED_CHILD_OUTCOME_VOCABULARY, mode)) {
+    return recoveredChildOutcomeUnavailable(
+      RECOVERED_CHILD_OUTCOME_UNAVAILABLE_REASONS.UNREADABLE
+    );
+  }
+  const state = RECOVERED_CHILD_OUTCOME_VOCABULARY[mode];
+  return state === RECOVERED_CHILD_OUTCOME_STATES.UNAVAILABLE
+    ? recoveredChildOutcomeUnavailable(
+        RECOVERED_CHILD_OUTCOME_UNAVAILABLE_REASONS.UNOBSERVED
+      )
+    : Object.freeze({
+        schema_version: RECOVERED_CHILD_OUTCOME_SCHEMA_VERSION,
+        state,
+        reason: null
+      });
+}
+
 export const BACKEND_REFUSAL_CODES = Object.freeze({
   BACKEND_UNAVAILABLE: "backend_unavailable",
   LAUNCH_REFUSED: "validation_failure",
-  LAUNCH_FAILED_BEFORE_START: "operator_recovery_needed",
+
+  LAUNCH_FAILED_BEFORE_START: "agent_launch.launch_failed_before_start.v1",
   MONITOR_HANDLE_UNKNOWN: "monitor_handle_unknown",
   MONITOR_HANDLE_CALLER_MISMATCH: "monitor_handle_caller_mismatch",
   MONITOR_HANDLE_SUBJECT_MISMATCH: "monitor_handle_subject_mismatch"

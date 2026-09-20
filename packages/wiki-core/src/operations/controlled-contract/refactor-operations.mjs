@@ -10,6 +10,11 @@ import {
   updateControlledContractRefactorContinuation
 } from "../../lib/controlled-contract-authoring-continuations.mjs";
 import {
+  readControlledContractRefactorResource,
+  retainControlledContractRefactorResource,
+  transitionControlledContractRefactorState
+} from "../../lib/controlled-contract-refactor-staging.mjs";
+import {
   prepareControlledContractRefactorCarrierSettlement,
   settleControlledContractRefactorTransaction
 } from "../../lib/controlled-contract-carrier-set-publication.mjs";
@@ -17,11 +22,18 @@ import { prepareControlledContractRefactorCoverageReconciliation,
   prepareControlledContractRefactorCoverageSettlement } from
   "./acceptance-coverage-operations.mjs";
 import { controlledContractOperation } from "./refusal.mjs";
+import {
+  controlledContractRefactorCanonicalMembers,
+  effectiveControlledContractRefactorCarriers,
+  inspectControlledContractRefactorProspectiveIdentities
+} from "./refactor-proof-plan-compilation.mjs";
 import { CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS } from
   "./semantic-projection-bounds.mjs";
 
 const RECEIPT_SCHEMA_VERSION = "controlled-contract-refactor-receipt.v1";
 const RECEIPT_PAGE_SCHEMA_VERSION = "controlled-contract-refactor-receipt-page.v1";
+const RETAINED_TRANSACTION_SCHEMA_VERSION =
+  "controlled-contract-refactor-retained-transaction.v1";
 const RECEIPT_SELECTORS = Object.freeze(["carrier_change", "correspondence",
   "coverage_change", "derived_invalidation", "proof_gap"]);
 
@@ -37,7 +49,7 @@ function digest(value) {
 }
 function fail(code, message, details = {}) {
   throw new ControlledContractToolError(code, message, { changed: false,
-    limb: "mechanical_failure", owner: "workspace_controlled_contract_refactor_apply",
+    limb: "mechanical_failure", owner: "controlled_contract_refactor_settlement",
     ...details });
 }
 function generationIdentity(canonicalSet) {
@@ -46,7 +58,8 @@ function generationIdentity(canonicalSet) {
 }
 function receiptBody(record, publication, coverageReceipt) {
   const result = record.refactor.package_result;
-  const carrierChanges = result.carriers.filter(({ filename, changed }) =>
+  const carrierChanges = effectiveControlledContractRefactorCarriers(result,
+    record.refactor.prospective_compilation).filter(({ filename, changed }) =>
     filename !== null && changed === true).map(({ carrier_kind, filename,
       source_content_digest, prospective_content_digest }) => ({ carrier_kind,
       filename, source_content_digest, prospective_content_digest }));
@@ -72,29 +85,74 @@ function receiptBody(record, publication, coverageReceipt) {
       coverage_changes: coverageChanges.length,
       correspondence: result.correspondence.length,
       invalidated_derived: result.invalidated_derived.length,
-      proof_gaps: result.proof_gaps.length }
+      proof_gaps: result.proof_gaps.length,
+      generated_stable_test_proofs:
+        record.refactor.prospective_compilation?.counts
+          ?.generated_stable_test_proofs ?? 0,
+      removed_stable_test_proofs:
+        record.refactor.prospective_compilation?.counts
+          ?.removed_stable_test_proofs ?? 0 }
   };
   return Object.freeze({ ...body, snapshot_digest: digest(body) });
 }
 
+function compactReceiptProjection(identity, receipt, { replay, changed }) {
+  return Object.freeze({
+    schema_version: "controlled-contract-refactor-apply-result.v1",
+    changed,
+    replay,
+    resource_kind: "receipt",
+    resource_identity: identity,
+    snapshot_digest: receipt.snapshot_digest,
+    source: receipt.source,
+    target: receipt.target,
+    outcome: receipt.outcome,
+    counts: receipt.counts,
+    query: null
+  });
+}
+
+async function retainedTransaction(repoRoot, record) {
+  const retained = await readControlledContractRefactorResource({ repoRoot,
+    identity: record.refactor.transaction_identity,
+    expectedKind: "finalized_transaction" });
+  if (retained === null || retained.payload.schema_version !==
+      RETAINED_TRANSACTION_SCHEMA_VERSION ||
+      retained.payload.plan_identity !== record.refactor.plan_identity ||
+      retained.payload.snapshot_digest !== record.refactor.snapshot_digest ||
+      JSON.stringify(retained.payload.source) !== JSON.stringify(record.refactor.source) ||
+      retained.payload.package_result?.result_digest === undefined ||
+      !Object.hasOwn(retained.payload, "prospective_compilation") ||
+      retained.payload.coverage === undefined) fail(
+    "controlled_contract_refactor_continuation_stale",
+    "the retained prospective refactor transaction is unavailable or does not bind the continuation", {
+      recovery: null
+    });
+  return Object.freeze({ ...record, refactor: Object.freeze({ ...record.refactor,
+    package_result: retained.payload.package_result,
+    prospective_compilation: retained.payload.prospective_compilation,
+    coverage: retained.payload.coverage }) });
+}
+
+async function retainedReceipt(repoRoot, identity) {
+  const retained = await readControlledContractRefactorResource({ repoRoot,
+    identity, expectedKind: "receipt" });
+  return retained?.payload ?? null;
+}
+
 function canonicalMembers(record, source) {
-  const result = record.refactor.package_result;
-  const members = structuredClone(source.canonical_members);
-  for (const carrier of result.carriers) {
-    if (carrier.filename === null || !Object.hasOwn(members, carrier.filename)) continue;
-    if (carrier.carrier_kind === "proof_plan") {
-      delete members[carrier.filename];
-    } else members[carrier.filename] = structuredClone(carrier.content);
-  }
-  return members;
+  const prospective = controlledContractRefactorCanonicalMembers(
+    record.refactor.package_result, record.refactor.prospective_compilation);
+  return { ...structuredClone(source.canonical_members), ...prospective };
 }
 
 function assertInterruptedRefactorTarget(record, source) {
-  const expected = record.refactor.package_result.carriers.filter(
+  const expected = effectiveControlledContractRefactorCarriers(
+    record.refactor.package_result,
+    record.refactor.prospective_compilation).filter(
     ({ filename }) => filename !== null);
   const observed = source.canonical_set.members_by_basename;
-  const expectedNames = expected.filter(({ carrier_kind: kind }) => kind !== "proof_plan")
-    .map(({ filename }) => filename).sort();
+  const expectedNames = expected.map(({ filename }) => filename).sort();
   const observedNames = source.canonical_set.members.map(({ filename }) => filename).sort();
   if (JSON.stringify(expectedNames) !== JSON.stringify(observedNames)) fail(
     "controlled_contract_refactor_plan_stale",
@@ -104,15 +162,13 @@ function assertInterruptedRefactorTarget(record, source) {
     });
   for (const carrier of expected) {
     const actual = observed[carrier.filename] ?? null;
-    const matches = carrier.carrier_kind === "proof_plan" ? actual === null
-      : actual !== null && JSON.stringify(canonical(actual.content)) ===
-        JSON.stringify(canonical(carrier.content));
+    const matches = actual !== null && JSON.stringify(canonical(actual.content)) ===
+      JSON.stringify(canonical(carrier.content));
     if (!matches) fail(
       "controlled_contract_refactor_plan_stale",
       "visible generation does not match the interrupted refactor settlement", {
         carrier_kind: carrier.carrier_kind, filename: carrier.filename,
-        expected_content_digest: carrier.carrier_kind === "proof_plan"
-          ? null : carrier.prospective_content_digest,
+        expected_content_digest: carrier.prospective_content_digest,
         actual_content_digest: actual?.content_digest ?? null,
         would_break: "restart reconciliation could settle unrelated canonical work"
       });
@@ -146,19 +202,32 @@ async function reconcileInterruptedRefactorSettlement({ input, record, source })
         terminal: true,
         commit: async () => {
           const receipt = receiptBody(record, publication, coverageReceipt);
+          const retained = await retainControlledContractRefactorResource({
+            repoRoot: input.repoRoot, resourceKind: "receipt", payload: receipt
+          });
           publishedRecord = await updateControlledContractRefactorContinuation({
             repoRoot: input.repoRoot, wkId: record.wk_id, focus: record.focus,
-            identity: record.identity, changes: { status: "published", receipt }
+            identity: record.identity,
+            changes: { status: "published", receipt_identity: retained.identity }
           });
-          return { continuation: publishedRecord.identity,
+          await transitionControlledContractRefactorState({
+            repoRoot: input.repoRoot, planIdentity: record.refactor.plan_identity,
+            status: "consumed",
+            transactionIdentity: record.refactor.transaction_identity,
+            continuation: record.identity, receiptIdentity: retained.identity
+          });
+          return { continuation: retained.identity,
             snapshot_digest: receipt.snapshot_digest };
         }, compensate: async () => {}
       }) }
     ]
   });
-  return Object.freeze({ changed: true, replay: false, reconciled: true,
-    resource_kind: "receipt", resource_identity: publishedRecord.identity,
-    receipt: publishedRecord.refactor.receipt, settlement: settlement.status });
+  const receipt = await retainedReceipt(input.repoRoot,
+    publishedRecord.refactor.receipt_identity);
+  return Object.freeze({ ...compactReceiptProjection(
+    publishedRecord.refactor.receipt_identity, receipt,
+    { replay: false, changed: true }), reconciled: true,
+  settlement: settlement.status });
 }
 
 export async function applyControlledContractRefactorOperation(input) {
@@ -172,32 +241,41 @@ export async function applyControlledContractRefactorOperation(input) {
     });
     if (record === null) fail("controlled_contract_refactor_continuation_unknown",
       "refactor continuation is unknown, expired, or belongs to another repository");
-    if (record.refactor.status === "published") return Object.freeze({
-      changed: false, replay: true, resource_kind: "receipt",
-      resource_identity: record.identity, receipt: record.refactor.receipt
-    });
+    if (record.refactor.status === "published") {
+      const receipt = await retainedReceipt(input.repoRoot,
+        record.refactor.receipt_identity);
+      if (receipt === null) fail("controlled_contract_refactor_receipt_unknown",
+        "published refactor receipt is unavailable or expired");
+      return compactReceiptProjection(record.refactor.receipt_identity, receipt,
+        { replay: true, changed: false });
+    }
     if (record.refactor.status !== "planned") fail(
       "controlled_contract_refactor_continuation_stale",
       "refactor continuation is not in one replayable state", {
-        recovery: { operation: "workspace_controlled_contract_refactor_plan",
-          arguments: { wk_id: record.wk_id, focus: record.focus } }
+        recovery: null
       });
+    const transactionRecord = await retainedTransaction(input.repoRoot, record);
+    await inspectControlledContractRefactorProspectiveIdentities(
+      transactionRecord.refactor.package_result,
+      transactionRecord.refactor.prospective_compilation);
     return withCanonicalControlledContractSourceLease({ repoRoot: input.repoRoot,
-      wkId: record.wk_id, focus: record.focus,
+      wkId: transactionRecord.wk_id, focus: transactionRecord.focus,
       mutation: { carrierKind: "contract" }
     }, async (source) => {
       const currentGeneration = generationIdentity(source.canonical_set);
-      if (currentGeneration !== record.refactor.source.generation ||
-          source.manifest_content_digest !== record.refactor.source.manifest_digest) {
+      if (currentGeneration !== transactionRecord.refactor.source.generation ||
+          source.manifest_content_digest !== transactionRecord.refactor.source.manifest_digest) {
         const reconciled = await getControlledContractRefactorContinuation({
           repoRoot: input.repoRoot, identity: record.identity
         });
-        if (reconciled?.refactor.status === "published") return Object.freeze({
-          changed: false, replay: true, resource_kind: "receipt",
-          resource_identity: reconciled.identity,
-          receipt: reconciled.refactor.receipt
-        });
-        return reconcileInterruptedRefactorSettlement({ input, record, source });
+        if (reconciled?.refactor.status === "published") {
+          const receipt = await retainedReceipt(input.repoRoot,
+            reconciled.refactor.receipt_identity);
+          return compactReceiptProjection(reconciled.refactor.receipt_identity, receipt,
+            { replay: true, changed: false });
+        }
+        return reconcileInterruptedRefactorSettlement({ input,
+          record: transactionRecord, source });
       }
       let carrierReceipt = null;
       let coverageReceipt = null;
@@ -205,15 +283,15 @@ export async function applyControlledContractRefactorOperation(input) {
       const settlement = await settleControlledContractRefactorTransaction({
         assertSourceLease: async () => {
           if (generationIdentity(source.canonical_set) !==
-              record.refactor.source.generation) fail(
+              transactionRecord.refactor.source.generation) fail(
             "controlled_contract_refactor_source_lease_stale",
             "refactor source lease no longer binds its planned generation");
         },
         participants: [
           { name: "coverage", prepare: async () => {
             const prepared = await prepareControlledContractRefactorCoverageSettlement({
-              input: { repoRoot: input.repoRoot, wkId: record.wk_id,
-                focus: record.focus }, coverage: record.refactor.coverage
+              input: { repoRoot: input.repoRoot, wkId: transactionRecord.wk_id,
+                focus: transactionRecord.focus }, coverage: transactionRecord.refactor.coverage
             });
             return Object.freeze({ ...prepared, commit: async () => {
               coverageReceipt = await prepared.commit();
@@ -223,48 +301,76 @@ export async function applyControlledContractRefactorOperation(input) {
           { name: "canonical_generation", prepare: async () => {
             const prepared = await prepareControlledContractRefactorCarrierSettlement({
               repoRoot: input.repoRoot, repository: source.record.repo,
-              wkId: record.wk_id, focus: record.focus,
+              wkId: transactionRecord.wk_id, focus: transactionRecord.focus,
               profile: "canonical_authoring",
               expected_manifest_digest: source.manifest_content_digest,
               sourceLease: source.lease,
-              canonical_members: canonicalMembers(record, source)
+              canonical_members: canonicalMembers(transactionRecord, source)
             });
             return Object.freeze({ ...prepared, commit: async () => {
               carrierReceipt = await prepared.commit();
+              const expectedTarget = transactionRecord.refactor
+                .prospective_compilation?.target ?? null;
+              if (expectedTarget !== null &&
+                  (carrierReceipt.generation !== expectedTarget.generation ||
+                   carrierReceipt.manifest_content_digest !==
+                    expectedTarget.manifest_content_digest ||
+                   carrierReceipt.manifest_digest !== expectedTarget.manifest_digest)) fail(
+                "controlled_contract_refactor_target_identity_mismatch",
+                "published generation differs from the validated prospective carrier set", {
+                  expected_target: expectedTarget,
+                  actual_target: { generation: carrierReceipt.generation,
+                    manifest_content_digest: carrierReceipt.manifest_content_digest,
+                    manifest_digest: carrierReceipt.manifest_digest }
+                });
               return carrierReceipt;
             } });
           } },
           { name: "receipt_transition", terminal: true, prepare: async () => ({
             terminal: true,
             commit: async () => {
-              const receipt = receiptBody(record, carrierReceipt, coverageReceipt);
+              const receipt = receiptBody(transactionRecord, carrierReceipt, coverageReceipt);
+              const retained = await retainControlledContractRefactorResource({
+                repoRoot: input.repoRoot, resourceKind: "receipt", payload: receipt
+              });
               try {
                 publishedRecord = await updateControlledContractRefactorContinuation({
-                  repoRoot: input.repoRoot, wkId: record.wk_id, focus: record.focus,
-                  identity: record.identity, changes: { status: "published", receipt }
+                  repoRoot: input.repoRoot, wkId: transactionRecord.wk_id,
+                  focus: transactionRecord.focus,
+                  identity: transactionRecord.identity,
+                  changes: { status: "published", receipt_identity: retained.identity }
                 });
               } catch (error) {
                 const reconciled = await getControlledContractRefactorContinuation({
-                  repoRoot: input.repoRoot, identity: record.identity
+                  repoRoot: input.repoRoot, identity: transactionRecord.identity
                 });
                 if (reconciled?.refactor.status !== "published" ||
-                    JSON.stringify(reconciled.refactor.receipt) !== JSON.stringify(receipt)) {
+                    reconciled.refactor.receipt_identity !== retained.identity) {
                   throw error;
                 }
                 publishedRecord = reconciled;
               }
-              return { continuation: publishedRecord.identity,
+              await transitionControlledContractRefactorState({
+                repoRoot: input.repoRoot,
+                planIdentity: transactionRecord.refactor.plan_identity,
+                status: "consumed",
+                transactionIdentity: transactionRecord.refactor.transaction_identity,
+                continuation: transactionRecord.identity,
+                receiptIdentity: retained.identity
+              });
+              return { continuation: retained.identity,
                 snapshot_digest: receipt.snapshot_digest };
             },
             compensate: async () => {}
           }) }
         ]
       });
-      return Object.freeze({ changed: carrierReceipt.no_op !== true,
-        replay: false, resource_kind: "receipt",
-        resource_identity: publishedRecord.identity,
-        receipt: publishedRecord.refactor.receipt,
-        settlement: settlement.status });
+      const receipt = await retainedReceipt(input.repoRoot,
+        publishedRecord.refactor.receipt_identity);
+      return Object.freeze({ ...compactReceiptProjection(
+        publishedRecord.refactor.receipt_identity, receipt,
+        { replay: false, changed: carrierReceipt.no_op !== true }),
+      settlement: settlement.status });
     });
   });
 }
@@ -289,19 +395,16 @@ export async function queryControlledContractRefactorReceipt(input) {
   return controlledContractOperation(async () => {
     assertControlledContractOperationInput(input, ["repoRoot", "resourceIdentity",
       "selector", "authenticatedCursorPayload"]);
-    const record = await getControlledContractRefactorContinuation({
-      repoRoot: input.repoRoot, identity: input.resourceIdentity
-    });
-    if (record?.refactor.status !== "published" || record.refactor.receipt === null) fail(
+    const receipt = await retainedReceipt(input.repoRoot, input.resourceIdentity);
+    if (receipt === null) fail(
       "controlled_contract_refactor_receipt_unknown",
       "receipt identity is unknown, incomplete, or belongs to another repository");
-    const receipt = record.refactor.receipt;
     const selector = input.selector ?? null;
-    if (selector !== null && (typeof selector !== "object" || Array.isArray(selector) ||
+    if (selector === null || (typeof selector !== "object" || Array.isArray(selector) ||
         !RECEIPT_SELECTORS.includes(selector.kind) ||
         (selector.stable_id !== null && typeof selector.stable_id !== "string"))) fail(
       "controlled_contract_refactor_selector_invalid",
-      "receipt selector is not one supported semantic selector");
+      "receipt retrieval requires one supported explicit semantic selector");
     const payload = input.authenticatedCursorPayload ?? {
       resource_kind: "receipt", resource_identity: input.resourceIdentity,
       snapshot_digest: receipt.snapshot_digest, selector,

@@ -1,0 +1,41 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v2",
+  "reference_bindings": [
+    {
+      "role": "execution_context",
+      "reference_ids": [
+        "ref-forbidden-operation-context"
+      ]
+    },
+    {
+      "role": "forbidden_operation_population",
+      "reference_ids": [
+        "ref-forbidden-operation-population"
+      ]
+    },
+    {
+      "role": "forbidden_operations",
+      "reference_ids": [
+        "ref-forbidden-cli-operation",
+        "ref-forbidden-arbitrary-write-operation"
+      ]
+    },
+    {
+      "role": "subject_operation",
+      "reference_ids": [
+        "ref-authoring-subject-operation"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-mcp-tests"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

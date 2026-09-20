@@ -1,0 +1,549 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2092",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "Design controlled proof-graph authoring continuation",
+  "record_kind": "work_item",
+  "work_kind": "design",
+  "status": "done",
+  "priority": "high",
+  "owner": "unassigned",
+  "created": "2026-08-17",
+  "updated": "2026-08-17",
+  "read_scope": [
+    "AGENTS.md",
+    "wiki/work-records/WK-2024.json",
+    "wiki/work-records/WK-2090.json",
+    "packages/controlled-contract",
+    "packages/wiki-core/src",
+    "packages/wiki-mcp/src",
+    "docs/mcp-integration.md",
+    "docs/mcp-operation-reference.md",
+    "docs/operating-model.md",
+    "wiki/decisions/DEC-0180.md",
+    "wiki/work-records/WK-2096.json"
+  ],
+  "repo_paths": [
+    "packages/controlled-contract",
+    "packages/wiki-core/src",
+    "packages/wiki-mcp/src",
+    "tests",
+    "docs"
+  ],
+  "write_scope": [],
+  "depends_on": [],
+  "blocks": [],
+  "related": [
+    "WK-2024",
+    "WK-2090",
+    "WK-2093",
+    "WK-2094",
+    "WK-2096",
+    "WK-2098",
+    "WK-2099",
+    "WK-2100"
+  ],
+  "initiative": "IN-0038",
+  "dispatch_intent": {
+    "intended_agent_role": null,
+    "target_unit": "none",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "PURPOSE AND SINGLE CLOSURE STORY. Specify one coordinator-directed stable-v1 proof-graph continuation that consumes the exact selected-pack skeleton state, proposes and atomically authors the missing same-WK proof graph plus its evaluation-input binding and selected-pack request, and returns the task-directed workflow to the existing WK-2024 authoring state. WK-2092 closes after the design, controlled contract/proof assessment, bounded design-review lifecycle, and allocator-created implementation handoffs are complete; it does not implement or deliver the runtime change.",
+      "OWNERSHIP AND NON-DUPLICATION. The controlled-contract package owns the pure stable-v1 per-carrier patch primitive, moved without semantic change from wiki-core's applyControlledContractCarrierPatch implementation and exported as the single owner; wiki-core imports and re-exports that primitive for compatibility. The package also owns cross-carrier proposal completeness/prospective-set planning and delegates test_execution graphs to applyStableVerificationBundles. Wiki-core extends writeControlledContractCarrierSet with one canonical-authoring generation profile, manifest-indirected canonical reads, owner-local restart recovery, prospective absent-carrier leasing, and WK-2024 authoring-state integration. Wiki-MCP owns one thin bounded orchestrator/operator route plus discovery/docs. No parallel patch grammar, transaction, lease, read model, recovery protocol, state machine, skeleton, pack selector, validator, or reason vocabulary is introduced.",
+      "CLOSED COMPOSITION PROPOSAL. Freeze controlled-proof-graph-proposal.v1 as a closed package-owned composition value bound to one exact {wk_id, focus, contract_content_digest, selected_pack:{profile_id,profile_version}, requested_intents, skeleton_continuation}. Its ordered carrier_operations array contains at most one request per affected contract/evaluation-input/request carrier, using the exact target, op, id, and value semantics owned by the package-exported pure applyControlledContractCarrierPatch primitive; test_execution entries use an exact controlled-contract-verification-bundle.v1 value owned by applyStableVerificationBundles. The proposal adds only cross-carrier binding, completeness, and final prospective-set planning. Unknown keys, unsupported carriers or existing operations, cross-WK/focus/pack identities, and more than 64 total composed operations refuse.",
+      "NO SEMANTIC INVENTION. The coordinator supplies every reference identity and type, population identity and membership/applicability choice, proposition subject/operator/context/operands, claim identity/kind/modality/verification method/falsifier, relation identity/role/endpoints, collection membership/order, residue meaning, annotation text, evaluation-input binding, requested intent, and selected-pack request choice. Existing package patch and verification-bundle owners retain all target/value validation and canonicalization. The cross-carrier planner may derive only immutable schema/version fields, canonical carrier basenames, carrier-set ordering, and digests. Missing or ambiguous semantic choices return exact unresolved JSON pointers and no persistence.",
+      "PROPOSAL COMPLETENESS. A proposal is executable only when the package proves that its exact selected pack's skeleton has no unresolved required roles; every composed operation is admitted by its existing per-carrier owner; every referenced identity exists in the final prospective carrier set; every exact population member is distinct and present; every selected intent is admitted by the exact pack; and the prospective contract, evaluation input, and proof-plan request all validate together. A syntactically complete composition that does not close the selected pack's named missing graph remains unresolved and cannot publish.",
+      "CROSS-CARRIER DEDUPLICATION ONLY. Existing per-carrier owners retain stable-ID, operation-conflict, ordering, dangling-reference, canonicalization, and test_execution semantics. The new planner compares cross-carrier identities with the package's existing stableSemanticKey NFC/stable-value equality normalizer and the type/identity-kind compatibility semantics exercised by validateSuppliedProofPackBindings, adding only carrier provenance. Equal normalized identities are compatible only when their type term, identity kind, and normalized identity value match; an exact compatible repeat is one binding, while any mismatch refuses. Same-carrier duplicate IDs, two-operations-on-one-ID rules, relation semantics, population membership, and bundle rules remain exclusively with their existing owners. Exact replay is an idempotent no-op only when every existing owner reports no-op and the canonical generation manifest and bytes still match.",
+      "CONTINUATION BINDING. Extend the WK-2024 server-issued content-addressed continuation so the proof-graph stage binds the exact WK/focus, contract digest, selected pack, requested intents, caller-chosen bindings, package version, generated skeletons, unresolved/completed role state, and canonical composition-proposal digest. Continuation reuse is single-purpose for the proof_graph_required stage. Existing CONTROLLED_CONTRACT_AUTHORING_REASONS and the existing state/refusal projector own stale, cross-identity, tampered, pack-conflict, carrier-conflict, and replacement-call behavior; add only genuinely new proposal-incomplete or cross-carrier-conflict reasons to that owner.",
+      "BOUNDS. Accept at most 64 total composed existing-owner operations and at most 1,048,576 UTF-8 bytes. Operation count is the length of the closed carrier_operations array. Byte count is Buffer.byteLength(JSON.stringify(serverProjection), \"utf8\") over a server-created fixed-key projection in this insertion order: schema_version, wk_id, focus, contract_content_digest, selected_pack, requested_intents, skeleton_continuation, carrier_operations, expected_sources. Validate both ranges before constructing complete candidate detail. Compact/default output exposes identities, counts, digests, unresolved JSON pointers, and one executable next call or stop condition; complete carriers, catalogs, candidate populations, and unchanged graph nodes remain server-side. Bound overflow uses controlled_contract_proof_graph_bound_exceeded, refuses before effects, and never pages or narrows a partial write.",
+      "MULTI-SOURCE CAS AND ABSENT CARRIERS. The request supplies the skeleton continuation plus expected_content_digest for every present target and explicit expected absence for every target to create. Before reading a required proof-plan request, wiki-core derives the complete prospective canonical basename set only from server-resolved WK/focus, exact selected pack, requested intents, package catalog, and closed proposal; caller paths or basenames are forbidden. The existing canonical source-lease owner is generalized to lock that sorted basename set, snapshot each basename as present with digest or absent, then re-resolve the work record, package generation, continuation, contract, selected pack, request, evaluation input, and canonical generation manifest under the same ordered lease. A mismatch refuses through the existing stale/carrier-conflict projector before candidate construction. This is one generalization of the existing lease, not a second lease or caller-controlled acquisition protocol.",
+      "CANONICAL GENERATION PUBLICATION AND READS. Generalize writeControlledContractCarrierSet with a canonical_authoring carrier-set profile. It writes the validated prospective carrier population to one private generation, verifies every canonical byte/digest, and atomically changes one canonical generation manifest. All canonical controlled-contract authoring readers use one manifest-aware resolver: when a canonical-authoring manifest exists they read every selected carrier only from its named generation and never mix root or generation members; when none exists, the existing root carriers are an explicit legacy source snapshot used only to seed the first locked generation. After manifest creation, single-carrier create/patch and proof-plan build also publish a complete next generation through this owner rather than writing root carriers directly. Success or idempotent replay returns only after manifest re-resolution and authoring-state re-read match the planned generation. No second transaction or general artifact-store redesign is introduced.",
+      "TASK-DIRECTED RESULT. Extend workspace_controlled_contract_authoring_state with a proof_graph_required stage naming the exact selected pack, missing graph identities, unresolved semantic JSON pointers, and one call to the proof-graph continuation. The successful continuation returns only the existing carrier-set publication receipt projection and the next executable state call; it does not claim proof, assessment success, or dispatch readiness. Complete current proof-plan and assessment states continue to use the existing WK-2024/WK-2090 mechanisms.",
+      "FAILURE AND RECOVERY VOCABULARY. Reuse CONTROLLED_CONTRACT_AUTHORING_REASONS and its projector for stale continuation, identity mismatch, selected-pack conflict, carrier conflict, invalid prospective carrier, publication failure, and replacement calls. Add only controlled_contract_proof_graph_proposal_incomplete, controlled_contract_proof_graph_cross_carrier_identity_conflict, and controlled_contract_proof_graph_bound_exceeded when no existing reason expresses the state. writeControlledContractCarrierSet retains one lock owner and adds owner-local restart recovery: the exclusive lock record carries an operation token plus process identity/start identity; on contention, a contender proves that exact owner dead, atomically quarantines the stale lock, wins only by a fresh exclusive create, and reconciles only dead-owner staging/temporary manifest artifacts before planning. Live or unverifiable ownership remains busy and untouched. Each recoverable refusal names the exact identity/pointer and one replacement call; no operation is dropped, no partial generation becomes canonical, and no generic-patch fallback exists.",
+      "IMPLEMENTATION HANDOFF. After design disposition, allocator-create three independently closable, non-overlapping WKs: (1) controlled-contract package extraction/export of the pure patch primitive plus cross-carrier proposal planning, stableSemanticKey/validateSuppliedProofPackBindings joins, bounds, and focused package tests; (2) dependent wiki-core import/re-export plus canonical-authoring generation reads/publication, legacy-root seeding, owner-local restart recovery, prospective absent-carrier lease, authoring-state integration, and focused core tests; (3) dependent wiki-MCP thin route/discovery plus durable docs and focused MCP tests. No implementation dispatch occurs from WK-2092."
+    ],
+    "validation": [
+      "Validate WK-2092 with workspace_work_record_validate and require valid=true with zero structural diagnostics after every contract edit.",
+      "Author and assess the native controlled-acceptance-contract.v1 carrier and applicable proof plan for the complete design. Encode the two maxima as range:has_cardinality with inclusive minimum 0 and maximum 64/1048576, and require every operative obligation mapped or explicit blocking residue.",
+      "Record the one required DRY-violation review and its single disposition. Prove accepted DRY-001 binds writeControlledContractCarrierSet, DRY-002 binds applyControlledContractCarrierPatch plus applyStableVerificationBundles, and DRY-003 binds CONTROLLED_CONTRACT_AUTHORING_REASONS; do not re-review or blueteam that result.",
+      "Discriminate one complete semantic selection that atomically creates an absent evaluation input and proof-plan request while composing the exact contract graph, then exact-replay it as an idempotent no-op. Prove the server-derived prospective basename lease snapshots expected absence before planning and that post-success authoring state reads the exact manifest-selected generation.",
+      "Discriminate unresolved reference identity, population membership/applicability, proposition operand, verification method/falsifier, relation endpoint, evaluation binding, and selected intent. Each must return its exact JSON pointer through the existing authoring-state projector and leave every canonical carrier byte-identical.",
+      "Mutation-test same-carrier duplicate IDs, two operations targeting one identity, relation/population conflicts, and test_execution graph conflicts against the single package patch/bundle owners. Mutation-test only stableSemanticKey-normalized cross-carrier identity, type/identity-kind compatibility, and missing final targets against the new planner; removing any owner delegation must fail.",
+      "Submit 0, 1, and exactly 64 composed operations and fixed server-projection byte counts below and exactly at 1,048,576 successfully when otherwise valid; submit 65 operations and 1,048,577 bytes and require controlled_contract_proof_graph_bound_exceeded before candidate construction with no mutation.",
+      "Change separately the work record, contract, each present/absent carrier expectation, selected pack/package generation, continuation skeleton, lease basename set, and canonical generation manifest after proposal creation. Each change must produce the existing exact stale/conflict outcome before effects.",
+      "Inject ordinary errors and process termination at every supported canonical-generation write/verify/manifest boundary. Require same-invocation cleanup for ordinary errors; on restart require dead-owner proof, atomic stale-lock quarantine, fresh exclusive acquisition, dead-owner-only staging reconciliation, and visibility of only the complete prior or complete planned generation. Prove a live or unverifiable owner is never reclaimed.",
+      "Prove the package-exported applyControlledContractCarrierPatch preserves the former wiki-core behavior and wiki-core imports/re-exports it; prove test_execution subgraphs are accepted only through applyStableVerificationBundles. Mutation-test away either delegation and require focused suites to fail.",
+      "Prove task-directed state returns proof_graph_required only for one exact selected pack with named missing identities, returns one schema-valid executable continuation call, and returns the existing next state after success without embedding complete carriers or claiming proof.",
+      "Record the single design redteam and single blueteam challenge, including the blueteam invalid structured-envelope diagnostic, then disposition RT-001 through RT-005 as KEEP and RT-006 through RT-007 as NARROW exactly once. Rebuild and reassess the remediated design, allocator-create the three non-overlapping implementation WKs, and close without another redteam or blueteam."
+    ]
+  },
+  "sections": {
+    "summary": "Design the missing continuation from evaluation-input scaffolding to coordinator-selected proof-graph authoring.",
+    "why_it_matters": "Coordinators currently reproduce package-known graph requirements manually, split large patches, manage CAS digests, and deduplicate identities themselves.",
+    "scope": {
+      "items": [
+        "Proof-graph proposal contract",
+        "Coordinator semantic-choice boundary",
+        "Atomic multi-carrier continuation",
+        "Implementation ownership and dependency handoff"
+      ],
+      "out_of_scope": [
+        "Automatic semantic choices",
+        "Evidence capture",
+        "Obligation coverage assessment",
+        "Behavior-changing implementation in WK-2092"
+      ]
+    },
+    "tasks": [
+      {
+        "text": "Inventory the exact existing WK-2024 skeleton and continuation contracts.",
+        "status": "done"
+      },
+      {
+        "text": "Freeze proposal and atomic authoring semantics with discriminating scenarios.",
+        "status": "done"
+      },
+      {
+        "text": "Author and assess the native controlled contract, then allocate implementation WKs.",
+        "status": "done"
+      }
+    ],
+    "references": [
+      "WK-2024",
+      "WK-2090"
+    ],
+    "agent_notes": "This WK owns only the proof-graph authoring design and handoff. It does not close on implementation delivery.",
+    "closure": {
+      "summary": "Design-only lifecycle completed for the controlled proof-graph authoring continuation. No runtime implementation was dispatched from WK-2092; delivery remains in the three allocator-created implementation WKs.",
+      "validation": [
+        "Obligation-coverage gate: 41/41 atomic obligations mapped to exact implementation mechanisms, preserved inputs/outputs, authority and failure/effect boundaries, applicable proof packs, and named discriminating fixtures; zero unresolved gaps and zero placeholders.",
+        "Native controlled contract digest sha256:31b35b51607dcfadd0d38c49b227632c21745712fb78e7b57b888558d9c27651 validated successfully.",
+        "Proof plan digest sha256:f7322ea647dccb4f611b3d8aa219a7b5d8d7f9421d92f129e1b2c4b3f387e55a selected proof.atomicity.failure-boundary@2.0.0 and proof.design.implementation-readiness@2.0.0.",
+        "Assessment 6bc2ba77d605ac420efb0c3ac3ff3a31f60cdb64caabaf42692702961375c328: structure proven; both selected profiles proven; exact binding not applicable.",
+        "The required DRY review, one design redteam, one blueteam challenge, and single recorded disposition remain the bounded design-review evidence for this WK.",
+        "Closeout lint could run but failed on 13 pre-existing repository findings outside WK-2092: contract_metadata_mismatch at wiki/.wiki-contract.json; executable_artifact_disallowed_suffix at docs/scratch/WK-2084.retrospective.controlled-acceptance.v1.json.out, docs/scratch/WK-2084.retrospective.controlled-acceptance.v1.json.valid, and docs/scratch/WK-2085.retrospective.controlled-acceptance.v1.json.out; missing_related_id at DEC-0122 and DEC-0133 (three findings); missing_supersedes_target at DEC-0178; and missing_docs_target at WK-2063, WK-2067, WK-2078, WK-2084, and WK-2086. No WK-2092 carrier or work-record finding was reported."
+      ],
+      "follow_ups": [
+        "WK-2098 implements the controlled-contract package slice after its own obligation gate and review lifecycle.",
+        "WK-2099 implements dependent wiki-core integration after its own obligation gate and review lifecycle.",
+        "WK-2100 implements dependent MCP/discovery/docs work after its own obligation gate and review lifecycle."
+      ]
+    }
+  },
+  "children": [],
+  "slices": [
+    {
+      "id": "SLICE-001",
+      "title": "DRY review of the first WK-2092 proof-graph continuation design draft",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2092.json",
+        "wiki/contracts/WK-2092.controlled-acceptance.json",
+        "wiki/contracts/WK-2092.evaluation-input.json",
+        "wiki/contracts/WK-2092.proof-plan-request.json",
+        "wiki/contracts/WK-2092.proof-plan.json",
+        "wiki/work-records/WK-2024.json",
+        "wiki/work-records/WK-2090.json",
+        "wiki/work-records/WK-2096.json",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "packages/controlled-contract",
+        "packages/wiki-core/src",
+        "packages/wiki-mcp/src"
+      ],
+      "repo_paths": [
+        "wiki/work-records/WK-2092.json",
+        "wiki/contracts/WK-2092.controlled-acceptance.json",
+        "wiki/contracts/WK-2092.evaluation-input.json",
+        "wiki/contracts/WK-2092.proof-plan-request.json",
+        "wiki/contracts/WK-2092.proof-plan.json",
+        "wiki/work-records/WK-2024.json",
+        "wiki/work-records/WK-2090.json",
+        "wiki/work-records/WK-2096.json",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "packages/controlled-contract",
+        "packages/wiki-core/src",
+        "packages/wiki-mcp/src"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Perform the one required findings-only DRY-violation review of the first WK-2092 design draft, bound to work-record source digest sha256:f40c8f6dd8e05ad8fc43aedb9b0f4d5da762a2f8eb734f26085e68aad7079640, controlled-contract content digest sha256:fec52489fdd65d0ed350c2331a4b795836d0de38f041678a08d0dd91feb90b89, proof-plan carrier digest sha256:c95f886f57297c6ce41edc7bd8a22a261637d54cdc7feac3193477c008cdf46f, and assessment identity 341a3499d483001c89a91b50b86637352e11fd4220c7b9abfb39537462b1627f.",
+          "Identify only semantic or mechanism duplication that WK-2092 would build instead of extending the exact existing owners in WK-2024, WK-2090, WK-2096, the controlled-contract package, wiki-core canonical carrier operations, and wiki-MCP transport.",
+          "For every finding name the existing single owner, the proposed duplicate responsibility, the reachable divergence, and the smallest correction that binds the existing owner and deletes the copy. Distinguish a genuine extension from duplication.",
+          "Pay particular attention to continuation identity, task-directed authoring state, skeleton generation, package validation/canonicalization, test_execution bundle semantics, carrier locking/CAS, generation persistence, failure recovery, and discovery/role policy.",
+          "Do not perform the architecture redteam, assess general correctness, request implementation, or modify any file, carrier, record, ref, or runtime state."
+        ],
+        "validation": [
+          "Inspect the exact bound work record, controlled contract, proof plan, assessment, and named existing owner surfaces.",
+          "Return findings only in the structured reviewer result, ordered by severity, with zero write attempts."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": 0,
+      "review_purpose": "standalone",
+      "sections": {
+        "agent_notes": "This is the single pre-redteam DRY pass for WK-2092. It is dispositioned once and receives no blueteam or re-review.\nManaged findings-only review run wkdb_001faa6a53101fdc reviewed the bound first design draft and returned changes_requested with three blocking findings. The structured result artifact SHA-256 is bfcf724f3ac16777ca15c031b9f29b6c07ab85423cbc34820980994656fdeed5.\nDRY-001 accepted and corrected: writeControlledContractCarrierSet is the single publication, lock, staging, cleanup, recovery, and receipt owner; the proposal now generalizes that owner and deletes the proposed second transaction.\nDRY-002 accepted and corrected: per-carrier graph operations compose applyControlledContractCarrierPatch, while test_execution graphs compose applyStableVerificationBundles; only cross-carrier completeness and prospective-set planning remain new.\nDRY-003 accepted and corrected: CONTROLLED_CONTRACT_AUTHORING_REASONS and its existing projector own stale/conflict/replacement-call behavior; only three proposal-specific reasons without existing equivalents remain.\nCorrected controlled-contract digest sha256:a387a7cc4fc1ae7638c3182fece25a5fb59d6534daa0f15942bfb293843ece42 and rebuilt proof-plan digest sha256:8ba0fcc09114fee449a8fc21629cf6f3b749d7cbc26154c2199e6005fe8a1f1b assess as structure proven and profile discrimination proven under assessment identity 174ae8b1dc334db68037e1967d8c0bf6c73f965f4db2273ef61188215cb4eec8; exact binding is not applicable, missing inputs are zero, and the two collection_noncovering_population_overlap diagnostics remain non-blocking."
+      }
+    },
+    {
+      "id": "SLICE-002",
+      "title": "Design redteam of the converged WK-2092 proof-graph continuation contract",
+      "work_kind": "redteam",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2092.json",
+        "wiki/contracts/WK-2092.controlled-acceptance.json",
+        "wiki/contracts/WK-2092.evaluation-input.json",
+        "wiki/contracts/WK-2092.proof-plan-request.json",
+        "wiki/contracts/WK-2092.proof-plan.json",
+        "wiki/work-records/WK-2024.json",
+        "wiki/work-records/WK-2090.json",
+        "wiki/work-records/WK-2096.json",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "docs/operating-model.md",
+        "wiki/decisions/DEC-0180.md",
+        "packages/controlled-contract",
+        "packages/wiki-core/src",
+        "packages/wiki-mcp/src"
+      ],
+      "repo_paths": [
+        "wiki/work-records/WK-2092.json",
+        "wiki/contracts/WK-2092.controlled-acceptance.json",
+        "wiki/contracts/WK-2092.evaluation-input.json",
+        "wiki/contracts/WK-2092.proof-plan-request.json",
+        "wiki/contracts/WK-2092.proof-plan.json",
+        "wiki/work-records/WK-2024.json",
+        "wiki/work-records/WK-2090.json",
+        "wiki/work-records/WK-2096.json",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "docs/operating-model.md",
+        "wiki/decisions/DEC-0180.md",
+        "packages/controlled-contract",
+        "packages/wiki-core/src",
+        "packages/wiki-mcp/src"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "redteam",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Perform the single findings-only design redteam for WK-2092 after its DRY disposition. Bind review to work-record source digest sha256:884ba3ee7b77c3313eb548f46fae6146c9e9d86a07b53314dd6841a182f26a51, controlled-contract digest sha256:a387a7cc4fc1ae7638c3182fece25a5fb59d6534daa0f15942bfb293843ece42, proof-plan digest sha256:8ba0fcc09114fee449a8fc21629cf6f3b749d7cbc26154c2199e6005fe8a1f1b, and assessment identity 174ae8b1dc334db68037e1967d8c0bf6c73f965f4db2273ef61188215cb4eec8.",
+          "Challenge whether the closed composition proposal is independently implementable without semantic invention, especially completeness, cross-carrier identity joins, exact selected-pack binding, continuation state, and the 64-operation and 1,048,576-byte pre-effect bounds.",
+          "Challenge the atomic failure boundary against the actual existing writeControlledContractCarrierSet generation/manifest owner, including absent and present carriers, multi-source CAS, exact idempotent replay, failure injection, restart recovery, and success receipt re-resolution.",
+          "Challenge the DRY-dispositioned ownership boundaries: per-carrier operations must remain with applyControlledContractCarrierPatch, test_execution graphs with applyStableVerificationBundles, publication with writeControlledContractCarrierSet, and stale/conflict projection with CONTROLLED_CONTRACT_AUTHORING_REASONS.",
+          "Report only real contract defects or unresolved implementation assumptions that would make a named acceptance scenario non-discriminating, impossible, unsafe, or dependent on hidden context. Do not re-litigate accepted DRY findings merely because the existing owner must be generalized.",
+          "Do not modify files, carriers, records, refs, runtime state, or propose new objectives outside WK-2092."
+        ],
+        "validation": [
+          "Inspect the exact bound contract, proof-plan, assessment, canonical docs, linked work records, and named code-owner surfaces.",
+          "Return findings only, ordered by severity, with precise contract clause and code/doc references and zero write attempts."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": null,
+      "sections": {
+        "agent_notes": "This was the only design redteam for WK-2092. Managed run wkdb_fc93c1d9b66966fe (monitor wkmh_ae1a3aa92cc88355ce511700) returned seven blocking findings; its exact result artifact SHA-256 is 83bee15b3ac720258d0180752282a7d2a5565d37d88d77eeabf692ee0afb10c6.\nThe single blueteam challenge retained RT-001 through RT-005 as KEEP and narrowed RT-006 through RT-007. Coordinator disposition accepts all seven surviving findings exactly once.\nRT-001 correction binds canonical authoring reads to the generation manifest published by writeControlledContractCarrierSet. RT-002 adds owner-local dead-owner lock/staging recovery. RT-003 moves the pure patch primitive to controlled-contract with wiki-core import/re-export. RT-004 generalizes the existing lease over a server-derived prospective present/absent basename set. RT-005 replaces exact cardinalities with inclusive ranges. RT-006 binds bytes to JSON.stringify of a fixed-key server projection. RT-007 binds stableSemanticKey and validateSuppliedProofPackBindings compatibility semantics.\nRemediated controlled-contract digest sha256:607ff6b22a8b4b86cf5ba8ea3e5831a4043c6715c291418bd07bb07afbf7983a and proof-plan digest sha256:02f22b9c3504b8d55cc48ea076eec414393a69e9c1c41b2d5d54200af911ad50 assess as structure proven and profile discrimination proven under assessment identity 6900b8cd4674a78a556f123a417887ad21de2e83f5647841caa069ade72ee0dd, with zero missing inputs. No redteam or blueteam rerun is permitted."
+      }
+    },
+    {
+      "id": "SLICE-003",
+      "title": "Blueteam counter-assessment of the WK-2092 design redteam result",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "the project documentation",
+        "wiki/work-records/WK-2092.json",
+        "wiki/contracts/WK-2092.controlled-acceptance.json",
+        "wiki/contracts/WK-2092.evaluation-input.json",
+        "wiki/contracts/WK-2092.proof-plan-request.json",
+        "wiki/contracts/WK-2092.proof-plan.json",
+        "wiki/work-records/WK-2024.json",
+        "wiki/work-records/WK-2090.json",
+        "wiki/work-records/WK-2096.json",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "docs/operating-model.md",
+        "wiki/decisions/DEC-0180.md",
+        "packages/controlled-contract",
+        "packages/wiki-core/src",
+        "packages/wiki-mcp/src"
+      ],
+      "repo_paths": [
+        "the project documentation",
+        "wiki/work-records/WK-2092.json",
+        "wiki/contracts/WK-2092.controlled-acceptance.json",
+        "wiki/contracts/WK-2092.evaluation-input.json",
+        "wiki/contracts/WK-2092.proof-plan-request.json",
+        "wiki/contracts/WK-2092.proof-plan.json",
+        "wiki/work-records/WK-2024.json",
+        "wiki/work-records/WK-2090.json",
+        "wiki/work-records/WK-2096.json",
+        "docs/mcp-integration.md",
+        "docs/mcp-operation-reference.md",
+        "docs/operating-model.md",
+        "wiki/decisions/DEC-0180.md",
+        "packages/controlled-contract",
+        "packages/wiki-core/src",
+        "packages/wiki-mcp/src"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "EXACT BINDING. Counter-assess only redteam run wkdb_fc93c1d9b66966fe, monitor handle wkmh_ae1a3aa92cc88355ce511700, prior result artifact SHA-256 83bee15b3ac720258d0180752282a7d2a5565d37d88d77eeabf692ee0afb10c6, subject WK-2092#SLICE-002. There is no reviewed commit because this is a design review. The canonical record source is wiki/work-records/WK-2092.json at exact source digest sha256:884ba3ee7b77c3313eb548f46fae6146c9e9d86a07b53314dd6841a182f26a51; the bound controlled-contract digest is sha256:a387a7cc4fc1ae7638c3182fece25a5fb59d6534daa0f15942bfb293843ece42 and proof-plan digest is sha256:8ba0fcc09114fee449a8fc21629cf6f3b749d7cbc26154c2199e6005fe8a1f1b.",
+          "RT-001 (critical/blocking): independently reproduce or retire the claim that writeControlledContractCarrierSet publishes an integration-prefix artifact generation/manifest rather than canonical authoring carriers, making post-success authoring-state re-resolution impossible. Test the actual public write/read boundaries and determine the smallest correction, if any.",
+          "RT-002 (high/blocking): independently reproduce or retire the claim that process failure can strand the exclusive manifest CAS lock/staging directory and that no restart-recovery protocol exists. Distinguish same-invocation cleanup from actual restart behavior and state whether the reviewed contract truly requires recovery.",
+          "RT-003 (high/blocking): independently reproduce or retire the claim that the package planner cannot delegate to applyControlledContractCarrierPatch because the symbol is owned only by wiki-core. Trace actual exports/dependencies and determine whether ownership inversion, movement, or another smallest correction is required without reopening DRY-002.",
+          "RT-004 (high/blocking): independently reproduce or retire the claim that the existing source lease requires a present proof-plan request and cannot atomically lock/create absent evaluation-input/request carriers. Exercise or trace the exact basename resolution and lock acquisition boundary.",
+          "RT-005 (medium/blocking): independently reproduce or retire the claim that the carrier encodes the two maxima as exact cardinalities rather than at-most bounds. Check vocabulary semantics and the assessment graph; identify the smallest formal correction.",
+          "RT-006 (medium/blocking): independently reproduce or retire the claim that the request-byte bound lacks a normative serialization domain and can vary with key order/escaping. Compare the reviewed wording with the actual patch owner's measurement boundary and identify a precise existing-domain binding if one exists.",
+          "RT-007 (medium/blocking): independently reproduce or retire the claim that cross-carrier identity normalization and compatibility are unspecified. Locate any existing normalizer/compatibility semantics and decide whether the proposal needs an exact binding or whether the finding invents a new objective.",
+          "FIXED MISSION. Treat the prior result as evidence without authority. Re-derive each claim from canonical contracts, source, and bounded tests/reproductions. Add no findings, make no edits, implement nothing, and do not expand WK-2092.",
+          "MANDATORY DISPOSITION. For every RT-001 through RT-007 assign exactly KEEP, NARROW, or REJECT and report reproduction evidence, real reachability, existing contract anchor, exact surviving defect, smallest sufficient correction, scope removed, and whether it blocks the reviewed design.",
+          "EVIDENCE BURDEN. A surviving finding requires concrete behavior at the actual owning/public boundary, real design reachability, an exact existing contract violation, a causal source/execution mechanism, and proportionate severity. Possibility, missing hardening, redesign opportunity, or future-proofing is insufficient.",
+          "CONSOLIDATED OUTPUT. Name retained and retired findings, smallest combined remediation boundary, exact allowed paths and expected scale when supported, rejected expansions, whether WK-2092 can absorb the correction or remains blocked, and any required operator decision. End with: The blueteam changed nothing."
+        ],
+        "validation": [
+          "Inspect the exact prior result and all bound canonical sources; run only bounded read-only reproductions needed to decide the seven prior findings.",
+          "Return one findings-only reviewer result containing the required per-finding and consolidated dispositions, with zero writes."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": null,
+      "review_purpose": "standalone",
+      "sections": {
+        "agent_notes": "This was the single blueteam challenge of the exact WK-2092 design-redteam result; it introduced no findings and changed nothing.\nManaged reviewer run wkdb_fb0d15abaeb5494e (monitor wkmh_571fcf4fa918fa70f5efbbe0) counter-assessed RT-001 through RT-007 and returned KEEP for RT-001 through RT-005 and NARROW for RT-006 through RT-007. Its exact response artifact SHA-256 is ffc41b7f697ef90fbe6181b796b1ea5ad8ee6a87c1cf548e1736f5bac6bd2d9e.\nThe launcher rejected the structured envelope only because $.summary exceeded the bounded summary field. Invalid-result coordination evidence rr:44fe24b4e35b963d6f1af9e5b0ba53e396de7dfd87d503514215559214049428 is recorded with evidence digest sha256:e82a6f083a64c5dc81adf2394bcfe01adf01a73d7ed123120cfa5f5314c2aaf3; it does not satisfy mandatory implementation-review authority and none is claimed here.\nCoordinator disposition accepts the complete bound prose counter-assessment as design evidence: five findings retained, two narrowed, none retired, and no operator decision required. All seven corrections are embodied in the parent acceptance and controlled contract. No second blueteam or re-review is permitted."
+      }
+    }
+  ],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "derived_evidence": [
+    {
+      "schema_version": "worker-admission-derived-evidence.v1",
+      "record_id": "WK-2092",
+      "unit": {
+        "kind": "slice",
+        "address": "WK-2092#SLICE-003",
+        "record_id": "WK-2092",
+        "slice_id": "SLICE-003"
+      },
+      "source_record_digest": "sha256:96857fcc701e781b48da4872d0e04c47ea088a597afa5299d61a717a911eadb7",
+      "generator": {
+        "name": "agent-chassis",
+        "version": "0.2.0"
+      },
+      "generated_at": "2026-08-17T05:31:42.619Z",
+      "decision_kind": "work_unit_atomicity",
+      "metric_summary": {
+        "write_scope_count": null,
+        "write_scope_test_count": null,
+        "write_scope_existing_file_count": null,
+        "write_scope_directory_count": null,
+        "write_scope_total_loc": null,
+        "max_write_file_loc": null,
+        "acceptance_criteria_count": null,
+        "validation_command_count": null,
+        "declared_runtime_mode_count": null,
+        "artifact_kind_count": null,
+        "expected_changed_line_budget": null,
+        "unknown_metric_count": 19,
+        "threshold_exclusions": {
+          "coordination_only_paths": [],
+          "coordination_only_file_count": 0,
+          "threshold_counted_loc_file_count": 0,
+          "reason_code": "worker_admission.work_unit_atomicity.coordination_record_loc_threshold_excluded.v1",
+          "reason": "coordination work-record JSON files remain in file_stats evidence but are excluded from LOC threshold metrics"
+        },
+        "missing_metrics": {
+          "write_scope_count": true,
+          "write_scope_existing_file_count": true,
+          "write_scope_directory_count": true,
+          "write_scope_total_loc": true,
+          "max_write_file_loc": true,
+          "acceptance_criteria_count": true,
+          "validation_command_count": true,
+          "declared_runtime_mode_count": true,
+          "artifact_kind_count": true,
+          "expected_changed_line_budget": true
+        },
+        "missing_evidence": {
+          "file_stats": true,
+          "validation_command_metadata": true,
+          "runtime_mode_metadata": true,
+          "artifact_kind_metadata": true
+        },
+        "missing_supporting_evidence": {
+          "file_stats": {
+            "field_path": "file_stats",
+            "reason_code": "worker_admission.work_unit_atomicity.file_stats_missing.v1",
+            "reason": "file_stats evidence is required to replay write-scope LOC and file breadth decisions",
+            "status": "missing"
+          },
+          "validation_command_metadata": {
+            "field_path": "validation_command_metadata",
+            "reason_code": "worker_admission.work_unit_atomicity.validation_command_metadata_missing.v1",
+            "reason": "validation_command_metadata evidence is required to replay validation command breadth decisions",
+            "status": "missing"
+          },
+          "runtime_mode_metadata": {
+            "field_path": "runtime_mode_metadata",
+            "reason_code": "worker_admission.work_unit_atomicity.runtime_mode_metadata_missing.v1",
+            "reason": "runtime_mode_metadata evidence is required to replay declared runtime-mode breadth decisions",
+            "status": "missing"
+          },
+          "artifact_kind_metadata": {
+            "field_path": "artifact_kind_metadata",
+            "reason_code": "worker_admission.work_unit_atomicity.artifact_kind_metadata_missing.v1",
+            "reason": "artifact_kind_metadata evidence is required to replay artifact-kind breadth decisions",
+            "status": "missing"
+          }
+        },
+        "absent_optional_evidence": {},
+        "evidence_issues": {
+          "file_stats": {
+            "invalid_count": 0,
+            "invalid_entries": [],
+            "missing_file_state_count": 0,
+            "missing_file_state_entries": [],
+            "invalid_file_state_count": 0,
+            "invalid_file_state_entries": [],
+            "loc_issue_count": 0,
+            "missing_or_invalid_loc_entries": []
+          },
+          "runtime_mode_metadata": {
+            "invalid_count": 0,
+            "invalid_entries": []
+          },
+          "artifact_kind_metadata": {
+            "invalid_count": 0,
+            "invalid_entries": []
+          },
+          "metric_source_provenance": {
+            "missing_field_count": 5,
+            "missing_field_entries": [
+              {
+                "field_path": "metric_source_provenance.source_kind",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_source_kind_missing.v1",
+                "reason": "metric_source_provenance.source_kind is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.canonicality",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_canonicality_missing.v1",
+                "reason": "metric_source_provenance.canonicality is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.evidence_basis",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_evidence_basis_missing.v1",
+                "reason": "metric_source_provenance.evidence_basis is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.policy_backend",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_policy_backend_missing.v1",
+                "reason": "metric_source_provenance.policy_backend is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.policy_version",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_policy_version_missing.v1",
+                "reason": "metric_source_provenance.policy_version is required",
+                "status": "missing",
+                "raw_value": null
+              }
+            ]
+          }
+        },
+        "structural_target_metrics": {
+          "expected_edit_target_count": 0,
+          "planned_create_target_count": 0,
+          "planned_modify_target_count": 0,
+          "planned_delete_target_count": 0,
+          "planned_inspect_target_count": 0,
+          "target_kind_count": 0,
+          "target_resolution_evidence_status": "degraded",
+          "target_resolution_provider": null,
+          "target_resolution_provider_version": null,
+          "target_resolution_status_reason": "no structural target provenance supplied",
+          "resolved_edit_target_count": 0,
+          "unresolved_edit_target_count": 0,
+          "ambiguous_edit_target_count": 0,
+          "target_span_line_count": null,
+          "max_target_span_line_count": null,
+          "target_span_to_file_ratio": null,
+          "target_dependency_fanout_count": null,
+          "write_scope_without_resolved_targets": 0,
+          "source_record_digest": null,
+          "selected_unit": null
+        },
+        "node_engine_carrier_facts": {
+          "cluster_count": 0,
+          "blast_radius_severity": "none"
+        }
+      },
+      "provenance": {
+        "source_kind": "canonical_work_record",
+        "canonicality": "canonical",
+        "evidence_basis": "normalized_record_projection",
+        "policy_backend": "portfolio-local",
+        "policy_version": "worker-admission-policy.v1"
+      },
+      "sidecar_path": "wiki/work-records/evidence/WK-2092.SLICE-003.sha256-427141c716b12745758350077ef90dde07746489a520aa255a8c4ff3f9a1ed78.admission.json",
+      "sidecar_digest": "sha256:427141c716b12745758350077ef90dde07746489a520aa255a8c4ff3f9a1ed78",
+      "admission_summary": {
+        "result": "review",
+        "dispatchable": false,
+        "decision_codes": [
+          "worker_admission.work_unit_atomicity.required_metric_missing.v1",
+          "worker_admission.work_unit_atomicity.artifact_kind_metadata_missing.v1",
+          "worker_admission.work_unit_atomicity.file_stats_missing.v1",
+          "worker_admission.work_unit_atomicity.runtime_mode_metadata_missing.v1",
+          "worker_admission.work_unit_atomicity.validation_command_metadata_missing.v1"
+        ]
+      }
+    }
+  ]
+}

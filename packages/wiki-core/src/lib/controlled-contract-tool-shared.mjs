@@ -77,7 +77,7 @@ const CONTROLLED_CONTRACT_TEST_PROOF_SPECIFIER =
   "@agent-chassis/controlled-contract/test-proof";
 
 const CONTROLLED_CONTRACT_EVALUATION_INPUT_SCHEMA_SPECIFIER =
-  "@agent-chassis/controlled-contract/schema/controlled-contract-verification-profile-input.v1.schema.json";
+  "@agent-chassis/controlled-contract/schema/controlled-contract-verification-profile-input.v2.schema.json";
 
 let controlledContractTestProofPromise = null;
 function loadControlledContractTestProofPackage() {
@@ -99,18 +99,19 @@ const CARRIER_SUFFIX = Object.freeze({
   proof_plan_request: "proof-plan-request.json",
   proof_plan: "proof-plan.json"
 });
+const PROOF_AUTHORING_SOURCE_SUFFIX = ".obligation-coverage.json";
 
 export class ControlledContractToolError extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
+  constructor(code, message, details = {}, cause = undefined) {
+    super(message, cause === undefined ? undefined : { cause });
     this.name = "ControlledContractToolError";
     this.code = code;
     this.details = structuredClone(details);
   }
 }
 
-function fail(code, message, details = {}) {
-  throw new ControlledContractToolError(code, message, details);
+function fail(code, message, details = {}, cause = undefined) {
+  throw new ControlledContractToolError(code, message, details, cause);
 }
 
 function isPlainObject(value) {
@@ -241,6 +242,52 @@ function carrierNonMembership({
   });
 }
 
+function classifyProofAuthoringSourceBasename({ wkId, basename, sameWk, classification }) {
+  if (!basename.endsWith(PROOF_AUTHORING_SOURCE_SUFFIX)) return null;
+  let stem = basename.slice(0, -PROOF_AUTHORING_SOURCE_SUFFIX.length);
+  let selectedUnit = null;
+  const unit = /^(.*)--unit-(slice-[0-9]{3,})$/u.exec(stem);
+  if (unit !== null) {
+    stem = unit[1];
+    selectedUnit = unit[2].toUpperCase();
+  } else if (stem.includes("--unit-")) {
+
+    return carrierNonMembership({
+      wkId, basename, reason: "malformed_selected_unit", sameWk,
+      classification: sameWk ? "malformed_active_candidate" : classification
+    });
+  }
+  let focus = null;
+  if (stem === wkId) {
+    focus = null;
+  } else if (stem.startsWith(`${wkId}-`)) {
+    focus = stem.slice(wkId.length + 1);
+    if (!isCanonicalFocusSlug(focus)) {
+      return carrierNonMembership({
+        wkId, basename, reason: "malformed_focus", sameWk: true,
+        classification: "malformed_active_candidate"
+      });
+    }
+  } else {
+    return carrierNonMembership({
+      wkId, basename, reason: "different_wk", sameWk: false,
+      classification: "unsupported_nonmember"
+    });
+  }
+  return Object.freeze({
+    schema_version: "controlled-contract-carrier-basename-classification.v1",
+    classification: "active_member",
+    member: true,
+    wk_id: wkId,
+    basename,
+    carrier_kind: "obligation_coverage",
+    focus,
+    selected_unit: selectedUnit,
+    pack_namespace: null,
+    pack_digest: null
+  });
+}
+
 export function classifyControlledContractCarrierBasename({ wkId, basename }) {
   normalizeControlledContractIdentity({ wkId, focus: null });
   const leaf = typeof basename === "string" ? path.basename(basename) : "";
@@ -347,12 +394,27 @@ export function classifyControlledContractCarrierBasename({ wkId, basename }) {
   });
 }
 
+export function classifyControlledContractGenerationBasename({ wkId, basename }) {
+  const controlledCarrier = classifyControlledContractCarrierBasename({ wkId, basename });
+  if (controlledCarrier.member === true || typeof basename !== "string" ||
+      path.basename(basename) !== basename || basename.includes("\0")) {
+    return controlledCarrier;
+  }
+  return classifyProofAuthoringSourceBasename({
+    wkId,
+    basename,
+    sameWk: controlledCarrier.same_wk_candidate,
+    classification: controlledCarrier.classification
+  }) ?? controlledCarrier;
+}
+
 const CONTROLLED_CONTRACT_GENERATION_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 
-export function classifyControlledContractRepositoryPath({
+function classifyControlledContractRepositoryPathWith({
   wkId,
   repositoryPath,
-  path: repositoryPathAlias
+  path: repositoryPathAlias,
+  classifyBasename
 }) {
   normalizeControlledContractIdentity({ wkId, focus: null });
   const pathValue = typeof repositoryPath === "string"
@@ -360,7 +422,7 @@ export function classifyControlledContractRepositoryPath({
     : typeof repositoryPathAlias === "string" ? repositoryPathAlias : "";
   const normalizedPath = pathValue.replace(/^\.\//u, "");
   const basename = path.posix.basename(normalizedPath);
-  const basenameClassification = classifyControlledContractCarrierBasename({
+  const basenameClassification = classifyBasename({
     wkId,
     basename
   });
@@ -405,11 +467,25 @@ export function classifyControlledContractRepositoryPath({
   });
 }
 
+export function classifyControlledContractRepositoryPath(input = {}) {
+  return classifyControlledContractRepositoryPathWith({
+    ...input,
+    classifyBasename: classifyControlledContractCarrierBasename
+  });
+}
+
+export function classifyControlledContractGenerationRepositoryPath(input = {}) {
+  return classifyControlledContractRepositoryPathWith({
+    ...input,
+    classifyBasename: classifyControlledContractGenerationBasename
+  });
+}
+
 function digestBytes(bytes) {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-function canonicalJsonBytes(value) {
+function canonicalJsonBytes(value, { enforceCarrierLimit = true } = {}) {
   let text;
   try {
     text = `${JSON.stringify(value, null, 2)}\n`;
@@ -417,7 +493,7 @@ function canonicalJsonBytes(value) {
     fail("controlled_contract_json_not_serializable", "content must be bounded JSON data");
   }
   const bytes = Buffer.from(text, "utf8");
-  if (bytes.byteLength > CONTROLLED_CONTRACT_MAX_JSON_BYTES) {
+  if (enforceCarrierLimit && bytes.byteLength > CONTROLLED_CONTRACT_MAX_JSON_BYTES) {
     fail("controlled_contract_json_too_large", "content exceeds the controlled carrier byte limit", {
       maximum_bytes: CONTROLLED_CONTRACT_MAX_JSON_BYTES,
       byte_length: bytes.byteLength
@@ -427,7 +503,7 @@ function canonicalJsonBytes(value) {
 }
 
 export function controlledContractContentDigest(value) {
-  return digestBytes(canonicalJsonBytes(value));
+  return digestBytes(canonicalJsonBytes(value, { enforceCarrierLimit: false }));
 }
 
 export function assertControlledContractAuthorableCarrierKind(carrierKind) {
@@ -660,6 +736,78 @@ async function generationEvaluationInputValidator() {
   return loadEvaluationInputSchema();
 }
 
+async function generationProofAuthoringContract(group, { wkId, focus, pkg }) {
+  if (group.sources.length === 0) return group.contract;
+  if (group.contract === null) {
+    generationInvalid("proof-authoring source has no selected contract", {
+      focus: focus || null
+    });
+  }
+  const sources = new Map();
+  for (const source of group.sources) {
+    const validation = pkg.validateObligationCoverageDraft(source.content);
+    if (!validation.valid) {
+      generationInvalid("proof-authoring source failed public package validation", {
+        focus: focus || null,
+        basename: source.descriptor.basename,
+        schema_errors: validation.schema_errors,
+        diagnostics: validation.diagnostics
+      });
+    }
+    const carrier = validation.carrier;
+    const classification = classifyControlledContractGenerationBasename({
+      wkId, basename: source.descriptor.basename
+    });
+    const selectedUnit = classification.selected_unit ?? null;
+    if (carrier.wk_id !== wkId || carrier.focus !== (focus || null) ||
+        carrier.selected_unit !== selectedUnit || sources.has(selectedUnit)) {
+      generationInvalid("proof-authoring source identity is mismatched or duplicated", {
+        focus: focus || null,
+        basename: source.descriptor.basename,
+        selected_unit: selectedUnit
+      });
+    }
+    sources.set(selectedUnit, carrier);
+  }
+  const parent = sources.get(null) ?? null;
+  const cases = parent?.cases ?? [];
+  const caseIds = new Set();
+  for (const definition of cases) {
+    if (caseIds.has(definition.case_id)) {
+      generationInvalid("proof-authoring case identity is duplicated", {
+        focus: focus || null,
+        case_id: definition.case_id
+      });
+    }
+    caseIds.add(definition.case_id);
+  }
+  for (const [selectedUnit, source] of sources) {
+    if (selectedUnit !== null && (source.cases?.length ?? 0) > 0) {
+      generationInvalid("proof-authoring case definitions must be parent-owned", {
+        focus: focus || null,
+        selected_unit: selectedUnit
+      });
+    }
+    for (const obligation of source.obligations ?? []) {
+      if (obligation.case_id && !caseIds.has(obligation.case_id)) {
+        generationInvalid("proof-authoring use references an absent parent case", {
+          focus: focus || null,
+          selected_unit: selectedUnit,
+          obligation_id: obligation.obligation_id,
+          case_id: obligation.case_id
+        });
+      }
+    }
+  }
+  const { resolveDerivedProofAuthoringContract } = await import(
+    "../operations/controlled-contract/proof-authoring-source.mjs"
+  );
+  return resolveDerivedProofAuthoringContract({
+    canonicalContract: group.contract,
+    cases
+  });
+}
+
 function generationInvalid(message, details = {}) {
   fail("controlled_contract_generation_invalid", message, details);
 }
@@ -677,11 +825,13 @@ async function validateResolvedGenerationAssociations({ wkId, descriptors, parse
   for (const descriptor of descriptors) {
     const key = descriptor.focus ?? "";
     if (!groups.has(key)) groups.set(key, {
-      contract: null, request: null, plan: null
+      contract: null, request: null, plan: null, sources: []
     });
     const group = groups.get(key);
     const content = parsedByBasename.get(descriptor.basename);
-    if (descriptor.carrier_kind === "evaluation_input") {
+    if (descriptor.carrier_kind === "obligation_coverage") {
+      group.sources.push({ descriptor, content });
+    } else if (descriptor.carrier_kind === "evaluation_input") {
       evaluationInputs[descriptor.basename] = content;
     } else {
       group[descriptor.carrier_kind === "proof_plan_request" ? "request" :
@@ -692,8 +842,12 @@ async function validateResolvedGenerationAssociations({ wkId, descriptors, parse
   }
 
   for (const [focus, group] of groups) {
+    const resolvedContract = await generationProofAuthoringContract(group, {
+      wkId, focus, pkg
+    });
     if (group.contract !== null) {
-      const resolved = pkg.validateStableTestProofContract(group.contract.content);
+
+      const resolved = pkg.validateNativeTestProofAuthoringContract(resolvedContract.content);
       if (!resolved.valid) {
         generationInvalid("contract failed public package validation", {
           focus: focus || null,
@@ -744,7 +898,7 @@ async function validateResolvedGenerationAssociations({ wkId, descriptors, parse
     let rebuilt;
     try {
       rebuilt = await pkg.buildProofPlan({
-        contract: group.contract.content,
+        contract: resolvedContract.content,
         request: group.request.content,
         evaluationInputs: selectedInputs
       });
@@ -786,6 +940,11 @@ async function validateControlledContractGenerationDescriptorMechanics({
       "complete controlled-contract generation must contain at least one carrier");
   }
   const parsedByBasename = new Map();
+  const descriptorFields = Object.freeze([
+    "path", "basename", "carrier_kind", "focus", "pack_digest",
+    "content_digest", "byte_length", "bytes_base64"
+  ]);
+  const descriptorFieldSet = new Set(descriptorFields);
   let previousPath = null;
   for (const descriptor of descriptors) {
     if (!isPlainObject(descriptor) || typeof descriptor.path !== "string" ||
@@ -795,11 +954,23 @@ async function validateControlledContractGenerationDescriptorMechanics({
         !DIGEST_PATTERN.test(descriptor.content_digest)) {
       invalid("controlled-contract generation descriptor is malformed");
     }
+    const descriptorKeys = Reflect.ownKeys(descriptor);
+    const missingFields = descriptorFields.filter((field) => !Object.hasOwn(descriptor, field));
+    const unexpectedFields = descriptorKeys.filter(
+      (field) => typeof field !== "string" || !descriptorFieldSet.has(field)
+    );
+    if (missingFields.length > 0 || unexpectedFields.length > 0) {
+      invalid("controlled-contract generation descriptor fields are not exact", {
+        basename: descriptor.basename,
+        missing_fields: missingFields,
+        unexpected_fields: unexpectedFields.map(String).sort()
+      });
+    }
     if (previousPath !== null && previousPath >= descriptor.path) {
       invalid("controlled-contract generation paths are duplicate or unsorted");
     }
     previousPath = descriptor.path;
-    const classification = classifyControlledContractCarrierBasename({
+    const classification = classifyControlledContractGenerationBasename({
       wkId, basename: descriptor.basename
     });
     if (classification.member !== true ||
@@ -868,6 +1039,57 @@ export async function validateControlledContractGenerationDescriptors({
   });
 }
 
+async function resolveGenerationProofAuthoringSourceDescriptors({
+  repoRoot, wkId, focuses, invalid
+}) {
+  const store = await resolveControlledContractRepository(repoRoot);
+  let entries;
+  try {
+    entries = await readdir(store.contracts, { withFileTypes: true });
+  } catch (error) {
+    invalid("proof-authoring generation sources could not be enumerated", {
+      cause_code: error?.code ?? null
+    });
+  }
+  const descriptors = [];
+  for (const entry of entries) {
+    if (!entry.name.endsWith(PROOF_AUTHORING_SOURCE_SUFFIX)) continue;
+    const classification = classifyControlledContractGenerationBasename({
+      wkId, basename: entry.name
+    });
+    if (classification.classification === "malformed_active_candidate") {
+      invalid("malformed same-WK proof-authoring source is present", {
+        basename: entry.name,
+        reason: classification.reason
+      });
+    }
+    if (classification.member !== true ||
+        classification.carrier_kind !== "obligation_coverage" ||
+        !focuses.has(classification.focus)) continue;
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      invalid("proof-authoring generation source is not a regular file", {
+        basename: entry.name
+      });
+    }
+    const inspected = await inspectCarrierFile(path.join(store.contracts, entry.name), {
+      required: true
+    });
+    parseCarrierJson(inspected.bytes);
+    descriptors.push({
+      path: `wiki/contracts/${entry.name}`,
+      basename: entry.name,
+      carrier_kind: classification.carrier_kind,
+      focus: classification.focus,
+      pack_digest: null,
+      content_digest: inspected.digest,
+      byte_length: inspected.bytes.byteLength,
+      bytes_base64: inspected.bytes.toString("base64")
+    });
+  }
+  return descriptors.sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+}
+
 async function resolveManifestSelectedGenerationPopulation({
   repoRoot,
   wkId,
@@ -881,7 +1103,14 @@ async function resolveManifestSelectedGenerationPopulation({
     fail("controlled_contract_generation_empty",
       "canonical same-WK controlled-contract generation contains no carriers");
   }
-  const descriptors = selection.descriptors.map((descriptor) => ({ ...descriptor }));
+  const focuses = new Set(selection.manifests.map(({ focus }) => focus ?? null));
+  const sourceDescriptors = await resolveGenerationProofAuthoringSourceDescriptors({
+    repoRoot, wkId, focuses, invalid
+  });
+  const descriptors = [
+    ...selection.descriptors.map((descriptor) => ({ ...descriptor })),
+    ...sourceDescriptors
+  ].sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   for (const descriptor of descriptors) {
     parseCarrierJson(Buffer.from(descriptor.bytes_base64, "base64"));
   }
@@ -892,6 +1121,12 @@ async function resolveManifestSelectedGenerationPopulation({
       JSON.stringify(observed.manifests) !== JSON.stringify(selection.manifests) ||
       JSON.stringify(observed.descriptors) !== JSON.stringify(selection.descriptors)) {
     invalid("canonical generation changed during resolution");
+  }
+  const observedSources = await resolveGenerationProofAuthoringSourceDescriptors({
+    repoRoot, wkId, focuses, invalid
+  });
+  if (JSON.stringify(observedSources) !== JSON.stringify(sourceDescriptors)) {
+    invalid("proof-authoring generation sources changed during resolution");
   }
   return deepFreezePlainData({
     schema_version: "controlled-contract-resolved-generation.v1",
@@ -929,7 +1164,7 @@ async function resolveControlledContractGenerationPopulation({
   }
   const classifiedEntries = entries.map((entry) => ({
     entry,
-    classification: classifyControlledContractCarrierBasename({
+    classification: classifyControlledContractGenerationBasename({
       wkId, basename: entry.name
     })
   }));
@@ -996,7 +1231,7 @@ async function resolveControlledContractGenerationPopulation({
   }
   const finalClassifications = finalEntries.map((entry) => ({
     entry,
-    classification: classifyControlledContractCarrierBasename({
+    classification: classifyControlledContractGenerationBasename({
       wkId, basename: entry.name
     })
   }));

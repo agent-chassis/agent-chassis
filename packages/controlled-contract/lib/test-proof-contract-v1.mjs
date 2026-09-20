@@ -1,3 +1,4 @@
+import { validateCompleteNativeContract, validateCompleteNativeTestProof } from './native-test-proof-authoring.mjs';
 import {
   canonicalJsonBytes,
   compareCodeUnits,
@@ -7,15 +8,20 @@ import {
 } from "./deterministic-projection-primitives.mjs";
 import { projectBoundedDiagnostics } from "./bounded-diagnostic-projection.mjs";
 import { validateStableV1ContractFamily } from "./stable-v1-family-validation.mjs";
-import STABLE_CONTRACT_SCHEMA from
-  "../schema/controlled-acceptance-contract.v1.schema.json" with { type: "json" };
+import STABLE_CONTRACT_SCHEMA from "./stable-contract-schema-v1.mjs";
 import {
+  NODE_TEST_SELECTOR_KIND,
   PROVIDER_REFUSAL_PRECEDENCE,
   TEST_PROOF_PROVIDER_CAPABILITY_SNAPSHOT_DIGEST,
   TEST_PROOF_PROVIDER_CATALOG,
   TEST_PROOF_PROVIDER_REGISTRY_ID,
   TEST_PROOF_PROVIDER_REGISTRY_VERSION,
-  resolveTestProofProviderCompatibility
+  resolveNativeTestSelector,
+  resolveTestProofProviderCompatibility,
+  testProofFalsifierProvider,
+  testProofProviderFamily,
+  testProofSelectorKind,
+  testProofStrategySelectorKinds
 } from "./test-proof-provider-registry.mjs";
 
 const STABLE_TEST_PROOF_AUTHORING_LIMITS = Object.freeze({
@@ -27,6 +33,11 @@ const STABLE_TEST_PROOF_AUTHORING_LIMITS = Object.freeze({
   diagnostic_envelope_bytes: 65536,
   diagnostic_encoded_field_bytes: 4096
 });
+const WORK_RECORD_ID_RE = /^WK-[0-9]{4}$/u;
+const CONTROLLED_CONTRACT_FOCUS_RE =
+  /^(?!wk-[0-9])(?!slice-[0-9]+$)[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const CONTROLLED_CONTRACT_AUTHORING_QUERY_TOOL =
+  "workspace_controlled_contract_obligation_coverage_query";
 
 const REFUSAL_ORDER = Object.freeze([
   "stable_test_proof_input_invalid",
@@ -35,7 +46,7 @@ const REFUSAL_ORDER = Object.freeze([
   "stable_family_mixed_state",
   "stable_family_partial_state",
   "stable_family_schema_invalid",
-  "stable_test_proof_current_population_duplicate",
+  "stable_test_proof_selector_invalid",
   "stable_test_proof_contract_invalid",
   "stable_test_proof_verification_ids_invalid",
   "stable_test_proof_verification_unknown",
@@ -93,14 +104,6 @@ function assertClosedInput(value, allowed, pointer = "/") {
 
 const VERIFICATION_BUNDLE_SCHEMA_VERSION =
   "controlled-contract-verification-bundle.v1";
-const STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS = Object.freeze({
-  MISSING_INVENTORY: "missing_inventory",
-  MISSING_SELECTION: "missing_selection",
-  INVALID_SELECTION: "invalid_selection",
-  READY: "ready"
-});
-const STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION =
-  "controlled-contract-test-proof-runtime-readiness.v1";
 const VERIFICATION_BUNDLE_FIELDS = Object.freeze([
   "schema_version", "verification_id", "references", "propositions", "claims",
   "relations", "collections", "residue", "annotations", "test_proof"
@@ -193,6 +196,7 @@ function assertVerificationBundle(bundle, verificationId, pointer) {
       bundle.test_proof?.verification_claim_id ?? null)
   );
   if (diagnostics.length > 0) refuseBundle(diagnostics[0].code, diagnostics);
+  resolveStableTestProofProviderBindings(bundle.test_proof);
 }
 
 function assertVerificationBundleOperations(operations) {
@@ -378,7 +382,7 @@ function assertFinalReferenceSafety(contract, retirements) {
 function applyStableVerificationBundles(options) {
   assertClosedInput(options, ["contract", "operations"]);
   const { contract, operations } = options;
-  assertValidStableContract(contract);
+  assertValidStableContract(contract, true);
   assertVerificationBundleOperations(operations);
   const prospective = structuredClone(contract);
   const changed = [];
@@ -418,7 +422,8 @@ function applyStableVerificationBundles(options) {
       }
       if (mismatched.some(({ population }) => population === "test_proofs")) refuse(
         "stable_verification_bundle_proof_replacement_forbidden",
-        `/operations/${index}/bundle/test_proof`, "separate proof replacement route",
+        `/operations/${index}/bundle/test_proof`,
+        "guarded prepare-design verification_bundle continuation",
         operation.verification_id
       );
       if (mismatched.length > 0) refuse("stable_verification_bundle_content_mismatch",
@@ -447,7 +452,7 @@ function applyStableVerificationBundles(options) {
     changed.push(operation.verification_id);
   }
   assertFinalReferenceSafety(prospective, retirements);
-  const validation = validateStableTestProofContract(prospective);
+  const validation = validateStableV1ContractFamily(prospective);
   if (!validation.valid) refuse("stable_verification_bundle_result_invalid", "/operations",
     "valid complete stable carrier", "invalid", validation.diagnostics);
   const canonical = JSON.parse(canonicalJsonBytes(prospective).toString("utf8"));
@@ -462,26 +467,27 @@ function applyStableVerificationBundles(options) {
 function validateStableTestProofContract(contract) {
   const family = validateStableV1ContractFamily(contract);
   if (!family.valid) return family;
-  const failures = contract.test_proofs.flatMap((binding, index) => {
-    const population = currentPopulationEntries(binding);
-    const duplicate = population.find((testId, populationIndex) =>
-      population.indexOf(testId) !== populationIndex);
-    return [
-      ...(duplicate === undefined ? [] : [diagnostic(
-        "stable_test_proof_current_population_duplicate",
-        `/test_proofs/${index}/coverage_disposition/items`,
-        "duplicate-free current test population",
-        duplicate
-      )]),
-      ...providerResolutionEntries(binding).filter(({ result }) => !result.valid).map(
-        ({ result }) => ({
-          ...result.diagnostic,
-          pointer: `/test_proofs/${index}${result.diagnostic.pointer}`
-        })
-      )
-    ];
+  const complete = validateCompleteNativeContract(contract);
+  const completeness = complete ? [] : structuredClone(validateCompleteNativeContract.errors).map(error => ({
+    code: 'stable_test_proof_incomplete', pointer: error.instancePath || '/', ...error }));
+  for (const claim of contract.claims) if (claim.kind === 'verification' && claim.verification_method === 'test_execution' &&
+      !contract.test_proofs.some(proof => proof.verification_claim_id === claim.claim_id)) completeness.push({
+    code: 'stable_test_proof_missing', pointer: '/test_proofs', expected_identity: claim.claim_id });
+  for (const proof of contract.test_proofs) if (!contract.claims.some(claim => claim.claim_id === proof.verification_claim_id)) {
+    completeness.push({ code: 'stable_test_proof_claim_unknown', pointer: '/test_proofs', actual_identity: proof.verification_claim_id });
   }
-  ).sort((left, right) =>
+  const failures = [...completeness, ...contract.test_proofs.flatMap((binding, index) => [
+    ...(selectorDiagnostic(binding?.test_selector) === null ? [] : [{
+      ...selectorDiagnostic(binding.test_selector),
+      pointer: `/test_proofs/${index}/test_selector`
+    }]),
+    ...providerResolutionEntries(binding).filter(({ result }) => !result.valid).map(
+      ({ result }) => ({
+        ...result.diagnostic,
+        pointer: `/test_proofs/${index}${result.diagnostic.pointer}`
+      })
+    )
+  ])].sort((left, right) =>
     REFUSAL_ORDER.indexOf(left.code) - REFUSAL_ORDER.indexOf(right.code) ||
     compareCodeUnits(left.pointer, right.pointer)
   );
@@ -489,66 +495,83 @@ function validateStableTestProofContract(contract) {
   return deepFreeze({
     ...family,
     valid: false,
-    diagnostics: projectBoundedDiagnostics(failures)
+    diagnostics: projectBoundedDiagnostics(failures),
+    diagnostic_details: Object.freeze(structuredClone(failures))
   });
 }
 
-function currentPopulationEntries(binding) {
-  const items = binding?.coverage_disposition?.items;
-  if (!Array.isArray(items)) return [];
-  return items.flatMap((item) => item?.disposition === "preserved"
-    ? [item.test_id]
-    : item?.disposition === "replaced" && Array.isArray(item.replacement_test_ids)
-      ? item.replacement_test_ids
-      : []);
-}
+const TEST_SELECTOR_FIELDS = Object.freeze(["name", "nesting"]);
+const TEST_SELECTOR_NAME_MAX_LENGTH = 512;
+const TEST_SELECTOR_NESTING_MAX = 64;
 
-function projectStableTestProofCurrentPopulation(binding) {
-  const population = currentPopulationEntries(binding);
-  const duplicate = population.find((testId, index) =>
-    population.indexOf(testId) !== index);
-  if (duplicate !== undefined) refuse(
-    "stable_test_proof_current_population_duplicate",
-    "/coverage_disposition/items",
-    "duplicate-free current test population",
-    duplicate
-  );
-  return Object.freeze([...population].sort(compareCodeUnits));
-}
-
-function classifyStableTestProofRuntimeReadiness(binding) {
-  const currentTestIds = projectStableTestProofCurrentPopulation(binding);
-  const selection = binding?.runtime_test_identity;
-  const selectedTestId = selection && typeof selection === "object" &&
-      !Array.isArray(selection) && typeof selection.test_id === "string"
-    ? selection.test_id : null;
-  let reason = STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.READY;
-  if (binding?.coverage_disposition?.baseline_state !== "complete_executed_inventory" ||
-      currentTestIds.length === 0) {
-    reason = STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_INVENTORY;
-  } else if (selection === undefined) {
-    reason = STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_SELECTION;
-  } else if (!selection || typeof selection !== "object" || Array.isArray(selection) ||
-      typeof selection.test_id !== "string" ||
-      !currentTestIds.includes(selection.test_id)) {
-    reason = STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.INVALID_SELECTION;
+function selectorDiagnostic(selector) {
+  const expected = "closed { name: nonempty string, nesting: 0..64 } selector or closed { provider_id, provider_version, node_id } native selector";
+  if (!selector || typeof selector !== "object" || Array.isArray(selector)) {
+    return diagnostic("stable_test_proof_selector_invalid", "/test_selector",
+      expected, selector ?? null);
   }
-  const ready = reason === STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.READY;
+  if (testProofSelectorKind(selector) !== NODE_TEST_SELECTOR_KIND ||
+      Object.hasOwn(selector, "node_id")) {
+    const native = resolveNativeTestSelector(selector);
+    return native.valid ? null : diagnostic("stable_test_proof_selector_invalid",
+      native.pointer, native.expected_identity, native.actual_identity);
+  }
+  const unsupported = unsupportedObjectKeys(selector, TEST_SELECTOR_FIELDS);
+  if (unsupported.length > 0) return diagnostic("stable_test_proof_selector_invalid",
+    "/test_selector", TEST_SELECTOR_FIELDS, unsupported);
+  if (typeof selector.name !== "string" || selector.name.length === 0 ||
+      selector.name.length > TEST_SELECTOR_NAME_MAX_LENGTH) {
+    return diagnostic("stable_test_proof_selector_invalid", "/test_selector/name",
+      expected, selector.name ?? null);
+  }
+  if (!Number.isSafeInteger(selector.nesting) || selector.nesting < 0 ||
+      selector.nesting > TEST_SELECTOR_NESTING_MAX) {
+    return diagnostic("stable_test_proof_selector_invalid", "/test_selector/nesting",
+      expected, selector.nesting ?? null);
+  }
+  return null;
+}
+
+function projectStableTestProofSelector(binding) {
+  if (!binding || typeof binding !== "object" || Array.isArray(binding)) refuse(
+    "stable_test_proof_selector_invalid", "/", "complete test-proof binding",
+    binding ?? null
+  );
+  const failure = selectorDiagnostic(binding.test_selector);
+  if (failure !== null) refuse(failure.code, failure.pointer,
+    failure.expected_identity, failure.actual_identity);
+  if (testProofSelectorKind(binding.test_selector) !== NODE_TEST_SELECTOR_KIND) {
+    const native = resolveNativeTestSelector(binding.test_selector);
+    return deepFreeze({ selector_kind: native.selector_kind, provider_id: native.provider_id,
+      provider_version: native.provider_version, node_id: native.node_id, path: native.path });
+  }
   return deepFreeze({
-    schema_version: STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION,
-    status: ready ? "ready" : "not_ready",
-    reason,
-    candidate_total: currentTestIds.length,
-    current_test_ids: currentTestIds,
-    selected_test_id: selectedTestId,
-    runtime_test_identity: ready ? { test_id: selection.test_id } : null,
-    authority: "diagnostic",
-    admissibility_effect: "none"
+    name: binding.test_selector.name,
+    nesting: binding.test_selector.nesting
   });
 }
 
-function assertValidStableContract(contract) {
-  const result = validateStableTestProofContract(contract);
+function buildStableTestProofRecoveryCall({ wkId, focus = null } = {}) {
+  if (typeof wkId !== "string" || !WORK_RECORD_ID_RE.test(wkId) ||
+      (focus !== null && (typeof focus !== "string" ||
+        !CONTROLLED_CONTRACT_FOCUS_RE.test(focus)))) {
+    throw new StableTestProofContractError(
+      "stable_test_proof_recovery_subject_invalid",
+      "stable test-proof recovery requires one server-resolved canonical subject",
+      { wk_id: typeof wkId === "string" ? wkId : null, focus }
+    );
+  }
+  return deepFreeze({
+    tool: CONTROLLED_CONTRACT_AUTHORING_QUERY_TOOL,
+    arguments: {
+      unit: wkId,
+      ...(focus === null ? {} : { focus })
+    }
+  });
+}
+
+function assertValidStableContract(contract, authoring = false) {
+  const result = authoring ? validateStableV1ContractFamily(contract) : validateStableTestProofContract(contract);
   if (!result.valid) {
     const first = result.diagnostics.diagnostics[0];
     const code = first?.code?.startsWith("stable_family_") ? first.code
@@ -565,13 +588,16 @@ function canonicalStableTestProofContractJson(contract) {
 }
 
 function providerResolutionEntries(binding) {
+
+  const selectorKind = testProofSelectorKind(binding?.test_selector) ?? undefined;
   const rows = [{
     role: "candidate_execution_provider",
     pointer: "/candidate_execution_provider",
     result: resolveTestProofProviderCompatibility({
       provider: binding?.candidate_execution_provider,
       capability: "candidate_execution",
-      pointer: "/candidate_execution_provider"
+      pointer: "/candidate_execution_provider",
+      selector_kind: selectorKind
     })
   }];
   for (const [index, falsifier] of (binding?.falsifiers ?? []).entries()) rows.push({
@@ -582,7 +608,9 @@ function providerResolutionEntries(binding) {
       capability: "falsifier_execution",
       pointer: `/falsifiers/${index}/execution_provider`,
       strategy: falsifier?.strategy,
-      boundary_kind: falsifier?.mutation?.target_kind
+      observation_mechanism: falsifier?.mutation?.mechanism,
+      boundary_kind: falsifier?.mutation?.target_kind,
+      selector_kind: selectorKind
     })
   });
   const traversal = binding?.traversal_provider;
@@ -604,11 +632,12 @@ function providerResolutionEntries(binding) {
       observation_seam: traversal?.observation_seam,
       evidence_artifact_types: traversal?.evidence_artifact_type === undefined
         ? undefined : [traversal.evidence_artifact_type],
-      boundary_kind: traversal?.boundary_kind
+      boundary_kind: traversal?.boundary_kind,
+      selector_kind: selectorKind
     });
     const systemBoundaryKind = binding?.system_under_test_boundary?.kind;
     const boundaryMismatchCode = PROVIDER_REFUSAL_PRECEDENCE[10];
-    const result = compatibility.valid && systemBoundaryKind !== traversal?.boundary_kind
+    const kindResult = compatibility.valid && systemBoundaryKind !== traversal?.boundary_kind
       ? deepFreeze({
         valid: false,
         code: boundaryMismatchCode,
@@ -624,7 +653,8 @@ function providerResolutionEntries(binding) {
         descriptor: null
       })
       : compatibility;
-    rows.push({ role: "traversal_provider", pointer: "/traversal_provider", result });
+    rows.push({ role: "traversal_provider", pointer: "/traversal_provider",
+      result: kindResult });
   }
   return rows;
 }
@@ -634,6 +664,8 @@ function resolveStableTestProofProviderBindings(binding) {
     "stable_test_proof_provider_missing", "/", "complete test-proof binding",
     binding ?? null
   );
+  if (!validateCompleteNativeTestProof(binding)) refuse('stable_test_proof_incomplete', '/',
+    'complete execution binding', binding, structuredClone(validateCompleteNativeTestProof.errors));
   const rows = providerResolutionEntries(binding);
   const failures = rows.filter(({ result }) => !result.valid).sort((left, right) =>
     PROVIDER_REFUSAL_PRECEDENCE.indexOf(left.result.code) -
@@ -670,7 +702,7 @@ function assertVerificationIds(verificationIds) {
 function selectStableTestProofBindings(options, schemaVersion) {
   assertClosedInput(options, ["contract", "verificationIds"]);
   const { contract, verificationIds } = options;
-  assertValidStableContract(contract);
+  assertValidStableContract(contract, true);
   assertVerificationIds(verificationIds);
   const claims = new Map(contract.claims.map((claim) => [claim.claim_id, claim]));
   const proofs = new Map(contract.test_proofs.map((proof) =>
@@ -683,6 +715,10 @@ function selectStableTestProofBindings(options, schemaVersion) {
       refuse("stable_test_proof_verification_not_test_execution", "/verificationIds",
         "test_execution verification claim", verificationId);
     }
+  }
+  for (const verificationId of verificationIds) {
+    if (!proofs.has(verificationId)) refuse("stable_test_proof_incomplete", "/test_proofs", "complete selected binding", verificationId);
+    resolveStableTestProofProviderBindings(proofs.get(verificationId));
   }
   const bindings = [...verificationIds].sort(compareCodeUnits).map((id) =>
     structuredClone(proofs.get(id)));
@@ -747,7 +783,7 @@ function assertReplacements(replacements) {
 function replaceStableTestProofBindings(options) {
   assertClosedInput(options, ["contract", "replacements"]);
   const { contract, replacements } = options;
-  assertValidStableContract(contract);
+  assertValidStableContract(contract, true);
   assertReplacements(replacements);
   const proofIndex = new Map(contract.test_proofs.map((proof, index) =>
     [proof.verification_claim_id, index]));
@@ -765,7 +801,7 @@ function replaceStableTestProofBindings(options) {
   prospective.test_proofs.sort((left, right) => compareCodeUnits(
     left.verification_claim_id, right.verification_claim_id
   ));
-  const validation = validateStableTestProofContract(prospective);
+  const validation = validateStableV1ContractFamily(prospective);
   if (!validation.valid) refuse("stable_test_proof_replacement_result_invalid",
     "/test_proofs", "valid complete stable carrier", "invalid",
     validation.diagnostics);
@@ -778,6 +814,151 @@ function replaceStableTestProofBindings(options) {
   });
 }
 
+const CURRENT_DEFINITION_REAUTHORING_SCHEMA =
+  "controlled-contract-current-definition-reauthoring.v1";
+const RETIRED_CURRENT_DEFINITION_FIELDS = Object.freeze([
+  "coverage_disposition",
+  "runtime_test_identity"
+]);
+
+function currentDefinitionDiagnosticRows(diagnosticDetails) {
+  return Array.isArray(diagnosticDetails) ? diagnosticDetails : [];
+}
+
+function qualifyStableCurrentDefinitionReauthoring({ contract, diagnosticDetails }) {
+  if (!contract || typeof contract !== "object" || Array.isArray(contract) ||
+      contract.schema_version !== "controlled-acceptance-contract.v1" ||
+      contract.vocabulary_version !== "controlled-contract-vocabulary.v1" ||
+      contract.profile_id !== "acceptance-contract.standard.v1" ||
+      contract.test_proof_version !== "controlled-contract-test-proof.v1" ||
+      !Array.isArray(contract.test_proofs)) return null;
+  const rows = currentDefinitionDiagnosticRows(diagnosticDetails);
+  if (rows.length === 0) return null;
+  const retired = new Set(RETIRED_CURRENT_DEFINITION_FIELDS);
+  const byPointer = new Map();
+  let retiredFieldCount = 0;
+  for (const row of rows) {
+    const pointer = row?.definition_pointer;
+    const supportedUnexpected = row?.keyword === "additionalProperties" &&
+      row.property_kind === "unexpected" && retired.has(row.property_name);
+    const supportedMissing = row?.keyword === "required" &&
+      row.property_kind === "missing" && row.property_name === "test_selector";
+    if (row?.code !== "stable_contract_schema_invalid" ||
+        typeof pointer !== "string" ||
+        !/^\/test_proofs\/[0-9]+$/u.test(pointer) ||
+        (!supportedUnexpected && !supportedMissing)) return null;
+    const proofIndex = Number(pointer.slice("/test_proofs/".length));
+    const pointedProof = contract.test_proofs[proofIndex];
+    if (!pointedProof || typeof pointedProof !== "object" ||
+        (row.test_proof_id !== null && row.test_proof_id !== undefined &&
+          row.test_proof_id !== pointedProof.test_proof_id) ||
+        (row.verification_claim_id !== null && row.verification_claim_id !== undefined &&
+          row.verification_claim_id !== pointedProof.verification_claim_id)) return null;
+    if (supportedUnexpected) retiredFieldCount += 1;
+    const current = byPointer.get(pointer) ?? { unexpected: [], missing: [] };
+    (supportedUnexpected ? current.unexpected : current.missing).push(row.property_name);
+    byPointer.set(pointer, current);
+  }
+  if (retiredFieldCount === 0) return null;
+
+  const proofIds = new Set();
+  const verificationIds = new Set();
+  const definitions = [];
+  for (const [index, proof] of contract.test_proofs.entries()) {
+    if (!proof || typeof proof !== "object" || Array.isArray(proof) ||
+        typeof proof.test_proof_id !== "string" || proof.test_proof_id.length === 0 ||
+        typeof proof.verification_claim_id !== "string" ||
+        proof.verification_claim_id.length === 0 ||
+        proofIds.has(proof.test_proof_id) ||
+        verificationIds.has(proof.verification_claim_id)) return null;
+    proofIds.add(proof.test_proof_id);
+    verificationIds.add(proof.verification_claim_id);
+    const pointer = `/test_proofs/${index}`;
+    const defects = byPointer.get(pointer);
+    if (defects === undefined) continue;
+    const unexpected = [...new Set(defects.unexpected)].sort(compareCodeUnits);
+    const missing = [...new Set(defects.missing)].sort(compareCodeUnits);
+    if (unexpected.length === 0 || missing.length !== 1 ||
+        missing[0] !== "test_selector" ||
+        unexpected.some((field) => !Object.hasOwn(proof, field)) ||
+        Object.hasOwn(proof, "test_selector")) {
+      return null;
+    }
+    definitions.push(Object.freeze({
+      definition_pointer: pointer,
+      test_proof_id: proof.test_proof_id,
+      verification_claim_id: proof.verification_claim_id,
+      unexpected_fields: Object.freeze(unexpected),
+      missing_fields: Object.freeze(missing)
+    }));
+  }
+  if (definitions.length !== byPointer.size || definitions.length === 0) return null;
+  return deepFreeze({
+    schema_version: CURRENT_DEFINITION_REAUTHORING_SCHEMA,
+    source_shape: "stable_v1_retired_definition_fields",
+    affected_definition_count: definitions.length,
+    definitions,
+    selector: structuredClone(
+      VERIFICATION_BUNDLE_VOCABULARY.target_types.test_selector),
+    required_confirmation: "exact_unexpected_fields"
+  });
+}
+
+function reauthorStableCurrentDefinitionBindings({ contract, qualification, replacements }) {
+  if (qualification?.schema_version !== CURRENT_DEFINITION_REAUTHORING_SCHEMA ||
+      !Array.isArray(qualification.definitions) || !Array.isArray(replacements)) refuse(
+    "stable_current_definition_reauthoring_input_invalid", "/replacements",
+    "qualified stable-v1 correction and complete replacements", null
+  );
+  const qualifiedById = new Map(qualification.definitions.map((definition) =>
+    [definition.verification_claim_id, definition]));
+  if (replacements.length !== qualifiedById.size) refuse(
+    "stable_current_definition_reauthoring_population_incomplete", "/replacements",
+    [...qualifiedById.keys()].sort(compareCodeUnits),
+    replacements.map(({ verification_id: id }) => id).sort(compareCodeUnits)
+  );
+  const prospective = structuredClone(contract);
+  const proofById = new Map(prospective.test_proofs.map((proof, index) =>
+    [proof.verification_claim_id, { proof, index }]));
+  const seen = new Set();
+  for (const [index, replacement] of replacements.entries()) {
+    assertClosedInput(replacement, ["op", "verification_id", "binding"],
+      `/replacements/${index}`);
+    const qualified = qualifiedById.get(replacement.verification_id);
+    const stored = proofById.get(replacement.verification_id)?.proof;
+    if (replacement.op !== "replace" || qualified === undefined || stored === undefined ||
+        seen.has(replacement.verification_id)) refuse(
+      "stable_current_definition_reauthoring_identity_invalid",
+      `/replacements/${index}/verification_id`,
+      [...qualifiedById.keys()].sort(compareCodeUnits), replacement.verification_id ?? null
+    );
+    seen.add(replacement.verification_id);
+    const expected = structuredClone(stored);
+    for (const field of qualified.unexpected_fields) delete expected[field];
+    expected.test_selector = structuredClone(replacement.binding?.test_selector);
+    if (canonicalJsonBytes(expected).toString("utf8") !==
+        canonicalJsonBytes(replacement.binding).toString("utf8")) refuse(
+      "stable_current_definition_reauthoring_change_out_of_scope",
+      `/replacements/${index}/binding`,
+      "only the explicit selector and confirmed retired fields may change", null
+    );
+    prospective.test_proofs[proofById.get(replacement.verification_id).index] =
+      structuredClone(replacement.binding);
+  }
+  const validation = validateStableTestProofContract(prospective);
+  if (!validation.valid) refuse(
+    "stable_current_definition_reauthoring_result_invalid", "/test_proofs",
+    "valid complete current stable-v1 contract", "invalid", validation.diagnostics
+  );
+  const canonical = JSON.parse(canonicalJsonBytes(prospective).toString("utf8"));
+  return deepFreeze({
+    contract: canonical,
+    contract_digest: `sha256:${sha256(canonicalJsonBytes(canonical))}`,
+    changed_verification_ids: [...seen].sort(compareCodeUnits),
+    semantic_judgment: "not_performed_authoring_only"
+  });
+}
+
 const CONTRACT_DEFS = STABLE_CONTRACT_SCHEMA.$defs;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -785,23 +966,17 @@ function schemaEnum(node) {
   return Object.freeze([...(node?.enum ?? [])]);
 }
 
-function coverageBaselineStates() {
-  return Object.freeze(CONTRACT_DEFS.coverage_disposition.oneOf.map(
-    (variant) => variant.properties.baseline_state.const));
+function providersFor(capability, selectorKind) {
+  return TEST_PROOF_PROVIDER_CATALOG.providers.filter(({ capabilities,
+    selector_kind: kind }) => capabilities.includes(capability) && kind === selectorKind);
 }
 
-function soleProviderFor(capability) {
-  const matched = TEST_PROOF_PROVIDER_CATALOG.providers.filter(
-    ({ capabilities }) => capabilities.includes(capability));
-  return matched.length === 1 ? matched[0] : null;
-}
-
-function providerRequirement(capability) {
-  const descriptor = soleProviderFor(capability);
+function providerRequirement(capability, selectorKind = NODE_TEST_SELECTOR_KIND) {
+  const matched = providersFor(capability, selectorKind);
+  const descriptor = matched.length === 1 ? matched[0] : null;
   if (descriptor === null) return Object.freeze({
     capability, resolved: false,
-    candidate_provider_ids: Object.freeze(TEST_PROOF_PROVIDER_CATALOG.providers
-      .filter(({ capabilities }) => capabilities.includes(capability))
+    candidate_provider_ids: Object.freeze(matched
       .map(({ provider_id: providerId }) => providerId).sort(compareCodeUnits))
   });
   return Object.freeze({
@@ -817,11 +992,34 @@ function providerRequirement(capability) {
   });
 }
 
-const VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS = Object.freeze({
-  candidate_execution: providerRequirement("candidate_execution"),
-  falsifier_execution: providerRequirement("falsifier_execution"),
-  boundary_traversal: providerRequirement("boundary_traversal")
+const familyRequirements = (selectorKind) => Object.freeze({
+  candidate_execution: providerRequirement("candidate_execution", selectorKind),
+  falsifier_execution: providerRequirement("falsifier_execution", selectorKind),
+  boundary_traversal: providerRequirement("boundary_traversal", selectorKind)
 });
+
+const VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS = familyRequirements(NODE_TEST_SELECTOR_KIND);
+const NATIVE_SELECTOR_KINDS = Object.freeze([...new Set(TEST_PROOF_PROVIDER_CATALOG.providers
+  .map(({ selector_kind: kind }) => kind))].filter((kind) => kind !== NODE_TEST_SELECTOR_KIND)
+  .sort(compareCodeUnits));
+const NATIVE_PROVIDER_REQUIREMENTS = Object.freeze(Object.fromEntries(
+  NATIVE_SELECTOR_KINDS.map((kind) => [kind, familyRequirements(kind)])));
+const NODE_SELECTOR_ARM = CONTRACT_DEFS.test_selector.oneOf.find(({ required }) =>
+  required.includes("name"));
+const NATIVE_SELECTOR_ARM = CONTRACT_DEFS.test_selector.oneOf.find(({ required }) =>
+  required.includes("node_id"));
+const NATIVE_MUTATION_BRANCH = CONTRACT_DEFS.falsifier.allOf.find((branch) =>
+  branch.if?.properties?.mutation?.properties?.mechanism?.enum !== undefined);
+const NATIVE_SOURCE_PATTERN =
+  CONTRACT_DEFS.system_under_test_boundary.properties.runtime_module_path.anyOf[1].pattern;
+
+function strategySelectorKind(strategy, selectorKind) {
+  if (selectorKind !== undefined) {
+    return testProofFalsifierProvider(selectorKind, strategy) === null ? null : selectorKind;
+  }
+  const owners = testProofStrategySelectorKinds(strategy);
+  return owners.length === 1 ? owners[0] : null;
+}
 
 const VERIFICATION_BUNDLE_VOCABULARY = deepFreeze({
   schema_version: VERIFICATION_BUNDLE_SCHEMA_VERSION,
@@ -850,7 +1048,19 @@ const VERIFICATION_BUNDLE_VOCABULARY = deepFreeze({
     observable_result_kind: schemaEnum(
       CONTRACT_DEFS.observable_result.properties.kind),
     falsifier_strategy: schemaEnum(CONTRACT_DEFS.falsifier.properties.strategy),
-    coverage_baseline_state: coverageBaselineStates(),
+    test_selector: {
+      required_fields: [...NODE_SELECTOR_ARM.required],
+      name_max_length: NODE_SELECTOR_ARM.properties.name.maxLength,
+      nesting_minimum: NODE_SELECTOR_ARM.properties.nesting.minimum,
+      nesting_maximum: NODE_SELECTOR_ARM.properties.nesting.maximum,
+      file_owner: "work_record_acceptance_validation_node_test_target"
+    },
+    native_test_selector: {
+      required_fields: [...NATIVE_SELECTOR_ARM.required],
+      node_id_max_length: NATIVE_SELECTOR_ARM.properties.node_id.maxLength,
+      selector_kinds: [...NATIVE_SELECTOR_KINDS],
+      target_owner: "authored_case_target"
+    },
     prohibited_shortcuts: schemaEnum(
       CONTRACT_DEFS.test_proof_binding.properties.prohibited_shortcuts.items),
     required_prohibited_shortcuts: [
@@ -858,10 +1068,11 @@ const VERIFICATION_BUNDLE_VOCABULARY = deepFreeze({
     ]
   },
   providers: VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS,
+  native_providers: NATIVE_PROVIDER_REQUIREMENTS,
   identity_patterns: Object.fromEntries([
     "claim_id", "relation_id", "proposition_id", "reference_id", "test_proof_id",
     "boundary_id", "observable_id", "falsifier_id", "mutation_id",
-    "coverage_baseline_id", "repo_module_path"
+    "repo_module_path"
   ].map((name) => [name, CONTRACT_DEFS[name].pattern]))
 });
 
@@ -892,8 +1103,8 @@ function contractCandidates(contract) {
   };
 }
 
-function boundTraversalProvider() {
-  const traversal = VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS.boundary_traversal;
+function boundTraversalProvider(requirements = VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS) {
+  const traversal = requirements.boundary_traversal;
   if (!traversal.resolved || traversal.boundary_kinds.length !== 1 ||
       traversal.observation_mechanisms.length !== 1 ||
       traversal.observation_seams.length !== 1) return null;
@@ -909,14 +1120,44 @@ function boundTraversalProvider() {
   };
 }
 
-function buildStableTestProofBindingTemplate({ contract = null, verificationId }) {
+function buildStableTestProofBindingTemplate({ contract = null, verificationId,
+  strategy = "dependency_failure", selectorKind: requestedSelectorKind = undefined,
+  falsificationSupport = "provider" }) {
   const slug = identitySlug(verificationId);
   const candidates = contractCandidates(contract);
-  const candidate = VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS.candidate_execution;
-  const falsifier = VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS.falsifier_execution;
-  const traversal = boundTraversalProvider();
-  const strategy = falsifier.resolved && falsifier.falsifier_strategies.length === 1
-    ? falsifier.falsifier_strategies[0] : null;
+  if (falsificationSupport !== "provider" &&
+      falsificationSupport !== "registry_unsupported") refuse(
+    "stable_test_proof_input_invalid", "/falsificationSupport",
+    ["provider", "registry_unsupported"], falsificationSupport
+  );
+
+  const unsupportedFalsification = falsificationSupport === "registry_unsupported";
+  if (unsupportedFalsification && requestedSelectorKind === undefined) refuse(
+    "stable_test_proof_input_invalid", "/selectorKind",
+    "one provider family selector kind", null
+  );
+
+  const selectorKind = unsupportedFalsification ? requestedSelectorKind
+    : strategySelectorKind(strategy, requestedSelectorKind);
+  if (selectorKind === null) refuse("stable_test_proof_input_invalid", "/strategy",
+    requestedSelectorKind === undefined
+      ? { strategy, selector_kinds: testProofStrategySelectorKinds(strategy) }
+      : { selector_kind: requestedSelectorKind,
+        strategies: TEST_PROOF_PROVIDER_CATALOG.providers.filter(({ selector_kind: kind }) =>
+          kind === requestedSelectorKind).flatMap(({ falsifier_strategies: values }) => values) },
+    strategy);
+  const requirements = selectorKind === NODE_TEST_SELECTOR_KIND
+    ? VERIFICATION_BUNDLE_PROVIDER_REQUIREMENTS : NATIVE_PROVIDER_REQUIREMENTS[selectorKind];
+  const native = selectorKind !== NODE_TEST_SELECTOR_KIND;
+  const candidate = requirements.candidate_execution;
+  const falsifier = requirements.falsifier_execution;
+  const traversal = boundTraversalProvider(requirements);
+  if (!unsupportedFalsification && !falsifier.falsifier_strategies?.includes(strategy)) refuse(
+    "stable_test_proof_input_invalid", "/strategy", falsifier.falsifier_strategies, strategy
+  );
+  const mutation = unsupportedFalsification ? null
+    : testProofFalsifierProvider(selectorKind, strategy);
+  const sourceSuffixes = testProofProviderFamily(selectorKind).source_suffixes;
   const boundaryKind = traversal?.boundary_kind ?? null;
   const binding = {
     test_proof_id: `test-proof-${slug}`,
@@ -931,16 +1172,18 @@ function buildStableTestProofBindingTemplate({ contract = null, verificationId }
       provider_version: candidate.provider_version,
       capability: "candidate_execution"
     } : {},
-    falsifiers: [{
+    falsifiers: unsupportedFalsification ? [] : [{
       falsifier_id: `falsifier-${slug}`,
       ...(strategy === null ? {} : { strategy }),
       expected_outcome:
         CONTRACT_DEFS.falsifier.properties.expected_outcome.const,
       mutation: {
+        ...(strategy === "forced_invocation" ? {
+          invocation: "first_original_return_no_arguments", operation: {}
+        } : {}),
         mutation_id: `mutation-${slug}`,
-        mechanism: CONTRACT_DEFS.falsifier.properties.mutation.properties.mechanism.const,
-        target_kind:
-          CONTRACT_DEFS.falsifier.properties.mutation.properties.target_kind.const
+        mechanism: mutation.mechanism,
+        target_kind: mutation.target_kind
       },
       execution_provider: falsifier.resolved ? {
         provider_id: falsifier.provider_id,
@@ -948,8 +1191,16 @@ function buildStableTestProofBindingTemplate({ contract = null, verificationId }
         capability: "falsifier_execution"
       } : {}
     }],
+    ...(unsupportedFalsification ? { falsification_provider: {
+      mode: "registry_unsupported",
+      registry_id: TEST_PROOF_PROVIDER_REGISTRY_ID,
+      registry_version: TEST_PROOF_PROVIDER_REGISTRY_VERSION
+    } } : {}),
     ...(traversal === null ? {} : { traversal_provider: traversal }),
-    coverage_disposition: { baseline_id: `coverage-baseline-${slug}` },
+    test_selector: native && candidate.resolved ? {
+      provider_id: candidate.provider_id,
+      provider_version: candidate.provider_version
+    } : {},
     prohibited_shortcuts: [
       ...VERIFICATION_BUNDLE_VOCABULARY.target_types.required_prohibited_shortcuts
     ]
@@ -961,7 +1212,8 @@ function buildStableTestProofBindingTemplate({ contract = null, verificationId }
     ...(boundaryKind === "module" ? [hole(
       "/system_under_test_boundary/runtime_module_path", "repo_module_path",
       "name the repository module the bound traversal provider observes",
-      { pattern: VERIFICATION_BUNDLE_VOCABULARY.identity_patterns.repo_module_path }
+      native ? { pattern: NATIVE_SOURCE_PATTERN, source_suffixes: [...sourceSuffixes] }
+        : { pattern: VERIFICATION_BUNDLE_VOCABULARY.identity_patterns.repo_module_path }
     )] : []),
     hole("/observable_result/kind", "observable_result_kind",
       "choose the observable the test asserts on",
@@ -970,20 +1222,38 @@ function buildStableTestProofBindingTemplate({ contract = null, verificationId }
     hole("/observable_result/proposition_id", "proposition_id",
       "name the proposition the observable result decides",
       { compatible_values: candidates.proposition_id }),
-    hole("/falsifiers/0/proposition_id", "proposition_id",
+    ...(unsupportedFalsification ? [] : [hole("/falsifiers/0/proposition_id", "proposition_id",
       "name the proposition the falsifier makes fail",
-      { compatible_values: candidates.proposition_id }),
-    hole("/falsifiers/0/mutation/module_path", "repo_module_path",
-      "name the module the falsifier substitutes",
-      { pattern: VERIFICATION_BUNDLE_VOCABULARY.identity_patterns.repo_module_path }),
-    hole("/coverage_disposition/baseline_state", "coverage_baseline_state",
-      "declare the executed-coverage baseline this proof replaces or preserves",
-      { compatible_values:
-        VERIFICATION_BUNDLE_VOCABULARY.target_types.coverage_baseline_state }),
-    hole("/coverage_disposition/items", "coverage_item",
-      "list the coverage items, empty only for no_executed_coverage",
-      { cardinality: "baseline_state_dependent" })
+      { compatible_values: candidates.proposition_id })]),
+    ...(native ? [
+      ...(unsupportedFalsification ? [] : [hole("/falsifiers/0/mutation/module_path", "repo_module_path",
+        "name the source module whose scalar-return function the falsifier substitutes",
+        { pattern: NATIVE_MUTATION_BRANCH.then.properties.mutation.properties.module_path.pattern,
+          source_suffixes: [...sourceSuffixes] }),
+      hole("/falsifiers/0/mutation/function_name", "function_name",
+        "name the top-level function whose single scalar return the falsifier replaces"),
+      hole("/falsifiers/0/mutation/replacement", "json_scalar",
+        "supply the JSON scalar that replaces the original return; it must be observably different")]),
+      hole("/test_selector/node_id", "native_node_id",
+        "name the exact literal native node identity inside the authored case target; the test need not exist yet",
+        { max_length: NATIVE_SELECTOR_ARM.properties.node_id.maxLength })
+    ] : [
+      ...(unsupportedFalsification ? [] : [hole("/falsifiers/0/mutation/module_path", "repo_module_path",
+        "name the module the falsifier substitutes",
+        { pattern: VERIFICATION_BUNDLE_VOCABULARY.identity_patterns.repo_module_path })]),
+      hole("/test_selector/name", "test_name",
+        "name the exact node:test assertion inside the work record's bound node_test target; the test need not exist yet",
+        { max_length: TEST_SELECTOR_NAME_MAX_LENGTH }),
+      hole("/test_selector/nesting", "test_nesting",
+        "declare the nesting depth of that assertion (0 for a top-level test)",
+        { minimum: 0, maximum: TEST_SELECTOR_NESTING_MAX })
+    ])
   ];
+  if (strategy === "forced_invocation") holes.push(
+    hole("/falsifiers/0/mutation/entry_export", "export_name", "name the original runner entry export"),
+    hole("/falsifiers/0/mutation/operation/module_path", "repo_module_path", "name the prohibited operation owner"),
+    hole("/falsifiers/0/mutation/operation/export_name", "export_name", "name the prohibited operation export")
+  );
   return { binding, author_semantics: holes };
 }
 
@@ -1060,23 +1330,38 @@ function describeStableTestProofAuthoring() {
 }
 
 export {
+  CURRENT_DEFINITION_REAUTHORING_SCHEMA,
+  RETIRED_CURRENT_DEFINITION_FIELDS,
   STABLE_TEST_PROOF_AUTHORING_LIMITS,
-  STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS,
-  STABLE_TEST_PROOF_RUNTIME_READINESS_SCHEMA_VERSION,
   StableTestProofContractError,
   VERIFICATION_BUNDLE_FIELDS,
   VERIFICATION_BUNDLE_SCHEMA_VERSION,
   VERIFICATION_BUNDLE_VOCABULARY,
   applyStableVerificationBundles,
+  buildStableTestProofRecoveryCall,
   buildStableTestProofBindingTemplate,
   buildVerificationBundleTemplate,
   canonicalStableTestProofContractJson,
-  classifyStableTestProofRuntimeReadiness,
   describeStableTestProofAuthoring,
   queryStableTestProofBindings,
-  projectStableTestProofCurrentPopulation,
+  projectStableTestProofSelector,
+  qualifyStableCurrentDefinitionReauthoring,
+  reauthorStableCurrentDefinitionBindings,
   replaceStableTestProofBindings,
   resolveStableTestProofBindingPopulation,
   resolveStableTestProofProviderBindings,
-  validateStableTestProofContract
+  validateStableTestProofContract,
+  validateStableV1ContractFamily as validateNativeTestProofAuthoringContract
 };
+
+export {
+  TEST_PROOF_PROVIDER_SCHEMA_VOCABULARY,
+  TEST_RUNTIME_RUNNER_CATALOG,
+  isTestProofSourcePath,
+  resolveNativeTestSelector,
+  testProofFalsifierProvider,
+  testProofProviderFamily,
+  testProofStrategySelectorKinds,
+  testProofWitnessValidator,
+  testRuntimeRunner
+} from "./test-proof-provider-registry.mjs";

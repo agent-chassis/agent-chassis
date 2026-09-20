@@ -1,0 +1,67 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.atomic-failure-boundary",
+    "controlled-proof-intent.implementation-readiness",
+    "controlled-proof-intent.refusal-before-effects",
+    "controlled-proof-intent.test-verification-validity",
+    "controlled-proof-intent.write-confinement",
+    "controlled-proof-intent.cross-representation-parity",
+    "controlled-proof-intent.retry-convergence",
+    "controlled-proof-intent.visibility-after-durable-settlement",
+    "controlled-proof-intent.lossless-projection",
+    "controlled-proof-intent.result-shape-conformance"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2442.evaluation-input.json",
+      "profile_id": "proof.atomicity.failure-boundary",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-b0f693d6be58df66d9d5b7b8dbd510119b3127c080f865901bf65a56b146f090.evaluation-input.json",
+      "profile_id": "proof.design.implementation-readiness",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-561bab65e52aa0af6e81d208fc22326946965d1a9a2d41d9482fd87d58d47c8f.evaluation-input.json",
+      "profile_id": "proof.authorization.refusal-before-effects",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-e84a80399469226ac277552a371272e516264496926cd07fab9f61deafb17e90.evaluation-input.json",
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "5.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-3e9f7d8b5688dcad7da635d89d82958e02d90e2f54b6207d4eba13f8fbd4de57.evaluation-input.json",
+      "profile_id": "proof.scope.write-confinement",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-aad7a79f8795d38559c873621c61d4212148eb1813ca088a97e536ebd198131b.evaluation-input.json",
+      "profile_id": "proof.result-shape.cross-representation-parity",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-ea43b8e90f19b04448cf3f6dfaea7ecb248d77665d29133f819d061c1ac40c44.evaluation-input.json",
+      "profile_id": "proof.failure.retry-convergence",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-a8d1e80e50f872f2be51b0622ecc174307764ea802ab188518963a3d13dfd41d.evaluation-input.json",
+      "profile_id": "proof.ordering.visibility-after-durable-settlement",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-d34155723e250659d8ce57f90170ae397a55e84c762075cea54b2aa4fa2b0113.evaluation-input.json",
+      "profile_id": "proof.completeness.lossless-projection",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2442.pack-sha256-c43586e266c22892c80dba95ae168199c7bbd6d33bb904dac99ac3817269b9cc.evaluation-input.json",
+      "profile_id": "proof.result-shape.conformance",
+      "profile_version": "3.0.0"
+    }
+  ]
+}

@@ -40,7 +40,6 @@ export const MANAGED_CORRECTIVE_RECOVERY_FIELDS = Object.freeze([
   "exact_subject",
   "filesystem_cleanup_forbidden",
   "launcher_retirement_required",
-  "monitor_handle",
   "next_action",
   "notification",
   "observed",

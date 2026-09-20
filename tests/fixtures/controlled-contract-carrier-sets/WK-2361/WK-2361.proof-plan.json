@@ -1,0 +1,33 @@
+{
+  "digests": {
+    "catalog": "9988a22893518fd1457de1ffa5301f82f913db00e4c688f74f0bb9602ba4ba78",
+    "contract": "851dacefd4414ec2f5049185879c164ae4a29b9ddd33a04e88e2eff22bdd944e",
+    "intent_artifact": "5e118e13bf801f4e0d5673aa0487e2df4190be4552bbfe89df13e2ee1877aca1",
+    "profiles": "10e9dbcd36dfbddf8e12635b6b1203973b81c487d56874b99eaff9f89c0c5bf5",
+    "vocabulary": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+  },
+  "packs": [
+    {
+      "evaluation_input": {
+        "path": "WK-2361.evaluation-input.json"
+      },
+      "profile_id": "proof.design.implementation-readiness",
+      "profile_version": "3.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.implementation-readiness"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "b211b1a092805acf1079ff632e229437424160039025cf5b690b1c0b0c03b98b",
+        "adequacy_result": "84455a531f5c613b3b92f9edfc5e55953d73d69083c37cdbeb82010b725be73e",
+        "admission": "7359d548a59fb2cc2b6f205312ee9f7fe57f30164a1c7f76ef46581a8f972096",
+        "evaluation_input": "494a9cf38e0f53b97add7bdeb90d532ca01f742df1192f4c59aba5c31d6e1f82",
+        "guarantee": "4a2c1a5cfc099cfecef4b0983db5bb81b941ddcfb5dcddfae7d23fd0437c228c",
+        "profile": "f2bc560180b7f84d6f4e63ecac56e5bc04a4dd55986cb199ccd9a2e5d9476575"
+      }
+    }
+  ],
+  "requested_intents": [
+    "controlled-proof-intent.implementation-readiness"
+  ],
+  "schema_version": "controlled-contract-proof-plan.v1"
+}

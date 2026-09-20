@@ -1,0 +1,146 @@
+{
+  "schema_version": "controlled-contract-pack-parameter-contract.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "7.0.0",
+  "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+  "description": "For every stable-v1 test_execution verification, one exact test-proof binding and one execution witness establish exact versioned launcher-registry provider bindings and capability-snapshot evidence for candidate execution, every falsifier, and traversal; launcher-owned Node test structured events and content-addressed artifacts that ignore test-controlled output; identity-matched system-under-test traversal observed through launcher-owned V8 coverage and an exact node_test_structured_assertion observation seam; a complete unchanged candidate pass; isolated execution of every discriminating launcher-applied module-substitution falsifier against its declared proposition with its exact strategy-bound structured failure reason; exactly one declared test, the one the binding's declarative test selector names, present in the launcher-observed inventory and passed rather than skipped or failed, with sibling tests observed in the same run neither substituting for it nor counting against it and no authored baseline inventory participating; and no prohibited source-text inspection or caller-injected executor. Unsupported traversal is registry-authenticated and remains review_only. Mechanical evaluation does not determine whether the coordinator selected the semantically correct boundary, observable, falsifiers, test selector, or provider.",
+  "parameters": [
+    {
+      "name": "component",
+      "purpose": "Declare component for proof.verification.test-validity. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "typed_referent",
+      "roles": [
+        "component"
+      ],
+      "refinement_refs": [
+        "/reference_roles/0"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "canonical",
+        "mapping": "canonical-source"
+      }
+    },
+    {
+      "name": "suite",
+      "purpose": "Declare suite for proof.verification.test-validity. Preserve every linked refinement and applicability; this identifies a semantic referent, not an observed truth or generated graph ID.",
+      "value_kind": "test_assertion_selector",
+      "roles": [
+        "suite"
+      ],
+      "refinement_refs": [
+        "/reference_roles/1"
+      ],
+      "applicability_refs": [
+        "/claim_patterns/1",
+        "/distinct_reference_role_sets/0"
+      ],
+      "source": {
+        "policy": "canonical",
+        "mapping": "canonical-source"
+      }
+    }
+  ],
+  "role_producers": [
+    {
+      "role": "component",
+      "kind": "canonical_relationship",
+      "parameter": "component",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/0",
+        "/claim_patterns/1",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": "canonical-source",
+      "gap": null
+    },
+    {
+      "role": "suite",
+      "kind": "canonical_relationship",
+      "parameter": "suite",
+      "inputs": [],
+      "rule_refs": [
+        "/claim_patterns/1",
+        "/distinct_reference_role_sets/0"
+      ],
+      "capability": "canonical-source",
+      "gap": null
+    }
+  ],
+  "construction": {
+    "capability": "construction",
+    "semantic_inputs": [
+      "component",
+      "suite"
+    ],
+    "declaration_outputs": [],
+    "required_observations": [],
+    "canonical_inputs": []
+  },
+  "dependencies": {
+    "state": "unresolved",
+    "gap": {
+      "owner": "@agent-chassis/controlled-contract",
+      "missing": "No authored exact inter-pack dependency recipe for proof.verification.test-validity.",
+      "source": "lib/proof-authoring-skeleton.mjs",
+      "consequence": "Do not infer independent construction or supporting packs; WK-2553 must retain this unresolved construction fact."
+    }
+  },
+  "capabilities": [
+    {
+      "id": "construction",
+      "kind": "constructor",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/proof-authoring-skeleton.mjs: general binding assistance requires an existing populated native contract.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No named proof.verification.test-validity constructor maps semantic inputs to the complete native graph.",
+        "source": "lib/proof-authoring-skeleton.mjs",
+        "consequence": "WK-2553 must report unavailable construction; binding by compatible type does not establish a source mapping."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "canonical-source",
+      "kind": "canonical_resolver",
+      "state": "declared_requirement",
+      "identity": null,
+      "evidence": "WK-2553 canonical test declaration and work-record-test-proof-bindings.mjs own the test target and exact selector.",
+      "evidence_kind": "requirement",
+      "gap": null,
+      "implementation_version": null
+    },
+    {
+      "id": "observation",
+      "kind": "observation_acquisition",
+      "state": "unavailable",
+      "identity": null,
+      "evidence": "lib/verification-profile-runtime.mjs validates bound declarations; it is not a general observation acquisition provider.",
+      "evidence_kind": "static",
+      "gap": {
+        "owner": "@agent-chassis/controlled-contract",
+        "missing": "No general observation acquisition mapping for proof.verification.test-validity.",
+        "source": "lib/verification-profile-runtime.mjs",
+        "consequence": "Required observations remain unavailable until their actual owner supplies acquired evidence."
+      },
+      "implementation_version": null
+    },
+    {
+      "id": "evaluation",
+      "kind": "evaluation",
+      "state": "implemented",
+      "identity": "@agent-chassis/controlled-contract#resolveExactProofEvaluator",
+      "evidence": "lib/proof-evaluator-registry.mjs: exact definition and execution evaluators are distinct.",
+      "evidence_kind": "static",
+      "gap": null,
+      "implementation_version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "digests": {
+    "catalog": "9988a22893518fd1457de1ffa5301f82f913db00e4c688f74f0bb9602ba4ba78",
+    "contract": "c40a27d69a1ea6ef5dfbf4810211aa897ceca763d59b66a88192dc1af0c35b35",
+    "intent_artifact": "5e118e13bf801f4e0d5673aa0487e2df4190be4552bbfe89df13e2ee1877aca1",
+    "profiles": "10e9dbcd36dfbddf8e12635b6b1203973b81c487d56874b99eaff9f89c0c5bf5",
+    "vocabulary": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+  },
+  "packs": [
+    {
+      "evaluation_input": {
+        "path": "WK-2151.evaluation-input.json"
+      },
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "5.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.test-verification-validity"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "b55a74856dcf00bd64a878b0aff58f21cd56f04bdbcbe235ab33db57284dc90f",
+        "adequacy_result": "fb6d54058a182b19b4a870680ab61f9be82958180688ff99e89ab4ef5b36ecb0",
+        "admission": "0a5cd1f6596cb4fcc308c5691a2d3dcf48d7d8326e8261c6b29cece2f4928515",
+        "evaluation_input": "8f4b33c4976ab512f3ebcc1343a12dfb9dd26fc6576f052329611f076f5034c7",
+        "guarantee": "9b0750f485dea8b2ac48d3b55e88431cc9f81d102da63ea3126a77081386fe40",
+        "profile": "336612edfe384b7836200e2bb73839d2a2365e41031191f3ad8f9d29cbbb4086"
+      }
+    }
+  ],
+  "requested_intents": [
+    "controlled-proof-intent.test-verification-validity"
+  ],
+  "schema_version": "controlled-contract-proof-plan.v1"
+}

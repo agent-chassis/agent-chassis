@@ -1,0 +1,19 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.atomic-failure-boundary",
+    "controlled-proof-intent.implementation-readiness"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2092.evaluation-input.json",
+      "profile_id": "proof.atomicity.failure-boundary",
+      "profile_version": "3.0.0"
+    },
+    {
+      "evaluation_input_path": "WK-2092.pack-sha256-b0f693d6be58df66d9d5b7b8dbd510119b3127c080f865901bf65a56b146f090.evaluation-input.json",
+      "profile_id": "proof.design.implementation-readiness",
+      "profile_version": "3.0.0"
+    }
+  ]
+}

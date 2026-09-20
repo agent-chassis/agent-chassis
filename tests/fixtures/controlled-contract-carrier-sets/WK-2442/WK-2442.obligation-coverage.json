@@ -1,0 +1,266 @@
+{
+  "schema_version": "controlled-contract-obligation-coverage.v3",
+  "wk_id": "WK-2442",
+  "focus": null,
+  "selected_unit": null,
+  "obligations": [
+    {
+      "obligation_id": "OBL-WK2442-001",
+      "statement": "Demonstrate that an agent can correctly and safely complete the canonical obligation-inventory, proof-map inspection, acceptance-gap review, and mapping-repair tasks while preserving WK-2055 as the owner of reusable comparative measurements and reports.",
+      "controlled_contract_node_ids": [
+        "claim-agent-completes-authoring",
+        "claim-wk2055-authoritative",
+        "claim-verify-task-matrix",
+        "claim-verify-ownership"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-coverage-authoring-skeleton-mcp.test.mjs",
+        "kind": "test",
+        "selector": "exact WK-2442-scale public authoring completes both coverage families"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-002",
+      "statement": "Verify that authoring responses disclose exact population and omission accounting and provide a lossless recovery path; assess payload size only when relevance, duplication, disclosure, advertised bounds, or task completion is impaired.",
+      "controlled_contract_node_ids": [
+        "claim-volume-is-diagnostic",
+        "claim-routing-supports-authoring"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "kind": "test",
+        "selector": "test-query-projection (claim-verify-query-projection): query is gap-first, paginated, digest-bound, typed, and spill-capable"
+      },
+      "selection": {
+        "proof_name": "proof.completeness.lossless-projection",
+        "proof_version": "4.0.0",
+        "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+        "parameter_contract_digest": "bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800",
+        "admission_digest": "2e22230c09a87dce93de8fb74b1f9842e7a2703d1f8af4fe715aab2a316a64c7",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-003",
+      "statement": "Verify each canonical authoring task for semantic completeness, correctness, relevance, discoverability, callable schemas, executable next calls, preserved authority, and exact final canonical-state verification.",
+      "controlled_contract_node_ids": [
+        "claim-agent-completes-authoring",
+        "claim-routing-supports-authoring",
+        "claim-nonterminal-routes-next-call",
+        "claim-verify-task-matrix",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence",
+        "claim-verify-ownership"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "kind": "test",
+        "selector": "claim-verify-mcp-family: the public family executes create/query/upsert/remove"
+      },
+      "selection": {
+        "proof_name": "proof.result-shape.conformance",
+        "proof_version": "4.0.0",
+        "profile_digest": "735fc66c518c193972648f0c9d4021803a3e923b241513e47487240da3ed452f",
+        "parameter_contract_digest": "e905347cb7fe1a7aac46e9a28197b8429c18fe7aa05fe89a54c85e3ac581560b",
+        "admission_digest": "2a0dc1c9654aa09c639657fe34c813a89a9f6c6892873c5952d1d69a2bfe8b46",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-004",
+      "statement": "Exercise all ten declared authoring states—current, absent, stale, invalid selector, invalid cursor, missing contract, missing proof plan, multi-page, sequential multi-row mutation, and atomic batch—and require every nonterminal state to return an executable next call or a precise no-agent-route blocker with operator action.",
+      "controlled_contract_node_ids": [
+        "claim-state-matrix-complete",
+        "claim-state-matrix-members-enumerated",
+        "claim-nonterminal-routes-next-call",
+        "claim-verify-task-matrix"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "kind": "test",
+        "selector": "claim-verify-regressions: all production failures and five interleavings stay typed"
+      },
+      "selection": {
+        "proof_name": "proof.verification.test-validity",
+        "proof_version": "7.0.0",
+        "profile_digest": "2b9af1d1d3b0b8796c53b68e6f557e65c339516322a59ff63ca15bfc0e436f52",
+        "parameter_contract_digest": "4db5da7e416c21db716e95548ee97fec9fccd3bad8b3d61d4c7bbb68b69e0dcc",
+        "admission_digest": "8cd237f90ff21647f6d411264da633bda4590e097261833c328506843aa74bcd",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-005",
+      "statement": "Verify canonical and natural-language routing with exact WK and four-digit slice preservation, describe-first discovery, bounded projections, lossless continuation, and strict separation of server-fixed arguments from caller-authored semantic decisions.",
+      "controlled_contract_node_ids": [
+        "claim-routing-supports-authoring",
+        "claim-nonterminal-routes-next-call",
+        "claim-complete-traversal-capture-route-unavailable",
+        "claim-complete-traversal-capture-gap-escalates",
+        "claim-versioned-cursor-capture-route-unavailable",
+        "claim-versioned-cursor-capture-gap-escalates"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "kind": "test",
+        "selector": "test-query-projection (claim-verify-query-projection): query is gap-first, paginated, digest-bound, typed, and spill-capable"
+      },
+      "selection": {
+        "proof_name": "proof.completeness.lossless-projection",
+        "proof_version": "4.0.0",
+        "profile_digest": "99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2",
+        "parameter_contract_digest": "bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800",
+        "admission_digest": "2e22230c09a87dce93de8fb74b1f9842e7a2703d1f8af4fe715aab2a316a64c7",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-006",
+      "statement": "Verify authenticated mutation receipts bind operation, unit, focus, before and after carrier state, effects, and the exact continuation; sequential calls consume the immediately prior state, batches settle atomically, and fresh sessions resume without hidden process memory.",
+      "controlled_contract_node_ids": [
+        "claim-receipts-record-continuation",
+        "claim-sequential-preserves-state",
+        "claim-batch-preserves-state",
+        "claim-paths-equivalent",
+        "claim-fresh-session-restarts",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-proof-authoring-liveness.test.mjs",
+        "kind": "test",
+        "selector": "restart and seven-package parity use the same provider scenario matrix"
+      },
+      "selection": {
+        "proof_name": "proof.ordering.visibility-after-durable-settlement",
+        "proof_version": "4.0.0",
+        "profile_digest": "ff03e0a4dce59b8ecdf7b811f5f383b3fbe3380509c8e3aa7e46df823c750cbd",
+        "parameter_contract_digest": "9c9c1c3f9da41ba163f7d9201a34f25932b23b8b90419b3228bfff12807d1fc0",
+        "admission_digest": "afd16c45bb79833d7458ddb6629874ea55706591c952807e869db5daf0244131",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-007",
+      "statement": "Refuse authoring workflows that require blind retry, generic source inspection, raw carrier editing, shell reconstruction, unsupported mutation, caller-invented authority, or a non-callable advertised continuation, without producing protected effects.",
+      "controlled_contract_node_ids": [
+        "claim-tools-reject-unsafe-recovery",
+        "claim-nonterminal-routes-next-call",
+        "claim-gaps-escalate"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-acceptance-coverage-mcp.test.mjs",
+        "kind": "test",
+        "selector": "test-shortcut-prohibitions (claim-verify-shortcut-prohibitions): public proof rejects seven shortcut classes"
+      },
+      "selection": {
+        "proof_name": "proof.authorization.refusal-before-effects",
+        "proof_version": "4.0.0",
+        "profile_digest": "e5cfc6aec27a79ce6e0c165bbf29ea676b9a0a5a62093c0ed43e44116c968c0b",
+        "parameter_contract_digest": "469b78bae23cf25fec3598b15b833b0d50ab4f0e91f3c3e0e5145a13d224fd7e",
+        "admission_digest": "8835a65db2b5d912b46d5b5766a7ce184f8f79beb0bbf99b7ae7d663bb7701cb",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-008",
+      "statement": "Compare manual sequential, skeleton-assisted sequential, and atomic batch authoring over equivalent fixtures only far enough to establish recovery convergence, receipt continuity, unresolved decisions, exact final-carrier equivalence, and concrete quality findings while reusing WK-2055-owned measurements.",
+      "controlled_contract_node_ids": [
+        "claim-wk2055-authoritative",
+        "claim-sequential-preserves-state",
+        "claim-batch-preserves-state",
+        "claim-paths-equivalent",
+        "claim-verify-equivalence"
+      ],
+      "mechanism": {
+        "owner": "tests/integration/controlled-contract-proof-authoring-liveness.test.mjs",
+        "kind": "test",
+        "selector": "equivalent continuations cross the actual digest-CAS barrier before converging"
+      },
+      "selection": {
+        "proof_name": "proof.result-shape.cross-representation-parity",
+        "proof_version": "4.0.0",
+        "profile_digest": "abbc6e30664d821b34adddc0a02c54b40f6bb3e0e91302e14b402eba2a389162",
+        "parameter_contract_digest": "9f014d9621e0ebae975ac8b2cae72aba1cebbe5313984b5174b53b0f1d0245a2",
+        "admission_digest": "e2e5bd88b3b6100cae92349eef9f7fdf00032bc0d98afbe4379aa21f25ffebc6",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-009",
+      "statement": "Confine durable changes to the owning quality-rubric and MCP guidance needed for restart-safe task outcomes and receipt continuation, without duplicating WK-2055 reports, operation inventories, package semantics, generated artifacts, or runtime state.",
+      "controlled_contract_node_ids": [
+        "claim-wk2442-docs-quality",
+        "claim-wk2055-authoritative",
+        "claim-verify-ownership"
+      ],
+      "mechanism": {
+        "owner": "wiki/work-records/WK-2442.json",
+        "kind": "durable_record",
+        "selector": "SLICE-005 write_scope and expected_edit_targets"
+      },
+      "selection": {
+        "proof_name": "proof.scope.write-confinement",
+        "proof_version": "4.0.0",
+        "profile_digest": "5eaea9dd397823f7cf906060d658f3ce858fde930c98e730d448c8a8e6f3cd92",
+        "parameter_contract_digest": "d328351786abf903601a10d65e9a6aed72307128ce8c6700e393930f07f396aa",
+        "admission_digest": "1f288b3dc8369fda7d68e2e4da0860d549a6e25a5436c88e3fad281ba3fb0507",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-010",
+      "statement": "For every surviving product, runtime, transport, or tooling-ergonomics defect, record an independently scoped owning WK, exact reproduction, stable refusal when available, and supported operator action; do not absorb that implementation into WK-2442.",
+      "controlled_contract_node_ids": [
+        "claim-gaps-escalate",
+        "claim-verify-ownership",
+        "claim-complete-traversal-capture-gap-escalates",
+        "claim-versioned-cursor-capture-gap-escalates"
+      ],
+      "mechanism": {
+        "owner": "wiki/work-records/WK-2442.json",
+        "kind": "durable_record",
+        "selector": "dependencies, related records, blockers, and SLICE-005 agent_notes"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    },
+    {
+      "obligation_id": "OBL-WK2442-011",
+      "statement": "Establish that the required DRY, all-decision, redteam, blueteam, disposition, controlled-contract, and proof-plan stages are complete and that every implementation dependency affecting the verified public behavior is done before executing the authoring matrix.",
+      "controlled_contract_node_ids": [
+        "claim-verify-task-matrix",
+        "claim-verify-routing-receipts",
+        "claim-verify-equivalence",
+        "claim-verify-ownership"
+      ],
+      "mechanism": {
+        "owner": "wiki/work-records/WK-2442.json",
+        "kind": "durable_record",
+        "selector": "review_state, dependencies, controlled_contract, proof_plan, and slice lifecycle"
+      },
+      "selection": {
+        "proof_name": "proof.design.implementation-readiness",
+        "proof_version": "4.0.0",
+        "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
+        "parameter_contract_digest": "65357426fe82da30a7027b3aeb4ceead43d0d6f3e44cd7d0d6310ad5cf1285ab",
+        "admission_digest": "7de4405bcdf5516f69899eaf5933fbda8c547b3403df71e1ffef4c8470cad79f",
+        "parameters": {}
+      }
+    }
+  ]
+}

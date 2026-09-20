@@ -12,17 +12,23 @@ import {
 } from "../lib/work-record-generation-transition.mjs";
 import { SHA256_PATTERN } from "../lib/work-record-schema-constants.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
+import { resolveWorkRecordEntryContent } from "../lib/work-record-entry-content.mjs";
+import {
+  validateWorkRecordEntryContent,
+  workRecordEditUsesEntryContent
+} from "../lib/work-record-entry-schema.mjs";
 import {
   WORK_RECORD_EDIT_FIELD_REGISTRY,
   WORK_RECORD_CONTRACT_EDIT_OPERATIONS,
   applyWorkRecordContractEdit,
   assignWorkRecordToInitiative,
-  assessAcceptanceRepairEligibility,
-  guardAcceptanceRepairPersistedDiff,
   guardInitiativeAssignmentPersistedDiff,
   guardWorkRecordReadySlicePersistedDiff,
   planWorkRecordReadySlice,
   parseWorkRecordUnitAddress,
+  resolveWorkRecordEditRegistryEntry,
+  validateWorkRecordProseDestination,
+  workRecordProseRegistryEntries,
   validateWorkRecordReadySliceRequest
 } from "../lib/work-record-contract-edit.mjs";
 import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
@@ -31,99 +37,18 @@ import {
   computeWorkRecordPersistenceSnapshotDigest,
   writeValidatedWorkRecordWithAdmissionSidecars
 } from "./work-records-store-io.mjs";
-import { generateAndLint } from "./generate-and-lint.mjs";
-import { lintRepo } from "./lint.mjs";
+import { withWorkRecordWriteLock } from "./work-record-write-lock.mjs";
+import {
+  WORK_RECORD_PERSISTENCE_PHASES,
+  WORK_RECORD_PUBLICATION_STATES,
+  appendWorkRecordPersistenceFailure
+} from "./work-record-persistence-diagnostics.mjs";
 
 export { WORK_RECORD_CONTRACT_EDIT_OPERATIONS };
 
 export const ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION =
   "assign_work_record_to_initiative";
 export const EDIT_WORK_RECORD_OPERATION = "edit_work_record";
-
-const CLOSEOUT_LINT_TOP_FINDINGS_LIMIT = 5;
-
-export async function buildCloseoutLintSummary({
-  dir = ".",
-  regenerateViews = true,
-  topFindingsLimit = CLOSEOUT_LINT_TOP_FINDINGS_LIMIT
-} = {}) {
-  let lintResult;
-  let generatedViews;
-  try {
-    if (regenerateViews) {
-      const result = await generateAndLint({ dir, includeAllFindings: true });
-
-      lintResult = result.lint ?? result;
-      generatedViews = "refreshed";
-    } else {
-      lintResult = await lintRepo({ dir, includeAllFindings: true });
-      generatedViews = "not_refreshed_may_be_stale";
-    }
-  } catch (error) {
-    return {
-      ran: false,
-      ok: null,
-      valid: null,
-      cleanly_closeable: null,
-      generated_views: regenerateViews ? "refresh_failed" : "not_refreshed_may_be_stale",
-      warning_count: null,
-      error_count: null,
-      top_findings: [],
-      findings_truncated: false,
-      error: { message: error?.message ? String(error.message) : String(error) },
-      next_action:
-        "Automatic repo lint could not run after this write; run `npm run wiki -- generate-and-lint` (or `npm run wiki -- lint`) manually and resolve or record any failures before treating this unit as cleanly closed."
-    };
-  }
-
-  const findings = Array.isArray(lintResult.findings) ? lintResult.findings : [];
-  const errorFindings = findings.filter((entry) => entry?.severity === "error");
-  const warningFindings = findings.filter((entry) => entry?.severity === "warning");
-  const errorCount =
-    typeof lintResult.error_count === "number" ? lintResult.error_count : errorFindings.length;
-  const warningCount =
-    typeof lintResult.warning_count === "number"
-      ? lintResult.warning_count
-      : warningFindings.length;
-  const orderedFindings = [...errorFindings, ...warningFindings];
-  const topFindings = orderedFindings.slice(0, topFindingsLimit).map((entry) => ({
-    severity: entry.severity ?? null,
-    code: entry.code ?? null,
-    message: entry.message ?? null,
-    path: entry.path ?? null
-  }));
-  const ok = errorCount === 0;
-
-  let nextAction;
-  if (!ok) {
-    const noun = errorCount === 1 ? "error" : "errors";
-    nextAction =
-      `LINT RED: repo lint reports ${errorCount} ${noun}. This unit is NOT cleanly closeable ` +
-      "until repo lint is fixed or a specific pre-existing lint blocker is recorded on the work " +
-      "record (for example in the closure notes or an escalation). Fix the listed errors and " +
-      "rerun, or record the accepted lint blocker before treating this unit as closed.";
-  } else if (warningCount > 0) {
-    const noun = warningCount === 1 ? "warning" : "warnings";
-    nextAction =
-      `Repo lint passed with no errors but ${warningCount} ${noun}. The unit is cleanly ` +
-      `closeable; review the listed ${noun} when convenient.`;
-  } else {
-    nextAction = "Repo lint passed with no errors or warnings. The unit is cleanly closeable.";
-  }
-
-  return {
-    ran: true,
-    ok,
-    valid: Boolean(lintResult.valid ?? ok),
-    cleanly_closeable: ok,
-    generated_views: generatedViews,
-    warning_count: warningCount,
-    error_count: errorCount,
-    top_findings: topFindings,
-    findings_truncated: orderedFindings.length > topFindings.length,
-    next_action: nextAction
-  };
-}
 
 function todayDateString() {
   return new Date().toISOString().slice(0, 10);
@@ -151,6 +76,11 @@ function buildResult({
   valid = false,
   written = false,
   noOp = false,
+  ok = undefined,
+  publicationState = undefined,
+  diagnosticCount = undefined,
+  failedFault = undefined,
+  effectTrace = undefined,
   changedFields = [],
   canonicalRecordPath = null,
   nextAction,
@@ -168,7 +98,7 @@ function buildResult({
     source_path_relative: loaded?.source_path_relative || null,
     source_digest: sourceDigest,
     valid: Boolean(valid),
-    written: Boolean(written),
+    written: written === null ? null : Boolean(written),
     no_op: Boolean(noOp),
     changed_fields: Array.isArray(changedFields) ? changedFields : [],
     diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
@@ -178,6 +108,11 @@ function buildResult({
       record ?? loaded?.record ?? null
     )
   };
+  if (ok !== undefined) result.ok = Boolean(ok);
+  if (publicationState !== undefined) result.publication_state = publicationState;
+  if (diagnosticCount !== undefined) result.diagnostic_count = diagnosticCount;
+  if (failedFault !== undefined) result.failed_fault = failedFault;
+  if (effectTrace !== undefined) result.effect_trace = effectTrace;
   if (generationTransition) result.generation_transition = generationTransition;
   if (expectedSourceDigest !== undefined) {
     result.expected_source_digest = expectedSourceDigest;
@@ -189,7 +124,7 @@ function buildResult({
   return result;
 }
 
-function buildPlannerParams(operation, params, unit) {
+function buildPlannerParams(operation, params, unit, repository) {
   const sliceId = unit.kind === "slice" ? unit.slice_id : null;
   switch (operation) {
     case "upsert_slice":
@@ -197,12 +132,10 @@ function buildPlannerParams(operation, params, unit) {
     case "delete_slice":
       return { sliceId: params.slice_id ?? params.sliceId ?? sliceId ?? undefined };
     case "edit_work_record":
-      return { sliceId, edit: params.edit };
+      return { sliceId, edit: params.edit, repository };
     case "set_list_field":
 
-      return { sliceId, field: params.field, values: params.values, mode: params.mode };
-    case "set_acceptance":
-      return { sliceId, criteria: params.criteria, validation: params.validation };
+      return { sliceId, field: params.field, values: params.values, mode: params.mode, repository };
     case "shape_review_unit":
       return { sliceId };
     default:
@@ -236,15 +169,6 @@ function resolveGenerationSelectedUnit({ operation, parsedUnit, plannerParams, b
 
 function classifyProspectiveTransition(selectedUnit, beforeRecord, afterRecord) {
   return classifyWorkRecordGenerationTransition(selectedUnit, beforeRecord, afterRecord);
-}
-
-function completedRevisionDiagnostic() {
-  return {
-    code: "completed_revision",
-    severity: "error",
-    message: "completed work-record content cannot be revised or deleted in place",
-    path: "status"
-  };
 }
 
 export async function assignWorkRecordToInitiativeByUnit({
@@ -497,6 +421,18 @@ export async function assignWorkRecordToInitiativeByUnit({
     recordStore
   });
   const isStale = writeResult.diagnostics?.some((entry) => entry.code === "stale_source_digest");
+  let nextAction;
+  if (writeResult.ok === false && writeResult.publication_state === "published") {
+    nextAction = "the assignment was published but persistence did not finish cleanly; inspect the canonical record with workspace_read_page and do not repeat the write";
+  } else if (writeResult.publication_state === "unknown") {
+    nextAction = "publication is unknown; inspect the canonical record with workspace_read_page before deciding any later mutation and do not repeat the write";
+  } else if (writeResult.written) {
+    nextAction = "assignment persisted; initiative membership is derived from WK.initiative";
+  } else if (isStale) {
+    nextAction = `reload ${parsed.recordId} and retry with the current source digest`;
+  } else {
+    nextAction = "the validated WK write was refused; resolve the reported diagnostics and retry";
+  }
 
   return buildResult({
     operation,
@@ -504,20 +440,22 @@ export async function assignWorkRecordToInitiativeByUnit({
     unit: parsed.unit,
     loaded,
     diagnostics: writeResult.diagnostics || [],
-    sourceDigest:
-      writeResult.source_digest ||
-      computeWorkRecordSourceDigest(persistedDiffGuard.normalizedCandidate),
+    sourceDigest: writeResult.publication_state === "unknown"
+      ? null
+      : writeResult.source_digest ??
+        computeWorkRecordSourceDigest(persistedDiffGuard.normalizedCandidate),
     valid: Boolean(writeResult.valid),
-    written: Boolean(writeResult.written),
+    written: writeResult.written,
     noOp: false,
-    changedFields: writeResult.written ? ["initiative"] : [],
+    ok: writeResult.ok,
+    publicationState: writeResult.publication_state,
+    diagnosticCount: writeResult.diagnostic_count,
+    failedFault: writeResult.failed_fault,
+    effectTrace: writeResult.effect_trace,
+    changedFields: writeResult.written === true ? ["initiative"] : [],
     canonicalRecordPath:
       writeResult.canonical_record_path || getWorkRecordPath(targetDir, parsed.recordId),
-    nextAction: writeResult.written
-      ? "assignment persisted; initiative membership is derived from WK.initiative"
-      : isStale
-        ? `reload ${parsed.recordId} and retry with the current source digest`
-        : "the validated WK write was refused; resolve the reported diagnostics and retry",
+    nextAction,
     expectedSourceDigest: expected === null || expected === undefined ? undefined : expected,
     currentSourceDigest: writeResult.current_source_digest || null,
     verbose,
@@ -527,6 +465,17 @@ export async function assignWorkRecordToInitiativeByUnit({
 
 export async function editWorkRecordByUnit(options = {}) {
   const { edit = null } = options;
+  const parsed = parseWorkRecordUnitAddress(options.unitAddress);
+  const registryResolution = parsed.ok && edit && typeof edit === "object"
+    ? resolveWorkRecordEditRegistryEntry({
+      field: edit.field,
+      kind: edit.kind,
+      sliceId: parsed.unit.kind === "slice" ? parsed.unit.slice_id : null
+    })
+    : null;
+  if (registryResolution?.ok && workRecordEditUsesEntryContent(registryResolution.entry, edit.action)) {
+    return editWorkRecordWithResolvedContent({ ...options, parsed, entry: registryResolution.entry });
+  }
   const taskEntry = WORK_RECORD_EDIT_FIELD_REGISTRY.find(
     (entry) => entry.facade && entry.kind === "task" && entry.field === edit?.field
   );
@@ -546,7 +495,8 @@ export async function editWorkRecordByUnit(options = {}) {
       index: edit.index,
       value: edit.value,
       expectedSourceDigest: options.expectedSourceDigest ?? options.expected_source_digest ?? null,
-      recordStore: options.recordStore ?? null
+      recordStore: options.recordStore ?? null,
+      writeWorkRecord: options.writeWorkRecord
     });
     return {
       operation: EDIT_WORK_RECORD_OPERATION,
@@ -565,6 +515,298 @@ export async function editWorkRecordByUnit(options = {}) {
   });
 }
 
+function proseContentDiagnostic(diagnostic, path) {
+  const suffix = typeof diagnostic?.path === "string"
+    ? diagnostic.path.replace(/^(?:value|content|ref)/u, "")
+    : "";
+  return { ...diagnostic, path: `${path}${suffix}` };
+}
+
+function proseWriteRefusal({ operation, parsed, diagnostic, expectedSourceDigest = null }) {
+  return buildResult({
+    operation,
+    recordId: parsed?.recordId ?? null,
+    unit: parsed?.unit ?? null,
+    diagnostics: [diagnostic],
+    valid: false,
+    written: false,
+    noOp: false,
+    changedFields: [],
+    expectedSourceDigest: expectedSourceDigest ?? undefined,
+    nextAction:
+      "supply the registry-declared closed {text}, {ref}, or nonempty flat {parts} carrier"
+  });
+}
+
+async function resolveProseCarrier({
+  content,
+  path: contentPath,
+  field,
+  scope,
+  repository,
+  dir,
+  loadSourceWorkRecordById
+}) {
+  const shape = validateWorkRecordEntryContent(content, { path: contentPath });
+  if (!shape.ok) return shape;
+  const resolved = await resolveWorkRecordEntryContent({
+    content,
+    repository,
+    dir,
+    loadWorkRecordById: loadSourceWorkRecordById ?? loadWorkRecordById
+  });
+  if (!resolved.ok) {
+    return { ...resolved, diagnostic: proseContentDiagnostic(resolved.diagnostic, contentPath) };
+  }
+  const destination = validateWorkRecordProseDestination({
+    field,
+    scope,
+    value: resolved.value,
+    path: contentPath
+  });
+  if (!destination.ok) return destination;
+  return { ...resolved, value: destination.value };
+}
+
+export async function upsertWorkRecordSliceByUnit(options = {}) {
+  const operation = "upsert_slice";
+  const parsed = parseWorkRecordUnitAddress(options.unitAddress);
+  const expected = options.expectedSourceDigest ?? options.expected_source_digest ?? null;
+  const slice = options.slice ?? options.params?.slice;
+  if (!parsed.ok) {
+    return editWorkRecordContractByUnit({ ...options, operation, params: { slice } });
+  }
+  const prose = workRecordProseRegistryEntries("slice").filter(({ canonical_address }) =>
+    slice?.sections && Object.hasOwn(slice.sections, canonical_address.at(-1))
+  );
+  for (const entry of prose) {
+    const key = entry.canonical_address.at(-1);
+    const shape = validateWorkRecordEntryContent(slice.sections[key], {
+      path: `slice.sections.${key}`
+    });
+    if (!shape.ok) return proseWriteRefusal({ operation, parsed, diagnostic: shape.diagnostic,
+      expectedSourceDigest: expected });
+  }
+  if (prose.length === 0) {
+    return editWorkRecordContractByUnit({
+      ...options,
+      operation,
+      params: { slice }
+    });
+  }
+  const targetDir = path.resolve(String(options.dir ?? "."));
+  const execute = async () => {
+    const resolvedSlice = structuredClone(slice);
+    let targetRepository = options.repository ?? null;
+    if (targetRepository === null) {
+      const target = await loadWorkRecordById({
+        dir: targetDir,
+        id: parsed.recordId,
+        recordStore: options.recordStore ?? null
+      });
+      targetRepository = target.record?.repo ?? null;
+    }
+    for (const entry of prose) {
+      const key = entry.canonical_address.at(-1);
+      const resolved = await resolveProseCarrier({
+        content: slice.sections[key],
+        path: `slice.sections.${key}`,
+        field: entry.field,
+        scope: "slice",
+        repository: targetRepository,
+        dir: targetDir,
+        loadSourceWorkRecordById: options.loadSourceWorkRecordById
+      });
+      if (!resolved.ok) return proseWriteRefusal({ operation, parsed,
+        diagnostic: resolved.diagnostic, expectedSourceDigest: expected });
+      resolvedSlice.sections[key] = resolved.value;
+    }
+    const writer = options.writeWorkRecord ?? writeValidatedWorkRecord;
+    const lockedWriter = writeOptions => writer({ ...writeOptions, lockAlreadyHeld: true });
+    return editWorkRecordContractByUnit({
+      ...options,
+      dir: targetDir,
+      operation,
+      params: { slice: resolvedSlice },
+      expectedSourceDigest: expected,
+      writeWorkRecord: lockedWriter
+    });
+  };
+  const lockOutcome = await withWorkRecordWriteLock(targetDir, execute, { settle: true,
+    faultInjector: options.persistenceEffects?.lockFaultInjector ?? null });
+  if (lockOutcome.acquisition_error) return persistenceFailureBase({ parsed,
+    error: lockOutcome.acquisition_error, phase: WORK_RECORD_PERSISTENCE_PHASES.LOCK_ACQUISITION,
+    expectedSourceDigest: expected, targetDir });
+  if (lockOutcome.callback_error) return persistenceFailureBase({ parsed,
+    error: lockOutcome.callback_error, phase: WORK_RECORD_PERSISTENCE_PHASES.TRANSACTION_PREPARATION,
+    expectedSourceDigest: expected, targetDir });
+  let result = lockOutcome.value;
+  if (lockOutcome.release_error) result = appendWorkRecordPersistenceFailure(result, {
+    phase: WORK_RECORD_PERSISTENCE_PHASES.LOCK_RELEASE,
+    cause: lockOutcome.release_error,
+    publicationState: result?.publication_state ?? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED,
+    failureRole: result?.ok === false ? "secondary" : "primary",
+    recordId: parsed?.recordId ?? null,
+    canonicalRecordPath: parsed?.recordId ? getWorkRecordPath(targetDir, parsed.recordId) : null
+  });
+  return result;
+}
+
+function contentEditInputRefusal({ parsed, diagnostic, expectedSourceDigest = null }) {
+  return buildResult({
+    operation: EDIT_WORK_RECORD_OPERATION,
+    recordId: parsed?.recordId ?? null,
+    unit: parsed?.unit ?? null,
+    diagnostics: [diagnostic],
+    valid: false,
+    written: false,
+    noOp: false,
+    changedFields: [],
+    expectedSourceDigest: expectedSourceDigest ?? undefined,
+    nextAction: "supply the closed exact-content value required by this enrolled field"
+  });
+}
+
+function persistenceFailureBase({ parsed, error, phase, expectedSourceDigest, targetDir }) {
+  const canonicalRecordPath = parsed?.recordId ? getWorkRecordPath(targetDir, parsed.recordId) : null;
+  const failed = appendWorkRecordPersistenceFailure({
+    operation: EDIT_WORK_RECORD_OPERATION,
+    record_id: parsed?.recordId ?? null,
+    selected_unit: selectedUnitProjection(parsed?.unit ?? null),
+    valid: false,
+    written: false,
+    no_op: false,
+    changed_fields: [],
+    diagnostics: [],
+    source_digest: null,
+    canonical_record_path: canonicalRecordPath
+  }, {
+    phase,
+    cause: error,
+    publicationState: WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED,
+    recordId: parsed?.recordId ?? null,
+    canonicalRecordPath
+  });
+  if (expectedSourceDigest !== null && expectedSourceDigest !== undefined) {
+    failed.expected_source_digest = expectedSourceDigest;
+    failed.current_source_digest = null;
+  }
+  failed.next_action = "resolve the reported persistence failure before retrying the edit";
+  return failed;
+}
+
+async function editWorkRecordWithResolvedContent(options) {
+  const { edit, parsed, entry } = options;
+  const shape = validateWorkRecordEntryContent(edit.value);
+  if (!shape.ok) {
+    return contentEditInputRefusal({ parsed, diagnostic: shape.diagnostic,
+      expectedSourceDigest: options.expectedSourceDigest ?? options.expected_source_digest ?? null });
+  }
+  const allowedKeys = new Set(["kind", "field", "action", "value", "text", "index"]);
+  const unknown = Object.keys(edit).find((key) => !allowedKeys.has(key));
+  if (unknown) {
+    return contentEditInputRefusal({ parsed, diagnostic: {
+      code: "unbounded_edit_request", severity: "error", authority_limb: "mechanical",
+      message: `edit.${unknown} is not accepted`, path: `edit.${unknown}`
+    } });
+  }
+  const targetDir = path.resolve(String(options.dir ?? "."));
+  const expected = options.expectedSourceDigest ?? options.expected_source_digest ?? null;
+  const execute = async () => {
+    const resolved = await resolveWorkRecordEntryContent({
+      content: edit.value,
+      repository: options.repository ?? null,
+      dir: targetDir,
+      loadWorkRecordById: options.loadSourceWorkRecordById ?? loadWorkRecordById
+    });
+    if (!resolved.ok) {
+      const refusal = contentEditInputRefusal({ parsed, diagnostic: resolved.diagnostic,
+        expectedSourceDigest: expected });
+      if (Object.hasOwn(resolved, "current_source_digest")) {
+        refusal.reference_expected_source_digest = resolved.expected_source_digest;
+        refusal.reference_current_source_digest = resolved.current_source_digest;
+      }
+      return refusal;
+    }
+    if (entry.kind === "task" &&
+        (resolved.value.length === 0 || resolved.value.trim() !== resolved.value)) {
+      return contentEditInputRefusal({ parsed, diagnostic: {
+        code: "work_record_content_destination_normalization_refused",
+        severity: "error",
+        authority_limb: "mechanical",
+        message: "task text must be nonempty and have no leading or trailing whitespace; destination normalization would alter the exact content",
+        path: "value"
+      }, expectedSourceDigest: expected });
+    }
+    const writer = options.writeWorkRecord ?? writeValidatedWorkRecord;
+    const lockedWriter = (writeOptions) => writer({
+      ...writeOptions,
+      persistenceEffects: options.persistenceEffects ?? writeOptions.persistenceEffects ?? {},
+      lockAlreadyHeld: true
+    });
+    const resolvedEdit = { ...edit, value: resolved.value };
+    if (entry.kind === "task") {
+      const taskResult = await setWorkRecordTaskByUnit({
+        dir: targetDir,
+        unitAddress: options.unitAddress,
+        action: resolvedEdit.action,
+        text: resolvedEdit.text,
+        index: resolvedEdit.index,
+        value: resolvedEdit.value,
+        expectedSourceDigest: expected,
+        recordStore: options.recordStore ?? null,
+        writeWorkRecord: lockedWriter
+      });
+      return {
+        operation: EDIT_WORK_RECORD_OPERATION,
+        ...taskResult,
+        next_action: taskResult.written
+          ? "edit persisted; rerun validation if the record is now ready to dispatch"
+          : taskResult.no_op
+            ? "no change needed; the record already matches the requested edit"
+            : "fix the reported diagnostics and retry the edit"
+      };
+    }
+    return editWorkRecordContractByUnit({
+      dir: targetDir,
+      unitAddress: options.unitAddress,
+      operation: EDIT_WORK_RECORD_OPERATION,
+      params: { edit: resolvedEdit },
+      expectedSourceDigest: expected,
+      recordStore: options.recordStore ?? null,
+      writeWorkRecord: lockedWriter,
+      verbose: Boolean(options.verbose)
+    });
+  };
+
+  const lockOutcome = await withWorkRecordWriteLock(targetDir, execute, {
+    settle: true,
+    faultInjector: options.persistenceEffects?.lockFaultInjector ?? null
+  });
+  if (lockOutcome.acquisition_error) {
+    return persistenceFailureBase({ parsed, error: lockOutcome.acquisition_error,
+      phase: WORK_RECORD_PERSISTENCE_PHASES.LOCK_ACQUISITION, expectedSourceDigest: expected,
+      targetDir });
+  }
+  if (lockOutcome.callback_error) {
+    return persistenceFailureBase({ parsed, error: lockOutcome.callback_error,
+      phase: WORK_RECORD_PERSISTENCE_PHASES.TRANSACTION_PREPARATION, expectedSourceDigest: expected,
+      targetDir });
+  }
+  let result = lockOutcome.value;
+  if (lockOutcome.release_error) {
+    result = appendWorkRecordPersistenceFailure(result, {
+      phase: WORK_RECORD_PERSISTENCE_PHASES.LOCK_RELEASE,
+      cause: lockOutcome.release_error,
+      publicationState: result?.publication_state ?? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED,
+      failureRole: result?.ok === false ? "secondary" : "primary",
+      recordId: parsed.recordId,
+      canonicalRecordPath: result?.canonical_record_path ?? getWorkRecordPath(targetDir, parsed.recordId)
+    });
+  }
+  return result;
+}
+
 export async function editWorkRecordContractByUnit({
   dir = ".",
   unitAddress,
@@ -573,7 +815,10 @@ export async function editWorkRecordContractByUnit({
   expectedSourceDigest = null,
   expected_source_digest = null,
   recordStore = null,
-  verbose = false
+  writeWorkRecord = writeValidatedWorkRecord,
+  verbose = false,
+
+  repository = null
 } = {}) {
   const targetDir = path.resolve(String(dir));
   const expected = expectedSourceDigest ?? expected_source_digest;
@@ -670,41 +915,20 @@ export async function editWorkRecordContractByUnit({
     });
   }
 
-  const baseErrors = (loaded.diagnostics || []).filter((entry) => entry.severity === "error");
-  let acceptanceRepair = null;
-  if (baseErrors.length > 0) {
-    if (operation !== "set_acceptance") {
-      return buildResult({
-        operation,
-        recordId: parsed.recordId,
-        unit: parsed.unit,
-        loaded,
-        diagnostics: loaded.diagnostics,
-        sourceDigest: loaded.source_digest || null,
-        nextAction: "the base work record is invalid; only an eligible set_acceptance repair may proceed",
-        verbose
-      });
-    }
-
-    acceptanceRepair = assessAcceptanceRepairEligibility(loaded.record, {
-      sliceId: parsed.unit.kind === "slice" ? parsed.unit.slice_id : null,
-      diagnostics: loaded.diagnostics || []
+  if ((loaded.diagnostics || []).some((entry) => entry.severity === "error")) {
+    return buildResult({
+      operation,
+      recordId: parsed.recordId,
+      unit: parsed.unit,
+      loaded,
+      diagnostics: loaded.diagnostics,
+      sourceDigest: loaded.source_digest || null,
+      nextAction: "the base work record is invalid; no ordinary edit may proceed until the reported diagnostics are resolved",
+      verbose
     });
-    if (!acceptanceRepair.ok) {
-      return buildResult({
-        operation,
-        recordId: parsed.recordId,
-        unit: parsed.unit,
-        loaded,
-        diagnostics: [acceptanceRepair.diagnostic, ...baseErrors],
-        sourceDigest: loaded.source_digest || null,
-        nextAction: "the invalid base record is outside the allowlisted set_acceptance repair boundary",
-        verbose
-      });
-    }
   }
 
-  const plannerParams = buildPlannerParams(operation, params || {}, parsed.unit);
+  const plannerParams = buildPlannerParams(operation, params || {}, parsed.unit, repository);
   const plan = applyWorkRecordContractEdit(loaded.record, { operation, ...plannerParams });
 
   if (!plan.ok) {
@@ -733,25 +957,6 @@ export async function editWorkRecordContractByUnit({
     plan.updatedRecord
   );
 
-  if (generation.transition === "completed_revision") {
-    return buildResult({
-      operation,
-      recordId: parsed.recordId,
-      unit: parsed.unit,
-      loaded,
-      diagnostics: [completedRevisionDiagnostic()],
-      sourceDigest: loaded.source_digest || null,
-      valid: false,
-      written: false,
-      noOp: false,
-      changedFields: [],
-      canonicalRecordPath: loaded.canonical_record_path || null,
-      nextAction: "create a new work-record lifecycle for further requirements",
-      generationTransition: projectWorkRecordGenerationTransition(generation),
-      verbose
-    });
-  }
-
   if (!plan.changedFields.length) {
     return buildResult({
       operation,
@@ -776,36 +981,14 @@ export async function editWorkRecordContractByUnit({
     });
   }
 
-  let updatedRecord = plan.updatedRecord;
+  const updatedRecord = plan.updatedRecord;
   updatedRecord.updated = todayDateString();
   const changedFields = [...plan.changedFields, "updated"];
-
-  if (acceptanceRepair) {
-    const persistedDiff = guardAcceptanceRepairPersistedDiff(loaded.record, updatedRecord, {
-      sliceIndex: acceptanceRepair.sliceIndex,
-      hasCriteria: params?.criteria !== undefined,
-      hasValidation: params?.validation !== undefined
-    });
-    if (!persistedDiff.ok) {
-      return buildResult({
-        operation,
-        recordId: parsed.recordId,
-        unit: parsed.unit,
-        loaded,
-        diagnostics: [persistedDiff.diagnostic],
-        sourceDigest: loaded.source_digest || null,
-        nextAction: "the post-normalization persisted diff exceeded the set_acceptance repair allowlist",
-        generationTransition: projectWorkRecordGenerationTransition(generation),
-        verbose
-      });
-    }
-    updatedRecord = persistedDiff.normalizedCandidate;
-  }
 
   const effectiveExpectedSourceDigest =
     expected !== null && expected !== undefined ? expected : loaded.source_digest || null;
 
-  const writeResult = await writeValidatedWorkRecord({
+  const writeResult = await writeWorkRecord({
     dir: targetDir,
     record: updatedRecord,
     expectedSourceDigest: effectiveExpectedSourceDigest,
@@ -817,7 +1000,11 @@ export async function editWorkRecordContractByUnit({
     writeResult.canonical_record_path || getWorkRecordPath(targetDir, updatedRecord.id);
 
   let nextAction;
-  if (writeResult.written) {
+  if (writeResult.ok === false && writeResult.publication_state === "published") {
+    nextAction = "the edit was published but persistence did not finish cleanly; inspect the canonical record with workspace_read_page and do not repeat the write";
+  } else if (writeResult.publication_state === "unknown") {
+    nextAction = "publication is unknown; inspect the canonical record with workspace_read_page before deciding any later mutation and do not repeat the write";
+  } else if (writeResult.written) {
     nextAction = "edit persisted; rerun validation if the record is now ready to dispatch";
   } else if (isStale) {
     nextAction = `reload ${parsed.recordId} and retry with the current source digest`;
@@ -831,39 +1018,37 @@ export async function editWorkRecordContractByUnit({
     unit: parsed.unit,
     loaded,
     diagnostics: writeResult.diagnostics || [],
-    sourceDigest: writeResult.source_digest || computeWorkRecordSourceDigest(updatedRecord),
+    sourceDigest: writeResult.publication_state === "unknown"
+      ? null
+      : operation === EDIT_WORK_RECORD_OPERATION && writeResult.publication_state === "not_published"
+        ? writeResult.current_source_digest ?? null
+        : writeResult.source_digest ?? computeWorkRecordSourceDigest(updatedRecord),
     valid: Boolean(writeResult.valid),
-    written: Boolean(writeResult.written),
+    written: writeResult.written,
     noOp: false,
-    changedFields,
+    ok: writeResult.ok,
+    publicationState: writeResult.publication_state,
+    diagnosticCount: writeResult.diagnostic_count,
+    failedFault: writeResult.failed_fault,
+    effectTrace: writeResult.effect_trace,
+    changedFields: operation === EDIT_WORK_RECORD_OPERATION && writeResult.written !== true ? [] : changedFields,
     canonicalRecordPath,
     nextAction,
     expectedSourceDigest: expected === null || expected === undefined ? undefined : expected,
     currentSourceDigest: writeResult.current_source_digest || null,
     verbose,
-    record: updatedRecord,
+    record: operation === EDIT_WORK_RECORD_OPERATION && writeResult.written !== true ? null : updatedRecord,
     generationTransition: projectWorkRecordGenerationTransition(generation, {
-      persisted: Boolean(writeResult.written),
-      written: Boolean(writeResult.written),
+      persisted: writeResult.written === true,
+      written: writeResult.written === true,
       noOp: false
     })
   });
 }
 
 export const READY_WORK_RECORD_SLICE_OPERATION = "ready_work_record_slice";
-const READY_RESULT_DIAGNOSTIC_LIMIT = 20;
 const READY_RESULT_PATH_LIMIT = 64;
 
-function boundedReadyDiagnostics(diagnostics) {
-  return (Array.isArray(diagnostics) ? diagnostics : [])
-    .slice(0, READY_RESULT_DIAGNOSTIC_LIMIT)
-    .map((entry) => ({
-      code: entry?.code ?? "ready_slice_failure",
-      severity: entry?.severity ?? "error",
-      message: typeof entry?.message === "string" ? entry.message.slice(0, 256) : "ready-slice operation refused",
-      path: typeof entry?.path === "string" || entry?.path === null ? entry.path : null
-    }));
-}
 function readyCoreResult({
   contractPersisted = false,
   selectedUnit = null,
@@ -875,32 +1060,56 @@ function readyCoreResult({
   reviewedUnitDigest = null,
   generationTransition = null,
   diagnostics = [],
-  policyFacts = []
+  policyFacts = [],
+  ok = undefined,
+  publicationState = undefined,
+  failedFault = undefined,
+  effectTrace = undefined,
+  admissionSidecarPublications = undefined,
+  admissionSidecarCleanup = undefined,
+  nextAction = undefined
 } = {}) {
-  return {
-    contract_persisted: Boolean(contractPersisted),
+  const completeDiagnostics = Array.isArray(diagnostics) ? diagnostics : [];
+  const result = {
+    contract_persisted: contractPersisted === null ? null : Boolean(contractPersisted),
     selected_unit: selectedUnit,
     changed_fields: changedFields.slice(0, READY_RESULT_PATH_LIMIT),
     changed_paths: changedPaths.slice(0, READY_RESULT_PATH_LIMIT),
-    written: Boolean(written),
+    written: written === null ? null : Boolean(written),
     no_op: Boolean(noOp),
     source_digest: sourceDigest,
     reviewed_unit_digest: reviewedUnitDigest,
     generation_transition: generationTransition,
-    diagnostics: boundedReadyDiagnostics(diagnostics),
+    diagnostics: completeDiagnostics,
+    diagnostic_count: completeDiagnostics.length,
     policy_facts: policyFacts
   };
+  if (ok !== undefined) result.ok = Boolean(ok);
+  if (publicationState !== undefined) result.publication_state = publicationState;
+  if (failedFault !== undefined) result.failed_fault = failedFault;
+  if (effectTrace !== undefined) result.effect_trace = effectTrace;
+  if (admissionSidecarPublications !== undefined) {
+    result.admission_sidecar_publications = admissionSidecarPublications;
+  }
+  if (admissionSidecarCleanup !== undefined) {
+    result.admission_sidecar_cleanup = admissionSidecarCleanup;
+  }
+  if (nextAction !== undefined) result.next_action = nextAction;
+  return result;
 }
 function readyDiagnostic(code, message, pathValue = null) {
   return { code, severity: "error", message, path: pathValue };
 }
 
-export async function readyWorkRecordSliceByUnit(options = {}) {
+async function readyWorkRecordSliceResolvedByUnit(options = {}) {
   const {
     dir = ".",
     request: nestedRequest = null,
     recordStore = null,
     writeWorkRecordTransaction = writeValidatedWorkRecordWithAdmissionSidecars,
+    lockAlreadyHeld = false,
+
+    repository = null,
     ...topLevelRequest
   } = options;
   if (nestedRequest !== null && Object.keys(topLevelRequest).length > 0) {
@@ -909,7 +1118,7 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     });
   }
   const request = nestedRequest ?? topLevelRequest;
-  const preflight = validateWorkRecordReadySliceRequest(request);
+  const preflight = validateWorkRecordReadySliceRequest(request, { resolvedProse: true });
   if (!preflight.ok) return readyCoreResult({ diagnostics: preflight.diagnostics });
 
   const targetDir = path.resolve(String(dir));
@@ -934,7 +1143,7 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     ? { kind: "slice", address: `${request.unit}#${request.slice_id}`, record_id: request.unit, slice_id: request.slice_id }
     : null;
 
-  const plan = planWorkRecordReadySlice(loaded.record, request);
+  const plan = planWorkRecordReadySlice(loaded.record, request, { repository });
   if (!plan.ok) {
     return readyCoreResult({
       selectedUnit: selectedBefore,
@@ -949,16 +1158,6 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     loaded.record,
     plan.updatedRecord
   );
-  if (generation.transition === "completed_revision") {
-    return readyCoreResult({
-      selectedUnit: plan.selectedUnit,
-      sourceDigest: loadedSourceDigest,
-      policyFacts: plan.policyFacts,
-      generationTransition: projectWorkRecordGenerationTransition(generation),
-      diagnostics: [completedRevisionDiagnostic()]
-    });
-  }
-
   let candidate = plan.updatedRecord;
   const afterReviewedDigest = computeReviewedUnitSourceDigest({
     record: candidate,
@@ -1010,15 +1209,48 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     expectedSourceDigest: loadedSourceDigest,
     expectedPersistenceSnapshotDigest: loadedSnapshotDigest,
     admissionSidecars: [],
-    recordStore
+    recordStore,
+    lockAlreadyHeld
   });
-  if (!writeResult.written) {
+  if (writeResult.ok === false || writeResult.written !== true) {
+    const publicationState = writeResult.publication_state;
+    const contractPersisted = publicationState === "published"
+      ? true
+      : publicationState === "unknown"
+        ? null
+        : false;
+    const published = publicationState === "published";
+    const changedFields = published
+      ? [...plan.changedFields,
+          ...(loaded.record.updated !== persistedGuard.normalizedCandidate.updated ? ["updated"] : [])]
+      : [];
     return readyCoreResult({
+      contractPersisted,
       selectedUnit: plan.selectedUnit,
-      sourceDigest: loadedSourceDigest,
+      changedFields,
+      changedPaths: published ? persistedGuard.diffPaths : [],
+      written: writeResult.written,
+      noOp: false,
+      ok: false,
+      publicationState,
+      sourceDigest: publicationState === "unknown"
+        ? null
+        : published
+          ? writeResult.source_digest ?? null
+          : loadedSourceDigest,
+      reviewedUnitDigest: published ? afterReviewedDigest : null,
       policyFacts: plan.policyFacts,
-      generationTransition: projectWorkRecordGenerationTransition(generation),
-      diagnostics: writeResult.diagnostics ?? []
+      generationTransition: projectWorkRecordGenerationTransition(generation, {
+        persisted: published,
+        written: published,
+        noOp: false
+      }),
+      diagnostics: writeResult.diagnostics ?? [],
+      failedFault: writeResult.failed_fault,
+      effectTrace: writeResult.effect_trace,
+      admissionSidecarPublications: writeResult.admission_sidecar_publications,
+      admissionSidecarCleanup: writeResult.admission_sidecar_cleanup,
+      nextAction: writeResult.next_action
     });
   }
   const changedFields = [...plan.changedFields];
@@ -1029,6 +1261,8 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     changedFields,
     changedPaths: persistedGuard.diffPaths,
     written: true,
+    ok: true,
+    publicationState: writeResult.publication_state ?? "published",
     sourceDigest: writeResult.source_digest ?? computeWorkRecordSourceDigest(persistedGuard.normalizedCandidate),
     policyFacts: plan.policyFacts,
     reviewedUnitDigest: afterReviewedDigest,
@@ -1037,8 +1271,81 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
       written: true,
       noOp: false
     }),
-    diagnostics: writeResult.diagnostics ?? []
+    diagnostics: writeResult.diagnostics ?? [],
+    failedFault: writeResult.failed_fault,
+    effectTrace: writeResult.effect_trace,
+    admissionSidecarPublications: writeResult.admission_sidecar_publications,
+    admissionSidecarCleanup: writeResult.admission_sidecar_cleanup
   });
+}
+
+export async function readyWorkRecordSliceByUnit(options = {}) {
+  const {
+    dir = ".",
+    request: nestedRequest = null,
+    repository = null,
+    ...topLevelRequest
+  } = options;
+  if (nestedRequest !== null && Object.keys(topLevelRequest).some((key) =>
+    !["recordStore", "writeWorkRecordTransaction", "loadSourceWorkRecordById",
+      "persistenceEffects"].includes(key))) {
+    return readyCoreResult({ diagnostics: [readyDiagnostic(
+      "ready_slice_ambiguous_request",
+      "supply ready-slice fields either in request or at top level, not both"
+    )] });
+  }
+  const request = nestedRequest ?? Object.fromEntries(Object.entries(topLevelRequest)
+    .filter(([key]) => !["recordStore", "writeWorkRecordTransaction",
+      "loadSourceWorkRecordById", "persistenceEffects"].includes(key)));
+  const preflight = validateWorkRecordReadySliceRequest(request);
+  if (!preflight.ok) return readyCoreResult({ diagnostics: preflight.diagnostics });
+  const prose = workRecordProseRegistryEntries("slice").filter(({ canonical_address }) =>
+    Object.hasOwn(request, canonical_address.at(-1))
+  );
+  if (prose.length === 0) return readyWorkRecordSliceResolvedByUnit(options);
+  const targetDir = path.resolve(String(dir));
+  const execute = async () => {
+    const resolvedRequest = structuredClone(request);
+    for (const entry of prose) {
+      const key = entry.canonical_address.at(-1);
+      const resolved = await resolveProseCarrier({
+        content: request[key],
+        path: key,
+        field: entry.field,
+        scope: "slice",
+        repository,
+        dir: targetDir,
+        loadSourceWorkRecordById: options.loadSourceWorkRecordById
+      });
+      if (!resolved.ok) return readyCoreResult({ diagnostics: [resolved.diagnostic] });
+      resolvedRequest[key] = resolved.value;
+    }
+    return readyWorkRecordSliceResolvedByUnit({
+      dir: targetDir,
+      request: resolvedRequest,
+      recordStore: options.recordStore ?? null,
+      writeWorkRecordTransaction: options.writeWorkRecordTransaction ??
+        writeValidatedWorkRecordWithAdmissionSidecars,
+      repository,
+      lockAlreadyHeld: true
+    });
+  };
+  const lockOutcome = await withWorkRecordWriteLock(targetDir, execute, { settle: true,
+    faultInjector: options.persistenceEffects?.lockFaultInjector ?? null });
+  if (lockOutcome.acquisition_error) return readyCoreResult({ diagnostics: [readyDiagnostic(
+    "work_record_lock_acquisition_failed", lockOutcome.acquisition_error.message, null)] });
+  if (lockOutcome.callback_error) return readyCoreResult({ diagnostics: [readyDiagnostic(
+    "work_record_transaction_preparation_failed", lockOutcome.callback_error.message, null)] });
+  let result = lockOutcome.value;
+  if (lockOutcome.release_error) result = appendWorkRecordPersistenceFailure(result, {
+    phase: WORK_RECORD_PERSISTENCE_PHASES.LOCK_RELEASE,
+    cause: lockOutcome.release_error,
+    publicationState: result?.publication_state ?? WORK_RECORD_PUBLICATION_STATES.NOT_PUBLISHED,
+    failureRole: result?.ok === false ? "secondary" : "primary",
+    recordId: request.unit ?? null,
+    canonicalRecordPath: request.unit ? getWorkRecordPath(targetDir, request.unit) : null
+  });
+  return result;
 }
 
 export const readyWorkRecordSliceContractByUnit = readyWorkRecordSliceByUnit;

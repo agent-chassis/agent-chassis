@@ -27,7 +27,10 @@ export const TERMINAL_WK_CANDIDATE_CODES = Object.freeze({
   CONFLICT: "agent_launch.terminal_wk_candidate.conflict.v1",
   CANDIDATE_INVALID: "agent_launch.terminal_wk_candidate.candidate_invalid.v1",
   CANDIDATE_REF_DISAGREES: "agent_launch.terminal_wk_candidate.candidate_ref_disagrees.v1",
-  BINDING_MISMATCH: "agent_launch.terminal_wk_candidate.binding_mismatch.v1"
+  BINDING_MISMATCH: "agent_launch.terminal_wk_candidate.binding_mismatch.v1",
+
+  CONTROLLED_GENERATION_STALE:
+    "agent_launch.terminal_wk_candidate.controlled_generation_stale.v1"
 });
 
 export const TERMINAL_WK_CANDIDATE_IDENTITY = Object.freeze({

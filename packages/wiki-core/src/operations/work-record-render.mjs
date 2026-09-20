@@ -11,6 +11,7 @@ import {
   renderWorkRecordMarkdown
 } from "../lib/work-record-renderer.mjs";
 import { loadWorkRecordById, loadWorkRecordByPath } from "../lib/work-record-store.mjs";
+import { resolveWorkRecordEntryMaterial } from "../lib/work-record-entry-material.mjs";
 
 async function readJsonFile(filePath) {
   const raw = await readFile(filePath, "utf8");
@@ -80,7 +81,9 @@ export async function renderWorkRecordAgentBriefById({
   recordStore = null,
   generatedAt = null,
   outputPath = null,
-  sliceId = null
+  sliceId = null,
+
+  repository = null
 } = {}) {
   const loaded = await loadRenderableWorkRecord({
     dir,
@@ -97,10 +100,29 @@ export async function renderWorkRecordAgentBriefById({
     };
   }
 
+  const selected = sliceId === null ? loaded.record
+    : loaded.record.slices?.find((slice) => slice?.id === sliceId);
+  const entryMaterial = await resolveWorkRecordEntryMaterial({
+    record: loaded.record,
+    selected,
+    repository,
+    dir,
+    loadWorkRecordById: ({ dir: sourceDir, id: sourceId }) => loadWorkRecordById({
+      dir: sourceDir,
+      id: sourceId,
+      recordStore
+    })
+  });
+  if (!entryMaterial.ok) {
+    return { ...loaded, valid: false, diagnostics: [...(loaded.diagnostics ?? []),
+      entryMaterial.diagnostic], brief: null, projection: null };
+  }
+
   const rendered = renderWorkRecordAgentBrief(loaded.record, {
     generatedAt: generatedAt || undefined,
     outputPath: outputPath || undefined,
-    sliceId
+    sliceId,
+    entryMaterial
   });
 
   return {

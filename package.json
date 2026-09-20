@@ -1,6 +1,6 @@
 {
   "name": "agent-chassis",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "workspaces": [
     "packages/controlled-contract",
@@ -11,6 +11,9 @@
     "packages/wiki-mcp",
     "packages/core"
   ],
+  "engines": {
+    "node": ">=24.20.0"
+  },
   "scripts": {
     "wiki": "node packages/wiki-cli/src/index.mjs",
     "wiki:mcp": "node packages/wiki-mcp/src/server.mjs",
@@ -26,17 +29,21 @@
     "url": "git+https://github.com/agent-chassis/agent-chassis.git"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.11.0",
+    "@scip-code/scip": "0.10.0",
     "@vscode/tree-sitter-wasm": "0.3.1",
     "protobufjs": "^7.6.4",
     "web-tree-sitter": "0.26.9"
   },
   "devDependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.7.0",
-    "@agent-chassis/agent-launch-core": "^0.7.0",
-    "@agent-chassis/controlled-contract": "^0.7.0",
-    "@agent-chassis/core": "^0.7.0",
-    "@agent-chassis/wiki-cli": "^0.7.0",
-    "@agent-chassis/wiki-core": "^0.7.0",
-    "@agent-chassis/wiki-mcp": "^0.7.0"
+    "@agent-chassis/agent-launch-cli": "^0.8.0",
+    "@agent-chassis/agent-launch-core": "^0.8.0",
+    "@agent-chassis/controlled-contract": "^0.8.0",
+    "@agent-chassis/core": "^0.8.0",
+    "@agent-chassis/wiki-cli": "^0.8.0",
+    "@agent-chassis/wiki-core": "^0.8.0",
+    "@agent-chassis/wiki-mcp": "^0.8.0",
+    "@sourcegraph/scip-python": "^0.6.6",
+    "@sourcegraph/scip-typescript": "^0.4.0"
   }
 }

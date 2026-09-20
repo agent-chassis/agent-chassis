@@ -1,0 +1,33 @@
+{
+  "digests": {
+    "catalog": "9e24f6401620a675775b51775737e379523f145fdd0d3c17ab5eceb77945c607",
+    "contract": "d7f9872f0fd1c1022b9e5cd4de11700187ede0fc0e323bba226328bdd60714cc",
+    "intent_artifact": "ce11efa1799a0199a76b97d644fbbce1b12e1308ce3940f85e1cfd952bdf7a30",
+    "profiles": "f55dc0cc46c15ee2ba0815fe7364c624170b601298dad48fc07d9d826ed4807b",
+    "vocabulary": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+  },
+  "packs": [
+    {
+      "evaluation_input": {
+        "path": "WK-2470.evaluation-input.json"
+      },
+      "profile_id": "proof.atomicity.failure-boundary",
+      "profile_version": "4.0.0",
+      "requested_intents": [
+        "controlled-proof-intent.atomic-failure-boundary"
+      ],
+      "source_digests": {
+        "adequacy_declaration": "bac9d12302539c25fdf4a9382ad580d53fe4b69433b50ff1bcde0e01b4da853b",
+        "adequacy_result": "b5b4901176a39e6f1fc9b19680c97b9f03c59248d82fc4841d988d7917562fdf",
+        "admission": "7e69ff84d6551354bb307e627182f5e83ef81470fe3a6fea5bed2bb26e9a7a58",
+        "evaluation_input": "2729922a6c56d0490b80472e5cf31b1a14b096f59bd2ac13ff853a1cf24c6242",
+        "guarantee": "3d9681b4aa9e3f75889648eb4d87f995da443f7768f7c7d1938d4e93701a9a98",
+        "profile": "ab3b0b152fbe27cd65c673f674789cecaf085b86dfe9dbb596b4476f6a054189"
+      }
+    }
+  ],
+  "requested_intents": [
+    "controlled-proof-intent.atomic-failure-boundary"
+  ],
+  "schema_version": "controlled-contract-proof-plan.v1"
+}

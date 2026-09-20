@@ -1,6 +1,11 @@
 
 
 import {
+  BUBBLEWRAP_BACKEND_UNUSABLE_CODES,
+  buildLaunchPathFailureRefusal,
+  classifyLaunchPathFailure
+} from "./launch-failure-cause.mjs";
+import {
   BACKEND_REFUSAL_CODES
 } from "./workspace-agent-dispatch-backend.mjs";
 
@@ -15,10 +20,7 @@ import {
 import {
   buildLauncherRefusal
 } from "./workspace-agent-launch-core.mjs";
-import {
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
-  BubblewrapIsolationError
-} from "./launch-isolation.mjs";
+import { BubblewrapIsolationError } from "./launch-isolation.mjs";
 
 export const CODEX_FAMILY_SOURCE_READ_MODE = LAUNCHER_SOURCE_READ_MODE_NATIVE_FILESYSTEM;
 export const CODEX_FAMILY_NATIVE_READ_CAPABILITY =
@@ -97,7 +99,9 @@ export async function buildCodexLaunchArtifacts({
   if (plan.mode === "refusal") {
     return { ok: false, stage: "plan_refused", refusal: plan.refusal };
   }
-  if (Array.isArray(plan.preparedNewWriteRoots) && plan.preparedNewWriteRoots.length > 0) {
+
+  if ((plan.isolation?.worker_scope_authority ?? null) === null &&
+      Array.isArray(plan.preparedNewWriteRoots) && plan.preparedNewWriteRoots.length > 0) {
     try {
       await ensureWriteRoots(plan.repo, plan.preparedNewWriteRoots, plan.role);
     } catch (err) {
@@ -140,13 +144,18 @@ export function mapCodexArtifactsFailureToInProcessRefusal(failure) {
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "codex_role_plan_refused", buildWorkerGateRefusalDetail(failure.refusal));
     case "ensure_write_roots_threw":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "ensure_new_worker_write_roots_failed", { message });
-    case "build_bwrap_plan_isolation":
+    case "build_bwrap_plan_isolation": {
+
+      const pathFailure = classifyLaunchPathFailure(err);
+      if (pathFailure !== null) return buildLaunchPathFailureRefusal(makeRefusal, pathFailure);
 
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "bubblewrap_plan_refused", {
         code: err.code,
         message: err.message,
-        ...(err.detail ? { detail: err.detail } : {})
+        ...(err.detail ? { detail: err.detail } : {}),
+        authority_limb: "mechanical_failure"
       });
+    }
     case "build_bwrap_plan_threw":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "build_bwrap_plan_threw", { message });
     case "assert_bwrap_isolation":
@@ -185,9 +194,4 @@ export function bwrapAvailabilityFromCodexIsolationError(err) {
   });
 }
 
-export const CODEX_SANDBOX_DECISION_BWRAP_DIAGNOSTIC_CODES = Object.freeze(new Set([
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_UNAVAILABLE,
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_NOT_EXECUTABLE,
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_PROBE_FAILED,
-  BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BWRAP_SPAWN_FAILED
-]));
+export const CODEX_SANDBOX_DECISION_BWRAP_DIAGNOSTIC_CODES = BUBBLEWRAP_BACKEND_UNUSABLE_CODES;

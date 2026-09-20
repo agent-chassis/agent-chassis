@@ -36,6 +36,16 @@ export { assertBubblewrapAvailable } from "./launch-isolation-bwrap.mjs";
 export { buildBubblewrapLaunchPlan } from "./launch-isolation-plan.mjs";
 
 export {
+  GIT_STATUS_WRAPPER_ASSET_DIR,
+  GIT_STATUS_WRAPPER_MOUNT_DIR,
+  GIT_STATUS_WRAPPER_PATHSPEC,
+  GIT_STATUS_WRAPPER_PATHSPEC_ENV_KEY,
+  GIT_STATUS_WRAPPER_REAL_GIT_ENV_KEY,
+  GIT_STATUS_WRAPPER_REPO_ENV_KEY,
+  prepareGitStatusWrapperProjection
+} from "./launch-isolation-git-status-wrapper.mjs";
+
+export {
   INTERACTIVE_ORCHESTRATOR_COORDINATION_WRITABLE_SUBPATHS,
   buildInteractiveOrchestratorBwrapPlan
 } from "./orchestrator-launch-isolation.mjs";

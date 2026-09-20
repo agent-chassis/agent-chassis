@@ -40,7 +40,7 @@ stable shape without the full maintainer narrative.
 A `work-record.v1` JSON record identifies the work item and its lifecycle:
 `id`, `repo`, `title`, `record_kind`, `work_kind`, `status`, `priority`,
 `owner`, `created`, and `updated`. Records also carry structured relationship
-and scope arrays such as `docs`, `repo_paths`, `write_scope`, `depends_on`,
+and scope arrays such as `read_scope`, `repo_paths`, `write_scope`, `depends_on`,
 `blocks`, and `related`.
 
 The public schema distinction is:
@@ -52,6 +52,63 @@ The public schema distinction is:
 - `sections` carries human-readable summary, scope, tasks, references, agent
   notes, and closure prose. Dispatch-critical facts should be present in the
   structured fields, not only in prose.
+- `sections.entries`, when present, is a root- or slice-owned array of durable
+  entries. An entry has a WK-wide numeric identity, a current-version pointer,
+  and immutable retained versions.
+  Entry content uses the closed `{text}`, `{ref}`, or flat nonempty `{parts}`
+  union. Bodies are retained only in versions; metadata projections do not
+  implicitly render them. Titles are nonempty and limited to 256 Unicode
+  scalars and 1,024 UTF-8 bytes; kinds are limited to 64 scalars and 256 UTF-8
+  bytes. A create must resolve to nonempty content, while a later immutable
+  version may be empty. References carry exact repository, WK, optional slice,
+  entry, version, scalar range, and total-length identity. Empty ranges are
+  valid. Read calls are not stored formats: they name the entry, version, and
+  offsets explicitly, and the retired `wkentryread.v1` page cursor is not
+  accepted. The current-version pointer may move only to an appended immutable
+  version, and deleting an owning slice or mutating/removing any retained
+  version is invalid history.
+  The `workspace_work_record_entry_upsert` input publishes this same closed
+  content grammar; its create and version input requirements are owned by
+  [Durable work-record entries](mcp-operation-reference.md#durable-work-record-entries).
+- Under accepted decision, retained history may also hold the earlier entry
+  representation. A historical entry is exactly
+  `{id,current_version,versions,receipt}` with an inert
+  `receipt:{request_key,fingerprint,version_id}` naming one of its historical
+  versions; a historical version is exactly `{id,title,kind,content,provenance}`
+  with both lengths absent and precedes every appended version. A historical
+  reference is `wkentry.v1.` followed by canonical base64url UTF-8 JSON exactly
+  `{r,w,u,e,v}` and no checksum; it selects the whole immutable version. Missing
+  lengths are derived on each resolution and never written back. Both shapes are
+  closed: a lengthless version outside a receipt-bearing entry, one present
+  length, extra fields, or any reference containing a checksum separator is
+  validated only as the current form and refuses when that fails. New entries,
+  appended versions and every issued reference use the current form.
+- `sections.material_refs`, when present at the root or on a slice, is an
+  ordered array of closed `{ref}` leaves naming immutable entry versions or
+  ranges. Effective assignment material is root material followed by selected
+  slice material, with exact duplicate refs removed at their first occurrence.
+  The combined population is limited to 16 references and 65,536 rendered
+  UTF-8 bytes. References remain identities, not capabilities: preparation
+  rechecks repository and declared source visibility, captures the referenced
+  WK closure through the launcher-owned frozen source set, and grants no worker
+  MCP access or additional authority.
+- `proof_posture` is the sole persistent controlled-acceptance disposition
+  carrier. Required posture records `controlled_contract.required:true` with no
+  exemption. Explicit opt-out records `required:false`, the canonical exemption,
+  and a trimmed, nonempty `classification_rationale` of at most 8,192 UTF-8
+  bytes. A bare inbox omits `proof_posture` and projects
+  `controlled_acceptance_state: absent`. The other derived-only states are
+  `incomplete`, `complete`, and `opted_out`; none is persisted. Malformed,
+  partial, or contradictory posture fails closed, and generic record editors
+  cannot mutate `proof_posture` or controlled-acceptance state.
+  A record whose only structural error is a retired or malformed
+  `proof_posture` may replace that field only through the current
+  controlled-contract disposition semantic owner under source-digest CAS;
+  generic editing remains forbidden.
+  A historical `controlled_contract.content_digest` does not pin a required
+  disposition to one generation; current completion is always recomputed from
+  the authenticated current generation. Retired enforcement, authoring-state,
+  guidance, next-action, optional-carrier, and emitted-action keys are invalid.
 
 ## Trackers, Children, and Slices
 
@@ -79,6 +136,25 @@ Work records separate reading context from write authority:
   the work. It helps retrieval and review, but it is not write authority.
 - `write_scope` is the allowed edit boundary for the assigned unit. Workers
   should stop and report a blocker before changing files outside it.
+
+Scope entries use repository-relative POSIX syntax with host-independent
+`node:path.posix` interpretation. One terminal slash records explicit directory
+intent: `docs/` has canonical lookup path `docs`, while `docs` has no explicit
+directory hint. Authored selectors retain that distinction in authoritative
+scope carriers. Repeated separators, including repeated trailing slashes, are
+invalid, as are absolute paths, backslashes, and paths containing traversal
+components. Glob selectors use Node's `path.posix.matchesGlob()` semantics:
+`*.go` matches only root-level Go files, while `**/*.go` also matches nested Go
+files. A glob grants only paths it matches; its containing directory is not an
+implicit scope grant. Matching never rewrites the authored selector stored in an
+authenticated scope carrier.
+
+Canonical persistence accepts `read_scope` directly and rejects an enumerable
+obsolete `docs` property at record or slice level before filesystem effects. It
+does not canonicalize, migrate, or serialize `docs` as an alias. See
+[Work-record persistence](work-record-persistence.md) for failure phases,
+publication outcomes, inspection guidance, and lossless MCP diagnostic
+retrieval, including Error stacks and attached record or payload data.
 
 For implementation work, `write_scope` should be non-empty and paired with
 concrete acceptance and validation. For review or redteam work, `write_scope` is
@@ -152,8 +228,21 @@ assigned the default worker role, and refuse an explicitly conflicting role.
 ## Acceptance and Validation
 
 `acceptance.criteria` lists the behavioral or documentation outcomes that make
-the unit complete. `acceptance.validation` lists the commands or structured
-checks expected to verify the result.
+the unit complete. A criterion is either a non-empty string or an object whose
+only fields are `text` and the optional authoring metadata `verification_method`
+(one of the controlled feature-vector verification methods, or null),
+`evidence_target` (a repository-relative path, or null) and `facet_provenance`.
+Any other field is refused at the authoring boundary. Coverage identifies a
+criterion by its position and `text`, so adding or changing this metadata leaves
+criterion identity and saved coverage rows intact while still moving the
+acceptance-coverage source bindings that own staleness.
+
+`acceptance.validation` accepts human note strings,
+`{note, verification_ids}` relationship-bearing notes, and one executable shape:
+`{operation: "node_test", target, verification_ids}`. The target is one canonical
+repository-relative `.mjs` test-module path. Strings never authorize execution.
+Command-bearing objects, unknown operations, extra fields, duplicate executable
+verification bindings, and `sections.structured_validation` are invalid.
 
 Validation strings are part of the work contract. They do not by themselves
 prove a result passed; workers and reviewers should report the validation they

@@ -106,6 +106,29 @@ export function validateSuppliedProofPackBindings(input: {
   evaluation_input_diagnostics: Array<Record<string, unknown>>;
   summary: ProofPackBindingSummary;
 }>>;
+/**
+ * The evaluator diagnostic codes that make an explicit claim-pattern binding
+ * inadmissible. `claim_pattern_binding_mismatch` is deliberately not one of
+ * them: a binding naming a real claim the pattern did not select is an
+ * evaluation outcome, not an inadmissible binding.
+ */
+export const CLAIM_PATTERN_BINDING_ADMISSION_CODES: readonly string[];
+export function validateSuppliedClaimPatternBindings(input: {
+  contract: Record<string, unknown>;
+  profileId: string;
+  profileVersion: string;
+  evaluationInput?: Record<string, unknown> | null;
+}): Promise<Readonly<{
+  profile_id: string;
+  profile_version: string;
+  supplied_binding_count: number;
+  admission_diagnostics: Array<Record<string, unknown>>;
+  summary: { status: "valid" | "invalid"; diagnostic_count: number };
+  binding_selected: false;
+  binding_written: false;
+  semantic_truth_inferred: false;
+  authority: "non_authoritative";
+}>>;
 export function inspectProofPackBindingsPage(input: {
   contract: Record<string, unknown>;
   profileId: string;

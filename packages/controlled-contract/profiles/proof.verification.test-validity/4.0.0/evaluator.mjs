@@ -25,16 +25,15 @@ function evaluatePostDeliveryTestValidity({ semantic_facts: semanticFacts }) {
     "test_validity_post_delivery_candidate_failed", "/facts/candidate/status"));
   if (!sameInventory(facts.inventory.declared_test_ids,
     facts.inventory.discovered_test_ids)) diagnostics.push(diagnostic(
-    "test_validity_post_delivery_declared_discovered_inventory_mismatch",
+    "test_validity_post_delivery_selected_test_not_discovered",
     "/facts/inventory/discovered_test_ids"));
   if (!sameInventory(facts.inventory.declared_test_ids,
     facts.inventory.executed_test_ids)) diagnostics.push(diagnostic(
-    "test_validity_post_delivery_declared_executed_inventory_mismatch",
+    "test_validity_post_delivery_selected_test_not_executed",
     "/facts/inventory/executed_test_ids"));
-  if (facts.inventory.newly_skipped_test_ids.length > 0) diagnostics.push(diagnostic(
-    "test_validity_post_delivery_newly_skipped", "/facts/inventory/newly_skipped_test_ids"));
-  if (facts.inventory.unexpected_test_ids.length > 0) diagnostics.push(diagnostic(
-    "test_validity_post_delivery_unexpected_test", "/facts/inventory/unexpected_test_ids"));
+  if (facts.inventory.skipped_test_ids.length > 0) diagnostics.push(diagnostic(
+    "test_validity_post_delivery_selected_test_skipped",
+    "/facts/inventory/skipped_test_ids"));
   if (facts.falsifiers.complete !== true) diagnostics.push(diagnostic(
     "test_validity_post_delivery_falsifier_population_incomplete", "/facts/falsifiers"));
   if (facts.falsifiers.all_detected !== true) diagnostics.push(diagnostic(

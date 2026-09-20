@@ -27,7 +27,7 @@ export async function registerInitiativeStatusTools({
     WORKSPACE_INITIATIVE_STATUS_TOOL_NAME,
     {
       description:
-        "Read compact initiative status and ranked next actions from an initiative or unit selector. Read-only. Invalid or unknown identities refuse; a valid initiative without WK members returns zero-member status. selected_action_id pins a candidate, top_action_limit bounds ranking, and verbose adds evidence detail.",
+        "Read initiative status and ranked next actions. Empty membership is explicit; invalid identities refuse. Select an action or limit ranking; verbose adds evidence. Read-only.",
       inputSchema: z
         .object({
           repo: z.string().optional(),

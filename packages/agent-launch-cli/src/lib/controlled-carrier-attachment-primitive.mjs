@@ -11,7 +11,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  classifyControlledContractRepositoryPath,
   controlledContractGenerationDigest,
   resolveControlledContractAttachmentGeneration,
   validateControlledContractAttachmentGenerationDescriptors
@@ -22,14 +21,13 @@ import {
   authenticatedControlledContractGenerationsEqual,
   constructAuthenticatedControlledContractGeneration
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-generation-authentication.mjs";
+import { createControlledContractGenerationTreeOperations } from
+  "./controlled-contract-generation-tree.mjs";
 
 const WK_ID_PATTERN = /^WK-[0-9]{4}$/;
 const INITIATIVE_PATTERN = /^IN-[0-9]{4}$/;
 const OID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
-const RAW_DIFF_HEADER_PATTERN =
-  /^:([0-7]{6}) ([0-7]{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-9a-f]{40}|[0-9a-f]{64}) ([A-Z][0-9]*)$/;
-
 const GIT_INERT_CONFIG = Object.freeze([
   "-c", "core.autocrlf=false",
   "-c", "core.eol=lf",
@@ -459,244 +457,25 @@ export async function resolveControlledContractGenerationBinding(input = {}) {
   });
 }
 
-function splitNul(bytes) {
-  const fields = [];
-  let start = 0;
-  for (let index = 0; index < bytes.length; index += 1) {
-    if (bytes[index] !== 0) continue;
-    fields.push(bytes.subarray(start, index));
-    start = index + 1;
-  }
-  if (start !== bytes.length) {
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STRUCTURAL_DIFF_INVALID,
-      "Git emitted a malformed non-NUL-terminated byte record");
-  }
-  return fields;
-}
-
-function decodeCanonicalPath(bytes) {
-  const value = bytes.toString("utf8");
-  if (Buffer.from(value, "utf8").equals(bytes) === false || value.length === 0 ||
-      value.includes("\0")) {
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STRUCTURAL_DIFF_INVALID,
-      "Git emitted a malformed path byte record");
-  }
-  return value;
-}
-
-function parseLsTree(bytes) {
-  const records = splitNul(bytes);
-  const entries = [];
-  for (const record of records) {
-    if (record.length === 0) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored-tree enumeration returned an empty byte record");
-    }
-    const tab = record.indexOf(9);
-    if (tab <= 0) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored-tree enumeration returned a malformed record");
-    }
-    const header = record.subarray(0, tab).toString("ascii");
-    const match = /^([0-7]{6}) ([a-z]+) ([0-9a-f]{40}|[0-9a-f]{64})$/.exec(header);
-    if (match === null) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored-tree enumeration returned a malformed header");
-    }
-    entries.push({
-      mode: match[1],
-      type: match[2],
-      oid: match[3],
-      path: decodeCanonicalPath(record.subarray(tab + 1))
-    });
-  }
-  return entries;
-}
-
-function parseStructuralDiff(bytes) {
-  const fields = splitNul(bytes);
-  const paths = [];
-  for (let index = 0; index < fields.length;) {
-    if (fields[index].length === 0) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STRUCTURAL_DIFF_INVALID,
-        "structural diff returned an empty byte record");
-    }
-    const header = fields[index].toString("ascii");
-    if (!RAW_DIFF_HEADER_PATTERN.test(header) || index + 1 >= fields.length) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STRUCTURAL_DIFF_INVALID,
-        "structural diff returned a malformed byte record");
-    }
-    const status = RAW_DIFF_HEADER_PATTERN.exec(header)[5];
-    if (status.startsWith("R") || status.startsWith("C")) {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STRUCTURAL_DIFF_INVALID,
-        "structural diff unexpectedly returned a rename or copy record");
-    }
-    paths.push(decodeCanonicalPath(fields[index + 1]));
-    index += 2;
-  }
-  return paths;
-}
-
-async function generationFromTree({ runGit, binding, treeish, allowEmpty }) {
-  const listing = await runGitOrFailAsync(runGit, {
-    repo: binding.repository, gitDir: binding.git_dir
-  }, [
-    "--no-replace-objects",
-    ...GIT_INERT_CONFIG,
-    "ls-tree", "-r", "-z", "--full-tree", treeish, "--", "wiki/contracts"
-  ], "stored controlled-contract population could not be enumerated");
-  const descriptors = [];
-  for (const entry of parseLsTree(stdoutBytes(listing))) {
-    const basename = path.posix.basename(entry.path);
-    const classification = classifyControlledContractRepositoryPath({
-      wkId: binding.record_id,
-      repositoryPath: entry.path
-    });
-    if (classification.classification === "malformed_active_candidate") {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored tree contains a malformed active controlled-contract path");
-    }
-    if (classification.classification === "unsupported_nonmember") {
-      continue;
-    }
-    if (entry.type !== "blob" || entry.mode !== "100644") {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored controlled-contract member is not an ordinary Git blob");
-    }
-    const blob = await runGitOrFailAsync(runGit, { gitDir: binding.git_dir },
-      ["--no-replace-objects", "cat-file", "blob", entry.oid],
-      "stored controlled-contract blob could not be read");
-    const bytes = stdoutBytes(blob);
-    descriptors.push({
-      path: entry.path,
-      basename,
-      carrier_kind: classification.carrier_kind,
-      focus: classification.focus,
-      pack_digest: classification.pack_digest,
-      content_digest: sha256(bytes),
-      byte_length: bytes.byteLength,
-      bytes_base64: bytes.toString("base64")
-    });
-  }
-  descriptors.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  if (descriptors.length === 0) {
-    if (allowEmpty) return Object.freeze({ descriptors: Object.freeze([]), digest: null });
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-      "stored controlled-contract population is unexpectedly empty");
-  }
-  try {
-    const validated = await validateControlledContractAttachmentGenerationDescriptors({
-      wkId: binding.record_id,
-      descriptors
-    });
-    return deepFreeze({ descriptors, digest: validated.generation_digest });
-  } catch (error) {
-    if (error instanceof ControlledContractGenerationPersistenceError) throw error;
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-      "stored controlled-contract population is not one complete authenticated generation", {
-        cause_code: error?.code ?? null
-      });
-  }
-}
-
-async function authenticationObservationsFromTree({ runGit, binding, treeish }) {
-  const listing = await runGitOrFailAsync(runGit, {
-    repo: binding.repository, gitDir: binding.git_dir
-  }, [
-    "--no-replace-objects",
-    ...GIT_INERT_CONFIG,
-    "ls-tree", "-r", "-z", "--full-tree", treeish, "--",
-    "wiki/contracts", `wiki/work-records/${binding.record_id}.json`
-  ], "stored controlled-contract authentication population could not be enumerated");
-  const selectedManifestPaths = new Set(
-    (binding.resolved_generation.manifest_selection ?? []).map(({ focus }) =>
-      `wiki/contracts/${binding.record_id}${focus === null ? "" : `-${focus}`}` +
-      ".carrier-set-manifest.json")
-  );
-  const carrierObservations = [];
-  const manifestObservations = [];
-  let recordObservation = null;
-  for (const entry of parseLsTree(stdoutBytes(listing))) {
-    const basename = path.posix.basename(entry.path);
-    const recordPath = `wiki/work-records/${binding.record_id}.json`;
-    if (entry.path === recordPath) {
-      if (recordObservation !== null || entry.type !== "blob" || entry.mode !== "100644") {
-        fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-          "stored canonical WK record is not one direct ordinary Git blob");
-      }
-      const blob = await runGitOrFailAsync(runGit, {
-        repo: binding.repository, gitDir: binding.git_dir
-      }, ["--no-replace-objects", "cat-file", "blob", entry.oid],
-      "stored canonical WK record blob could not be read");
-      const bytes = stdoutBytes(blob);
-      recordObservation = {
-        path: entry.path,
-        content_digest: sha256(bytes),
-        byte_length: bytes.byteLength,
-        bytes_base64: bytes.toString("base64")
-      };
-      continue;
-    }
-    const classification = classifyControlledContractRepositoryPath({
-      wkId: binding.record_id,
-      repositoryPath: entry.path
-    });
-    if (classification.classification === "active_member") {
-      if (entry.type !== "blob" || entry.mode !== "100644") {
-        fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-          "stored controlled-contract member is not an ordinary Git blob");
-      }
-      const blob = await runGitOrFailAsync(runGit, {
-        repo: binding.repository, gitDir: binding.git_dir
-      },
-        ["--no-replace-objects", "cat-file", "blob", entry.oid],
-        "stored controlled-contract blob could not be read");
-      const bytes = stdoutBytes(blob);
-      carrierObservations.push({
-        path: entry.path,
-        basename,
-        carrier_kind: classification.carrier_kind,
-        focus: classification.focus,
-        pack_digest: classification.pack_digest,
-        content_digest: sha256(bytes),
-        byte_length: bytes.byteLength,
-        bytes_base64: bytes.toString("base64")
-      });
-      continue;
-    }
-    if (classification.classification === "malformed_active_candidate") {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored tree contains a malformed active controlled-contract path");
-    }
-    if (!selectedManifestPaths.has(entry.path)) continue;
-    if (classification.active !== true || entry.type !== "blob" || entry.mode !== "100644") {
-      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-        "stored controlled-contract manifest is not one direct ordinary Git blob");
-    }
-    const blob = await runGitOrFailAsync(runGit, {
-      repo: binding.repository, gitDir: binding.git_dir
-    },
-      ["--no-replace-objects", "cat-file", "blob", entry.oid],
-      "stored controlled-contract manifest blob could not be read");
-    const bytes = stdoutBytes(blob);
-    manifestObservations.push({
-      path: entry.path,
-      content_digest: sha256(bytes),
-      byte_length: bytes.byteLength,
-      bytes_base64: bytes.toString("base64")
-    });
-  }
-  carrierObservations.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  manifestObservations.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  if (recordObservation === null) {
-    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.STORED_GENERATION_INVALID,
-      "stored canonical WK record is missing from exact W");
-  }
-  return deepFreeze({ recordObservation, carrierObservations, manifestObservations });
-}
+const {
+  authenticationObservationsFromTree,
+  generationFromTree,
+  manifestPathsFromTree,
+  manifestPopulationMatches,
+  parseStructuralDiff,
+  recordObservationMatches,
+  resolveBoundManifestArtifacts,
+  resolveBoundRecordArtifact
+} = createControlledContractGenerationTreeOperations({
+  fail,
+  codes: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
+  runGitOrFail,
+  runGitOrFailAsync,
+  stdoutBytes,
+  deepFreeze,
+  isOwnedError: error => error instanceof ControlledContractGenerationPersistenceError,
+  gitInertConfig: GIT_INERT_CONFIG
+});
 
 export async function authenticateControlledContractGenerationAtW(input = {}) {
   assertExactKeys(input, ["binding", "deps"],
@@ -1028,6 +807,54 @@ export function admitVerifiedReceipt({ runGit, binding, receiptValue }) {
         { basename: descriptor.basename });
     }
   }
+  for (const artifact of resolveBoundManifestArtifacts(binding)) {
+    const resolved = runGit({
+      gitDir: binding.git_dir,
+      args: ["--no-replace-objects", "rev-parse", "--verify", "--quiet",
+        `${receiptValue.final_tip}:${artifact.path}`]
+    });
+    if (resolved?.ok !== true) {
+      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+        "persisted selected manifest is absent from the authoritative ref", {
+          path: artifact.path
+        });
+    }
+    const oid = assertOid(stdoutText(resolved).trim(), "persisted manifest blob");
+    const blob = runGitOrFail(runGit, { gitDir: binding.git_dir },
+      ["--no-replace-objects", "cat-file", "blob", oid],
+      "persisted selected manifest blob could not be read", {
+        code: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE
+      });
+    const bytes = stdoutBytes(blob);
+    if (sha256(bytes) !== artifact.content_digest || !bytes.equals(artifact.bytes)) {
+      fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+        "persisted selected manifest differs from its bound authentication fence", {
+          path: artifact.path
+        });
+    }
+  }
+  const recordArtifact = resolveBoundRecordArtifact(binding);
+  const recordResolved = runGit({
+    gitDir: binding.git_dir,
+    args: ["--no-replace-objects", "rev-parse", "--verify", "--quiet",
+      `${receiptValue.final_tip}:${recordArtifact.path}`]
+  });
+  if (recordResolved?.ok !== true) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+      "persisted canonical WK source is absent from the authoritative ref");
+  }
+  const recordOid = assertOid(stdoutText(recordResolved).trim(), "persisted WK source blob");
+  const recordBlob = runGitOrFail(runGit, { gitDir: binding.git_dir },
+    ["--no-replace-objects", "cat-file", "blob", recordOid],
+    "persisted canonical WK source blob could not be read", {
+      code: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE
+    });
+  const recordBytes = stdoutBytes(recordBlob);
+  if (sha256(recordBytes) !== recordArtifact.content_digest ||
+      !recordBytes.equals(recordArtifact.bytes)) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+      "persisted canonical WK source differs from its bound identity");
+  }
   return receiptValue;
 }
 
@@ -1066,7 +893,16 @@ function reauthenticateBindingSource(binding) {
   }
 }
 
-async function observeExactChild({ runGit, binding, liveTip, prior, invocationCommit = null }) {
+async function observeExactChild({
+  runGit,
+  binding,
+  liveTip,
+  prior,
+  priorManifestPaths,
+  manifestArtifacts,
+  recordArtifact,
+  invocationCommit = null
+}) {
   const parents = commitParents({ runGit, binding, commit: liveTip });
   if (parents.length !== 1 || parents[0] !== binding.wk_tip_sha) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
@@ -1081,7 +917,10 @@ async function observeExactChild({ runGit, binding, liveTip, prior, invocationCo
   }
   const allowed = new Set([
     ...prior.descriptors.map((descriptor) => descriptor.path),
-    ...binding.descriptors.map((descriptor) => descriptor.path)
+    ...binding.descriptors.map((descriptor) => descriptor.path),
+    ...priorManifestPaths,
+    ...manifestArtifacts.map((artifact) => artifact.path),
+    recordArtifact.path
   ]);
   if (changedPaths.some((changedPath) => !allowed.has(changedPath))) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
@@ -1094,6 +933,14 @@ async function observeExactChild({ runGit, binding, liveTip, prior, invocationCo
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
       "candidate winner does not contain the exact current complete generation");
   }
+  const observations = await authenticationObservationsFromTree({
+    runGit, binding, treeish: liveTip
+  });
+  if (!manifestPopulationMatches(observations.manifestObservations, manifestArtifacts) ||
+      !recordObservationMatches(observations.recordObservation, recordArtifact)) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
+      "candidate winner does not contain the exact authentication population");
+  }
   return receipt(binding, {
     disposition: "observed",
     finalTip: liveTip,
@@ -1102,7 +949,9 @@ async function observeExactChild({ runGit, binding, liveTip, prior, invocationCo
   });
 }
 
-function buildGenerationTree({ runGit, binding, prior }) {
+function buildGenerationTree({
+  runGit, binding, prior, priorManifestPaths, manifestArtifacts, recordArtifact
+}) {
   const indexDir = mkdtempSync(path.join(tmpdir(), "controlled-contract-generation-index-"));
   const indexFile = path.join(indexDir, "index");
   const context = { gitDir: binding.git_dir, indexFile };
@@ -1117,6 +966,13 @@ function buildGenerationTree({ runGit, binding, prior }) {
         ...GIT_INERT_CONFIG, "update-index", "--force-remove", "--", descriptor.path
       ], "retired generation path could not be removed from the private index");
     }
+    const currentManifestPaths = new Set(manifestArtifacts.map((artifact) => artifact.path));
+    for (const manifestPath of priorManifestPaths) {
+      if (currentManifestPaths.has(manifestPath)) continue;
+      runGitOrFail(runGit, context, [
+        ...GIT_INERT_CONFIG, "update-index", "--force-remove", "--", manifestPath
+      ], "retired controlled-contract manifest could not be removed from the private index");
+    }
     for (const descriptor of binding.descriptors) {
       const bytes = Buffer.from(descriptor.bytes_base64, "base64");
       const blob = runGitOrFail(runGit, context,
@@ -1128,6 +984,26 @@ function buildGenerationTree({ runGit, binding, prior }) {
         "update-index", "--add", "--cacheinfo", `100644,${oid},${descriptor.path}`
       ], "current generation path could not be written to the private index");
     }
+    for (const artifact of manifestArtifacts) {
+      const blob = runGitOrFail(runGit, context,
+        [...GIT_INERT_CONFIG, "hash-object", "-w", "--stdin"],
+        "selected controlled-contract manifest blob could not be materialized", {
+          stdin: artifact.bytes
+        });
+      const oid = assertOid(stdoutText(blob).trim(), "controlled-contract manifest blob");
+      runGitOrFail(runGit, context, [
+        ...GIT_INERT_CONFIG,
+        "update-index", "--add", "--cacheinfo", `100644,${oid},${artifact.path}`
+      ], "selected controlled-contract manifest could not be written to the private index");
+    }
+    const recordBlob = runGitOrFail(runGit, context,
+      [...GIT_INERT_CONFIG, "hash-object", "-w", "--stdin"],
+      "canonical WK source blob could not be materialized", { stdin: recordArtifact.bytes });
+    const recordOid = assertOid(stdoutText(recordBlob).trim(), "canonical WK source blob");
+    runGitOrFail(runGit, context, [
+      ...GIT_INERT_CONFIG,
+      "update-index", "--add", "--cacheinfo", `100644,${recordOid},${recordArtifact.path}`
+    ], "canonical WK source could not be written to the private index");
     const tree = runGitOrFail(runGit, context,
       [...GIT_INERT_CONFIG, "write-tree"],
       "complete generation tree could not be materialized");
@@ -1177,19 +1053,40 @@ export async function persistControlledContractGeneration(input = {}) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.SOURCE_CHANGED,
       "canonical controlled-contract generation changed after binding");
   }
+  const manifestArtifacts = resolveBoundManifestArtifacts(binding);
+  const recordArtifact = resolveBoundRecordArtifact(binding);
 
   const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
   const liveTip = resolveRefTip(runGit, binding.git_dir, binding.ref);
   const prior = await generationFromTree({
     runGit, binding, treeish: binding.wk_tip_sha, allowEmpty: true
   });
+  const priorManifestPaths = manifestPathsFromTree({
+    runGit, binding, treeish: binding.wk_tip_sha
+  });
   if (liveTip !== binding.wk_tip_sha) {
     return admitVerifiedReceipt({
       runGit, binding,
-      receiptValue: await observeExactChild({ runGit, binding, liveTip, prior })
+      receiptValue: await observeExactChild({
+        runGit, binding, liveTip, prior, priorManifestPaths, manifestArtifacts, recordArtifact
+      })
     });
   }
-  if (generationMatches(prior.descriptors, binding.descriptors)) {
+  const priorRecordEntry = runGitOrFail(runGit, {
+    repo: binding.repository, gitDir: binding.git_dir
+  }, [
+    "--no-replace-objects", ...GIT_INERT_CONFIG,
+    "ls-tree", "-z", "--full-tree", binding.wk_tip_sha, "--", recordArtifact.path
+  ], "stored canonical WK record existence could not be observed");
+  const priorObservations = stdoutBytes(priorRecordEntry).length === 0
+    ? null
+    : await authenticationObservationsFromTree({
+        runGit, binding, treeish: binding.wk_tip_sha
+      });
+  if (generationMatches(prior.descriptors, binding.descriptors) &&
+      priorObservations !== null &&
+      manifestPopulationMatches(priorObservations.manifestObservations, manifestArtifacts) &&
+      recordObservationMatches(priorObservations.recordObservation, recordArtifact)) {
     return admitVerifiedReceipt({
       runGit, binding,
       receiptValue: receipt(binding, {
@@ -1199,7 +1096,9 @@ export async function persistControlledContractGeneration(input = {}) {
     });
   }
 
-  const tree = buildGenerationTree({ runGit, binding, prior });
+  const tree = buildGenerationTree({
+    runGit, binding, prior, priorManifestPaths, manifestArtifacts, recordArtifact
+  });
   const changedPaths = structuralDiffPaths({
     runGit, binding, before: binding.wk_tip_sha, after: tree
   });
@@ -1209,7 +1108,10 @@ export async function persistControlledContractGeneration(input = {}) {
   }
   const allowed = new Set([
     ...prior.descriptors.map((descriptor) => descriptor.path),
-    ...binding.descriptors.map((descriptor) => descriptor.path)
+    ...binding.descriptors.map((descriptor) => descriptor.path),
+    ...priorManifestPaths,
+    ...manifestArtifacts.map((artifact) => artifact.path),
+    recordArtifact.path
   ]);
   if (changedPaths.some((changedPath) => !allowed.has(changedPath))) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
@@ -1219,6 +1121,14 @@ export async function persistControlledContractGeneration(input = {}) {
   if (!generationMatches(post.descriptors, binding.descriptors)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
       "materialized tree does not contain the exact current generation");
+  }
+  const postObservations = await authenticationObservationsFromTree({
+    runGit, binding, treeish: tree
+  });
+  if (!manifestPopulationMatches(postObservations.manifestObservations, manifestArtifacts) ||
+      !recordObservationMatches(postObservations.recordObservation, recordArtifact)) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+      "materialized tree does not contain the exact authentication population");
   }
   const commitResult = runGitOrFail(runGit, { gitDir: binding.git_dir }, [
     ...GIT_INERT_CONFIG,
@@ -1251,7 +1161,14 @@ export async function persistControlledContractGeneration(input = {}) {
   return admitVerifiedReceipt({
     runGit, binding,
     receiptValue: await observeExactChild({
-      runGit, binding, liveTip: winner, prior, invocationCommit: commit
+      runGit,
+      binding,
+      liveTip: winner,
+      prior,
+      priorManifestPaths,
+      manifestArtifacts,
+      recordArtifact,
+      invocationCommit: commit
     })
   });
 }

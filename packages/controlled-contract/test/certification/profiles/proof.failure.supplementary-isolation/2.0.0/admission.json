@@ -18,38 +18,10 @@
   ],
   "certification": {
     "method": "executable_semantic_adequacy",
-    "adequacy_declaration_digest": "10c6159bec68d0cde55bc7b8857f01782a3446627c7c985193dafd49f37bdcc3",
-    "adequacy_result_digest": "7237eae947f93af1ece4d8e29c730db9d2c5c5004b49ddd3fa4163184dca702d",
+    "adequacy_declaration_digest": "4575ad8927f0488016f037eeed68fcde63b00372645957371f4ce440d7dac1cc",
+    "adequacy_result_digest": "a6c099c1776e3afad3952b5dcaa44f13d1ae9b701dc0b77c8b9700422258f8fb",
     "executable_control_count": 39,
     "negative_fixture_count": 0,
     "coverage_witness_count": 0
-  },
-  "exact_binding": {
-    "declaration_digest": "c86bbe83e568553e9990d4a46501427925e67d8b62d905b416c065c82d35f0b8",
-    "certification_result_digest": "d697b62c5b3a6051ed0541707bbd322a917ede0e40f8d2ed1877911263e2b3a8",
-    "executable_control_count": 12,
-    "binding_kinds": [
-      "artifact_bytes"
-    ],
-    "relation_operators": [
-      "deterministic_projection"
-    ],
-    "corpus_id": "proof-failure-supplementary-isolation-exact-binding",
-    "corpus_version": "1.0.0",
-    "corpus_digest": "94aaa9bb7502213e9685a1fe313abbdf61664b0d195d249cff4161253598637e",
-    "passed_control_ids": [
-      "admission-splice",
-      "capture-splice",
-      "core-value-substitution",
-      "declaration-splice",
-      "evaluation-input-splice",
-      "multiple-failures",
-      "multiple-final-results",
-      "multiple-settlements",
-      "positive-omitted",
-      "positive-present",
-      "profile-splice",
-      "projection-splice"
-    ]
   }
 }

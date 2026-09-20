@@ -82,6 +82,7 @@ const NODE_ENGINE_DIAGNOSTIC_FACTS = Object.freeze({
   node_engine_admit_unratified: ["operator_recovery", "authority_binding_unratified"],
   node_engine_pack_input_missing: ["operator_recovery", "runtime_materialization_failed"],
   node_engine_pack_input_assembly_failed: ["operator_recovery", "runtime_materialization_failed"],
+  admission_evidence_snapshot_changed: ["operator_recovery", "runtime_materialization_failed"],
   node_engine_auth_rejected: ["operator_recovery", "decision_envelope_unauthenticated"],
   node_engine_entitlement_rejected: ["operator_recovery", "decision_envelope_unauthenticated"],
   node_engine_request_invalid: ["validation", "route_input_invalid"],

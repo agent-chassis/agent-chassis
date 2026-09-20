@@ -1,10 +1,16 @@
 import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
+import { isRuntimeBlockerCode } from
+  "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
 import { BubblewrapIsolationError } from "./launch-isolation.mjs";
+import { assertGitMetadataProjectionComposed } from "./launch-isolation-findings-git-metadata.mjs";
+import { attachStdioMcpConduitLaunchOutcome } from "./stdio-mcp-conduit-contract.mjs";
 import {
-  STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON as CODEX_STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
-  attachStdioMcpConduitLaunchOutcome
-} from "./stdio-mcp-conduit-contract.mjs";
+  buildConduitSpawnFailureRefusal,
+  buildLaunchPathFailureRefusal,
+  classifyLaunchPathFailure,
+  cleanupConduitForRefusal
+} from "./launch-failure-cause.mjs";
 import {
   assertCodexWorkerCommitCredentialBinding,
   injectCodexConfigOverridesBeforeFinalPositional
@@ -37,7 +43,9 @@ import {
   createLauncherObservedDispatchEnforcementForConfirmedIsolatedSpawn
 } from "./workspace-agent-dispatch-provenance.mjs";
 import {
-  bindAttemptOwnedPreSpawnCleanup
+  PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
+  bindAttemptOwnedPreSpawnCleanup,
+  compensatePreSpawnRefusal as compensateCodexPreSpawnRefusal
 } from "./pre-spawn-cleanup-binding.mjs";
 import {
   buildCodexDispatchWorkerPlanArgs
@@ -69,34 +77,11 @@ function resolveCodexPlainSpawnPrimitive(plainSpawn) {
     : async () => plainSpawn;
 }
 
-function cleanupFailureRefusal(controller, error) {
-  return makeRefusal(
-    BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-    "writable_file_precreation_cleanup_failed",
-    {
-      attempt_id: controller?.attempt_id ?? null,
-      run_id: controller?.run_id ?? null,
-      unit_address: controller?.unit_address ?? null,
-      message: error?.message ?? String(error)
-    }
-  );
-}
-
-function compensateCodexPreSpawnRefusal(controller, refusal) {
-  if (controller === null) return refusal;
-  try {
-    controller.cleanupOnce();
-  } catch (error) {
-    return cleanupFailureRefusal(controller, error);
-  }
-  return refusal;
-}
-
 function assertCodexPreSpawnCleanupIdentity(controller) {
   if (controller === null || controller.valid === true) return null;
   return compensateCodexPreSpawnRefusal(controller, makeRefusal(
     BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-    "writable_file_precreation_cleanup_identity_drift",
+    PRECREATION_CLEANUP_IDENTITY_DRIFT_REASON,
     {
       attempt_id: controller.attempt_id,
       run_id: controller.run_id,
@@ -165,7 +150,10 @@ export async function launchCodexWorkspaceAgentInProcess({
       provisioned_worktree_git_binding: input?.provisioned_worktree_git_binding ?? null,
       worker_scope_authority: input?.worker_scope_authority ?? null,
       worktree_provisioning: input?.worktree_provisioning ?? null,
-      advisoryReviewInput: input?.advisory_review_input ?? null
+      dispatchWorkspaceBinding: input?.dispatch_workspace_binding ?? null,
+      advisoryReviewInput: input?.advisory_review_input ?? null,
+
+      workerAssignment: input?.worker_assignment ?? null
     }),
     buildPlan,
     buildBwrapPlan,
@@ -330,14 +318,32 @@ export async function launchCodexWorkspaceAgentInProcess({
       buildCodexStdioMcpRegistrationOverrides(conduit)
     );
     bwrapPlan = buildBwrapPlan(plan, { stdioMcpConduit: conduit });
+    if (input?.advisory_review_input !== undefined) {
+      assertGitMetadataProjectionComposed(bwrapPlan, {
+        checkout: input.advisory_review_input.private_checkout_root
+      });
+    }
     assertBwrap({ env: plan.env, bwrapPath: bwrapPlan.bwrapPath });
   } catch (error) {
-    if (conduit) await conduit.cleanup().catch(() => {});
-    return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
-      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-      error?.code ?? "codex_stdio_mcp_conduit_failed",
-      { message: error?.message ?? String(error), detail: error?.detail ?? null }
-    ));
+    const conduitCleanupFailure = conduit ? await cleanupConduitForRefusal(conduit) : null;
+    const pathFailure = classifyLaunchPathFailure(error);
+    return compensateCodexPreSpawnRefusal(cleanupController, pathFailure !== null
+      ? buildLaunchPathFailureRefusal(makeRefusal, pathFailure, {
+          conduit_cleanup_failures: conduitCleanupFailure
+        })
+
+      : makeRefusal(
+          isRuntimeBlockerCode(error?.code)
+            ? error.code
+            : BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
+          error?.code ?? "codex_stdio_mcp_conduit_failed",
+          {
+            message: error?.message ?? String(error),
+            detail: error?.detail ?? null,
+            ...(error instanceof BubblewrapIsolationError ? { authority_limb: "mechanical_failure" } : {}),
+            ...(conduitCleanupFailure === null ? {} : { conduit_cleanup_failures: conduitCleanupFailure })
+          }
+        ));
   }
 
   let child;
@@ -351,23 +357,18 @@ export async function launchCodexWorkspaceAgentInProcess({
   } catch (err) {
 
     if (conduit !== null) {
-      let cleanupDetail = null;
-      try {
-        await conduit.cleanup();
-      } catch (cleanupError) {
-        cleanupDetail = cleanupError?.detail ?? { message: cleanupError?.message ?? null };
-      }
-      return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-        CODEX_STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
-        {
-          message: err?.message ?? String(err),
-          code: err?.code ?? null,
-          sandbox_required: true,
-          unenforced_fallback_permitted: false,
-          conduit_cleanup_failures: cleanupDetail
-        }
-      ));
+      const conduitCleanupFailure = await cleanupConduitForRefusal(conduit);
+      return compensateCodexPreSpawnRefusal(
+        cleanupController,
+        buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure)
+      );
+    }
+    const pathFailure = classifyLaunchPathFailure(err);
+    if (pathFailure !== null) {
+      return compensateCodexPreSpawnRefusal(
+        cleanupController,
+        buildLaunchPathFailureRefusal(makeRefusal, pathFailure)
+      );
     }
     if (
       err instanceof BubblewrapIsolationError
@@ -467,7 +468,12 @@ export async function launchCodexWorkspaceAgentInProcess({
       return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(
         BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
         "bubblewrap_spawn_failed",
-        { code: err.code, message: err.message }
+        {
+          code: err.code,
+          message: err.message,
+          detail: err.detail ?? null,
+          authority_limb: "mechanical_failure"
+        }
       ));
     }
     return compensateCodexPreSpawnRefusal(cleanupController, makeRefusal(

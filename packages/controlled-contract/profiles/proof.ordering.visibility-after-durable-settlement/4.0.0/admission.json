@@ -1,0 +1,25 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "9c9c1c3f9da41ba163f7d9201a34f25932b23b8b90419b3228bfff12807d1fc0",
+  "profile_id": "proof.ordering.visibility-after-durable-settlement",
+  "profile_version": "4.0.0",
+  "profile_digest": "ff03e0a4dce59b8ecdf7b811f5f383b3fbe3380509c8e3aa7e46df823c750cbd",
+  "guarantee": "For one caller-declared effect population, declared success or visibility cannot precede durable settlement of every declared effect; failure visibility is empty, and a selected post-visibility observation of that declared population equals the caller-declared expected durable state.",
+  "guarantee_digest": "04ce2d798103d1c8c32829cffd34c148c3ca710c0c0f4a016ee1d1945863351c",
+  "explicit_exclusions": [
+    "dishonest-grounding-or-self-authored-evidence",
+    "eventual-visibility-liveness",
+    "heterogeneous-arbitrary-effect-to-state-pairing",
+    "runtime-clock-or-event-order-truth",
+    "runtime-identity-or-population-truth",
+    "runtime-state-or-observation-truth"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "6146430357a0b3accaaa03a6df12dfb9df1822c5d282e262f9ec7498ad55d270",
+    "adequacy_result_digest": "c162362eaefb2f748eab6cd80dff8c59069cde1c670d5a571cdad3ed04aa6815",
+    "executable_control_count": 32,
+    "negative_fixture_count": 3,
+    "coverage_witness_count": 132
+  }
+}

@@ -1,7 +1,6 @@
 
 
 import {
-  evaluateGraphImpactBlocker,
   RUNTIME_BLOCKER_CODES
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import {
@@ -29,10 +28,9 @@ export function projectManagedCorrectiveStatusRecovery(refusal, subject) {
       !recovery || typeof recovery !== "object" || Array.isArray(recovery) ||
       recovery.recovery_kind !== MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND ||
       recovery.responsible_actor !== "launcher" ||
-      recovery.next_action !== "retry_workspace_agent_run_status_same_monitor_and_subject" ||
+      recovery.next_action !== "retry_workspace_agent_run_status_same_subject" ||
       recovery.slice_unit !== subject || recovery.exact_subject !== subject ||
-      recovery.unit !== observed.record_id || typeof recovery.monitor_handle !== "string" ||
-      recovery.monitor_handle.length === 0 || recovery.launcher_retirement_required !== true ||
+      recovery.unit !== observed.record_id || recovery.launcher_retirement_required !== true ||
       recovery.filesystem_cleanup_forbidden !== true || recovery.preserve_substantive_review !== true ||
       recovery.preserve_review_status !== true || recovery.replacement_review_required !== false ||
       !MANAGED_CORRECTIVE_STATUS_VALUES.includes(observed.parent_status) ||
@@ -40,7 +38,9 @@ export function projectManagedCorrectiveStatusRecovery(refusal, subject) {
       observed.parent_status !== recovery.observed?.parent_status ||
       observed.slice_status !== recovery.observed?.slice_status) return null;
   return {
-    blockerCode: RUNTIME_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED,
+
+    blockerCode:
+      RUNTIME_BLOCKER_CODES["AGENT_LAUNCH.MANAGED_CORRECTIVE_STATUS.LAUNCHER_RETIREMENT_INCOMPLETE.V1"],
     reason: "launcher_retirement_incomplete",
     detail: {
       observed: { parent_status: observed.parent_status, slice_status: observed.slice_status },
@@ -48,24 +48,11 @@ export function projectManagedCorrectiveStatusRecovery(refusal, subject) {
       launcher_retirement_required: true, filesystem_cleanup_forbidden: true,
       preserve_substantive_review: true, preserve_review_status: true, replacement_review_required: false,
       notification: recovery.notification,
-      next_call: { route: "workspace_agent_run_status", arguments: { monitor_handle: recovery.monitor_handle, subject } }
+      next_call: { route: "workspace_agent_run_status", arguments: { subject } }
     },
-    nextAction: `workspace_agent_run_status(monitor_handle=${recovery.monitor_handle}, subject=${subject})`
+    nextAction: `workspace_agent_run_status(subject=${subject})`
   };
 }
 export function graphDerivationRequiredForDispatch(state) {
   return state === "fresh" || RECOVERABLE_DISPATCH_STATES.has(state);
-}
-
-export function graphBlockerCodeForReadiness(readiness) {
-  if (!new Set(["missing_graph_impact", "stale_write_scope"]).has(readiness?.decision_code)) return null;
-  if (readiness?.recovery?.graph_impact === "not_required" ||
-      readiness?.recovery?.graph_impact === "fresh" ||
-      readiness?.recovery?.graph_impact === "nonrecoverable_missing_paths") return null;
-  const state = readiness?.state?.graph_state ?? {};
-  const evaluated = evaluateGraphImpactBlocker({
-    graph_state: state.graph_state ?? null, staleness: state.staleness ?? null,
-    dirty_state: state.dirty_state ?? null, overlay_state: state.overlay_state ?? null
-  });
-  return evaluated?.blocking === true ? evaluated.code : null;
 }

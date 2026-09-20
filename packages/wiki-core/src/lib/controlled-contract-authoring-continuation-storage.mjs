@@ -17,14 +17,17 @@ import { processStartIdentity } from
   "./controlled-contract-carrier-set-publication.mjs";
 import {
   AUTHORING_CONTINUATION_PATTERN,
-  CONTROLLED_CONTRACT_MAX_JSON_BYTES,
   ControlledContractToolError,
-  canonicalJsonBytes,
   deepFreezePlainData,
   fail,
   isPlainObject,
   resolveControlledContractRepository
 } from "./controlled-contract-tool-shared.mjs";
+import {
+  CONTROLLED_CONTRACT_CONTINUATION_BUDGET,
+  CONTROLLED_CONTRACT_CONTINUATION_MAX_BYTES,
+  continuationStorageBytes
+} from "./controlled-contract-continuation-encoding.mjs";
 
 const TRANSITION_SCHEMA = "controlled-contract-authoring-continuation-transition.v1";
 const RUNTIME_DIRECTORY = ".agent-runs";
@@ -141,8 +144,12 @@ async function readConfinedFile(filename, { missing = false } = {}) {
       continuationFailure("tampered", "durable continuation entry is not one real file");
     }
     const bytes = await readFile(filename);
-    if (bytes.byteLength > CONTROLLED_CONTRACT_MAX_JSON_BYTES) {
-      continuationFailure("tampered", "durable continuation entry exceeds its byte bound");
+
+    if (bytes.byteLength > CONTROLLED_CONTRACT_CONTINUATION_MAX_BYTES) {
+      continuationFailure("tampered", "durable continuation entry exceeds its byte bound", {
+        byte_length: bytes.byteLength,
+        ...CONTROLLED_CONTRACT_CONTINUATION_BUDGET
+      });
     }
     return bytes;
   } catch (error) {
@@ -204,7 +211,7 @@ async function acquireStoreLock(store, wkId) {
     try {
       const handle = await open(filename, "wx", 0o600);
       try {
-        await handle.writeFile(canonicalJsonBytes(record));
+        await handle.writeFile(continuationStorageBytes(record));
         await handle.sync();
       } finally {
         await handle.close();
@@ -292,7 +299,7 @@ async function syncDirectory(directory) {
 }
 
 async function atomicWrite(store, filename, value, token) {
-  const bytes = canonicalJsonBytes(value);
+  const bytes = continuationStorageBytes(value);
   const temporary = path.join(store.directory,
     `.continuation-tmp-${token}-${randomUUID()}`);
   try {

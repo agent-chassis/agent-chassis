@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
+import { WORK_RECORD_STATUS_VALUES } from "./work-record-schema-constants.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,8 +80,48 @@ const FACT_IDENTITY_RE = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)*$/u;
 
 const UNRESOLVED_STRING_RE = /^(?:\$|<.*>$|(?:TODO|TBD|FIXME|XXX)\b)/iu;
 
+const ORDINARY_TASK_TEXT_SELECTOR_KEYS = new Set([
+  "field",
+  "text",
+  "member",
+  "offset",
+  "length"
+]);
+
+function isOrdinaryTaskTextSelector(value) {
+  if (!isPlainObjectValue(value) || value.field !== "sections.tasks" ||
+      typeof value.text !== "string" || value.text.trim() === "" ||
+      Object.keys(value).some((key) => !ORDINARY_TASK_TEXT_SELECTOR_KEYS.has(key))) {
+    return false;
+  }
+  if (value.member !== undefined && !["index", "text", "status"].includes(value.member)) {
+    return false;
+  }
+  if (value.offset !== undefined && (!Number.isSafeInteger(value.offset) || value.offset < 0)) {
+    return false;
+  }
+  if (value.length !== undefined && (!Number.isSafeInteger(value.length) || value.length < 1)) {
+    return false;
+  }
+  if ((value.offset !== undefined || value.length !== undefined) && value.member !== "text") {
+    return false;
+  }
+  return true;
+}
+
 function isPlainObjectValue(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+const SELECTED_RECORD_MEMBER_SELECTOR_KEYS = new Set([
+  "path", "offset", "limit", "length", "expected_source_digest"
+]);
+
+function isSelectedRecordMemberSelector(value) {
+  return isPlainObjectValue(value) && Array.isArray(value.path) &&
+    Object.keys(value).every((key) => SELECTED_RECORD_MEMBER_SELECTOR_KEYS.has(key)) &&
+    value.path.every((segment) => typeof segment === "string" ||
+      (Number.isSafeInteger(segment) && segment >= 0));
 }
 
 export function isUnresolvedArgumentValue(value) {
@@ -96,7 +137,25 @@ export function isUnresolvedArgumentValue(value) {
 export function unresolvedArgumentNames(callArguments) {
   if (!isPlainObjectValue(callArguments)) return [];
   return Object.entries(callArguments)
-    .filter(([, value]) => isUnresolvedArgumentValue(value))
+    .filter(([name, value]) => {
+
+      if (name === "slice_status") {
+        const statuses = Array.isArray(value) ? value : [value];
+        if (statuses.every((status) => typeof status === "string" &&
+            WORK_RECORD_STATUS_VALUES.includes(status.trim()))) return false;
+      }
+      if (name === "ordinary_field" && isOrdinaryTaskTextSelector(value)) {
+        const selectorArguments = { ...value };
+        delete selectorArguments.text;
+        return isUnresolvedArgumentValue(selectorArguments);
+      }
+      if (name === "member" && isSelectedRecordMemberSelector(value)) {
+        const selectorArguments = { ...value };
+        delete selectorArguments.path;
+        return isUnresolvedArgumentValue(selectorArguments);
+      }
+      return isUnresolvedArgumentValue(value);
+    })
     .map(([name]) => name)
     .sort();
 }

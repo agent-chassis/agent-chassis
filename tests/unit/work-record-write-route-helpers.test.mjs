@@ -7,7 +7,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  runWorkspaceWorkRecordCleanupDerivedEvidenceRoute,
   runWorkspaceWorkRecordAdmissionRefreshRoute,
   createCompactWorkRecordEditResponse,
   createCompactContractEditResponse
@@ -23,14 +22,6 @@ async function withWorkspace(run) {
   }
 }
 
-async function cleanupSelectedUnit(workspaceRepos, unit) {
-  const res = await runWorkspaceWorkRecordCleanupDerivedEvidenceRoute({
-    workspaceRepos,
-    args: { repo: "repo", unit, verbose: true }
-  });
-  return res.structuredContent.selected_unit;
-}
-
 async function refreshSelectedUnit(workspaceRepos, unit) {
   const res = await runWorkspaceWorkRecordAdmissionRefreshRoute({
     workspaceRepos,
@@ -40,57 +31,22 @@ async function refreshSelectedUnit(workspaceRepos, unit) {
   return res.structuredContent.selected_unit;
 }
 
-test("WK-1056: cleanup route accepts canonical ordinal SLICE-### slice ids", async () => {
-  await withWorkspace(async (workspaceRepos) => {
-    const selected = await cleanupSelectedUnit(workspaceRepos, "WK-0892#SLICE-001");
-    assert.deepEqual(selected, {
-      kind: "slice",
-      address: "WK-0892#SLICE-001",
-      record_id: "WK-0892",
-      slice_id: "SLICE-001"
-    });
-  });
-});
-
-test("WK-1056: cleanup route still accepts grandfathered lowercase semantic slice ids", async () => {
-  await withWorkspace(async (workspaceRepos) => {
-    const selected = await cleanupSelectedUnit(workspaceRepos, "WK-0730#core-edit");
-    assert.deepEqual(selected, {
-      kind: "slice",
-      address: "WK-0730#core-edit",
-      record_id: "WK-0730",
-      slice_id: "core-edit"
-    });
-  });
-});
-
-test("WK-1056: cleanup route rejects malformed slice ids (null selected_unit)", async () => {
-  await withWorkspace(async (workspaceRepos) => {
-    for (const malformed of [
-      "WK-0892#SLICE-1",
-      "WK-0892#SLICE-0001",
-      "WK-0892#SLICE-ABC",
-      "WK-0892#"
-    ]) {
-      const selected = await cleanupSelectedUnit(workspaceRepos, malformed);
-      assert.equal(selected, null, `expected null selected_unit for ${malformed}`);
-    }
-  });
-});
-
 test("WK-1056: WK record-address validation is unchanged", async () => {
   await withWorkspace(async (workspaceRepos) => {
 
-    assert.deepEqual(await cleanupSelectedUnit(workspaceRepos, "WK-0892"), {
+    assert.deepEqual(await refreshSelectedUnit(workspaceRepos, "WK-0892"), {
       kind: "work_item",
       address: "WK-0892",
       record_id: "WK-0892",
       slice_id: null
     });
 
-    for (const bad of ["not-an-id", "WK-1", "WK-12345", "WK-0892#a#b"]) {
+    for (const bad of [
+      "not-an-id", "WK-1", "WK-12345", "WK-0892#a#b",
+      "WK-0892#SLICE-0001", "WK-0892#SLICE-ABC", "WK-0892#"
+    ]) {
       assert.equal(
-        await cleanupSelectedUnit(workspaceRepos, bad),
+        await refreshSelectedUnit(workspaceRepos, bad),
         null,
         `expected null selected_unit for ${bad}`
       );

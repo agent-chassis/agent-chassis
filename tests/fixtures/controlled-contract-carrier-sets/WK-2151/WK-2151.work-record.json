@@ -1,0 +1,879 @@
+{
+  "schema_version": "work-record.v1",
+  "id": "WK-2151",
+  "repo": "agent-chassis/agent-chassis",
+  "title": "Refuse mixed lifecycle generations before Claude orchestrator child spawn",
+  "record_kind": "work_item",
+  "work_kind": "implementation",
+  "status": "done",
+  "priority": "medium",
+  "owner": "unassigned",
+  "created": "2026-08-18",
+  "updated": "2026-08-19",
+  "resolution": "resolved",
+  "read_scope": [
+    "AGENTS.md",
+    "wiki/work-records/WK-2040.json",
+    "wiki/work-records/WK-1780.json",
+    "wiki/decisions/DEC-0159.md",
+    "docs/agent-launch-confinement-mcp-conduit.md",
+    "docs/mcp-integration.md",
+    "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+    "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+    "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+    "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+    "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+    "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+    "tests/agent-launch-stdio-mcp-local-activation.test.mjs",
+    "docs/mcp-dispatch-terminal-review.md"
+  ],
+  "repo_paths": [
+    "docs/mcp-dispatch-terminal-review.md",
+    "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+    "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+    "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+    "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+    "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+    "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+    "tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+  ],
+  "write_scope": [
+    "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+    "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+    "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+    "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+    "docs/mcp-dispatch-terminal-review.md"
+  ],
+  "depends_on": [],
+  "blocks": [],
+  "related": [
+    "WK-2040",
+    "WK-1780",
+    "DEC-0159"
+  ],
+  "dispatch_intent": {
+    "intended_agent_role": null,
+    "target_unit": "none",
+    "requires_graph_impact": false,
+    "requires_escalation": false
+  },
+  "acceptance": {
+    "criteria": [
+      "Claude orchestrator fresh launch and resume make one launcher-owned on-disk producer/consumer lifecycle-generation compatibility decision before any confined Claude child or host wiki-MCP server is spawned.",
+      "Historical-producer/new-consumer and new-producer/historical-consumer combinations both refuse before spawn with the existing typed lifecycle incompatibility classification and exact negotiated generation evidence.",
+      "A coherent v2 composition continues through authentication, real initialize, exact tools/list, namespace readiness, session lifetime, and cleanup without a second readiness deadline or altered role authority.",
+      "Unresolvable, unreadable, unspawnable, malformed, or mismatched on-disk producer evidence fails closed without retry, fallback, caller-selected generation, permissive parsing, or environment-directed resolution.",
+      "Fresh and resume paths use the same decision, and tests prove the child-spawn and host-server-spawn counters remain zero on both mixed-generation directions."
+    ],
+    "validation": [
+      "Run node --test tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs with new positive and both-direction mixed-generation cases.",
+      "Run node --test tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs.",
+      "Run node --test tests/agent-launch-stdio-mcp-local-activation.test.mjs and record any failure already carried by WK-2150 separately.",
+      "Inspect the exact fresh/resume call graph and prove compatibility refusal occurs before the first confined-child and host-server spawn site."
+    ]
+  },
+  "sections": {
+    "summary": "Close the WK-2040 HIGH-2 contract miss: operator-launched Claude orchestrator fresh and resume paths construct the conduit directly and do not run the on-disk lifecycle producer/consumer compatibility decision before spawning the confined child.",
+    "why_it_matters": "A mixed installed launcher/server build still fails closed, but the orchestrator discovers incompatibility only after client authentication and child/server spawn. The existing pre-spawn contract requires the same coherent refusal boundary used by managed worker, reviewer, and redteam dispatch.",
+    "scope": {
+      "items": [
+        "Route Claude orchestrator fresh and resume conduit construction through the existing managed composition compatibility authority or an exactly equivalent launcher-owned pre-spawn decision.",
+        "Prove both mixed lifecycle-generation directions refuse before any confined Claude child or host wiki-MCP server is spawned.",
+        "Preserve coherent v2 positive launch behavior, existing authority boundaries, diagnostics, cleanup, and one facade-owned readiness deadline."
+      ],
+      "out_of_scope": [
+        "The equivalent direct-construction gap in codex-role.mjs.",
+        "Changing synchronous coordination-preflight projections to execute or predict the on-disk probe.",
+        "Redesigning producer resolution, lifecycle vocabulary, or the managed dispatch composition authority.",
+        "Reopening or modifying WK-2040's accepted remediation."
+      ]
+    },
+    "tasks": [
+      {
+        "text": "Complete the required contract-design and DRY review before implementation dispatch",
+        "status": "done"
+      },
+      {
+        "text": "Implement the Claude orchestrator pre-spawn mixed-generation refusal",
+        "status": "done"
+      },
+      {
+        "text": "Run the mandatory findings-only implementation review and disposition its result",
+        "status": "done"
+      }
+    ],
+    "references": [],
+    "agent_notes": "Allocated from the WK-2040 standalone review finding HIGH-2 and blueteam NARROW disposition. The defect is real and MEDIUM: Claude orchestrator fresh/resume paths bypass the pre-spawn on-disk producer-generation probe, but the system still fails closed later at registration. The documentation-overstatement sub-claim was retired. Do not weaken WK-2040 acceptance C10 to match the gap; this WK owns the missing behavior. This record is inbox until its controlled acceptance contract and one-pass DRY design review are complete.",
+    "closure": {
+      "summary": "WK-2151 implementation is complete in commit f436e30062a7cd77b26e460e471d139f06bbb940. Both implementation slices were completed together, reviewed in one combined findings-only pass, challenged once, dispositioned once, and remediated once. The operator explicitly skipped the terminal whole-WK review, so this closure records implementation completion only and does not authorize forge handoff.",
+      "validation": [
+        "Verified commit f436e30062a7cd77b26e460e471d139f06bbb940 has subject 'feat: gate Claude orchestrator lifecycle generations' and contains exactly the five authorized paths.",
+        "Committed diff: 650 insertions and 17 deletions. The unrelated WK-2040 lifecycle-test hunks and all other dirty-worktree changes remain outside the commit.",
+        "Worker-reported final validation: orchestrator runtime 27/27; lifecycle-generation 29/29; local activation 21/22 with the non-attributable admission-closed readiness-deadline failure.",
+        "The combined implementation review, one blueteam challenge, final dispositions, and subtractive remediation are recorded in SLICE-002, SLICE-006, and SLICE-005.",
+        "Terminal whole-WK review SLICE-007 was cancelled by explicit operator direction; no forge handoff or publication authority follows."
+      ],
+      "follow_ups": [
+        "Deferred F2: pre-conduit CLI diagnostic rendering remains a real non-blocking objective outside WK-2151 scope.",
+        "Deferred F4: shared Claude orchestrator fixture ownership remains a real non-blocking objective outside WK-2151 scope.",
+        "Repository closeout lint remains red on unrelated pre-existing errors; WK-2151 does not claim to resolve them."
+      ]
+    }
+  },
+  "children": [],
+  "slices": [
+    {
+      "id": "SLICE-001",
+      "title": "Implement Claude orchestrator pre-spawn lifecycle-generation compatibility",
+      "work_kind": "implementation",
+      "status": "done",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [
+        "WK-2151#SLICE-004"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2151.json",
+        "wiki/work-records/WK-2040.json",
+        "wiki/work-records/WK-1780.json",
+        "wiki/decisions/DEC-0159.md",
+        "wiki/contracts/.carrier-generations/0a9a2446e4e2b8b05f25e4e21d7d0a88cff4bb80839bef7e1f57a05988fddbc6/WK-2151.controlled-acceptance.json",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-integration.md",
+        "docs/mcp-dispatch-terminal-review.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs"
+      ],
+      "repo_paths": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs"
+      ],
+      "write_scope": [
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "docs/mcp-dispatch-terminal-review.md"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": true
+      },
+      "acceptance": {
+        "criteria": [
+          "Fresh and resume Claude orchestrator paths use the existing launcher-owned producer/consumer lifecycle-generation compatibility authority immediately before conduit construction.",
+          "Historical-producer/new-consumer and new-producer/historical-consumer combinations refuse before any confined Claude child or host wiki-MCP server spawn with the existing typed lifecycle incompatibility classification and exact generation evidence.",
+          "For spawned_producer_generation_unavailable and spawned_producer_generation_mismatch outcomes, the owning compatibility boundary preserves the probe's exact generation and typed reason in the surfaced refusal evidence; it must not substitute the compatible in-process fact as if it proved the spawned producer matched.",
+          "Coherent v2 continues through authentication, real initialize, exact tools/list, namespace readiness, session lifetime, and cleanup with one facade-owned readiness deadline.",
+          "Unresolvable, unreadable, unspawnable, malformed, or mismatched producer evidence fails closed without retry, fallback, caller or environment generation selection, permissive parsing, or historical compatibility state.",
+          "The source change reuses the existing compatibility/composition owner and introduces no duplicate lifecycle decision.",
+          "Provide a production-owned default-parameter composition-authority seam at runClaudeOrchestratorCommand and thread it through runClaudeOrchestratorResume so focused tests can exercise the real pre-spawn boundary; production callers retain the launcher-owned default and cannot select a lifecycle generation.",
+          "Correct the canonical lifecycle-compatibility documentation so the direct Claude orchestrator topology governed by this pre-spawn gate is no longer described as outside the gate; make no broader documentation rewrite."
+        ],
+        "validation": [
+          "node --test tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+          "node --test tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+          "Inspect the exact fresh and resume call graph and prove the compatibility decision precedes both child and host-server spawn sites.",
+          "Inspect the spawned-producer mismatch and unavailable projections and prove they retain probed.generation and probed.reason at the surfaced typed-error boundary."
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+          "name": "runClaudeOrchestratorCommand",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+          "name": "runClaudeOrchestratorResume",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+          "name": "createConduit (mintAuthority closure)",
+          "kind": "function",
+          "operation": "modify"
+        },
+        {
+          "path": "docs/mcp-dispatch-terminal-review.md",
+          "name": "Lifecycle compatibility gate topology statement",
+          "kind": "docs_section",
+          "operation": "modify"
+        }
+      ],
+      "expected_changed_line_budget": 160,
+      "sections": {
+        "agent_notes": "Implementation delivery after the DRY review and sole design redteam are dispositioned. Reuse the existing compatibility owner; do not duplicate composition policy in the Claude adapter.\nThe operator authorized the narrowed RT-001 source expansion for exact spawned-producer generation/reason evidence and the narrowed RT-003 one-sentence durable-doc correction.\nRegression additions remain owned by SLICE-005 after this delivery is reviewed and integrated; do not edit tests in this slice.\nBlueteam-retained RT-002/RT-007 are absorbed by the production-owned default-parameter seam and the runClaudeOrchestratorResume target.\nStructured readiness is complete, but Chassis Control Engine rejected managed dispatch because the declared write-scope files total 2,121 LOC against its 1,500-LOC threshold. The operator requested an escalated implementation session rather than downscoping this single ownership cluster.",
+        "closure": {
+          "summary": "Source/docs implementation completed as part of the combined WK-2151 delivery. Fresh and resume now route through the launcher-minted managed composition authority; the fresh public entrypoint also threads the authority seam; spawned-producer evidence is preserved; and the durable-doc correction is narrow.",
+          "validation": [
+            "Combined scoped worktree diff is git diff --check clean across five authorized files.",
+            "Worker-reported: orchestrator runtime suite passed 29/29 after fresh/resume mixed-generation and coherent-control coverage was added.",
+            "Worker-reported: lifecycle-generation suite passed 29/29 after owning-boundary exact-evidence coverage was added.",
+            "Worker-reported: composition-root 17/17, dispatch-registration-authority-refusals 25/25, and Claude command-surface 11/11 passed.",
+            "Worker-reported known out-of-scope results: local activation 21/22 under WK-2150 and family-adapter-boundary 81/84 on unrelated named surfaces."
+          ],
+          "follow_ups": [
+            "Run one combined findings-only review in SLICE-002 over both implementation slices and the complete five-file delivery.",
+            "The combined diff contains 723 insertions and 34 deletions; review test proportionality and duplication because the two test files account for 647 changed lines against SLICE-005's 260-line estimate."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-002",
+      "title": "Findings-only review of the complete WK-2151 implementation delivery",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2151.json",
+        "wiki/work-records/WK-2040.json",
+        "wiki/decisions/DEC-0159.md",
+        "wiki/contracts/.carrier-generations/0a9a2446e4e2b8b05f25e4e21d7d0a88cff4bb80839bef7e1f57a05988fddbc6/WK-2151.controlled-acceptance.json",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-dispatch-terminal-review.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs"
+      ],
+      "repo_paths": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Review the exact combined five-file SLICE-001 and SLICE-005 implementation delivery findings-only and make no modifications.",
+          "Verify fresh and resume production entrypoints reuse the launcher-minted compatibility authority before both host-server and confined-child spawn, accept coherent composition, and refuse both mixed-generation directions without caller-selected generation authority.",
+          "Verify spawned-producer mismatch/unavailable refusals preserve the exact probe generation and typed reason, fabricate no evidence when the probe supplied none, and leave unrelated gate outcomes with spawned_producer null.",
+          "Verify the regressions exercise the real production entrypoints and owning compatibility boundary, prove zero spawns through discriminating effects with coherent controls, and do not pass through duplicated policy, source-text inspection, mock-only substitution, or count-only proxies.",
+          "Assess whether the 647 changed test lines against the 260-line estimate are proportionate, non-duplicative, and necessary; report any source-shape assertion that has become load-bearing policy.",
+          "Verify the durable-doc correction is narrow and no retry, fallback, permissive parsing, environment or caller generation selection, historical latch, or second readiness deadline was introduced.",
+          "Return findings ordered by severity with exact file and line references."
+        ],
+        "validation": [
+          "Inspect the complete five-file worktree diff directly.",
+          "Run or inspect the reported 29/29 orchestrator runtime and 29/29 lifecycle-generation suites and the 21/22 local-activation result.",
+          "Trace both public entrypoints through the managed composition authority to host-server and child spawn sites.",
+          "Distinguish the known WK-2150 local-activation failure and unrelated family-adapter-boundary failures from delivery-caused regressions."
+        ]
+      },
+      "review_purpose": "standalone",
+      "expected_edit_targets": [],
+      "sections": {
+        "agent_notes": "This single findings-only review covers both implementation slices because they were completed as one combined delivery. Record its exact result in both SLICE-001 and SLICE-005 closures.\nIf findings are reported, blueteam that exact result once and disposition it once. Do not request another implementation opinion or re-review remediation.\nThe review is against the current five-file delivery; no commit SHA is a prerequisite for this escalated findings-only pass.",
+        "closure": {
+          "summary": "Combined implementation review completed, challenged once, and dispositioned once. Accepted remediation is limited to four subtractive test corrections in SLICE-005; F2 and F4 are deferred outside scope.",
+          "validation": [
+            "Accepted F1 (narrowed medium), F3 (medium), F5 (narrowed low), and F6 numbering only (low).",
+            "Deferred F2 (narrowed low) and F4 (narrowed low-medium) because their smallest corrections require new objectives or paths outside WK-2151 write scope.",
+            "No finding was rejected outright; no second review or blueteam is permitted."
+          ],
+          "follow_ups": [
+            "Run one bounded remediation in the two SLICE-005 test files, then close the implementation slices without re-review.",
+            "Preserve F2 and F4 as explicit follow-on obligations for final WK closure."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-003",
+      "title": "DRY-violation review of the WK-2151 contract design",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2151.json",
+        "wiki/contracts/.carrier-generations/c4d642e2a91625bf71060dc363b1668808ece9f22e3280ec598ce9d6b3dc7d1a/WK-2151.controlled-acceptance.json",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-integration.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Perform the single pre-redteam DRY-violation review of the authored WK-2151 contract, controlled acceptance carrier, and slice dependency graph.",
+          "Report only concrete duplicate ownership, duplicated lifecycle decisions, or copied policy/compatibility logic that the design would otherwise build.",
+          "For every finding, identify the single existing owner and the duplicate contract element that must be deleted; do not propose synchronization between copies.",
+          "Return findings ordered by severity with exact canonical carrier, work-record, or source references and make no modifications."
+        ],
+        "validation": [
+          "Inspect the canonical WK-2151 record and controlled acceptance carrier as one design draft.",
+          "Trace every proposed compatibility decision and pre-spawn ordering obligation to the existing launcher-owned composition/conduit owner."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": null,
+      "review_purpose": "standalone",
+      "sections": {
+        "agent_notes": "Completed the single DRY design review in launcher run wkdb_a3c78ffb47ec8118; the reviewed carrier was generation c4d642e2.\nDispositioned once: DRY-003, DRY-005, DRY-006, and DRY-007 accepted. The duplicate typed-emitter and server-order claims, their propositions and verification relations, and the unreferenced Claude component reference were deleted; coherent-v2 regression ownership was removed from SLICE-005/006 and remains with the local-activation suite.\nDRY-001 rejected: source integration and regression evidence are distinct slice deliveries required by the prior CCE atomicity refusal, each retaining its mandatory exact-delivery review.\nDRY-002 rejected: the lifecycle-versioning suite owns the compatibility truth table; the Claude runtime slice owns adapter integration proving fresh/resume pre-spawn invocation and zero spawn effects in both directions, without reimplementing the compatibility decision.\nDRY-004 rejected: the WK-2151 proof-pack validity graph is the selected pack's profile-term binding evidence, while the existing runtime proof owns operative command behavior; they serve distinct proof consumers despite sharing the module boundary.\nThe reviewer observation about the nonexistent logical carrier path was accepted: all future slices that read the carrier now bind the physical canonical generation path."
+      }
+    },
+    {
+      "id": "SLICE-004",
+      "title": "Design redteam of Claude orchestrator pre-spawn compatibility",
+      "work_kind": "redteam",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [
+        "WK-2151#SLICE-003"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2151.json",
+        "wiki/work-records/WK-2040.json",
+        "wiki/work-records/WK-1780.json",
+        "wiki/decisions/DEC-0159.md",
+        "wiki/contracts/.carrier-generations/46e3f14a8cbc1ff76f102957a8011db114bad962851bcc098709cc400728a33b/WK-2151.controlled-acceptance.json",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-integration.md",
+        "docs/mcp-dispatch-terminal-review.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "redteam",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Perform the single WK-2151 design redteam after the DRY review is dispositioned and before either implementation slice dispatches.",
+          "Attack the proposed authority source, fresh/resume convergence, pre-spawn ordering, mixed-generation directions, coherent-v2 path, failure classification, cleanup, and single-deadline invariant.",
+          "Identify any path that could spawn the confined Claude child or host wiki-MCP server before the launcher-owned compatibility decision, or introduce caller, environment, retry, fallback, parser, or historical-state authority.",
+          "Return findings ordered by severity with exact file and line references and make no modifications."
+        ],
+        "validation": [
+          "Trace both fresh and resume call paths from runClaudeOrchestratorCommand through conduit construction and child/server spawn sites.",
+          "Compare the design against DEC-0159 and the canonical lifecycle-compatibility section of docs/mcp-dispatch-terminal-review.md.",
+          "Discriminate both mixed-generation directions and the coherent-v2 positive path."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": null,
+      "sections": {
+        "agent_notes": "The sole design redteam completed in launcher run wkdb_7def154dcef20149 against work-record digest sha256:03c17d7034d3db56d85ae548c18f9ff523a23facacf09eb2a97df173d7cff795 and carrier generation 46e3f14a.\nThe one blueteam challenge ran as SLICE-008. Final dispositions: KEEP RT-002; NARROW RT-001, RT-003, RT-004, and RT-007; REJECT RT-005, RT-006, RT-008, RT-009, and RT-010.\nRT-002/RT-007 are absorbed by the production-owned command/resume authority seam. RT-004 is absorbed by controlled-carrier rebinding. The operator authorized RT-001's exact spawned-producer evidence expansion and RT-003's one-sentence durable-doc correction on 2026-08-18.\nAll design findings are dispositioned once. No second design redteam is permitted.",
+        "closure": {
+          "summary": "Sole WK-2151 design redteam completed, challenged once by SLICE-008, and dispositioned once. The operator authorized the narrowed RT-001 and RT-003 scope corrections; all other findings were absorbed or rejected as recorded.",
+          "validation": [
+            "Design redteam run wkdb_7def154dcef20149 completed.",
+            "Blueteam run wkdb_4a1803272160b89d counter-assessed RT-001 through RT-010 exactly once.",
+            "Closeout lint ran and reported 15 pre-existing repository errors unrelated to WK-2151; this slice introduced none of the reported paths."
+          ],
+          "follow_ups": [
+            "Implement the dispositioned contract in SLICE-001; do not run another design redteam."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-005",
+      "title": "Add Claude orchestrator mixed-generation pre-spawn regression coverage",
+      "work_kind": "implementation",
+      "status": "done",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [
+        "WK-2151#SLICE-004"
+      ],
+      "read_scope": [
+        "AGENTS.md",
+        "wiki/work-records/WK-2151.json",
+        "wiki/decisions/DEC-0159.md",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-integration.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+      ],
+      "write_scope": [
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs"
+      ],
+      "dispatch_intent": {
+        "intended_agent_role": "worker",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Add discriminating regression cases for fresh and resume Claude orchestrator launches covering historical-producer/new-consumer and new-producer/historical-consumer incompatibility.",
+          "Each mixed-generation case proves both confined-child and host-server spawn counters remain zero and preserves the existing typed lifecycle incompatibility classification and exact generation evidence.",
+          "Add owning-boundary regressions for spawned_producer_generation_unavailable and spawned_producer_generation_mismatch that assert the surfaced refusal retains the probe's exact generation and typed reason and does not substitute a compatible in-process fact.",
+          "The tests exercise the production runClaudeOrchestratorCommand path and do not pass by source-text inspection, mock-only boundary substitution, or assertion-count proxies; they consume rather than reimplement the lifecycle-versioning owner's compatibility decision."
+        ],
+        "validation": [
+          "node --test tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+          "node --test tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+          "node --test tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+        ]
+      },
+      "expected_edit_targets": [
+        {
+          "path": "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+          "name": "fresh and resume mixed lifecycle generation pre-spawn refusal",
+          "kind": "test_case",
+          "operation": "create"
+        },
+        {
+          "path": "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+          "name": "spawned-producer mismatch exact evidence projection",
+          "kind": "test_case",
+          "operation": "create"
+        }
+      ],
+      "expected_changed_line_budget": 260,
+      "sections": {
+        "agent_notes": "Execute this test delivery in the same escalated implementation pass as SLICE-001; do not wait for the source review. All WK-2151 implementation must be complete before findings-only review begins.\nPreserve unrelated existing worktree changes, including any pre-existing edits in the lifecycle-generation test file.\nWK-2150 may own a pre-existing local-activation failure; record that separately rather than changing this slice's scope.\nCoherent-v2 readiness verification remains owned by the existing local-activation suite. This slice adds discriminating Claude adapter and exact spawned-producer evidence regressions without reimplementing the compatibility decision.",
+        "closure": {
+          "summary": "Implementation and the single dispositioned remediation pass are complete. The final five-file WK-2151 delivery is 692 insertions and 34 deletions; the remediation removed shared-root/live-count overclaims, the redundant successor-producer matrix case, and duplicate section numbering without changing production behavior.",
+          "validation": [
+            "git diff --check passed for both remediated test files; combined diff stat is 692 insertions and 34 deletions across the five authorized files.",
+            "Worker-reported: orchestrator runtime suite passed 27/27 after removing the two redundant successor-producer subtests.",
+            "Worker-reported: lifecycle-generation suite passed 29/29.",
+            "Worker-reported: local activation remained 21/22 with the same admission-closed readiness-deadline failure; it is not attributable to WK-2151, although an unrelated uncommitted core change prevents calling it demonstrably pre-existing.",
+            "Accepted F1, F3, narrowed F5, and narrowed F6 corrections were all applied within the two test files. No source, docs, helper, bwrap-isolation, CLI-rendering, fixture-relocation, new host-server observation, or new test change was made."
+          ],
+          "follow_ups": [
+            "No further implementation review or remediation is permitted for this delivery.",
+            "Leave the lifecycle-suite live-count assertion unchanged: F3 was dispositioned against the runtime fixture, and that suite separately owns discriminating gated-executor counters.",
+            "Proceed to the single terminal whole-WK findings-only review.",
+            "Carry deferred F2 (pre-conduit CLI diagnostic rendering) and F4 (shared fixture ownership) as future out-of-scope obligations before final WK closure."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-006",
+      "title": "Blueteam challenge of the combined WK-2151 implementation review",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "medium",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "the project documentation",
+        "wiki/work-records/WK-2151.json",
+        "docs/mcp-dispatch-terminal-review.md",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-process-registry.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-dispatch.mjs",
+        "packages/agent-launch-cli/src/commands/orchestrator.mjs",
+        "packages/agent-launch-cli/src/index.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-bwrap-isolation.test.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-helpers.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs",
+        "tests/run-tests.mjs"
+      ],
+      "repo_paths": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-process-registry.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-dispatch.mjs",
+        "packages/agent-launch-cli/src/commands/orchestrator.mjs",
+        "packages/agent-launch-cli/src/index.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-bwrap-isolation.test.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-helpers.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs",
+        "tests/run-tests.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Counter-assess exactly F1 through F6 from the non-managed combined implementation review; add no findings and make no modifications.",
+          "F1 prior claim: the machine-global conduit-root before/after snapshot is concurrency-sensitive and fails under unrelated directory activity; proposed correction is to drop that observation.",
+          "F2 prior claim: the direct Claude gate leaks ManagedStdioMcpCompositionError to message-only process output, discarding typed refusal/recovery/evidence and contradicting the public projection documentation; proposed correction is a pre-conduit structured failure return.",
+          "F3 prior claim: the process-local live count and post-cleanup root listing do not discriminate refusal from admitted cleanup, leaving host-server zero-spawn without a positive control; proposed correction is to delete those assertions and narrow the fixture claim.",
+          "F4 prior claim: executable and PATH fixture machinery duplicates the shared Claude orchestrator test helper owner; proposed correction is to lift it into the declared shared helper.",
+          "F5 prior claim: four orchestrator matrix cases re-test compatibility-owner variants already covered twice; proposed correction is to retain one producer-side and one consumer-side case per entrypoint.",
+          "F6 prior claim: unrelated lifecycle-test cleanup/comment edits, an out-of-scope docs worktree edit, and duplicate section numbering are mixed around the delivery; proposed correction is to separate ownership and fix numbering.",
+          "For each finding return exactly KEEP, NARROW, or REJECT with direct reproduction evidence, real reachability, exact contract violation, surviving defect, smallest sufficient correction, scope removed, and proportional severity.",
+          "Conclude with the retained findings, retired findings, smallest combined remediation boundary, exact allowed paths, and the statement: The blueteam changed nothing."
+        ],
+        "validation": [
+          "Inspect the current five-file implementation diff and the exact owning/caller/helper boundaries named by F1 through F6.",
+          "Use bounded reproductions only where needed to challenge reachability or discrimination; distinguish unrelated dirty-worktree changes from the WK-2151 delivery."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": null,
+      "review_purpose": "standalone",
+      "sections": {
+        "agent_notes": "This is the one bounded blueteam challenge of the combined implementation review. Do not add findings, edit files, or trigger another review.\nThe prior reviewer was a non-managed escalated session, so no launcher run identity, reviewed commit, or exact result hash exists. Bind to the exact F1-F6 claims reproduced in this slice acceptance and keep that missing identity explicit.",
+        "closure": {
+          "summary": "The one blueteam challenge counter-assessed exactly F1-F6 and changed nothing. Final disposition: accept narrowed F1, keep and accept F3, accept narrowed F5, accept narrowed F6; defer narrowed F2 and narrowed F4 as real non-blocking conditions outside WK-2151 write scope.",
+          "validation": [
+            "F1 narrowed high to medium: machine-global conduit-root equality is a real latent concurrency flake; remove the helper and snapshots.",
+            "F2 narrowed medium to low and deferred: message-only CLI surfacing is real but pre-existing architecture and requires a new functional objective outside this scope.",
+            "F3 kept medium and accepted: live registry count and post-cleanup directory equality do not discriminate host-server non-spawn; delete those claims and narrow the header.",
+            "F4 narrowed medium to low-medium and deferred: fixture duplication is real but remediation requires the shared helper and bwrap-isolation files outside this scope.",
+            "F5 narrowed low-medium to low and accepted: remove only the unreleased-successor case for fresh and resume; retain the unreadable-producer case.",
+            "F6 narrowed low and accepted only for duplicate numbering: change the WK-2151 block number from 7 to 8; unrelated dirty-worktree attribution was rejected."
+          ],
+          "follow_ups": [
+            "Apply the accepted test-only corrections once within SLICE-005; do not re-review the remediation.",
+            "Carry F2 and F4 as future out-of-scope work before final WK closure; neither blocks WK-2151 remediation.",
+            "The packages/core generated-doc copy observation was not part of F1-F6 and is non-gating awareness only."
+          ]
+        }
+      }
+    },
+    {
+      "id": "SLICE-008",
+      "title": "Blueteam challenge of the WK-2151 design-redteam result",
+      "work_kind": "review",
+      "status": "done",
+      "priority": "high",
+      "owner": "unassigned",
+      "depends_on": [],
+      "read_scope": [
+        "AGENTS.md",
+        "the project documentation",
+        "wiki/work-records/WK-2151.json",
+        "wiki/contracts/.carrier-generations/46e3f14a8cbc1ff76f102957a8011db114bad962851bcc098709cc400728a33b/WK-2151.controlled-acceptance.json",
+        "wiki/decisions/DEC-0159.md",
+        "docs/agent-launch-confinement-mcp-conduit.md",
+        "docs/mcp-integration.md",
+        "docs/mcp-dispatch-terminal-review.md",
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs",
+        "packages/agent-launch-cli/src/lib/wiki-mcp-host-server.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+      ],
+      "repo_paths": [
+        "packages/agent-launch-cli/src/lib/claude-orchestrator-plan.mjs",
+        "packages/agent-launch-cli/src/lib/orchestrator-launch-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit.mjs",
+        "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-core.mjs",
+        "packages/agent-launch-cli/src/lib/wiki-mcp-host-server.mjs",
+        "tests/agent-launch-claude-orchestrator-plan-launch-runtime.test.mjs",
+        "tests/agent-launch-stdio-mcp-lifecycle-generation-versioning.test.mjs",
+        "tests/agent-launch-stdio-mcp-local-activation.test.mjs"
+      ],
+      "write_scope": [],
+      "dispatch_intent": {
+        "intended_agent_role": "reviewer",
+        "target_unit": "slice",
+        "requires_graph_impact": false,
+        "requires_escalation": false
+      },
+      "acceptance": {
+        "criteria": [
+          "Use the project documentation without weakening or extending its evaluation method. Prior redteam run ID: wkdb_7def154dcef20149. Prior monitor handle: wkmh_21344f99f4c376ff50965bf9. Prior result artifact SHA-256: sha256:ebc8ab4049c04b4937d9bf929005052399db3bd9712ad9ac7cd3851eb695d457 (the exact 7,902-byte launcher final-response text). Prior subject: WK-2151#SLICE-004. Review kind: design. There is no reviewed commit because this is a design review. Canonical record source: wiki/work-records/WK-2151.json. Exact canonical record source digest reviewed by the redteam: sha256:03c17d7034d3db56d85ae548c18f9ff523a23facacf09eb2a97df173d7cff795. Exact controlled carrier generation reviewed: wiki/contracts/.carrier-generations/46e3f14a8cbc1ff76f102957a8011db114bad962851bcc098709cc400728a33b/WK-2151.controlled-acceptance.json.",
+          "RT-001 — prior claim: exact generation evidence cannot be returned without editing the out-of-scope compatibility owner. Prior severity/blocking: high, blocking. Prior proposed remedy: expand or revise scope/acceptance so the existing compatibility owner can preserve the probed generation and typed reason. Reproduction question: does the actual on-disk local-acceptor refusal discard producer generation/reason before the Claude caller observes it?\n\nRT-002 — prior claim: the production pre-spawn decision is unreachable from the test-only slice because runClaudeOrchestratorCommand is private and the production authority has no test seam. Prior severity/blocking: high, blocking. Prior proposed remedy: provide an in-scope production-boundary test seam or change the slice boundary without caller-selected authority. Reproduction question: can the declared test file exercise the real decision and zero-spawn effects without source inspection or mock-only substitution?\n\nRT-003 — prior claim: the design contradicts docs/mcp-dispatch-terminal-review.md stating direct orchestrator/operator launches are outside the gate, with no docs write scope. Prior severity/blocking: high, blocking. Prior proposed remedy: reconcile the durable doc in the same scoped change. Reproduction question: does the canonical paragraph actually exclude the Claude orchestrator topology governed by DEC-0159?\n\nRT-004 — prior claim: host-server ordering and typed-classification references are orphaned after the DRY disposition. Prior severity/blocking: medium, nonblocking. Prior proposed remedy: remove the unreferenced carrier nodes. Reproduction question: are either reference IDs still reachable from any surviving proposition, claim, relation, proof, or collection?\n\nRT-005 — prior claim: unresolvable/unspawnable installed-producer failures collapse into lifecycle incompatibility with inapplicable recovery. Prior severity/blocking: medium, nonblocking. Prior proposed remedy: preserve the existing failure class/recovery boundary. Reproduction question: what typed result is produced at the actual authority boundary for producer resolution and spawn failure?\n\nRT-006 — prior claim: the probe's ten-second timeout becomes an interactive-launch deadline without a contract rule distinguishing it from the forbidden second readiness deadline. Prior severity/blocking: medium, nonblocking. Prior proposed remedy: bind the probe deadline as a compatibility-probe prerequisite or remove the ambiguous no-second-deadline requirement. Reproduction question: is the probe timeout a second readiness deadline on the actual launch path or a separate pre-spawn prerequisite?\n\nRT-007 — prior claim: resume passes no options bag, so any injected seam diverges from fresh and requires an undeclared edit. Prior severity/blocking: medium, nonblocking. Prior proposed remedy: use one production-owned seam reached identically by both paths, or expand the exact target only if necessary. Reproduction question: do fresh and resume both converge before any proposed injectable boundary?\n\nRT-008 — prior claim: source-only SLICE-001 reaches mandatory review before the discriminating test delivery exists. Prior severity/blocking: medium, nonblocking. Prior proposed remedy: make discriminating evidence available before source review or revise slice sequencing. Reproduction question: can SLICE-002 validate the changed behavior directly from existing tests and the exact source delivery?\n\nRT-009 — prior claim: the producer probe uses an empty environment and lacks the real server's Node-engine bootstrap. Prior severity/blocking: low, nonblocking. Prior proposed remedy: align only environment inputs required for generation identity. Reproduction question: does the mismatch change the probed lifecycle generation on a reachable launch, or is it unrelated hardening?\n\nRT-010 — prior claim: the canonical ordering paragraph no longer matches local-acceptor construction. Prior severity/blocking: low, nonblocking. Prior proposed remedy: update the stale ordering paragraph if RT-003 establishes docs are in scope. Reproduction question: does the paragraph describe this topology, and what exact ordering is contradicted?",
+          "Counter-assess exactly RT-001 through RT-010; add no findings. Re-derive each from canonical contracts, source, and bounded reproductions. Make no edits. For every finding assign exactly KEEP, NARROW, or REJECT and report reproduction evidence, real reachability, existing contract anchor, exact surviving defect, smallest sufficient correction, scope removed, and whether it blocks; use none where inapplicable. A finding survives only with reproduced owning-boundary behavior, real reachability, an exact existing contract violation, a source- or execution-supported causal mechanism, and proportionate severity. Conclude with retained findings, retired findings and why, smallest combined remediation boundary, exact allowed paths and expected scale where supported, explicit rejected expansions, whether the existing unit can absorb correction or remains blocked, any operator decision, and the exact statement: The blueteam changed nothing."
+        ],
+        "validation": [
+          "Inspect the bound prior result through its launcher run identity and exact result hash, then inspect the exact canonical record digest and carrier generation named in the brief.",
+          "Use bounded source inspection or reproductions only to counter-assess RT-001 through RT-010 at their actual owning/public boundaries."
+        ]
+      },
+      "expected_edit_targets": [],
+      "expected_changed_line_budget": null,
+      "review_purpose": "standalone",
+      "sections": {
+        "agent_notes": "Completed the one blueteam challenge in launcher run wkdb_4a1803272160b89d. The raw response counter-assessed exactly RT-001 through RT-010 and changed nothing.\nThe launcher classified the structured result invalid because $.summary exceeded the bounded result size. Invalid-result evidence rr:50bb126ba4c8d02b0a8c89664d39a2ebd7d9fb470e0e812ae967c532e8663e39 is coordination-only and does not create an attestation.\nFinal dispositions after the operator's 2026-08-18 scope choice: KEEP RT-002; NARROW RT-001, RT-003, RT-004, and RT-007; REJECT RT-005, RT-006, RT-008, RT-009, and RT-010. The narrowed corrections are bound into SLICE-001/SLICE-005 and the current controlled carrier. Do not challenge this blueteam again.",
+        "closure": {
+          "summary": "The one bounded blueteam challenge completed and its raw exact dispositions were accepted once despite the oversized structured summary.",
+          "validation": [
+            "Blueteam run wkdb_4a1803272160b89d completed against the exact prior redteam result hash.",
+            "Invalid-result evidence rr:50bb126ba4c8d02b0a8c89664d39a2ebd7d9fb470e0e812ae967c532e8663e39 records the bounded-schema failure only.",
+            "Closeout lint ran and reported 15 pre-existing repository errors unrelated to WK-2151; this slice introduced none of the reported paths."
+          ],
+          "follow_ups": [
+            "Do not challenge or rerun this blueteam result."
+          ]
+        }
+      }
+    }
+  ],
+  "escalations": [],
+  "projections": [],
+  "migration": null,
+  "initiative": "IN-0033",
+  "derived_evidence": [
+    {
+      "schema_version": "worker-admission-derived-evidence.v1",
+      "record_id": "WK-2151",
+      "unit": {
+        "kind": "slice",
+        "address": "WK-2151#SLICE-008",
+        "record_id": "WK-2151",
+        "slice_id": "SLICE-008"
+      },
+      "source_record_digest": "sha256:3d8e7dc3e71f7b3187de416f051f92ff36ada5aa513bbf5003e17f0e1f299220",
+      "generator": {
+        "name": "agent-chassis",
+        "version": "0.2.0"
+      },
+      "generated_at": "2026-08-18T23:11:16.417Z",
+      "decision_kind": "work_unit_atomicity",
+      "metric_summary": {
+        "write_scope_count": null,
+        "write_scope_test_count": null,
+        "write_scope_existing_file_count": null,
+        "write_scope_directory_count": null,
+        "write_scope_total_loc": null,
+        "max_write_file_loc": null,
+        "acceptance_criteria_count": null,
+        "validation_command_count": null,
+        "declared_runtime_mode_count": null,
+        "artifact_kind_count": null,
+        "expected_changed_line_budget": null,
+        "unknown_metric_count": 19,
+        "threshold_exclusions": {
+          "coordination_only_paths": [],
+          "coordination_only_file_count": 0,
+          "threshold_counted_loc_file_count": 0,
+          "reason_code": "worker_admission.work_unit_atomicity.coordination_record_loc_threshold_excluded.v1",
+          "reason": "coordination work-record JSON files remain in file_stats evidence but are excluded from LOC threshold metrics"
+        },
+        "missing_metrics": {
+          "write_scope_count": true,
+          "write_scope_existing_file_count": true,
+          "write_scope_directory_count": true,
+          "write_scope_total_loc": true,
+          "max_write_file_loc": true,
+          "acceptance_criteria_count": true,
+          "validation_command_count": true,
+          "declared_runtime_mode_count": true,
+          "artifact_kind_count": true,
+          "expected_changed_line_budget": true
+        },
+        "missing_evidence": {
+          "file_stats": true,
+          "validation_command_metadata": true,
+          "runtime_mode_metadata": true,
+          "artifact_kind_metadata": true
+        },
+        "missing_supporting_evidence": {
+          "file_stats": {
+            "field_path": "file_stats",
+            "reason_code": "worker_admission.work_unit_atomicity.file_stats_missing.v1",
+            "reason": "file_stats evidence is required to replay write-scope LOC and file breadth decisions",
+            "status": "missing"
+          },
+          "validation_command_metadata": {
+            "field_path": "validation_command_metadata",
+            "reason_code": "worker_admission.work_unit_atomicity.validation_command_metadata_missing.v1",
+            "reason": "validation_command_metadata evidence is required to replay validation command breadth decisions",
+            "status": "missing"
+          },
+          "runtime_mode_metadata": {
+            "field_path": "runtime_mode_metadata",
+            "reason_code": "worker_admission.work_unit_atomicity.runtime_mode_metadata_missing.v1",
+            "reason": "runtime_mode_metadata evidence is required to replay declared runtime-mode breadth decisions",
+            "status": "missing"
+          },
+          "artifact_kind_metadata": {
+            "field_path": "artifact_kind_metadata",
+            "reason_code": "worker_admission.work_unit_atomicity.artifact_kind_metadata_missing.v1",
+            "reason": "artifact_kind_metadata evidence is required to replay artifact-kind breadth decisions",
+            "status": "missing"
+          }
+        },
+        "absent_optional_evidence": {},
+        "evidence_issues": {
+          "file_stats": {
+            "invalid_count": 0,
+            "invalid_entries": [],
+            "missing_file_state_count": 0,
+            "missing_file_state_entries": [],
+            "invalid_file_state_count": 0,
+            "invalid_file_state_entries": [],
+            "loc_issue_count": 0,
+            "missing_or_invalid_loc_entries": []
+          },
+          "runtime_mode_metadata": {
+            "invalid_count": 0,
+            "invalid_entries": []
+          },
+          "artifact_kind_metadata": {
+            "invalid_count": 0,
+            "invalid_entries": []
+          },
+          "metric_source_provenance": {
+            "missing_field_count": 5,
+            "missing_field_entries": [
+              {
+                "field_path": "metric_source_provenance.source_kind",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_source_kind_missing.v1",
+                "reason": "metric_source_provenance.source_kind is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.canonicality",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_canonicality_missing.v1",
+                "reason": "metric_source_provenance.canonicality is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.evidence_basis",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_evidence_basis_missing.v1",
+                "reason": "metric_source_provenance.evidence_basis is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.policy_backend",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_policy_backend_missing.v1",
+                "reason": "metric_source_provenance.policy_backend is required",
+                "status": "missing",
+                "raw_value": null
+              },
+              {
+                "field_path": "metric_source_provenance.policy_version",
+                "reason_code": "worker_admission.work_unit_atomicity.metric_source_provenance_policy_version_missing.v1",
+                "reason": "metric_source_provenance.policy_version is required",
+                "status": "missing",
+                "raw_value": null
+              }
+            ]
+          }
+        },
+        "structural_target_metrics": {
+          "expected_edit_target_count": 0,
+          "planned_create_target_count": 0,
+          "planned_modify_target_count": 0,
+          "planned_delete_target_count": 0,
+          "planned_inspect_target_count": 0,
+          "target_kind_count": 0,
+          "target_resolution_evidence_status": "degraded",
+          "target_resolution_provider": null,
+          "target_resolution_provider_version": null,
+          "target_resolution_status_reason": "no structural target provenance supplied",
+          "resolved_edit_target_count": 0,
+          "unresolved_edit_target_count": 0,
+          "ambiguous_edit_target_count": 0,
+          "target_span_line_count": null,
+          "max_target_span_line_count": null,
+          "target_span_to_file_ratio": null,
+          "target_dependency_fanout_count": null,
+          "write_scope_without_resolved_targets": 0,
+          "source_record_digest": null,
+          "selected_unit": null
+        },
+        "node_engine_carrier_facts": {
+          "cluster_count": 0,
+          "blast_radius_severity": "none"
+        }
+      },
+      "provenance": {
+        "source_kind": "canonical_work_record",
+        "canonicality": "canonical",
+        "evidence_basis": "normalized_record_projection",
+        "policy_backend": "portfolio-local",
+        "policy_version": "worker-admission-policy.v1"
+      },
+      "sidecar_path": "wiki/work-records/evidence/WK-2151.SLICE-008.sha256-653c3ebd9ec5b547a217e08c63eb539557f3df051947be9e1cc043c744316e2f.admission.json",
+      "sidecar_digest": "sha256:653c3ebd9ec5b547a217e08c63eb539557f3df051947be9e1cc043c744316e2f",
+      "admission_summary": {
+        "result": "review",
+        "dispatchable": false,
+        "decision_codes": [
+          "worker_admission.work_unit_atomicity.required_metric_missing.v1",
+          "worker_admission.work_unit_atomicity.artifact_kind_metadata_missing.v1",
+          "worker_admission.work_unit_atomicity.file_stats_missing.v1",
+          "worker_admission.work_unit_atomicity.runtime_mode_metadata_missing.v1",
+          "worker_admission.work_unit_atomicity.validation_command_metadata_missing.v1"
+        ]
+      }
+    }
+  ]
+}

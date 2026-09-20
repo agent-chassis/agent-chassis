@@ -232,8 +232,12 @@ test("a spill-persistence failure reaches both consumers as the same bounded ref
     assert.equal(refusal.schema_version, "mcp-response-refusal.v1");
     assert.equal(refusal.code, "mcp_response.spill_persistence_failed.v1");
     assert.equal(refusal.content_reference, undefined);
-    assert.equal(typeof refusal.cause_diagnostic, "string");
-    assert.ok(refusal.cause_diagnostic.length > 0);
+    assert.equal(typeof refusal.cause_diagnostic, "object");
+    assert.equal(typeof refusal.cause_diagnostic.message, "string");
+    assert.equal(typeof refusal.cause_diagnostic.stack, "string");
+    assert.equal(refusal.cause_diagnostic.code, "ENOTDIR");
+    assert.equal(refusal.cause_diagnostic.path, path.join(blocker, "response-spill"));
+    assert.deepEqual(refusal.cause_diagnostic_redactions, []);
     assert.ok(!JSON.stringify(result).includes("refusal-payload-marker"));
     assertCompleteResultWithinLimit(result);
   });

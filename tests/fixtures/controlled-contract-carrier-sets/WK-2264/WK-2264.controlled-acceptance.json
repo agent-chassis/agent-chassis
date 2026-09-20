@@ -1,0 +1,1267 @@
+{
+  "annotations": [],
+  "claims": [
+    {
+      "claim_id": "claim-behavior-descriptor-coverage",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-descriptor-coverage"
+    },
+    {
+      "claim_id": "claim-verify-descriptor-coverage",
+      "falsifying_proposition_id": "prop-falsify-descriptor-coverage",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-descriptor-coverage",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-fail-loud",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-fail-loud"
+    },
+    {
+      "claim_id": "claim-verify-fail-loud",
+      "falsifying_proposition_id": "prop-falsify-fail-loud",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-fail-loud",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-full-parity",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-full-parity"
+    },
+    {
+      "claim_id": "claim-verify-full-parity",
+      "falsifying_proposition_id": "prop-falsify-full-parity",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-full-parity",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-behavior-publication-safeguards",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-behavior-publication-safeguards"
+    },
+    {
+      "claim_id": "claim-verify-publication-safeguards",
+      "falsifying_proposition_id": "prop-falsify-publication-safeguards",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-verify-publication-safeguards",
+      "verification_method": "test_execution"
+    },
+    {
+      "claim_id": "claim-parity-left-population-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-left-population-count"
+    },
+    {
+      "claim_id": "claim-parity-left-population-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-left-population-members"
+    },
+    {
+      "claim_id": "claim-parity-right-population-count",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-right-population-count"
+    },
+    {
+      "claim_id": "claim-parity-right-population-members",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-right-population-members"
+    },
+    {
+      "claim_id": "claim-parity-source-emits",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-source-emits"
+    },
+    {
+      "claim_id": "claim-parity-left-result-includes",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-left-result-includes"
+    },
+    {
+      "claim_id": "claim-parity-right-result-includes",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-right-result-includes"
+    },
+    {
+      "claim_id": "claim-parity-left-within-right",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-left-within-right"
+    },
+    {
+      "claim_id": "claim-parity-right-within-left",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-right-within-left"
+    },
+    {
+      "claim_id": "claim-parity-left-count",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-left-count"
+    },
+    {
+      "claim_id": "claim-parity-right-count",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-right-count"
+    },
+    {
+      "claim_id": "claim-parity-values-equal",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-values-equal"
+    },
+    {
+      "claim_id": "claim-parity-verification-reads",
+      "kind": "evidence",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-verification-reads"
+    },
+    {
+      "claim_id": "claim-parity-verify-left-population",
+      "falsifying_proposition_id": "prop-parity-falsify-left-population",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-verify-left-population",
+      "verification_method": "analysis"
+    },
+    {
+      "claim_id": "claim-parity-verify-right-population",
+      "falsifying_proposition_id": "prop-parity-falsify-right-population",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-verify-right-population",
+      "verification_method": "analysis"
+    },
+    {
+      "claim_id": "claim-parity-verify-left-count",
+      "falsifying_proposition_id": "prop-parity-falsify-left-count",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-verify-left-count",
+      "verification_method": "analysis"
+    },
+    {
+      "claim_id": "claim-parity-verify-right-count",
+      "falsifying_proposition_id": "prop-parity-falsify-right-count",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-verify-right-count",
+      "verification_method": "analysis"
+    },
+    {
+      "claim_id": "claim-parity-verify-canonical-value",
+      "falsifying_proposition_id": "prop-parity-falsify-canonical-value",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-parity-verify-canonical-value",
+      "verification_method": "analysis"
+    }
+  ],
+  "collections": [],
+  "profile_id": "acceptance-contract.standard.v1",
+  "propositions": [
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-requirement-descriptor-coverage"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-descriptor-coverage",
+      "subject_reference_id": "ref-implementation-sync"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-descriptor-coverage",
+      "subject_reference_id": "ref-requirement-descriptor-coverage"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-verify-descriptor-coverage",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-requirement-fail-loud"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-fail-loud",
+      "subject_reference_id": "ref-implementation-sync"
+    },
+    {
+      "proposition_id": "prop-falsify-fail-loud",
+      "subject_reference_id": "ref-requirement-missing-source-identity",
+      "operator": "boolean:exists",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-verify-fail-loud",
+      "subject_reference_id": "ref-test-publish-smoke",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-requirement-missing-source-identity"
+        }
+      ]
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-requirement-full-parity"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-full-parity",
+      "subject_reference_id": "ref-implementation-sync"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-full-parity",
+      "subject_reference_id": "ref-requirement-full-parity"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-verify-full-parity",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-requirement-publication-safeguards"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-behavior-publication-safeguards",
+      "subject_reference_id": "ref-implementation-sync"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": false
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-falsify-publication-safeguards",
+      "subject_reference_id": "ref-requirement-publication-safeguards"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "boolean",
+          "value": true
+        }
+      ],
+      "operator": "boolean:exists",
+      "proposition_id": "prop-verify-publication-safeguards",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-parity-left-population-count",
+      "subject_reference_id": "ref-left-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-selected-value"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-parity-left-population-members",
+      "subject_reference_id": "ref-left-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "operator": "number:has_cardinality",
+      "proposition_id": "prop-parity-right-population-count",
+      "subject_reference_id": "ref-right-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-selected-value"
+        }
+      ],
+      "operator": "reference:contains",
+      "proposition_id": "prop-parity-right-population-members",
+      "subject_reference_id": "ref-right-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-result"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-result"
+        }
+      ],
+      "operator": "reference:emits",
+      "proposition_id": "prop-parity-source-emits",
+      "subject_reference_id": "ref-logical-source"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-count-signal"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-selected-value"
+        }
+      ],
+      "operator": "reference:includes",
+      "proposition_id": "prop-parity-left-result-includes",
+      "subject_reference_id": "ref-left-result"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-count-signal"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-selected-value"
+        }
+      ],
+      "operator": "reference:includes",
+      "proposition_id": "prop-parity-right-result-includes",
+      "subject_reference_id": "ref-right-result"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-population"
+        }
+      ],
+      "operator": "reference:subset_of",
+      "proposition_id": "prop-parity-left-within-right",
+      "subject_reference_id": "ref-left-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-population"
+        }
+      ],
+      "operator": "reference:subset_of",
+      "proposition_id": "prop-parity-right-within-left",
+      "subject_reference_id": "ref-right-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "operator": "number:equals",
+      "proposition_id": "prop-parity-left-count",
+      "subject_reference_id": "ref-left-count-signal"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "operator": "number:equals",
+      "proposition_id": "prop-parity-right-count",
+      "subject_reference_id": "ref-right-count-signal"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-selected-value"
+        }
+      ],
+      "operator": "reference:equals",
+      "proposition_id": "prop-parity-values-equal",
+      "subject_reference_id": "ref-left-selected-value"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-logical-source"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-result"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-result"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-count-signal"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-count-signal"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-selected-value"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-selected-value"
+        }
+      ],
+      "operator": "reference:reads",
+      "proposition_id": "prop-parity-verification-reads",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-population"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-parity-verify-left-population",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-condition-left-population-not-subset"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-population"
+        }
+      ],
+      "operator": "reference:not_subset_of",
+      "proposition_id": "prop-parity-falsify-left-population",
+      "subject_reference_id": "ref-left-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-population"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-population"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-parity-verify-right-population",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-condition-right-population-not-subset"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-population"
+        }
+      ],
+      "operator": "reference:not_subset_of",
+      "proposition_id": "prop-parity-falsify-right-population",
+      "subject_reference_id": "ref-right-population"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-count-signal"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-parity-verify-left-count",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-condition-left-count-mismatch"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "operator": "number:not_equals",
+      "proposition_id": "prop-parity-falsify-left-count",
+      "subject_reference_id": "ref-left-count-signal"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-count-signal"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-parity-verify-right-count",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-condition-right-count-mismatch"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "operator": "number:not_equals",
+      "proposition_id": "prop-parity-falsify-right-count",
+      "subject_reference_id": "ref-right-count-signal"
+    },
+    {
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-left-selected-value"
+        },
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-selected-value"
+        }
+      ],
+      "operator": "reference:covers",
+      "proposition_id": "prop-parity-verify-canonical-value",
+      "subject_reference_id": "ref-test-publish-smoke"
+    },
+    {
+      "applicability_context": {
+        "mode": "when",
+        "operand_reference_ids": [
+          "ref-condition-canonical-value-mismatch"
+        ]
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-right-selected-value"
+        }
+      ],
+      "operator": "reference:not_equals",
+      "proposition_id": "prop-parity-falsify-canonical-value",
+      "subject_reference_id": "ref-left-selected-value"
+    }
+  ],
+  "references": [
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/core/scripts/sync-public-docs.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-implementation-sync",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "descriptor-advertised-public-docs-covered-by-public-docs"
+      },
+      "reference_id": "ref-requirement-descriptor-coverage",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "missing-unreadable-or-mismatched-public-doc-fails-loudly"
+      },
+      "reference_id": "ref-requirement-fail-loud",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "full-declared-public-doc-byte-parity"
+      },
+      "reference_id": "ref-requirement-full-parity",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "existing-publication-safety-and-manifest-gates-preserved"
+      },
+      "reference_id": "ref-requirement-publication-safeguards",
+      "type_term": "cc:requirement"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "tests/publish-smoke.test.mjs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-test-publish-smoke",
+      "type_term": "cc:test"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "canonical-value-mismatch"
+      },
+      "reference_id": "ref-condition-canonical-value-mismatch",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "canonical-source-count-mismatch"
+      },
+      "reference_id": "ref-condition-left-count-mismatch",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "canonical-source-population-not-subset"
+      },
+      "reference_id": "ref-condition-left-population-not-subset",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "bundled-destination-count-mismatch"
+      },
+      "reference_id": "ref-condition-right-count-mismatch",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "bundled-destination-population-not-subset"
+      },
+      "reference_id": "ref-condition-right-population-not-subset",
+      "type_term": "cc:state"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "canonical-source-selected-member-count"
+      },
+      "reference_id": "ref-left-count-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "canonical-source-selected-member-population"
+      },
+      "reference_id": "ref-left-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "docs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-left-result",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "selected-canonical-source-document-bytes"
+      },
+      "reference_id": "ref-left-selected-value",
+      "type_term": "cc:artifact"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "declared-public-document-logical-source"
+      },
+      "reference_id": "ref-logical-source",
+      "type_term": "cc:entity"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "bundled-destination-selected-member-count"
+      },
+      "reference_id": "ref-right-count-signal",
+      "type_term": "cc:evidence"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "bundled-destination-selected-member-population"
+      },
+      "reference_id": "ref-right-population",
+      "type_term": "cc:population"
+    },
+    {
+      "identity": {
+        "kind": "repository_path",
+        "path": "packages/core/docs",
+        "repository": "agent-chassis/agent-chassis"
+      },
+      "reference_id": "ref-right-result",
+      "type_term": "cc:resource"
+    },
+    {
+      "identity": {
+        "domain": "WK-2264",
+        "kind": "durable_id",
+        "value": "selected-bundled-destination-document-bytes"
+      },
+      "reference_id": "ref-right-selected-value",
+      "type_term": "cc:artifact"
+    },
+    {
+      "reference_id": "ref-requirement-missing-source-identity",
+      "type_term": "cc:requirement",
+      "identity": {
+        "kind": "durable_id",
+        "domain": "WK-2264",
+        "value": "missing-canonical-source-refuses-with-logical-source-and-bundle-identities"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-verify-descriptor-coverage",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-descriptor-coverage",
+      "target_claim_id": "claim-behavior-descriptor-coverage"
+    },
+    {
+      "relation_id": "rel-verify-fail-loud",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-fail-loud",
+      "target_claim_id": "claim-behavior-fail-loud"
+    },
+    {
+      "relation_id": "rel-verify-full-parity",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-full-parity",
+      "target_claim_id": "claim-behavior-full-parity"
+    },
+    {
+      "relation_id": "rel-verify-publication-safeguards",
+      "role": "verifies",
+      "source_claim_id": "claim-verify-publication-safeguards",
+      "target_claim_id": "claim-behavior-publication-safeguards"
+    },
+    {
+      "relation_id": "rel-parity-verify-left-population",
+      "role": "verifies",
+      "source_claim_id": "claim-parity-verify-left-population",
+      "target_claim_id": "claim-parity-left-within-right"
+    },
+    {
+      "relation_id": "rel-parity-verify-right-population",
+      "role": "verifies",
+      "source_claim_id": "claim-parity-verify-right-population",
+      "target_claim_id": "claim-parity-right-within-left"
+    },
+    {
+      "relation_id": "rel-parity-verify-left-count",
+      "role": "verifies",
+      "source_claim_id": "claim-parity-verify-left-count",
+      "target_claim_id": "claim-parity-left-count"
+    },
+    {
+      "relation_id": "rel-parity-verify-right-count",
+      "role": "verifies",
+      "source_claim_id": "claim-parity-verify-right-count",
+      "target_claim_id": "claim-parity-right-count"
+    },
+    {
+      "relation_id": "rel-parity-verify-canonical-value",
+      "role": "verifies",
+      "source_claim_id": "claim-parity-verify-canonical-value",
+      "target_claim_id": "claim-parity-values-equal"
+    }
+  ],
+  "residue": [],
+  "schema_version": "controlled-acceptance-contract.v1",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-descriptor-coverage",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/scripts/sync-public-docs.mjs",
+            "mutation_id": "mutation-descriptor-coverage",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-descriptor-coverage",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-descriptor-coverage",
+        "proposition_id": "prop-verify-descriptor-coverage"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-descriptor-coverage",
+        "kind": "module",
+        "runtime_module_path": "packages/core/scripts/sync-public-docs.mjs",
+        "subject_reference_ids": [
+          "ref-implementation-sync"
+        ]
+      },
+      "test_proof_id": "test-proof-descriptor-coverage",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-descriptor-coverage",
+      "test_selector": {
+        "name": "descriptor coverage",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-fail-loud",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/scripts/sync-public-docs.mjs",
+            "mutation_id": "mutation-fail-loud",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-fail-loud",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-fail-loud",
+        "proposition_id": "prop-verify-fail-loud"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-fail-loud",
+        "kind": "module",
+        "runtime_module_path": "packages/core/scripts/sync-public-docs.mjs",
+        "subject_reference_ids": [
+          "ref-implementation-sync"
+        ]
+      },
+      "test_proof_id": "test-proof-fail-loud",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-fail-loud",
+      "test_selector": {
+        "name": "fail loud",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-full-parity",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/scripts/sync-public-docs.mjs",
+            "mutation_id": "mutation-full-parity",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-full-parity",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-full-parity",
+        "proposition_id": "prop-verify-full-parity"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-full-parity",
+        "kind": "module",
+        "runtime_module_path": "packages/core/scripts/sync-public-docs.mjs",
+        "subject_reference_ids": [
+          "ref-implementation-sync"
+        ]
+      },
+      "test_proof_id": "test-proof-full-parity",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-full-parity",
+      "test_selector": {
+        "name": "full parity",
+        "nesting": 0
+      }
+    },
+    {
+      "candidate_execution_provider": {
+        "capability": "candidate_execution",
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0"
+      },
+      "falsifiers": [
+        {
+          "execution_provider": {
+            "capability": "falsifier_execution",
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0"
+          },
+          "expected_outcome": "verification_fails",
+          "falsifier_id": "falsifier-publication-safeguards",
+          "mutation": {
+            "mechanism": "module_substitution",
+            "module_path": "packages/core/scripts/sync-public-docs.mjs",
+            "mutation_id": "mutation-publication-safeguards",
+            "target_kind": "module"
+          },
+          "proposition_id": "prop-falsify-publication-safeguards",
+          "strategy": "dependency_failure"
+        }
+      ],
+      "observable_result": {
+        "kind": "exit_status",
+        "observable_id": "observable-publication-safeguards",
+        "proposition_id": "prop-verify-publication-safeguards"
+      },
+      "prohibited_shortcuts": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ],
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-publication-safeguards",
+        "kind": "module",
+        "runtime_module_path": "packages/core/scripts/sync-public-docs.mjs",
+        "subject_reference_ids": [
+          "ref-implementation-sync"
+        ]
+      },
+      "test_proof_id": "test-proof-publication-safeguards",
+      "traversal_provider": {
+        "mode": "registry_unsupported",
+        "registry_id": "launcher.test-proof-provider-registry",
+        "registry_version": "1.1.0"
+      },
+      "verification_claim_id": "claim-verify-publication-safeguards",
+      "test_selector": {
+        "name": "publication safeguards",
+        "nesting": 0
+      }
+    }
+  ],
+  "vocabulary_version": "controlled-contract-vocabulary.v1"
+}

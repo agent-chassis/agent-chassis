@@ -3,6 +3,32 @@
 
 This repository exists to make a shared wiki operating model portable across many codebases without centralizing the actual content.
 
+## Compatibility posture: current contracts only
+
+This repository does not provide legacy or backward-compatibility support by
+default. The supported product and repository contract is the current contract.
+Agents and maintainers must not add, preserve, or extend compatibility behavior
+merely because an older format, entrypoint, field, fixture, caller, or workflow
+exists.
+
+Compatibility behavior includes aliases, shims, adapters, dual reads or writes,
+fallback parsing or lookup, deprecated entrypoints, legacy data migration,
+transition windows, and tests whose purpose is to keep an obsolete contract
+working. Existing implementation, tests, documentation, historical usage, or
+generated artifacts do not by themselves make such behavior supported.
+
+An exception requires an accepted canonical `DEC-*` that identifies the exact
+compatibility surface and scope. The decision must state the consumers and old
+contract being supported, why current-contract migration is insufficient, the
+required tests, the owner, and the removal condition or review date. A proposed,
+rejected, superseded, or expired decision grants no compatibility authority.
+
+Without that accepted decision, changes use the current contract directly,
+remove obsolete compatibility behavior when it is in scope, and update or
+delete expectations that require the old behavior. Historical records remain
+historical evidence; their existence does not create a runtime or tooling
+support obligation.
+
 ## Scope doctrine: no additional security profile
 
 AgentChassis does not define an additional security profile for agents. It aims

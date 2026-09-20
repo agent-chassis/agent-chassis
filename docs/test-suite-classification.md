@@ -143,6 +143,69 @@ integration backstop, overridable with `--test-timeout=`), and the hermetic
 
 The runner now owns process concerns only. It decides no categories.
 
+### Serial integration execution
+
+`node --test` defaults its concurrency to the host CPU count, so an integration
+batch forks one test process **per file**, each with its own V8 heap and its own
+real-repository Git subprocesses. On a many-core host that multiplies the cost of
+the heaviest suites by the core count.
+
+`integration` and `all` therefore pass `--test-concurrency=1`. An explicit
+`--test-concurrency` in the passthrough still wins, and `unit` keeps its
+parallelism because those tests start no processes.
+
+### The supported entrypoint
+
+The migrated integration fixtures refuse a direct `node --test` invocation and
+name `node tests/run-tests.mjs integration <file>` in the refusal. They read the
+runner's existing `PORTFOLIO_WIKI_TOOLS_HERMETIC_TESTS` marker — no separate
+execution token exists — and refuse **before** allocating a temporary tree or
+starting a process, so an unsupported invocation leaves nothing behind.
+
+A direct invocation bypasses serial execution, the runner-owned `HOME`/`TMPDIR`
+roots, the credential clamp, and abandoned-root recovery.
+
+## Designated process and Git helpers
+
+Placement (above) asks whether a test *can* start a process. This asks a
+different question: does a file start processes **itself**, rather than through a
+helper that bounds them?
+
+A raw `spawnSync` in a fixture has no timeout, no output bound, no isolated Git
+environment and no registered cleanup, so a runaway or abandoned child is
+invisible. The designated helpers supply those guarantees:
+
+| Helper | Use |
+| --- | --- |
+| `tests/helpers/managed-test-process.mjs` | test-owned processes generally |
+| `tests/helpers/git-test-fixture.mjs` | `createGitTestRepository` for asynchronous Git; `createSyncOwnedGitRunner` where the production contract under test is synchronous |
+
+`createSyncOwnedGitRunner` exists for a demonstrated requirement, not
+convenience: `resolveCommittedSliceReviewAdmission` reads `result.ok` /
+`result.stdout` on the line after it calls the injected probe, so an asynchronous
+runner fails every probe closed. Production is not converted to async for a test
+helper. The synchronous runner keeps the same argument and environment policy as
+the asynchronous fixture, requires an explicit timeout, bounds output, and runs
+only against explicitly registered fixture-owned repositories, worktrees or
+trees. Ordinary nonzero Git results stay results — `rev-parse --verify` on a
+missing ref legitimately exits 128 and production depends on reading that —
+while timeout, spawn failure and output exhaustion each raise their own code and
+can never be mistaken for Git's verdict.
+
+Repository-local committer identity is still written through the runner's narrow
+`configure` opening, because production code drives the same repository with its
+own Git process and never sees the runner's isolated environment.
+
+`SUBPROCESS_HELPER_ENROLLED` in `tests/test-suite-classification.mjs` lists the
+files required to route process creation through a designated helper. The check
+is enrollment-based on purpose: around 195 modules under `tests/` import the
+spawning module directly, and enumerating them would be an inventory of the
+status quo rather than a rule. Detection reuses the placement signal, so a
+**dynamic** `await import("node:child_process")` counts exactly like a static
+import. `SUBPROCESS_MIGRATION_BACKLOG` records remaining work; an entry naming a
+file that has since migrated is itself a refusal, so the list cannot rot into a
+standing allowance.
+
 ## Public snapshot behaviour
 
 `tools/agent-chassis-snapshot.mjs` consumes the same classifier and the same

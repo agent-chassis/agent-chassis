@@ -12,7 +12,7 @@ When the surface is unavailable, coordinators should use the existing
 structured tools directly:
 `workspace_work_record_summary`, `workspace_validate_dispatch`,
 `workspace_agent_dispatch`, `workspace_agent_run_status`,
-`workspace_agent_run_wait`, `workspace_lint_repo`,
+`workspace_lint_repo`,
 `workspace_generate_and_lint`, and the work-record setter routes.
 
 The surface is read-only and advisory. It may rank pending actions and name the
@@ -21,6 +21,32 @@ that operation itself. It must not dispatch agents, write work records, set
 statuses, record closure, run lint, refresh metrics, write graph evidence,
 reinterpret Chassis Control Engine or launcher policy, parse closure prose as authority,
 or recommend shell commands and raw JSON edits as fallback paths.
+
+## Legacy-Named Integration Status
+
+`workspace_integration_status` is a read-only local coordination inventory; its
+legacy name does not restore the retired initiative integration-branch model. It
+accepts only the server-resolved repository and one `IN-####` selector. That
+selector must load as a valid canonical `wiki/initiatives/IN-####.json` record.
+Missing, malformed, projection-only, or identity-mismatched initiatives refuse;
+only a valid initiative with no matching records returns an empty inventory.
+
+Membership comes exclusively from canonical work-record JSON whose `initiative`
+scalar equals the selected initiative. Initiative or WK `related` arrays and
+Markdown projections do not add members. `matched_count` and `work_records`
+describe that same complete population in deterministic WK-id order. Malformed or
+unreadable work-record input prevents a complete census and fails loudly rather
+than becoming a partial or empty success. Reported `wk/IN-####/WK-####` names are
+expected short-lived ref labels, not observations of live Git state.
+
+The operation does not implement trusted Git, runtime, lease, worktree, forge,
+mergeability, publication, or policy observations, and it supports no caller or
+environment injection for them. Their fields remain explicitly
+`unknown`, `not_available`, or `not_evaluated`. Use
+`workspace_coordination_preflight` to discover configured runtime capabilities;
+discovery does not itself supply mergeability or publication evidence. This
+status surface grants no integration, review, promotion, merge, or lifecycle
+authority.
 
 ## Default Behavior
 
@@ -57,8 +83,11 @@ compact status row, not as the first pass across an initiative.
 
 A repository with no `wiki/work-records` directory is a fresh empty corpus, not
 an error and not a request to initialize storage. Initiative status returns the
-same stable empty frontier as an existing empty directory and leaves the absent
-directory absent. Only `ENOENT` from enumerating that exact corpus directory has
+same zero-member counts as an existing empty directory and leaves the absent
+directory absent. For a `todo` or `in_progress` initiative, that empty frontier
+reports `allocation_required` and recommends the allocator-backed
+`workspace_create_record` route. Closed or inactive initiatives retain a
+no-action result. Only `ENOENT` from enumerating that exact corpus directory has
 this meaning: malformed records, non-directory paths, permission/I/O failures,
 and a record that disappears after enumeration remain loud read failures.
 
@@ -69,8 +98,8 @@ path, equality, validation, and failure classification. Traversal-shaped,
 mistyped, missing, malformed, or identity-mismatched initiatives refuse before
 counts are projected; only initial `ENOENT` for the exact canonical initiative
 file is missing, while other I/O and a later disappearance remain loud. A valid
-initiative with no corpus or no matching WKs retains the zero-member result and
-creates nothing.
+initiative with no corpus or no matching WKs retains zero-member counts and
+creates nothing; the allocation action is advisory only.
 
 The action taxonomy and the runtime-blocker taxonomy the route projects against
 are PACKAGE-OWNED controlled vocabularies that ship inside
@@ -122,9 +151,10 @@ dependencies, write scope, acceptance, validation, slice state, blockers, review
 state, or closure detail. The initiative-status surface can point at a target
 unit and reason code, but it is not the full record reader.
 
-Use `workspace_validate_dispatch` when the next possible action is dispatch and
-the coordinator needs the authoritative readiness decision for that selected
-unit. When the initiative-status layer's non-authoritative derived-evidence scan
+Use `workspace_validate_dispatch` for the optional prospective question "can
+this unit start?" Its result describes the selected unit's assessed facts; it
+is neither permission to dispatch nor a guarantee of a later launch. When the
+initiative-status layer's non-authoritative derived-evidence scan
 hints that admission evidence may be missing, stale, or incomplete, it recommends
 this read-only operation for the exact unit. It does not authenticate evidence
 carriers or sidecars, import or duplicate the admission-recovery classifier,
@@ -132,23 +162,28 @@ label the evidence recoverable, or claim that the unit is dispatchable. It also
 does not synthesize malformed, ambiguous, provider-unavailable, integrity, or
 other recovery verdicts from the hint.
 
-The structured dispatch-readiness envelope remains the authority after
-validation: its result determines whether the coordinator may call
-`workspace_agent_dispatch` with `role=worker` or must inspect a typed blocker.
+The initiative-status recommendation is advisory and does not impose a
+validation pre-call. Preserve the assessment's precise refusals and corrections;
+dispatch checks the current facts through the existing readiness owner.
 The deprecated `workspace_work_record_refresh_admission_metrics` and
 `workspace_work_record_refresh_target_resolution_evidence` operations are not
 initiative-status readiness recommendations. `workspace_validate_dispatch`
 remains read-only and does not refresh derived evidence.
 
-Use `workspace_agent_dispatch` only after the selected unit is ready for the
-intended role. Dispatch remains MCP-only agent authority. If dispatch transport
+Use `workspace_agent_dispatch` for "start this unit." Dispatch prepares the
+canonical assignment, performs the required readiness and currentness checks
+internally, and launches or returns a precise refusal. A separate
+`workspace_validate_dispatch` call is optional; a prior passing assessment does
+not replace dispatch's checks. Policy and launch authority remain with their
+existing owners. Dispatch remains MCP-only agent authority. If dispatch transport
 is missing, report the structured transport blocker instead of invoking role
 wrappers, shell commands, or hand-written prompts.
 
-Use `workspace_agent_run_status` or `workspace_agent_run_wait` after dispatch
-has returned a server-minted monitor handle. The initiative-status surface may
-identify that a run needs monitoring, but run-status owns lifecycle truth for
-the launched run.
+Use `workspace_agent_run_status` after dispatch, addressing the canonical
+subject and optionally the returned `run_id` as `attempt_id`. Supply
+`timeout_ms` for bounded observation; omit it for one immediate read. The
+initiative-status surface may identify that a run needs monitoring, but
+run-status owns lifecycle truth for the launched run.
 
 Use `workspace_lint_repo` or `workspace_generate_and_lint` when the coordinator
 needs repo contract diagnostics. Lint output is diagnostic unless the selected
@@ -159,8 +194,8 @@ unit's scope.
 
 Use work-record setter tools for actual mutations:
 `workspace_work_record_set_status`, `workspace_work_record_set_closure`,
-`workspace_work_record_set_task`, `workspace_work_record_set_list_field`,
-`workspace_work_record_set_acceptance`, `workspace_work_record_upsert_slice`,
+`workspace_work_record_edit` (including task `mark_done` and acceptance
+criteria and notes), `workspace_work_record_upsert_slice`,
 `workspace_work_record_delete_slice`, and
 `workspace_work_record_shape_review_unit`. The initiative-status surface may
 suggest one of these operations, but the setter route owns
@@ -190,7 +225,10 @@ necessary boundary:
 
 - read the selected work record with `workspace_work_record_summary` for full
   contract context
-- call `workspace_validate_dispatch` for dispatchability
+- optionally call `workspace_validate_dispatch` for a prospective "can this
+  start?" assessment
+- call `workspace_agent_dispatch` to start the canonical unit, with required
+  preparation and current checks performed inside dispatch
 - call `workspace_agent_run_status` for a specific monitor handle
 - call lint tools for repo diagnostics
 - call setter routes for validated work-record writes

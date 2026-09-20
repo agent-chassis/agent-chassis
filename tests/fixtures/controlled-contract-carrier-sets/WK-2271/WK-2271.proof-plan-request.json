@@ -1,0 +1,13 @@
+{
+  "requested_intents": [
+    "controlled-proof-intent.refusal-before-effects"
+  ],
+  "schema_version": "controlled-contract-proof-plan-request.v1",
+  "selected_packs": [
+    {
+      "evaluation_input_path": "WK-2271.pack-sha256-26d66a57c001cb50483d2a1591ac6fe17007b7c97870619fecdd94385452e6a6.evaluation-input.json",
+      "profile_id": "proof.authorization.refusal-before-effects",
+      "profile_version": "4.0.0"
+    }
+  ]
+}

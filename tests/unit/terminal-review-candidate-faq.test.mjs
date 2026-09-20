@@ -1,10 +1,11 @@
+import { RUNTIME_BLOCKER_DESCRIPTOR as composedTaxonomy } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const root = new URL("../../", import.meta.url);
 const readJson = (relative) => JSON.parse(readFileSync(new URL(relative, root), "utf8"));
-const taxonomy = readJson("packages/wiki-core/data/runtime-blocker-codes.v1.json");
+const taxonomy = composedTaxonomy;
 const faq = readJson("packages/wiki-core/data/agent-faq.v1.json");
 const discovery = readJson("packages/wiki-core/data/tool-discovery/launcher-tools.json");
 

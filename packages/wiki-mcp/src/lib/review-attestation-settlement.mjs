@@ -17,12 +17,17 @@ import {
   createWorkRecordAdmissionDerivedEvidenceCompactAdmissionSummary,
   prepareWorkRecordAdmissionDerivedEvidenceSidecar
 } from "@agent-chassis/wiki-core/src/lib/work-record-admission-derived-evidence-persist.mjs";
-import { readPersistedWorkerAdmissionEvidenceSidecar } from
-  "@agent-chassis/wiki-core/src/lib/work-record-admission-evidence-sidecar.mjs";
 import {
-  materializeWorkRecordAdmissionDerivedEvidence,
+  captureSelectedWorkRecordAdmissionEvidence,
+  isAdmissionEvidenceSnapshotChangedError,
+  readCapturedWorkRecordAdmissionEvidence
+} from "@agent-chassis/wiki-core/src/lib/work-record-admission-evidence-sidecar.mjs";
+import {
+  materializeWorkRecordAdmissionDerivedEvidence
+} from "@agent-chassis/wiki-core/src/operations/work-records-admission-evidence.mjs";
+import {
   readWorkRecordById
-} from "@agent-chassis/wiki-core";
+} from "@agent-chassis/wiki-core/src/operations/work-records-store-io.mjs";
 import {
   computeWorkRecordPersistenceSnapshotDigest,
   writeValidatedWorkRecordWithAdmissionSidecars
@@ -101,12 +106,14 @@ function addAttestation(fullEvidence, attestation) {
 }
 
 async function materializeEvidence({ workspace, record, unit, sourceDigest }) {
-  const persisted = await readPersistedWorkerAdmissionEvidenceSidecar({
-    dir: workspace.dir,
-    record,
-    selectedUnit: unit,
-    sourceDigest
-  });
+  const persisted = readCapturedWorkRecordAdmissionEvidence(
+    await captureSelectedWorkRecordAdmissionEvidence({
+      dir: workspace.dir,
+      record,
+      selectedUnit: unit,
+      sourceDigest
+    })
+  );
   if (persisted) return persisted;
   return materializeWorkRecordAdmissionDerivedEvidence({
     record,
@@ -241,13 +248,19 @@ export async function publishOriginalReviewAttestation({
       diagnostics: Object.freeze([...(built.reasons ?? [])].slice(0, 20))
     });
   }
-  const publication = await persist({
-    workspace,
-    loaded,
-    unit,
-    sourceDigest,
-    attestation: built.attestation
-  });
+  let publication;
+  try {
+    publication = await persist({
+      workspace,
+      loaded,
+      unit,
+      sourceDigest,
+      attestation: built.attestation
+    });
+  } catch (error) {
+    if (!isAdmissionEvidenceSnapshotChangedError(error)) throw error;
+    return Object.freeze({ recorded: false, reason: error.code });
+  }
   return Object.freeze({
     owner: SETTLEMENT_OWNER,
     recorded: true,

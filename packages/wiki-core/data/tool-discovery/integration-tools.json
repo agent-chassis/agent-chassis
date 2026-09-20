@@ -46,7 +46,23 @@
         "wiki/work-records/WK-1445.json"
       ],
       "summary": "Read-only local coordination surface reporting WK-to-integration promote-check facts and fail-closed blockers.",
-      "notes": "Read-only local coordination route (free_local, no key required) for promote-check facts and fail-closed blockers for one canonical WK or tracker-local unit relative to its integration branch. It accepts only server-resolved repository selection and observes coordination facts only. It is not policy authority and authorizes no promotion, merge, rebase, worktree cleanup, lifecycle or status change, ref update, or review-policy satisfaction. Unknown live refs, candidate identity, liveness, quiescence, lease, touched paths, detached workspace, evidence binding, or branch binding fail closed. Use this before promotion when local integration readiness must be observed; use the structured integration lifecycle routes for mutation. See docs/agent-launch-quickstart.md for the coordination contract."
+      "notes": "Read-only local coordination route (free_local, no key required) for promote-check facts and fail-closed blockers for one canonical WK or tracker-local unit relative to its integration branch. It accepts only server-resolved repository selection and observes coordination facts only. It is not policy authority and authorizes no promotion, merge, rebase, worktree cleanup, lifecycle or status change, ref update, or review-policy satisfaction. Unknown live refs, candidate identity, liveness, quiescence, lease, touched paths, detached workspace, evidence binding, or branch binding fail closed. Use this before promotion when local integration readiness must be observed; use the structured integration lifecycle routes for mutation. See docs/agent-launch-quickstart.md for the coordination contract.",
+      "use_when": [
+        "An operator observes one known unit's local integration blockers."
+      ],
+      "do_not_use_when": [
+        "The task asks for merge, promotion, ref mutation, policy or review authority."
+      ],
+      "authoritative_for": [
+        "local record-derived integration evidence and its unavailable-fact diagnostics"
+      ],
+      "recommended_first_call": {
+        "operation": "workspace_integration_promote_check",
+        "arguments": {
+          "unit": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      }
     }
   ]
 }

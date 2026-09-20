@@ -15,9 +15,7 @@ export {
 export {
   SCIP_DEFAULT_CACHE_DIR,
   SCIP_STATUS_EXTRACTED,
-  SCIP_STATUS_NOT_CONFIGURED,
-  SCIP_STATUS_INDEXER_UNAVAILABLE,
-  buildScipOverlay,
-  clearScipCache,
-  writeScipCacheMeta
+  SCIP_STATUS_NOT_APPLICABLE,
+  discoverSidecarScipProjects,
+  runScipProjectsFromCommittedSnapshot
 } from "./sidecar-scip-provision.mjs";

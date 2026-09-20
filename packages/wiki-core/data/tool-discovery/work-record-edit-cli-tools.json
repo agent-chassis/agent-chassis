@@ -3,8 +3,8 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "work-record-edit-cli-tools.json",
-  "summary": "Operator-shell wiki CLI fallbacks for work-record derived-evidence refresh/cleanup and structured slice, list-field, acceptance, and review-unit editing.",
-  "tool_count": 7,
+  "summary": "Operator-shell wiki CLI fallbacks for work-record derived-evidence refresh/cleanup and structured slice, list-field, and review-unit editing.",
+  "tool_count": 6,
   "tools": [
     {
       "tool_name": "wiki-work-records-cleanup-derived-evidence",
@@ -43,7 +43,7 @@
         "packages/wiki-core/src/operations/work-record-derived-evidence-cleanup.mjs",
         "packages/wiki-core/src/lib/work-record-derived-evidence-cleanup.mjs"
       ],
-      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agent cleanup should use workspace_work_record_cleanup_derived_evidence. Dry-run by default; --write persists through validated work-record persistence with stale-source protection."
+      "notes": "Operator-shell command for human/operator diagnosis and recovery only; not agent dispatch authority. Routine current-format admission artifacts are maintained automatically after each confirmed admission-evidence publication for the affected WK, so agents need no cleanup step. Dry-run by default; --write persists through validated work-record persistence with stale-source protection."
     },
     {
       "tool_name": "wiki-work-records-upsert-slice",
@@ -157,49 +157,10 @@
         "docs/operating-model.md"
       ],
       "source_files": [
-        "packages/wiki-cli/src/commands/work-records.mjs",
+        "packages/wiki-cli/src/commands/work-record-contract-edit.mjs",
         "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
       ],
-      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_set_list_field. Writes through validated work-record persistence with stale-source protection."
-    },
-    {
-      "tool_name": "wiki-work-records-set-acceptance",
-      "display_name": "Set work-record acceptance",
-      "kind": "cli_command",
-      "entrypoint": "npm run wiki -- work-records set-acceptance --id <WK-ID> [--criteria-json '<json-array>'] [--validation-json '<json-array>'] [--expected-source-digest <digest>] --json",
-      "task_ids": [
-        "contract-edit"
-      ],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "cli",
-      "audience": [
-        "operator"
-      ],
-      "priority": 100,
-      "side_effects": [
-        "workspace_write",
-        "record_write"
-      ],
-      "authority": [
-        "work_record",
-        "workspace_repo"
-      ],
-      "tier_visibility": [
-        "operator_only"
-      ],
-      "docs_refs": [
-        "docs/tool-discovery-surfaces.md",
-        "docs/tool-discovery.md",
-        "docs/work-record-ontology.md",
-        "packages/wiki-core/contract/schema.md",
-        "docs/operating-model.md"
-      ],
-      "source_files": [
-        "packages/wiki-cli/src/commands/work-records.mjs",
-        "packages/wiki-core/src/lib/work-record-contract-edit.mjs"
-      ],
-      "notes": "Operator-shell fallback for human/operator use only. Not agent dispatch authority; agents should use workspace_work_record_set_acceptance. Writes through validated work-record persistence with stale-source protection."
+      "notes": "Operator-only fallback for registry-derived ordinary list fields. Rejects acceptance.criteria and docs. Agents use workspace_work_record_edit. Uses validated persistence and stale-source protection."
     },
     {
       "tool_name": "wiki-work-records-shape-review-unit",

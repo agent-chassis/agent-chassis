@@ -1,146 +1,110 @@
 
 
 import { canonicalizeWorkRecordReadScope } from "./work-record-schema.mjs";
+import { projectWorkRecordTestProofValidation } from "./work-record-test-proof-bindings.mjs";
 import {
   cloneJson,
   collectJsonDiffPaths,
   createDiagnostic,
-  diagnosticPathIsWithin,
-  findSliceIndexes,
-  isObject
+  jsonEqual
 } from "./work-record-contract-edit-shared.mjs";
 
 const PERSISTED_DIFF_DIAGNOSTIC_PATH_LIMIT = 5;
 const PERSISTED_DIFF_DIAGNOSTIC_PATH_LENGTH_LIMIT = 96;
 
-export const WORK_RECORD_ACCEPTANCE_REPAIR_MANAGED_PATHS = Object.freeze(["updated"]);
+export const ACCEPTANCE_NARRATIVE_INPUT_INVALID = "acceptance_narrative_input_invalid";
+const NARRATIVE_ACTIONS = Object.freeze(["replace", "append"]);
 
-export function assessAcceptanceRepairEligibility(
-  record,
-  { sliceId = null, diagnostics = [] } = {}
-) {
-  if (!isObject(record)) {
-    return {
-      ok: false,
-      diagnostic: createDiagnostic(
-        "acceptance_repair_unparseable_base",
-        "set_acceptance repair requires a structurally parsed work-record object",
-        { path: null }
-      )
-    };
-  }
-
-  let acceptancePath = "acceptance";
-  let sliceIndex = null;
-  if (sliceId !== null && sliceId !== undefined) {
-    const indexes = findSliceIndexes(record, sliceId);
-    if (indexes.length === 0) {
-      return {
-        ok: false,
-        diagnostic: createDiagnostic("slice_not_found", `Slice '${sliceId}' does not exist on ${record.id}`, {
-          path: "unit"
-        })
-      };
-    }
-    if (indexes.length !== 1) {
-      return {
-        ok: false,
-        diagnostic: createDiagnostic(
-          "acceptance_repair_ambiguous_slice",
-          `set_acceptance repair requires exactly one slice '${sliceId}', found ${indexes.length}`,
-          { path: "unit" }
-        )
-      };
-    }
-    sliceIndex = indexes[0];
-    acceptancePath = `slices[${sliceIndex}].acceptance`;
-  }
-
-  const enumerableRecord = cloneJson(record);
-  const canonicalRecord = canonicalizeWorkRecordReadScope(enumerableRecord);
-  const normalizationDiff = collectJsonDiffPaths(enumerableRecord, canonicalRecord);
-  if (normalizationDiff.length > 0) {
-    return {
-      ok: false,
-      diagnostic: createDiagnostic(
-        "acceptance_repair_non_canonical_record",
-        `set_acceptance repair refuses a base record that persistence would normalize outside the selected acceptance subtree: ${normalizationDiff.join(", ")}`,
-        { path: normalizationDiff[0] }
-      )
-    };
-  }
-
-  const baseErrors = diagnostics.filter((entry) => entry?.severity === "error");
-  const outsideError = baseErrors.find(
-    (entry) => !diagnosticPathIsWithin(entry?.path, acceptancePath)
-  );
-  if (outsideError) {
-    return {
-      ok: false,
-      diagnostic: createDiagnostic(
-        "acceptance_repair_invalidity_outside_target",
-        `set_acceptance repair refuses base error '${outsideError.code}' outside ${acceptancePath}`,
-        { path: outsideError.path ?? null }
-      )
-    };
-  }
-
-  if (baseErrors.length === 0) {
-    return {
-      ok: false,
-      diagnostic: createDiagnostic(
-        "acceptance_repair_valid_base_not_required",
-        "the invalid-base repair path requires at least one base error diagnostic",
-        { path: acceptancePath }
-      )
-    };
-  }
-
-  return { ok: true, acceptancePath, sliceIndex };
+function mechanicalDiagnostic(code, message, path, details = {}) {
+  return {
+    ...createDiagnostic(code, message, { path }),
+    authority_limb: "mechanical_failure",
+    ...details
+  };
 }
 
-export function guardAcceptanceRepairPersistedDiff(
-  baseRecord,
-  candidateRecord,
-  {
-    sliceIndex = null,
-    hasCriteria = false,
-    hasValidation = false,
-    managedPaths = WORK_RECORD_ACCEPTANCE_REPAIR_MANAGED_PATHS
-  } = {}
-) {
-  const normalizedBase = canonicalizeWorkRecordReadScope(cloneJson(baseRecord));
-  const normalizedCandidate = canonicalizeWorkRecordReadScope(cloneJson(candidateRecord));
-  const acceptancePath = sliceIndex === null ? "acceptance" : `slices[${sliceIndex}].acceptance`;
-  const allowedPaths = new Set(managedPaths);
-  if (hasCriteria) {
-    allowedPaths.add(`${acceptancePath}.criteria`);
+function narrativeInputRefusal(message, path) {
+  return {
+    ok: false,
+    diagnostic: mechanicalDiagnostic(ACCEPTANCE_NARRATIVE_INPUT_INVALID, message, path)
+  };
+}
+
+function isExecutableShaped(entry) {
+  return entry !== null && typeof entry === "object" && !Array.isArray(entry) &&
+    (Object.hasOwn(entry, "operation") || Object.hasOwn(entry, "target"));
+}
+
+function checkNarrativeItem(item, path) {
+  const itemRoot = "$item";
+  const projection = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance: { validation: [item] } },
+    path: itemRoot
+  });
+  if (projection.status === "valid" && projection.entry_kinds[0] === "note") return null;
+  if (isExecutableShaped(item)) {
+    return narrativeInputRefusal(
+      `${path} is an executable validation entry; ordinary acceptance input accepts only note ` +
+        "strings or {note, verification_ids}. Executable node_test bindings are authored through " +
+        "controlled-contract obligation coverage cases.",
+      path
+    );
   }
-  if (hasValidation) {
-    allowedPaths.add(`${acceptancePath}.validation`);
+  const issue = projection.diagnostics[0];
+  const atInput = (text) => text.replaceAll(`${itemRoot}[0]`, path);
+  return narrativeInputRefusal(
+    issue ? atInput(issue.message) : `${path} must be a nonblank note string or {note, verification_ids}`,
+    issue ? atInput(issue.path) : path
+  );
+}
+
+export function planAcceptanceNarrativeValidation({
+  current = [],
+  requested,
+  action = "replace",
+  path = "acceptance.validation",
+  storedPath = "acceptance.validation"
+} = {}) {
+  if (!NARRATIVE_ACTIONS.includes(action)) {
+    return narrativeInputRefusal(
+      `acceptance note action must be one of: ${NARRATIVE_ACTIONS.join(", ")}`,
+      path
+    );
+  }
+  if (action === "replace" && !Array.isArray(requested)) {
+    return narrativeInputRefusal(`${path} must be an array of acceptance notes`, path);
+  }
+  const items = action === "append" ? [requested] : requested;
+  for (const [index, item] of items.entries()) {
+    const refused = checkNarrativeItem(item, action === "append" ? path : `${path}[${index}]`);
+    if (refused) return refused;
   }
 
-  const diffPaths = collectJsonDiffPaths(normalizedBase, normalizedCandidate);
-  const disallowedPath = diffPaths.find(
-    (entry) =>
-      !Array.from(allowedPaths).some(
-        (allowedPath) => entry === allowedPath || entry.startsWith(`${allowedPath}[`)
-      )
-  );
-  if (disallowedPath) {
+  const stored = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance: { validation: current } },
+    path: storedPath
+  });
+  if (stored.status !== "valid") {
+    const [issue] = stored.diagnostics;
     return {
       ok: false,
-      normalizedCandidate: null,
-      diffPaths,
-      diagnostic: createDiagnostic(
-        "acceptance_repair_diff_guard_failed",
-        `set_acceptance repair would persist an unauthorized change at ${disallowedPath}`,
-        { path: disallowedPath }
-      )
+      diagnostic: mechanicalDiagnostic(issue.code, issue.message, issue.path, {
+        state: "corrupt_stored_validation"
+      })
     };
   }
-
-  return { ok: true, normalizedCandidate, diffPaths, diagnostic: null };
+  const storedNotes = current.filter((_entry, index) => stored.entry_kinds[index] === "note");
+  if (action === "append") {
+    if (storedNotes.some((note) => jsonEqual(note, requested))) {
+      return { ok: true, changed: false, validation: cloneJson(current) };
+    }
+    return { ok: true, changed: true, validation: [...cloneJson(current), cloneJson(requested)] };
+  }
+  if (jsonEqual(storedNotes, items)) {
+    return { ok: true, changed: false, validation: cloneJson(current) };
+  }
+  const executables = current.filter((_entry, index) => stored.entry_kinds[index] === "executable");
+  return { ok: true, changed: true, validation: [...cloneJson(items), ...cloneJson(executables)] };
 }
 
 function boundPersistedDiffPaths(diffPaths) {

@@ -102,7 +102,8 @@ Internal module refactors; public import surfaces preserved.
 - **`wiki adoption verify` has been removed.** Delete it from scripts, CI steps, and
   runbooks; the command and its readiness envelope no longer exist. Bootstrap no longer
   seeds an adoption tracker work record either — a fresh bootstrap creates only an
-  in-progress first-work placeholder, and existing-repository adoption is deferred.
+  in-progress first-work placeholder, with `wiki/initiatives/IN-0001.json` canonical and
+  `wiki/initiatives/IN-0001.md` generated from it; existing-repository adoption is deferred.
 - Repoint imports of the experimental v0.34 contract exports at their v1 counterparts, and
   replace wildcard subpath imports of schemas, profiles, examples, or the vocabulary with
   the named subpaths.
@@ -112,6 +113,10 @@ Internal module refactors; public import surfaces preserved.
 
 ## Fixed
 
+- Fresh bootstrap now persists `IN-0001` as valid canonical `initiative.v1` JSON and
+  regenerates its Markdown projection through the shared kind-record store. Initiative
+  status and assignment therefore recognize the placeholder immediately, while bootstrap
+  still reserves no `WK-*` identity and the first work record remains `WK-0001`.
 - Initiative status resolved its shipped taxonomy data relative to the caller's working
   directory, so it failed when run from anywhere but a repository root; it now loads that
   data from the installed package. A repository with no work-records directory returns an

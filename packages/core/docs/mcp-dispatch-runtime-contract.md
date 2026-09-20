@@ -4,8 +4,9 @@
 `workspace_agent_dispatch` and its monitor routes are backed by one
 launcher-owned in-process runtime. The runtime freezes the selected family,
 role, work record or slice, managed worktree binding, read and write authority,
-model registration adapter, host wiki-MCP server, named-FIFO conduit, and
-lifecycle owner before spawning the role.
+model registration adapter, host wiki-MCP server factory, private local socket
+admission, and lifecycle owner before spawning the role. Each authenticated MCP
+command invocation subsequently gets an independent host server generation.
 
 Reviewer and redteam roles are selected before the implementation lifecycle and
 share one action-local advisory-review execution pipeline. WK, slice, current
@@ -90,13 +91,43 @@ identity. Recovery-envelope failures keep their narrower
 `exact_returned_policy`, treated as a returned denial, mapped to
 `work_record_readiness_failure`, or collapsed into `operator_recovery_needed`.
 
+**Controlled-acceptance disposition is a separate mechanical prerequisite.**
+For implementation work, readiness and managed dispatch independently derive
+the parent WK's `controlled_acceptance_state` from canonical `proof_posture` and
+the current authenticated workbench population as `absent`, `incomplete`,
+`complete`, or `opted_out`. The first two refuse before
+persistent-WK allocation, generation persistence, attempt recording, executor
+invocation, child-process creation, or worker-visible composition and return
+an exact ordinary obligation-coverage query recovery call. The query returns
+the combined revision needed for a subsequent controlled-contract obligation
+coverage upsert.
+Findings-only review and redteam work remains dispatchable at its legitimate
+pre-authoring lifecycle points. Their managed snapshot still authenticates the
+one derived projection, but absent or incomplete state is not an implementation
+admission refusal. Malformed canonical posture blocks snapshot authentication
+consistently rather than being interpreted. A valid explicit opt-out proceeds without a
+generation and is projected separately from CCE posture.
+
 `operator_recovery_needed` is a break-glass classification only. The shared
 classifier can select it solely from an authenticated unexpected condition that
 originated outside the tooling model, and the public result must preserve that
 exact external condition. Validation failures, scope thresholds, backend
 refusals, missing routes, malformed or missing envelopes, unknown versions or
 fields, contradictions, projection failures, handler exceptions, portfolio
-defects, and default branches are modeled outcomes and may never select it.
+defects, and default branches are modeled outcomes and may never select it. So
+are pre-start launch failures, lifecycle protocol incompatibility, run-monitoring
+and post-worker recovery failures, corrective-status recoveries awaiting launcher
+retirement, and committed-slice integration refusals; each keeps its own
+registered identity, listed in
+[Launch and admission](mcp-dispatch-launch-and-admission.md).
+
+A refusal that carries a thrown or returned failure preserves the complete
+original diagnostic evidence through the public response, beside the display
+projection rather than instead of it. The display field stays redacted; the
+evidence field under `detail.evidence` is the unredacted
+`agent_launch.diagnostic_evidence.v1` encoding of the message, stack, own
+properties, and full `cause` chain, and any cut-off it could not carry is
+disclosed in its own `capture_failures` list rather than dropped.
 
 **Confirmed no-authority is positive only.** A launcher-confirmed declaration
 that no CCE authority is configured produces no local admissibility block: a
@@ -118,6 +149,11 @@ intentionally undeclared. Empty environment state, missing variables,
 caller-supplied config, partial, malformed, oversized, or caller-authored
 declarations never select `local_only_fail_open`. A standalone published
 `wiki-mcp` bin launch inherits no descriptor and so cannot select it either.
+
+That posture means only that no CCE policy decision denied an otherwise
+mechanically valid operation. `local_only_fail_open` and
+`authenticated_request_sent:false` never supply, infer, or waive the mandatory
+controlled-acceptance proof-posture disposition.
 
 The launcher resolves canonical workspace configuration before it creates the
 descriptor, and it does so per server generation rather than once per conduit;
@@ -143,21 +179,98 @@ The current response contract and distinct admit-consumption rule are owned by
 [the enforcement model](enforcement-model.md#the-authority-boundary-at-mcp-dispatch-admission-wk-2316);
 this runtime contract does not restate or re-evaluate that rule.
 
-`workspace_validate_dispatch` consumes the wiki-core validator-owned typed
-recovery result. It never parses raw CCE recovery or owns an action, reason,
-field, or schema vocabulary. Ordinary output remains bounded to the validator's
-diagnostic metadata and the existing non-authorizing continuation; it omits the
-retained recovery value. With both `node_engine_admissibility:true` and
-`verbose:true`, it publishes the same typed result and complete retained
-diagnostic carrier, including the CCE source boundary, live decision and
-authority-binding evidence, canonical digest, UTF-8 byte count, member count,
-ordered JSON-Pointer/type census, validator issue, and retained recovery value.
+`workspace_validate_dispatch` has one strict request and one readiness response.
+Its request accepts only the registered repository, unit, role, mode, and
+`node_engine_admissibility` members, or the repository, unit, and a selected
+`detail` read; `verbose` and replacement bulk aliases are malformed input,
+including when their value is `false`, and are rejected before the validator,
+graph cache, or CCE can run. `detail` cannot accompany role, mode, or
+`node_engine_admissibility` and is refused as `selected_response_query_invalid`.
+The registered route owns that request boundary, the wiki-core invocation, and
+the `jsonContent` transport. `createCompactValidateDispatchResponse` is the sole
+presentation owner.
 
-The shared `jsonContent` response boundary is the sole size owner. If that
-complete verbose envelope exceeds its inline limit, it persists the already
-complete JSON bytes and returns a `content_reference`;
-`workspace_read_mcp_content_reference` range-reads those exact bytes. Neither
-route reconstructs discarded recovery, and neither owns CCE schema semantics.
+That presenter consumes the wiki-core validator-owned typed recovery result. It
+never parses raw CCE recovery or owns an action, reason, field, or schema
+vocabulary. The ordinary response preserves structural and CCE outcomes,
+subject and role/axis provenance, currentness, typed graph failures, complete
+distinct relevant reasons and their accurate total, locally measured blast and
+decomposition facts, and the validator-owned complete retained recovery carrier.
+It summarizes the actual per-obligation
+`semantic.ordinary_authoring_readiness.declarations` inventory while retaining
+its exact status and counts. `declaration_details` reports the omitted count and
+the exact selected owners:
+`workspace_controlled_contract_obligation_coverage_query` recovers the authored
+obligations and `workspace_validate_proof` recovers their classified diagnostic
+meaning. Callers use those returned calls and follow opaque source identities,
+diagnostic-group identities, cursors, ranges, and stale-source recovery until
+the selected population is complete. Proof queries do not recover graph or CCE
+data.
+
+The presenter output is the complete readiness carrier, and every ordinary
+response frame fits the compact complete-frame class
+(`min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, activeMcpInlineByteLimit())`).
+A carrier that fits is returned whole with `selected_detail.complete: true`.
+Otherwise the carrier is retained once and the response is a bounded summary. It
+first reserves the decision header, action-essential next action, recovery and
+decision facts, exact reason, distinct-reason, owner-call and collection counts,
+the retained source locator and detail calls. Then it inlines complete members,
+and distinct reason and owner-call identities, that fit. An identity population
+that does not fit inline is disclosed as `inline.complete: false`, and a chosen
+reason or owner call is read directly by ordinal from its original collection.
+Cardinality alone never refuses valid readiness. `workspace_validate_dispatch` with
+`detail:{source, collection, selector?, ordinal?, field_path?, offset?, length?}`
+reads that retained observation through bounded pages, field inventories, and
+scalar ranges. Detail never revalidates, refreshes graph data, or evaluates CCE;
+its pages label the observation `current`, `changed`, or `unavailable` against
+the canonical record digest. After a lost snapshot identity or cursor, the
+refusal returns the same selection bound to its source. A value holding a
+reserved assessment envelope is published only through its parts. The
+composition, collections, and refusal identities are owned by
+[MCP Selected Response Details](mcp-selected-response-details.md). No route
+reconstructs discarded recovery or owns CCE schema semantics.
+**Worker scope preflight.** For an exact implementation slice on the
+implementation axis, the registered route composes the launcher's read-only
+worker scope preflight with the wiki-core validator. It resolves the prospective
+scope-existence base with the launcher's own resolver, which is the persistent
+WK tip when that branch exists and otherwise the configured base the allocator
+would cut it from. It then runs the same frozen-authority resolution the scope
+freeze runs. It never allocates, snapshots, writes a ref, or creates a directory.
+The response carries `worker_scope_preflight` with `status` (`passed`,
+`refused`, or `not_evaluated`), the `base` ref, SHA and `source`, the
+`evaluated` checks, and `pending_at_launch`. `pending_at_launch` names the launch
+work a pass never certifies: allocation and record snapshot, revalidation at the
+provisioned base, assigned-source readability, writable-directory preparation,
+namespace projection, and runtime and sandbox availability. A `refused` report
+carries `refusal: {code: "worker_scope_path_refused", message, field, path,
+component, cause}`. `cause` is one of `missing_leaf`, `missing_intermediate`,
+`symlink`, `gitlink`, `type_conflict`, `non_canonical_path`,
+`git_metadata_path`, or `escapes_repository`. A refused preflight overturns only
+a readiness that would otherwise dispatch. It sets
+`decision_code: "worker_scope_path_refused"` and keeps the prior structural
+result under `structural_readiness`. A `not_evaluated` report, such as an
+unresolvable base or a supplied non-live record store, never changes the
+decision. Launch remains authoritative and refuses the same path facts with the
+same `worker_scope_path_refused` detail through
+`canonical_scope_resolution_failed`.
+
+A launch refusal carries that verdict to the public dispatch result. The
+backend detail declares `cause.code: "worker_scope_path_refused"`, the typed
+`worker_scope_path` facts (`code`, `field`, `path`, `component`, `cause`), the
+declared `path`, `unchanged_retry_recovers: false`, and a callable recovery for
+the same `workspace_agent_dispatch` role and subject. The code is registered
+under `work_record_readiness` with `coordinator` recovery, so classification is
+`known` and the public blocker and refusal code are `worker_scope_path_refused`.
+The refusal's deciding facts are `worker_scope_path.field`, `.path`,
+`.component`, `.cause`, and `worker_scope_path.corrected: false`. Its only next
+call is the same dispatch, gated by the `prerequisite_predicate`
+`worker_scope_path.corrected is_true`: the author corrects the canonical slice
+contract, or delivers the path at the scope base, first. No write call with
+invented arguments is advertised. Only an error minted by the scope authority
+produces these facts. A thrown value that copies the code has its `cause.code`
+cleared and keeps the generic managed-lifecycle classification. A declared cause
+without valid facts keeps the public code but offers no correction.
+
 Malformed present recovery is rejected by wiki-core's single client validation
 boundary. Downstream MCP and launcher consumers never recheck the typed result,
 synthesize recovery, or change the original `needs_review` or `reject` effect.
@@ -234,7 +347,8 @@ Every authenticated backend refusal is classified exactly once, by
 result is the sole authority for the failure code, cause, authority limb, public
 diagnostics, recovery, classification state, and redaction signals of that
 refusal. `packages/wiki-mcp/src/lib/dispatch-tools/register.mjs` consumes it and
-performs only a structural public allowlist projection; on an authenticated
+performs only a structural public-shape projection while carrying the complete
+diagnostic; on an authenticated
 refusal path no route-local helper — corrective-status projection, needs-review
 projection, reason matching, authority-limb matching, nullish fallback, or the
 backend-refusal blocker map — may select or override any of those fields. Those
@@ -282,6 +396,80 @@ incident coverage in
 `tests/workspace-agent-dispatch-corrective-status-recovery.test.mjs` separate
 them.
 
+### Launch-time path failures and refusal object placement
+
+Managed worker scope membership is resolved against the authenticated base
+before launch. A later launch-time path failure therefore means the launcher
+did not prepare or project a path. It is never an authored-scope verdict and
+never evidence that bubblewrap is unavailable. Both family catches, the Codex
+plan-materialization mapping, and the Claude no-conduit catch send a typed
+isolation path diagnostic through `launch-failure-cause.mjs`. That module
+publishes `agent_launch.confined_launch.path_unprepared.v1` as both
+`refusal.code` and `refusal.reason`, so the public blocker is that code, the
+actor is `operator`, and the recovery is `no_supported_route`. The detail carries:
+
+- `isolation_code` and `errno`;
+- the repository-relative `path` and, for a worker scope member, `scope_member`
+  (`access`, `member_kind`, `index`, `path`, `failed_component`);
+- `scope_widening_recovers: false` and `unchanged_retry_recovers: false`;
+- `sandbox_required: true` and `unenforced_fallback_permitted: false`.
+
+The raw message is not published, because it contains the host checkout path. A
+Claude launch without a conduit also refuses a path diagnostic before the
+sandbox decision, so it can never select an unenforced launch.
+
+`stdio_mcp_conduit_requires_bubblewrap` is the refusal only for a typed
+bubblewrap backend diagnostic (`bwrap_unavailable`, `bwrap_not_executable`,
+`bwrap_probe_failed`, or `bwrap_spawn_failed`) while a conduit is held. Its
+detail carries the bounded `message`, the diagnostic `code`, and a validated
+`errno`. Every other failure while a conduit is held, including an unmodeled
+exception and a typed isolation diagnostic that names no backend failure, uses
+the reason `confined_launch_failure_unclassified`. That reason is deliberately
+unregistered, so classification reports `authenticated_unclassified` with
+`launcher_transition.authenticated_backend_refusal_unclassified.v1`. Its detail
+states `cause_known: false` and `bubblewrap_failure_established: false`, with
+the bounded `message` and `code`, `actor_recovery: "operator"`, and
+`recovery: {state: "no_supported_route", route: null}`. Both reasons keep
+`sandbox_required: true` and `unenforced_fallback_permitted: false`. Messages
+are bounded, with absolute host paths replaced by `<host-path>`, and never
+include a stack. A plain error that only carries a similar `code` is not a
+modeled cause.
+
+A shared writable-directory preparation refusal carries `scope_member`
+(`access: "writable"`, `member_kind: "directories"`, `index`, `path`, and
+`failed_component`) for a missing, replaced, or symlinked parent, an
+uninspectable leaf, a failed creation, and a type change during preparation. The
+launch refusal therefore names the relevant repository-relative path.
+
+Cleanup always runs before the refusal is built. A cleanup failure is bounded
+secondary evidence (`code`, path-redacted `message`, and up to eight collected
+failures) and never replaces the primary cause:
+
+- conduit teardown: `conduit_cleanup_failures`;
+- attempt-owned precreated files and directories (Codex and Claude):
+  `precreation_cleanup_failure`. After an accepted Claude child has terminated,
+  the same field is set on the terminal `exit` and on a `missing_result`
+  detail. `precreation_cleanup_deferred` records that the run was reported
+  terminal before its child's termination was observed;
+- pending managed-run identity discard or reservation release after a refused,
+  resultless, or invalid-status executor, a thrown executor, or a pre-executor
+  settlement refusal: `managed_identity_settlement_failure`, with
+  `pending_identity_retained` and `reservation_retained`.
+
+A refused dispatch publishes each large object once:
+
+- A refusal with a managed allocation publishes the allocation and the settled
+  plan only under `readiness`, as `readiness.managed_wk_allocation` and
+  `readiness.launcher_transition_plan`. A top-level `launcher_transition_plan`
+  appears only when the active plan is a distinct object from the settled plan.
+  No top-level `managed_wk_allocation` or `settled_launcher_transition_plan` is
+  published.
+- Every other transition refusal omits the top-level `launcher_transition_plan`
+  when `readiness.launcher_transition_plan` is that exact plan.
+
+An oversized refusal still spills losslessly. Ranged
+`workspace_read_mcp_content_reference` retrieval reconstructs the same bytes.
+
 ### Producer-originated envelopes and the public response field list
 
 The classifier accepts only an envelope identified by the producer boundary:
@@ -304,62 +492,53 @@ exception boundary. It is never trimmed to fit, never treated as secret
 redaction, and never converted into backend absence. The raised message names the
 field path and, for an over-bound value, its observed length — never the value.
 
-These producer paths, and only these, may cross the public boundary:
+The complete losslessly serializable `refusal.detail` crosses the classifier as
+diagnostic data. The registered MCP response publishes it exactly once, at
+`blocker.detail.originating_detail`. The mechanical refusal carrier does not
+repeat it; `refusal.carried.launcher_backend_refusal.originating_detail_location`
+names `blocker.detail.originating_detail` instead. The diagnostic includes
+originating messages, codes, details, nested causes, paths, stdout, stderr, and
+other supplied plain diagnostic values. `blocker.detail` also repeats top-level
+scalar diagnostic fields, such as a relative `path`, for display. Structured
+values appear only under `originating_detail`.
 
-`refusal.code`, `refusal.reason`, `detail.cause.type`, `detail.cause.code`,
-`detail.cause_code`, `detail.recovery.{state,route,args}`, `detail.next_action`,
-`detail.actor_recovery`, `detail.next_action_args.{role,subject}`, and the
-declared mismatch facts `detail.{mismatch_field,expected,actual,subject,role}`.
-Ordinary diagnostic fields also cross completely: `detail.message`,
-`detail.detail`, `detail.error`, `detail.stderr`, `detail.stdout`, `detail.stack`,
-`detail.explanation`, `detail.reason_detail`, `detail.diagnostic`, and
-`detail.output`.
+Stack text is the one redaction. Every error-shaped object (one with a string
+`stack` and a `name` or `message`) loses `stack` and gains `origin_frame`: its
+first `packages/` or `node_modules/` stack frame as a package-relative
+`file:line:column`, or `null` when it has none. That frame keeps throw sites
+distinguishable without publishing host paths. `redactions` lists each removed
+stack by location, for example `originating_detail.diagnostic.stack`. No field
+allowlist, content filter, or generic-message replacement applies on this path.
 
-A contract-valid value crosses **completely** (decision). Nothing on this list is
-summarized, ellipsized, or trimmed to a bound. A value that does not satisfy its
-declared schema is rejected instead: its field path appears in the
-classification's `schema_rejected` list and the value is absent. Rejection and
-redaction are distinct and separately reported, so a caller can always tell
-"absent because malformed" from "absent because producer-classified".
+The shared `serializeWorkRecordDiagnosticValue` operation owns this conversion.
+Unsupported values, accessors, cycles, proxies, sparse arrays, symbols, and
+other non-lossless shapes raise an explicit serialization failure; they do not
+disappear and are not replaced with placeholders.
 
-Recovery comes only from those declared paths. A valid `detail.recovery` state is
-authoritative — including when it is `no_supported_route`; only when no valid
-recovery carrier is present does the declared next-action triple
-(`next_action` + `actor_recovery` + `next_action_args`) supply a callable
-continuation. A redacted or schema-rejected field can never select recovery, and
-no recovery is invented when neither declared path is present.
+Diagnostic preservation is independent of authority. The classifier validates
+only the declared top-level `detail.recovery` carrier or the top-level
+`detail.next_action` + `detail.actor_recovery` + `detail.next_action_args`
+triple when selecting a callable continuation. Invalid authority fields remain
+complete inside `originating_detail`, while their paths also appear in
+`schema_rejected`. A nested `next_action`, recovery suggestion, authority limb,
+or action-like value inside an error remains diagnostic data and cannot make an
+operation callable.
 
-### Redaction signals
+A valid top-level `detail.recovery` state remains authoritative, including
+`no_supported_route`. Only when no valid recovery carrier is present may a
+valid declared top-level next-action triple supply a callable continuation.
+Launcher-owned reconciliation branches publish their supported recovery
+directly. When the launcher has no supported recovery, it publishes
+`no_supported_route` alongside the complete explanation rather than producing
+that state by discarding diagnostic or recovery-like content.
 
-Only an exact value explicitly declared sensitive by its producer, or a value on
-the launcher's declared private transition protocol, is removed and emits exactly
-one `{ field, reason }` signal. Unknown fields are schema-rejected, not called
-redacted. The launcher-private reason vocabulary is closed to two values, exported as
-`LAUNCHER_TRANSITION_REDACTION_REASONS`:
-
-| Reason | Applies to |
-| --- | --- |
-| `secret_material` | Exact credential or authorization material explicitly identified by its producer. |
-| `launcher_private_state` | Authenticated capability-scoping and private lifecycle state, including observed status carriers and producer authority tokens such as `detail.authority_limb`. |
-
-Diagnostic, error, stderr, stack, free-form, caller-controlled, untrusted, long,
-or inconvenient text is not inherently sensitive and is not a redaction class.
-The classifier never guesses from field names or words inside prose. Paths and
-nested diagnostic structures are ordinary diagnostics and remain value-identical.
-When a structured diagnostic explicitly identifies a genuine sensitive value,
-only that exact value is removed and signalled; the remainder is preserved
-exactly. An oversized
-public response uses the MCP content reference with `total_bytes` and operative
-`workspace_read_mcp_content_reference` ranged retrieval, so the complete
-ordinary diagnostic remains reconstructable.
-
-This is an exact response-shape rule, not a general confidentiality or
-credential-leak-prevention posture. A producer-classified removed value does not
-appear in diagnostics, recovery, or an alternate response field, and a removed
-field cannot select recovery. Because `detail.authority_limb`
-is removed, a producer authority token can no longer promote a refusal to the
-exact-returned-policy limb; that limb is selected from the canonical registry
-category of the cause itself.
+An oversized public response uses the existing lossless MCP content reference
+with `total_bytes` and operative `workspace_read_mcp_content_reference` ranged
+retrieval, so the exact diagnostic JSON bytes remain reconstructable. If spill
+persistence fails, the response reports
+`mcp_response.spill_persistence_failed.v1` and the complete serializable spill
+failure diagnostic; it does not claim that the underlying operation failed or
+advertise an unreadable reference.
 
 The plan consumes authenticated results without transferring their authority.
 work record remains settlement/recovery owner, work record role/runtime owner,
@@ -516,12 +695,6 @@ explicitly identify the exact value being removed. Unknown and retired reasons
 fail validation loudly. This vocabulary defines an exact response shape; it is
 not a general confidentiality or minimum-disclosure policy.
 
-work record's two private launcher reasons are not published
-directly. They cross into the public vocabulary exactly once, through
-`projectLauncherRedactionReason`. An unrecognised internal reason FAILS rather
-than being published verbatim, because publishing an unknown reason would reopen
-the free-text redaction hole the closed enumeration exists to close.
-
 A redacted or omitted deciding fact may not select a recovery. Where a producer
 declares `recovery.selected_from`, every named fact must be a PUBLISHED one — a
 caller cannot verify a selection it cannot see.
@@ -630,11 +803,10 @@ defined only at their producer, so no registry described them and
 `workspace_runtime_blocker_taxonomy` could not enumerate them. `mcp-response.mjs`
 now fails its own module load if either identity leaves the registry.
 
-Where a launcher refusal reaches the public dispatch envelope, its redaction
-signals cross through `projectLauncherRedactionReason` exactly once. work record's
-three private reasons are unchanged and unregistered here; the FIELD path is
-preserved so a caller still knows which field was removed, and only the reason is
-re-expressed in the public vocabulary.
+Where a launcher refusal reaches the public dispatch envelope, its complete
+serialized diagnostic crosses unchanged. The public redaction vocabulary above
+still governs other mechanical deciding-fact producers; it is not applied to
+launcher bootstrap or backend-refusal diagnostics.
 
 ### Preflight stays projection-only
 
@@ -712,15 +884,31 @@ over it.
 
 A proceed result is scoped in the same breath it is given. `proceed_scope` states
 the scope, sets `asserts_complete_launch_readiness: false`, names the
-launch-readiness owner, and enumerates the deferred boundaries. It does so on
+launch-readiness owner, and accounts for the deferred boundaries. It does so on
 refusals as well as on proceeds, so completeness can never be read into the
 absence of a caveat.
 
-Compact output omits exactly one thing: the per-family detail. It still reports
+The deferred-boundary list has one owner. Verbose output carries it under both
+`coverage` and `proceed_scope`; compact output carries it once, under `coverage`,
+and `proceed_scope` names that member in `deferred_boundaries_member` with its
+`deferred_boundary_count`. The boundaries themselves, their families, their
+local handling and their authoritative owners are identical in both projections;
+only the second copy is gone. A `proceed_scope` whose list ever diverged from
+`coverage` would be a distinct fact and would be carried in full.
+
+Compact coverage omits exactly one thing: the per-family detail. It still reports
 the complete family count, the omission counts, the closed vocabulary, the
 deferred boundaries, and the operative route that returns the rest —
 `verbose:true` on `workspace_coordination_preflight`. Both projections derive
 their counts from the same family set, so they cannot disagree about coverage.
+
+Compact capability output is scoped the same way. Every plane keeps its identity
+and status in `plane_status`, and every plane that is not available keeps its
+COMPLETE row — blockers, cause, recovery and authority freshness — in
+`unavailable_planes`, because that is what a proceed/blocked decision is read
+from. `plane_count` and a `complete_retrieval` descriptor naming
+`capabilities.planes` behind `verbose:true` account for the rest. No plane
+disappears, and nothing reads as available that is not.
 
 ### Point-in-time corpora
 
@@ -811,7 +999,11 @@ worker-only outcomes, missing fields, unknown enums, extra fields, and prose.
 Bounded parser diagnostics annotate `schema_observation`; they never produce an
 `invalid_result`, mandatory retry, replacement, or recovery posture for the
 ordinary review. Compact monitoring supplies a bounded content reference, while
-`include_final_result:true` returns the complete captured text.
+`include_final_result:true` returns the complete logical public result: each
+distinct captured string is retained once and later equal slots directly
+reference that retained member. The detailed schema, priority, counts, and
+compact/complete reference semantics are owned by
+[MCP dispatch monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md#full-final-result-and-compact-advisory-reference-contract).
 
 `formal_attestation` is requested only when the launcher-selected canonical
 result contract is `schema_constrained`; ordinary reviews report
@@ -865,6 +1057,15 @@ it projects the producer's result and owns no target derivation or policy.
 This is an explicit function-and-schema mapping, not substring inference from
 diagnostic codes, reasons, subjects, or prose.
 
+The managed post-worker lifecycle is a second caller of the same producer, not a
+second owner. After a managed implementation worker delivers a committed slice,
+the launcher's direct host integration adapter requests
+`requestCommittedSliceIntegration` for that exact subject. The lifecycle adds no
+review step, review unit, review context, or reviewer dispatch of its own; see
+[post-worker delivery without built-in review](mcp-dispatch-managed-run-lifecycle.md#post-worker-delivery-without-built-in-review).
+Review sequencing in this repository is coordinator process performed through
+explicit dispatch.
+
 The result must preserve three separate limbs. Mechanical facts include
 launcher-bound identity, refs, immutable objects, scope, CAS state, and typed
 runtime prerequisites; a failure there is a technical refusal. Advisory
@@ -888,7 +1089,7 @@ a repair mode, reconstructs an old handle, or respawns a completed reviewer.
   ahead slice tips, and declared unit dependencies.
 - [Managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md) — durable
   managed-run process identity, subject-addressed restart convergence, and
-  process-local monitoring versus restart-stable receipt authority.
+  process-local monitoring versus restart-stable result authority.
 - [Terminal review](mcp-dispatch-terminal-review.md) — the authenticated
   per-attempt terminal review contract, active managed composition,
   spawned-server lifecycle, post-spawn conduit failure, cleanup-only terminal
@@ -996,12 +1197,15 @@ The admitted role/subject population is derived from canonical work kinds,
 review-purpose classification, technical role, and authenticated effective
 scope: standalone reviewer slice, standalone redteam slice, exact
 implementation-slice reviewer, bare-WK reviewer, and bare-WK redteam. Purpose
-labels do not create additional findings lifecycle subtypes. A redteam request
-whose selected implementation slice has nonempty effective write scope refuses
-at `technical_role_selected_unit_admission` as a mechanical
-`technical_role_selected_unit_incompatible` role-policy violation. Review-target
-resolution and frozen-contract construction have not run at that point and are
-not reported as the cause.
+labels do not create additional findings lifecycle subtypes. Reviewer and
+redteam are both read-only findings identities, so the material target's own
+declared scope is not a role restriction: a selected implementation slice with
+nonempty effective write scope is an ordinary current target whose scope selects
+the exact implementation-slice material, while the findings action's own
+authenticated mutation authority stays empty. A valid `work_kind: "review"` unit
+is a current target for the same reason. Target grants never become action
+grants, and no caller-selectable reviewer mode, CCE substitution, or mutable
+review action follows from either kind.
 
 ## Immutable advisory-review target
 
@@ -1053,6 +1257,29 @@ readable, and the private snapshot contains exactly those reviewed bytes.
 Malformed, incomplete, missing-object, reversed, or disjoint ranges fail only
 the current call with a caller-correctable result. They create no persistent
 recovery state, mutate no WK, and do not prevent a valid independent call.
+
+Before any selector runs, the canonical subject itself is authenticated. The
+coordination `subject` is parsed, the canonical record is read once through the
+server's canonical reader, and the result must be a plain object whose `id` is
+exactly the requested WK. A requested slice must be selected by exactly one
+well-formed entry of a present `slices` array; `slices` is optional, so a
+bare-WK review of a record that declares none is ordinary, while a present
+`slices` that is not an array of objects carrying string ids is malformed. The
+typed reasons are `canonical_subject_malformed` for the subject string,
+`canonical_subject_identity_mismatch` for a record whose `id` is not the
+requested identity, `canonical_subject_shape_invalid` for a record or `slices`
+container that is not the canonical shape, `canonical_subject_selection_ambiguous`
+for a selected id that matches more than once, and `canonical_subject_unavailable`
+for an unreadable record or an absent selected unit. Each is carried by the
+public `agent_launch.advisory_review.material_invalid.v1` envelope with bounded
+metadata — the field and, for an ambiguous selection, the match count — and
+never with record content, filesystem paths, or a raw exception. The refusal
+happens before material selection, snapshot materialization, launch, and any ref
+or record write, so a corrected independent call may retry. These checks
+establish identity and shape only: they select no lifecycle, alter no retry
+authority, and confer no write. Corruption after an action's authenticated
+capture cannot mutate that running action's identity; a later independent
+request reads the later bytes.
 
 Canonical slice and terminal whole-WK selectors obtain the same base and reviewed
 commit from their canonical subjects and then enter this same normalization and
@@ -1177,7 +1404,8 @@ executor invocation, or worker execution binding. The flow
 resolves the full canonical same-WK population, validates it through the
 controlled-contract package, binds it to the initiative-qualified moving WK tip
 while preserving the lifecycle's fixed base, and atomically persists the exact
-generation under the decision expected-old CAS and winner-observation rules.
+generation under the decision clauses 7-8 expected-old CAS and winner-observation
+rules.
 
 The call chain is asynchronous end to end: its result is awaited and its typed
 failure propagates through the existing provisioning refusal boundary. It has no
@@ -1203,11 +1431,15 @@ base.
 The frozen work record result is shared rather than reconstructed. work record's
 readiness-shape module alone projects its bounded public envelope, and the
 registered public route carries that exact projection from readiness through
-accepted launch for DRY reviewer, DEC reviewer, redteam, reviewer-role
-challenge, and worker. Findings roles continue from WK settlement into their
-own review-dispatch lineage; worker is the only role that continues into scope
-freeze, worktree reconciliation, and exact-slice authority. The envelope is
+accepted launch for worker, the only role that continues from WK settlement into
+scope freeze, worktree reconciliation, and exact-slice authority. The envelope is
 redacted and grants no persistence, repair, confinement, or spawn authority.
+Findings roles — DRY reviewer, DEC reviewer, redteam, and reviewer-role
+challenge — do not enter WK settlement: the registered route sends them to the
+immutable advisory review route before worker admission, and each findings-only
+dispatch leaves the persistent WK ref absent or unchanged (decision clauses 1-4).
+The implementation-only backend launch refuses a findings role with
+`advisory_review_pipeline_required`.
 
 An absent persistent ref is ordinary first-use state: the same owner allocates
 or adopts it, verifies the manifest-selected generation, snapshots the
@@ -1215,12 +1447,70 @@ canonical WK, and only then binds the run. Allocation and generation-persistence
 CAS loss accept only exact equivalent winners. Restart cuts after each durable
 effect re-observe it, and authenticated WK-tip movement invalidates all
 tip-bound transition projections until a new work record owner settlement is
-observed. Stale plans and partial ref/worktree observations converge to the
-same canonical identities or refuse without repair writes, cleanup
-interference, identity substitution, confinement widening, or a duplicate
-spawn. There is no manual ref creation, direct persistence, second allocator,
-second persistence owner, recovery registry, new lock, or new retry loop; the
-existing work record serialization boundary is unchanged.
+observed. An allocated or adopted ref may initially lack the canonical WK entry;
+the persistence transaction treats only a successful exact-tip Git observation
+of absence as bootstrap state and inserts the authenticated canonical record
+with the generation. A present entry and every completed tree remain subject to
+the strict record checks. The immutable lifecycle base `B`, optional retained
+pre-reconciliation slice tip `R`, post-reconciliation execution binding `S`,
+and authenticated current WK tip `W` remain distinct. `B` never moves, `R` is
+observation-only, and only exact `S == W` authorizes execution. Ancestor status
+alone is never execution authority.
+
+On a scope-correction retry, the existing work record per-WK lock also encloses the
+only permitted retained-slice mutation. The launcher requires the retained
+branch to be attached to its expected managed worktree, requires both branch tip
+and `HEAD` to equal `R`, and requires
+`git status --porcelain=v1 --untracked-files=all` to succeed. Retained staged,
+unstaged, and untracked files are worker edits, not a refusal. It rechecks `R`
+immediately before running exactly `git merge --ff-only --no-edit W` in that
+worktree, so Git carries nonconflicting edits forward and refuses an update that
+would overwrite them. It then requires branch tip, `HEAD`, and returned `S` all
+to equal `W`, and requires the status observation to succeed again before scope
+freeze. A failed precondition, command, race, or postcondition refuses without
+reset, stash, clean, deletion, reallocation, resource concealment, or execution.
+A failed Git command, including a conflicting fast-forward, refuses as
+`git_failed` with Git's exit status and standard error rather than as dirt.
+
+`ACCUMULATED_IMPLEMENTATION_TIP` is not a retained-ancestor retry state and
+never authorizes execution. Its authenticated branch, worktree, delivery chain,
+commits, and evidence are preserved. The launcher returns the lifecycle reason
+`exact_slice_accumulated_implementation_requires_integration` and an explicit
+integration recovery until current `W` contains that implementation; it never
+resets the accumulated tip to `W`.
+
+After lifecycle settlement the dependency continuation closes over one captured
+`W` and one dependency vector. An empty vector succeeds without a publication
+identity. An asynchronous publication observation cannot recursively resolve or
+replace `W`; any movement detected by the final exact ref check refuses before
+spawn. Settlement independently compares captured `W` with
+`wk_binding.wk_tip_sha`, `slice_binding.base_ref`, and
+`slice_binding.base_sha`. Only exact `S == W` proceeds.
+
+The resolver's `failure_class` is total and closed. Lifecycle reasons are
+`exact_slice_required`, `exact_implementation_slice_unresolved`,
+`exact_slice_accumulated_implementation_requires_integration`,
+`launcher_transition_settlement_unverifiable`,
+`launcher_transition_planned_base_mismatch`,
+`scope_existence_base_unresolved`, and `scope_existence_base_unstable`;
+dependency reasons are `unit_dependencies_unmet` (including nested
+`fact_resolution_failed` diagnostics), `dependency_identity_unresolved`,
+`dependency_self_edge_forbidden`, and
+`dependency_not_present_on_wk_branch`; publication reasons are
+`dependency_publication_identity_unavailable` and
+`dependency_publication_identity_mismatch`. These classes map exactly to
+`LIFECYCLE_ALLOCATION_FAILED`, `DEPENDENCY_IDENTITY_UNRESOLVED`, and
+`PUBLICATION_IDENTITY_UNRESOLVED`, respectively. A missing, malformed, or
+unknown class fails loudly and never defaults to dependency. Lifecycle mismatch
+refusals retain their class and publish only public-safe `mismatch_field`,
+`expected`, and `actual` detail through the allowlisted projection.
+
+Stale plans and partial ref/worktree observations converge to the same canonical
+identities or refuse without repair writes, cleanup interference, identity
+substitution, confinement widening, or duplicate spawn. There is no manual ref
+creation, direct persistence, second allocator, second persistence owner,
+recovery registry, new lock, or new retry loop; the existing work record
+serialization boundary is unchanged.
 
 `classifyControlledContractRepositoryPath`, owned by
 `packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs`, is the single
@@ -1246,7 +1536,7 @@ The transition mechanically refuses malformed or non-ordinary flat active
 entries, an incomplete or unauthenticated nonempty active population, corrupt or
 contradictory stored state, and required Git or package failures. Archive/source
 or other nested layout alone is not an active-state refusal. These are decision
-mechanical conditions supporting decision's empty-or-complete replacement rule,
+mechanical conditions supporting decision clause 8's empty-or-complete replacement rule,
 not an admissibility judgment or broader execution authority.
 
 ### A required generation and a verified receipt are mechanical pre-execution conditions
@@ -1322,11 +1612,11 @@ identity](mcp-dispatch-managed-run-lifecycle.md#durable-managed-run-process-iden
 Canonical text: [Managed run lifecycle › Subject-addressed restart
 convergence](mcp-dispatch-managed-run-lifecycle.md#subject-addressed-restart-convergence).
 
-### Process-local monitoring versus restart-stable receipt authority
+### Process-local monitoring versus restart-stable result authority
 
 Canonical text: [Managed run lifecycle › Process-local monitoring versus
-restart-stable receipt
-authority](mcp-dispatch-managed-run-lifecycle.md#process-local-monitoring-versus-restart-stable-receipt-authority).
+restart-stable result
+authority](mcp-dispatch-managed-run-lifecycle.md#process-local-monitoring-versus-restart-stable-result-authority).
 
 ## The authenticated per-attempt terminal review contract
 
@@ -1387,11 +1677,11 @@ Canonical text: [Slice integration › Managed worker completion and post-commit
 structured
 evidence](mcp-dispatch-slice-integration.md#managed-worker-completion-and-post-commit-structured-evidence).
 
-## Monitor-route terminality and lifecycle side effects
+## Subject-addressed observation and lifecycle side effects
 
-Canonical text: [Monitoring and ownership › Monitor-route terminality and
+Canonical text: [Monitoring and ownership › Subject-addressed observation and
 lifecycle side
-effects](mcp-dispatch-monitoring-and-ownership.md#monitor-route-terminality-and-lifecycle-side-effects).
+effects](mcp-dispatch-monitoring-and-ownership.md#subject-addressed-observation-and-lifecycle-side-effects).
 
 ## Wiki-MCP boundary
 
@@ -1464,8 +1754,8 @@ integration boundary for the first time or is proven to have already crossed it.
 It builds on [Slice integration › Zero-delta lifecycle
 recovery](mcp-dispatch-slice-integration.md#zero-delta-lifecycle-recovery), which
 owns durable integration-result reconstruction, and on [Managed run lifecycle ›
-Process-local monitoring versus restart-stable receipt
-authority](mcp-dispatch-managed-run-lifecycle.md#process-local-monitoring-versus-restart-stable-receipt-authority),
+Process-local monitoring versus restart-stable result
+authority](mcp-dispatch-managed-run-lifecycle.md#process-local-monitoring-versus-restart-stable-result-authority),
 which owns the process-local/durable split. Four runtime cases are distinct and
 are never interchangeable.
 
@@ -1564,10 +1854,11 @@ monitor only by reconstructing the complete durable continuation authority. That
 authority is a join, and every element is required: the canonical repository and
 subject; the exact worker run id, launch/monitor ref, and retry identity from the
 unique launcher-owned binding pair; work record's unique zero-delta integration
-evidence; the exact V3 exact-slice review receipt; the reviewed delivery and its
-authenticated delivery base; the integration base and integration result; the
-exact slice and WK refs with their live tips; and the current canonical
-post-integration contract. The resulting authority is branded with a
+evidence; the reviewed delivery and its authenticated delivery base; the
+integration base and integration result; the exact slice and WK refs with their
+live tips; and the complete controlled-contract generation persisted in that WK
+tip. No review receipt, reviewer result, or findings state is an element of the
+join. The resulting authority is branded with a
 non-enumerable module-local symbol, so no caller-shaped object, monitor handle,
 status projection, or receipt can impersonate it, and the lifecycle rechecks exact
 target equality when it installs it — a mismatch refuses with
@@ -1575,34 +1866,75 @@ target equality when it installs it — a mismatch refuses with
 continuation installs the completed integration result directly; no host adapter,
 fresh admission, cleanup-only re-entry, or ref-mutating operation runs.
 
+Every completed integration result, whether produced by a live integration or by
+durable recovery, carries the closed `integrated_state` discriminator with one
+meaning: `final` only when the canonical final-slice decision holds and the
+integrated marker owns the current WK tip, otherwise `non_final`. Installation
+reconciles that value with the read-only reconciler's authenticated classification
+of the same marker and canonical record, and also refuses an absent or
+unrecognized value, `final` without current-tip ownership, and `non_final` carrying
+a whole-WK review target. Each disagreement refuses with the same mismatch code and
+names the disagreeing fields; no classification is defaulted.
+
+The generation element of the join is the complete canonical contract-generation
+identity that the committed-slice integration binding carries, authenticated as
+persisted in the exact live WK tip by the controlled-contract generation
+W-authentication owner. No integration result, receipt, or caller-shaped field
+supplies it. A non-zero-delta continuation with no canonical generation refuses
+`controlled_contract_generation_missing`; a live WK tip that does not carry the
+current generation, or a generation that moves during the lookup, refuses
+`controlled_contract_generation_stale`; an invalid generation refuses
+`controlled_contract_generation_malformed`; and an unreadable one refuses
+`controlled_contract_generation_unavailable`.
+
 Process-local continuation maps are an optimization only. They are consulted
 first when a frozen review context for the exact target exists, they must
 authenticate the same exact worker tuple (subject, run id, monitor handle) before
 their retained result is used, and they are never restart authority.
 
-Reconciliation against canonical state is doubled. The accepted V3 receipt's
-frozen contract is reconciled with current canonical state before the live-ref and
-confirming-evidence reads, and again after them, and the immutable evidence
-classifier is re-run and required to agree field for field. Authored canonical
-movement or ref movement inside that lookup window therefore refuses instead of
-being branded as the completed continuation. Movement later in the cycle remains
-covered by the terminal-review live-contract checks and the final pre-spawn
-verification.
+The immutable integration-evidence classifier runs once before the delivery-base,
+live-ref, and generation reads and again after them, and the two results must agree
+field for field on the delivery, integration base and result, WK tip,
+`integrated_state`, review target, and record transition. Ref, tip, or
+classification movement inside that lookup window therefore refuses instead of
+being branded as the completed continuation.
 
-### Cold unknown-handle continuation
+Continuation reconstructs and installs an already completed integration. It does
+not certify the live authored contract for new work and performs no authored
+canonical-record comparison. An authored edit that leaves the exact integration
+tuple valid — repository metadata, scope, acceptance, dispatch intent, titles, or
+`agent_notes` — lets continuation complete read-only, with no integration replay
+and no record, ref, or binding mutation. An authored edit that changes a fact the
+join authenticates, such as the initiative that names the bound unit, refuses in
+continuation itself. Candidate preparation is the first downstream consumer of
+the live authored contract. Before publishing either candidate-version ref, it
+delegates to the backend terminal-review authority's existing comparison of the
+candidate-tree historical contract with the live canonical record through
+`agent_launch.terminal_review_lifecycle.invariant_bound_decision.v1` and refuses
+with `agent_launch.terminal_review_lifecycle.inadmissible.v1`
+(`canonical_authored_bytes_unauthenticated` or
+`executable_or_dependency_authority_changed`), which the post-worker lifecycle
+closes as `agent_launch.slice_lifecycle.terminal_candidate_preparation_failed.v1`.
+The refusal precedes candidate-ref publication, review-context binding, worker
+finalization, reservation release, and reviewer launch. The later binder repeats
+the full candidate, generation, materialization, and live-contract authentication
+before launch. The same continuation split applies to an authored edit between
+the two classifier reads.
 
-When Backend B does not know the monitor handle process-locally, the registered
-unknown-handle recovery path may recover the original durable run and authenticate
+### Cold subject-addressed continuation
+
+When Backend B does not know the subject attempt process-locally, the registered
+subject-addressed recovery path may recover the original durable run and authenticate
 the same complete continuation during the pre-integration phase, before the
 cleanup-only confirmation. The recovery route receives the same launcher-owned
 continuation resolver an ordinary known monitor receives; the reconstructed status
 is a selector and cross-check, never authority.
 
-A genuinely unknown handle with no mechanically recoverable durable run and no
-such authority remains `monitor_handle_unknown`. That answer is correct, not
-degraded. A recovery that instead failed for a specific reason reports that cause
-rather than being laundered into the handle-level refusal. The vanished handle,
-caller input, canonical status, the parent review unit, prose, `agent_notes`, and a
+A subject or selected attempt with no mechanically recoverable durable run and no
+such authority remains unavailable. That answer is correct, not degraded. A
+recovery that instead failed for a specific reason reports that cause rather
+than being laundered into a generic absence. The caller's `attempt_id`, caller
+input, canonical status, the parent review unit, prose, `agent_notes`, and a
 review receipt by itself are never continuation authority on their own.
 
 ### Fail-closed continuation refusals
@@ -1619,21 +1951,25 @@ reason, including:
   `durable_worker_tuple_mismatch`, `durable_worker_ref_mismatch` — the durable
   binding pair is unresolvable or does not name the exact run, retry, unit, or
   refs;
-- `exact_v3_review_receipt_unavailable`, `exact_v3_review_receipt_missing`,
-  `exact_v3_review_receipt_ambiguous` — the receipt store is unusable, or the
-  complete exact-target V3 match count is not exactly one;
 - `reviewed_delivery_base_mismatch` — the authenticated delivery base disagrees
   with the binding's frozen base;
-- `canonical_record_contract_disagreement`,
-  `canonical_record_identity_disagreement`, `canonical_record_corrective_state`,
-  `canonical_record_lifecycle_state_disagreement` — the frozen receipt contract
-  and current canonical record do not describe the same unit, posture, or
-  lifecycle state;
 - `canonical_record_repair_required` — continuation is read-only and refuses
   rather than performing a canonical record write;
 - `live_slice_ref_unavailable`, `live_wk_ref_unavailable`, `live_ref_disagreement`,
   `continuation_authority_changed_during_lookup` — a live ref is unreadable, or
-  refs or evidence moved during the joined lookup.
+  refs or evidence moved during the joined lookup;
+- `warm_completed_integration_mismatch`, `integration_result_invalid` — a retained
+  or recovered integration result does not name the exact delivery, refs, tip, or
+  literal integration commit;
+- `controlled_contract_generation_missing`, `controlled_contract_generation_stale`,
+  `controlled_contract_generation_malformed`,
+  `controlled_contract_generation_unavailable` — the generation element of the join
+  is absent where required, not carried by the live WK tip, invalid, or unreadable.
+
+The zero-delta evidence owner can also refuse before this join completes, for
+example with `agent_launch.slice_integration.zero_delta_status_without_evidence.v1`
+when the canonical integrated status has no durable integration evidence at the
+live WK tip.
 
 Not every refusal is operator-repairable. A refusal here is not an instruction to
 delete evidence, rewrite refs, edit statuses, retry integration, or rematerialize
@@ -1676,6 +2012,12 @@ and verifies exactly one `C` whose sole parent is `B` and for which
 detached checkout. Continuation evidence cannot substitute for candidate
 authority, and a `final` continuation authorizes reaching candidate construction,
 not skipping it.
+
+Candidate derivation itself is effect-free. The coordinator derives the proposed
+identity, calls the backend-owned authored-state authentication capability, and
+only then enters the existing atomic candidate-version publication. Publication
+followed by ref reversion is not an accepted refusal path: an authored-state
+failure has zero candidate publication attempts and effects.
 
 ### work record prerequisite
 
@@ -1933,10 +2275,25 @@ mechanical failures are
 `agent_launch.findings_snapshot.review_source_unresolvable.v1`,
 `agent_launch.findings_snapshot.materialization_failed.v1`, and
 `agent_launch.findings_snapshot.controlled_contract_generation_required_absent.v1`;
-exact-range normalization additionally owns
-`agent_launch.review_target_resolution.failed.v1`.
-They have no findings-action recovery route and are never projected as
+they have no findings-action recovery route and are never projected as
 `managed_lifecycle_required`.
+
+The advisory review route publishes one public refusal code,
+`agent_launch.advisory_review.material_invalid.v1`, and its `cause_code` names
+the owner that actually refused:
+`agent_launch.advisory_material_resolution.failed.v1` for resolver-owned
+canonical selection, locator pairing, range shape, ancestry, and
+selected-delivery movement; `agent_launch.immutable_candidate.failed.v1` for
+commit and tree object authentication, including a malformed object id, a
+missing object, and a non-commit object; and the public code itself for the
+route's own canonical-subject reasons under [Immutable advisory-review
+target](#immutable-advisory-review-target). All three are registered runtime
+blocker codes and stay distinct: neither owner is an alias of the other, and no
+single code describes every range failure. A reason label may be reported by
+more than one owner — `canonical_subject_unavailable` is reported by the route
+for an unreadable record or an absent selected unit, and by the resolver when
+the canonical selection ref cannot be derived from the selected unit — so the
+`cause_code`, not the reason, identifies who refused.
 
 For a canonical design review, Git still owns repository code/object identity:
 the detached checkout is created from the selected commit and contains no ambient
@@ -1961,13 +2318,14 @@ retained root, mount destination, and frozen binds. None of those fields selects
 resumes, satisfies, suppresses, or vetoes another action. Receipts may record this
 evidence for audit but are not launch prerequisites or continuation authority.
 
-Standalone snapshot execution also binds the package-owned controlled-contract
-validator-cache root read-only at the snapshot package's deterministic
-`.cache/controlled-contract/validators` location. The existing launcher pre-spawn
-warm remains the sole publisher. Before composing that bind, the launcher runs the
-package-owned verify path, requires the package-derived root and current toolchain
-identity, rejects redirected, non-owned, escaping, or path-substituted backing, and
-creates only empty launcher-owned mountpoint ancestors in the detached checkout.
+Standalone snapshot execution also binds the writing repository's
+controlled-contract validator-cache root read-only at the snapshot writing
+repository's deterministic `.cache/controlled-contract/validators` location.
+The existing launcher pre-spawn warm remains the sole publisher. Before composing
+that bind, the launcher runs the package-owned verify path, requires the
+writing-repository-derived root and package-byte-derived current toolchain identity,
+rejects redirected, non-owned, escaping, or path-substituted backing, and creates
+only empty launcher-owned mountpoint ancestors in the detached checkout.
 The confined reviewer receives no cache write authority. The snapshot package then
 selects and digest-verifies its own exact retained identity from that root, so an
 older immutable snapshot can use the artifact published for its bytes while absent,
@@ -2013,17 +2371,19 @@ later findings or implementation action. In particular,
 `corrective_continuation_proof` are not launcher or worker contract fields.
 
 A nonempty-scope implementation action derives authority only from its current
-authenticated write scope, canonical implementation unit, controlled generation,
-accumulated implementation tip, launcher-owned delivery binding, and Git ancestry.
-An existing slice tip is reusable only when those current implementation facts
-authenticate the exact linear launcher delivery chain and retained private
-worktree. Findings evidence is neither consulted nor carried to the executor.
+authenticated write scope, canonical implementation unit, exact controlled
+generation at `W`, exact `S == W` launcher-owned binding, and the final stable
+`W` observation. An accumulated implementation tip is preserved evidence that
+requires integration, never execution authority. A retained slice tip is
+reusable only through the narrow clean attached-worktree fast-forward described
+above. Findings evidence is neither consulted nor carried to the executor.
 Absent, successful, failed, malformed, missing, plural, reordered, superseded, and
 legacy terminal-projection findings shapes therefore produce the same admission,
 allocation, readiness, executor input, and launch outcome.
 
-Process loss does not turn findings audit evidence into recovery authority. An old
-findings handle may return `monitor_handle_unknown`; reissuing dispatch creates and
+Process loss does not turn findings audit evidence into recovery authority.
+Observing a findings subject after process loss returns
+`findings_observation_unavailable`; reissuing dispatch creates and
 registers a new independent action. Existing implementation receipt, integration,
 CAS, reservation, retirement, and already-integrated cleanup behavior remains owned
 by the implementation lifecycle and its current authenticated bindings, never by a

@@ -9,8 +9,7 @@ import { VOCABULARY_DIGESTS } from "../../vocabulary/controlled-contract-vocabul
 
 const BOUNDARY_PROFILE_ID = "proof.policy.declared-boundary-record-consistency";
 const GUIDANCE_PROFILE_ID = "proof.policy.declared-limit-propagation";
-const PROFILE_VERSION = "2.0.0";
-const STAGE = "post_delivery";
+const PROFILE_VERSION = "3.0.0";
 const UNCONDITIONAL = Object.freeze({ mode: "unconditional", operand_roles: [] });
 
 const CONFIGS = Object.freeze({
@@ -82,7 +81,6 @@ function role(name, terms, cardinality) {
 function completePattern(populationRole, memberRole) {
   return {
     pattern_id: `complete-${memberRole.replaceAll("_", "-")}`,
-    required_by_stage: STAGE,
     comparison: "complete_population",
     roles: [populationRole, memberRole],
     applicability_context: UNCONDITIONAL
@@ -94,7 +92,7 @@ function proposition(subject_role, operator, operands) {
 const ref = (roleName) => ({ kind: "reference", role: roleName });
 function claim(pattern_id, claim_kind, proposition_template, for_each = null, extra = {}) {
   return {
-    pattern_id, required_by_stage: STAGE, claim_kind, allowed_modalities: ["MUST"],
+    pattern_id, claim_kind, allowed_modalities: ["MUST"],
     ...(for_each ? { for_each } : {}), proposition_template, ...extra
   };
 }
@@ -173,7 +171,7 @@ function buildProfile(kind) {
       )
     });
   const relationPatterns = [{
-    pattern_id: relationId, required_by_stage: STAGE, role: "verifies",
+    pattern_id: relationId, role: "verifies",
     source_claim_pattern_id: verificationId, target_claim_pattern_id: targetId
   }];
   const claimPatterns = [
@@ -182,7 +180,7 @@ function buildProfile(kind) {
   const patterns = [...referenceBindingPatterns, ...claimPatterns, ...relationPatterns]
     .map(({ pattern_id: pattern }) => ({ pattern }));
   return {
-    schema_version: "controlled-contract-verification-profile.v1",
+    schema_version: "controlled-contract-verification-profile.v2",
     profile_id: c.profileId,
     profile_version: PROFILE_VERSION,
     contract_schema_version: "controlled-acceptance-contract.v1",
@@ -192,7 +190,6 @@ function buildProfile(kind) {
     vocabulary_definitions_digest: VOCABULARY_DIGESTS.definitions,
     vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
     verification_falsifier_policy: "controlled_complement_per_target",
-    evaluation_stages: [STAGE],
     reference_roles: referenceRoles,
     number_roles: c.populations.map(([, memberRole]) => ({
       role: `${memberRole}_count`, cardinality: "exactly_one", number_type: "integer", minimum: 1
@@ -261,8 +258,7 @@ function buildEvaluationInput(kind, report) {
     bindings[memberRole] = members(report, populationName);
   }
   return {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: STAGE,
+    input_version: "controlled-contract-verification-profile-input.v2",
     reference_bindings: Object.entries(bindings).map(([roleName, reference_ids]) => ({
       role: roleName, reference_ids
     })),

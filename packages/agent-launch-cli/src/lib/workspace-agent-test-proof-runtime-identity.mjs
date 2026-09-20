@@ -1,3 +1,4 @@
+import { assertGenerationBoundToSnapshot, authenticateSavedProofSource } from "./workspace-agent-test-proof-source-binding.mjs";
 import { createHash } from "node:crypto";
 import {
   lstatSync,
@@ -9,18 +10,24 @@ import path from "node:path";
 
 import {
   SCHEMA_VERSION_V1,
-  STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS,
-  classifyStableTestProofRuntimeReadiness
+  projectStableTestProofSelector
 } from "@agent-chassis/controlled-contract";
+import {
+  CACHE_ROOT_SUFFIX,
+  compiledValidatorCacheRoot
+} from "@agent-chassis/controlled-contract/validator-cache";
 
 import {
   assertTrustedManagedWorkerTestRunAuthority
 } from "./managed-worker-test-run-authority.mjs";
+import { stableRuntimeTestIdFromParts } from
+  "./workspace-agent-test-proof-node-reporter.mjs";
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
 } from "./terminal-review-materialization.mjs";
 import { defaultTerminalCandidateRunGit } from "./terminal-wk-candidate.mjs";
+import { assertOpaqueId } from "./worktree-substrate-primitives.mjs";
 import {
   assertSelectedDependencyMountIntegrity,
   selectOptionalReviewerDependencyProjection,
@@ -37,6 +44,24 @@ export const ORCHESTRATOR_PROOF_CANDIDATE_IDENTITY_SCHEMA_VERSION =
 const DIGEST_RE = /^sha256:[a-f0-9]{64}$/u;
 const RUNTIME_AUTHORITIES = new WeakSet();
 const RUNTIME_CONTEXTS = new WeakSet();
+const SAVED_SOURCE_GUARDS = new WeakMap();
+
+export function bindLauncherSavedProofSource({ authority, source }) {
+  const trusted = assertLauncherTestProofRuntimeAuthority(authority);
+  if (SAVED_SOURCE_GUARDS.has(trusted)) fail('test_proof_saved_source_binding_mismatch',
+    'An invocation authority cannot replace its immutable saved-source binding');
+  const snapshot = captureLauncherTestProofSourceSnapshot(trusted);
+  const member = authenticateSavedProofSource({ authority: trusted, snapshot, source, fail });
+  const check = () => {
+    const current = captureLauncherTestProofSourceSnapshot(trusted);
+    const observed = authenticateSavedProofSource({ authority: trusted, snapshot: current, source, fail });
+    if (current.source_snapshot_digest !== snapshot.source_snapshot_digest ||
+        observed.byte_digest !== member.byte_digest) fail('test_proof_saved_source_stale',
+      'Invocation saved source or candidate moved');
+  };
+  SAVED_SOURCE_GUARDS.set(trusted, check);
+  return Object.freeze({ member, snapshot, assertCurrent: check });
+}
 const OID_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
 const UNIT_RE = /^WK-[0-9]{4}(?:#SLICE-[0-9]{3})?$/u;
 
@@ -78,16 +103,15 @@ function mintAuthority(value) {
   return authority;
 }
 
+function dependencyProjectionRoot(worktreePath, projectionKind) {
+  return path.join(path.dirname(worktreePath), projectionKind, path.basename(worktreePath));
+}
+
 function optionalDependencyProof({ mainRepo, worktreePath, projectionKind }) {
-  const projectionRoot = path.join(
-    path.dirname(worktreePath),
-    projectionKind,
-    path.basename(worktreePath)
-  );
   const selection = selectOptionalReviewerDependencyProjection({
     mainRepo,
     checkoutPath: worktreePath,
-    projectionRoot
+    projectionRoot: dependencyProjectionRoot(worktreePath, projectionKind)
   });
   const projection = selection.projection;
   return deepFreeze({
@@ -101,6 +125,57 @@ function optionalDependencyProof({ mainRepo, worktreePath, projectionKind }) {
     reviewer_read_only_binds: projection === null ? [] : projection.read_only_binds,
     workspace_links_resolve_against_reviewed_checkout:
       projection?.workspace_links_resolve_against_reviewed_checkout ?? false
+  });
+}
+
+function requiredExactCandidateDependencyProof({
+  mainRepo,
+  worktreePath,
+  validatorCacheReadOnlyBinds
+}) {
+  let proof;
+  try {
+    proof = optionalDependencyProof({
+      mainRepo,
+      worktreePath,
+      projectionKind: ".immutable-candidate-dependency"
+    });
+  } catch (error) {
+    fail("test_proof_exact_candidate_dependency_projection_unavailable",
+      "exact-commit proof execution requires one authenticated dependency projection", {
+        reason_code: typeof error?.code === "string"
+          ? error.code
+          : "dependency_projection_authentication_failed"
+      });
+  }
+  if (proof.projection_selected !== true ||
+      proof.workspace_links_resolve_against_reviewed_checkout !== true) {
+    fail("test_proof_exact_candidate_dependency_projection_unavailable",
+      "exact-commit proof execution requires one authenticated dependency projection", {
+        reason_code: proof.projection_unavailable_reason ??
+          "dependency_projection_unavailable"
+      });
+  }
+  const expectedValidatorCacheSource = path.resolve(compiledValidatorCacheRoot());
+  const expectedValidatorCacheDestination = path.join(
+    worktreePath, ...CACHE_ROOT_SUFFIX
+  );
+  if (!Object.isFrozen(validatorCacheReadOnlyBinds) ||
+      validatorCacheReadOnlyBinds.length !== 1 ||
+      !Object.isFrozen(validatorCacheReadOnlyBinds[0]) ||
+      validatorCacheReadOnlyBinds[0]?.src !== expectedValidatorCacheSource ||
+      validatorCacheReadOnlyBinds[0]?.dst !== expectedValidatorCacheDestination) {
+    fail("test_proof_exact_candidate_dependency_projection_unavailable",
+      "exact-commit proof execution requires the authenticated validator cache bind", {
+        reason_code: "validator_cache_bind_plan_invalid"
+      });
+  }
+  return deepFreeze({
+    ...proof,
+    reviewer_read_only_binds: [
+      ...proof.reviewer_read_only_binds,
+      ...validatorCacheReadOnlyBinds
+    ]
   });
 }
 
@@ -142,7 +217,8 @@ export function mintOrchestratorProofAuthority({
   tree,
   clean,
   candidateKind,
-  authenticatedCandidateIdentity
+  authenticatedCandidateIdentity,
+  validatorCacheReadOnlyBinds = []
 } = {}) {
   assertOrchestratorSourceInput({ mainRepo, repository, selectedUnit });
   if (typeof worktreePath !== "string" || !path.isAbsolute(worktreePath) ||
@@ -161,13 +237,20 @@ export function mintOrchestratorProofAuthority({
     "test_proof_orchestrator_git_identity_invalid",
     "orchestrator existing worktree requires resolved commit and tree identities"
   );
+  const dependencyProof = candidateKind === "immutable_exact_commit"
+    ? requiredExactCandidateDependencyProof({
+      mainRepo,
+      worktreePath,
+      validatorCacheReadOnlyBinds
+    })
+    : noDependencyProof();
   const sourceSnapshotBody = {
     schema_version: TEST_PROOF_SOURCE_SNAPSHOT_SCHEMA_VERSION,
     algorithm: `sha256-authenticated-${candidateKind}-v1`,
     exclusions: [],
     runtime_dependency: {
-      projection_selected: false,
-      dependency_installation_digest: null
+      projection_selected: dependencyProof.projection_selected,
+      dependency_installation_digest: dependencyProof.dependency_installation_digest
     },
     selected_source: {
       authenticated_candidate_identity: authenticatedCandidateIdentity,
@@ -215,16 +298,25 @@ export function mintOrchestratorProofAuthority({
     source_snapshot: sourceSnapshot,
     source_snapshot_digest: sourceSnapshot.source_snapshot_digest,
     candidate_identity: candidateIdentity,
-    dependency_proof: noDependencyProof()
+    dependency_proof: dependencyProof
   });
+}
+
+function managedWorkerRunId(managed) {
+  return `run-worker-${createHash("sha256").update(JSON.stringify([
+    managed.main_repo, managed.unit_address, managed.launch_ref, managed.run_id, managed.worktree_path
+  ]), "utf8").digest("hex")}`;
 }
 
 export function mintManagedWorkerTestProofRuntimeAuthority({ authority } = {}) {
   const managed = assertTrustedManagedWorkerTestRunAuthority(authority);
-  if (typeof managed.run_id !== "string" || !/^run-[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(
-    managed.run_id
-  )) fail("test_proof_run_identity_invalid",
-    "managed proof execution requires the launcher-authenticated run identity");
+
+  try {
+    assertOpaqueId(managed.run_id, "run_id");
+  } catch {
+    fail("test_proof_run_identity_invalid",
+      "managed proof execution requires the launcher-authenticated run identity");
+  }
   const dependencyProof = optionalDependencyProof({
     mainRepo: managed.main_repo,
     worktreePath: managed.worktree_path,
@@ -233,7 +325,7 @@ export function mintManagedWorkerTestProofRuntimeAuthority({ authority } = {}) {
   return mintAuthority({
     schema_version: TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION,
     kind: "managed_worker",
-    run_id: managed.run_id,
+    run_id: managedWorkerRunId(managed),
     wk_id: managed.record_id,
     selected_unit: managed.unit_address,
     main_repo: managed.main_repo,
@@ -421,6 +513,12 @@ export function mintIntegratedSliceTestProofRuntimeAuthority({
 }
 
 export function assertLauncherTestProofRuntimeAuthority(authority) {
+  const trusted = assertRuntimeAuthorityBrand(authority);
+  SAVED_SOURCE_GUARDS.get(trusted)?.();
+  return trusted;
+}
+
+function assertRuntimeAuthorityBrand(authority) {
   if (authority === null || typeof authority !== "object" ||
       !Object.isFrozen(authority) || !RUNTIME_AUTHORITIES.has(authority) ||
       authority.schema_version !== TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION) fail(
@@ -459,7 +557,7 @@ function snapshotEntries(root, directory = root, entries = []) {
 }
 
 export function captureLauncherTestProofSourceSnapshot(authority) {
-  const trusted = assertLauncherTestProofRuntimeAuthority(authority);
+  const trusted = assertRuntimeAuthorityBrand(authority);
   if (trusted.kind === "orchestrator_git_commit") return trusted.source_snapshot;
   if (trusted.dependency_proof?.projection_selected === true) {
     assertSelectedDependencyMountIntegrity(trusted.dependency_proof);
@@ -485,13 +583,31 @@ export function captureLauncherTestProofSourceSnapshot(authority) {
   });
 }
 
-export function canonicalTestProofCommandIdentity(target) {
+export const NATIVE_RUNTIME_TEST_IDENTITY_SCHEMA_VERSION = "launcher-native-runtime-test-identity.v1";
+const SELECTOR_FAILURE_DETAIL = Object.freeze({ package_code: null,
+  authority_limb: "mechanical_failure", admissibility_effect: "none" });
+
+export function nativeRuntimeTestId({ provider_id: providerId, provider_version: providerVersion,
+  path: sourcePath, node_id: nodeId } = {}) {
+  if ([providerId, providerVersion, sourcePath, nodeId].some((value) =>
+    typeof value !== "string" || value.length === 0)) fail("test_proof_test_selector_invalid",
+    "native runtime test identity requires provider identity, source path and literal node identity",
+    SELECTOR_FAILURE_DETAIL);
+  return `test-${createHash("sha256").update(`${JSON.stringify(canonicalJson({
+    schema_version: NATIVE_RUNTIME_TEST_IDENTITY_SCHEMA_VERSION,
+    provider_id: providerId, provider_version: providerVersion, path: sourcePath, node_id: nodeId
+  }))}\n`, "utf8").digest("hex")}`;
+}
+
+export function canonicalTestProofCommandIdentity(target, provider = null) {
   if (typeof target !== "string" || target.length === 0 || path.isAbsolute(target) ||
       path.posix.normalize(target) !== target || target.startsWith("../")) fail(
     "test_proof_command_target_invalid",
     "test-proof command target must be one normalized repository-relative path"
   );
-  const digest = digestCanonical({ operation: "node_test", target });
+  const digest = digestCanonical(provider === null ? { operation: "node_test", target } : {
+    operation: "native_test_proof", provider_id: provider.provider_id,
+    provider_version: provider.provider_version, target });
   return Object.freeze({
     command_id: `command-${digest.slice("sha256:".length)}`,
     command_target: target
@@ -515,115 +631,46 @@ function selectedBinding(selection, verificationId) {
   return matches[0];
 }
 
-const RUNTIME_READINESS_FAILURE_CODES = Object.freeze({
-  [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_INVENTORY]:
-    "test_proof_runtime_inventory_missing",
-  [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.MISSING_SELECTION]:
-    "test_proof_runtime_test_selection_missing",
-  [STABLE_TEST_PROOF_RUNTIME_READINESS_REASONS.INVALID_SELECTION]:
-    "test_proof_runtime_test_selection_invalid"
-});
-
-function packageReadyRuntimeTestIdentity(binding, { wkId, verificationId }) {
-  const readiness = classifyStableTestProofRuntimeReadiness(binding);
-  if (readiness.status !== "ready") fail(
-    RUNTIME_READINESS_FAILURE_CODES[readiness.reason],
-    "production evidence requires one package-ready stable runtime test identity",
-    {
-      readiness_reason: readiness.reason,
-      candidate_test_ids: readiness.current_test_ids.slice(0, 16),
-      candidate_total: readiness.candidate_total,
-      candidate_test_ids_omitted:
-        Math.max(readiness.candidate_total - 16, 0),
-      selected_test_id: readiness.selected_test_id,
-      authority_limb: "mechanical_failure",
-      admissibility_effect: "none",
-      recovery_operation: "workspace_controlled_test_proof_patch",
-      complete_retrieval: {
-        tool: "workspace_controlled_test_proof_query",
-        arguments: { wk_id: wkId, verification_ids: [verificationId] }
-      }
-    }
-  );
-  return readiness.runtime_test_identity;
-}
-
-function assertGenerationBoundToSnapshot(selection, snapshot, wkId, authority) {
-  const carriers = selection?.controlled_contract_generation_carriers;
-  if (!Array.isArray(carriers) || carriers.length === 0 ||
-      selection.controlled_contract_generation_carrier_count !== carriers.length ||
-      carriers.some((entry) => typeof entry?.filename !== "string" ||
-        !DIGEST_RE.test(entry?.content_digest ?? "") ||
-        entry?.source_member?.schema_version !==
-          "controlled-contract-authenticated-runtime-member.v1" ||
-        entry.source_member.logical_filename !== entry.filename ||
-        entry.source_member.content_digest !== entry.content_digest ||
-        !["manifest_generation", "legacy_root"].includes(
-          entry.source_member.storage_mode
-        ) ||
-        typeof entry.source_member.repository_relative_path !== "string" ||
-        entry.source_member.repository_relative_path.length === 0 ||
-        entry.source_member.repository_relative_path.length > 4096 ||
-        path.posix.isAbsolute(entry.source_member.repository_relative_path) ||
-        entry.source_member.repository_relative_path.includes("\\") ||
-        entry.source_member.repository_relative_path.split("/").some((part) =>
-          part === "" || part === "." || part === "..") ||
-        (entry.source_member.storage_mode === "manifest_generation"
-          ? !/^[a-f0-9]{64}$/u.test(entry.source_member.manifest_generation ?? "") ||
-            !DIGEST_RE.test(entry.source_member.manifest_content_digest ?? "")
-          : entry.source_member.manifest_generation !== null ||
-            entry.source_member.manifest_content_digest !== null))) fail(
-    "test_proof_controlled_contract_generation_invalid",
-    "controlled-contract generation requires its complete authenticated carrier population"
-  );
-  const normalized = carriers.map((entry) => ({
-    filename: entry.filename,
-    content_digest: entry.content_digest
-  })).sort((left, right) => left.filename.localeCompare(right.filename));
-  const observedOrder = carriers.map((entry) => ({
-    filename: entry.filename,
-    content_digest: entry.content_digest
-  }));
-  if (JSON.stringify(normalized) !== JSON.stringify(observedOrder)) fail(
-    "test_proof_controlled_contract_generation_invalid",
-    "controlled-contract generation carrier population must be canonical and sorted"
-  );
-  for (const carrier of normalized) {
-    const sourceMember = carriers.find(({ filename }) => filename === carrier.filename)
-      .source_member;
-    const sourceDigest = authority.kind === "orchestrator_git_commit"
-      ? (() => {
-          const sourcePath = path.resolve(
-            authority.worktree_path, sourceMember.repository_relative_path
-          );
-          if (!sourcePath.startsWith(`${authority.worktree_path}${path.sep}`)) return null;
-          try {
-            return `sha256:${createHash("sha256").update(readFileSync(sourcePath)).digest("hex")}`;
-          } catch {
-            return null;
-          }
-        })()
-      : new Map(snapshot.entries
-        .filter((entry) => entry.kind === "file")
-        .map((entry) => [entry.path, entry.digest]))
-        .get(sourceMember.repository_relative_path);
-    if (sourceDigest !== carrier.content_digest) fail(
-      "test_proof_controlled_contract_generation_snapshot_mismatch",
-      "controlled-contract generation does not describe the authenticated source snapshot",
-      { filename: carrier.filename, storage_mode: sourceMember.storage_mode }
-    );
+export function deriveLauncherTestProofRuntimeTestIdentity({ binding, target } = {}) {
+  let selector;
+  try {
+    selector = projectStableTestProofSelector(binding);
+  } catch (error) {
+    fail("test_proof_test_selector_invalid",
+      "production evidence requires one valid declarative test selector",
+      { package_code: error?.code ?? null, authority_limb: "mechanical_failure",
+        admissibility_effect: "none" });
   }
-  const body = {
-    schema_version: "controlled-contract-generation.v1",
-    wk_id: wkId,
-    carriers: normalized
-  };
-  const generationDigest = `sha256:${createHash("sha256")
-    .update(`${JSON.stringify(body, null, 2)}\n`, "utf8").digest("hex")}`;
-  if (generationDigest !== selection.controlled_contract_generation) fail(
-    "test_proof_controlled_contract_generation_digest_mismatch",
-    "controlled-contract generation digest does not authenticate its complete carrier population"
-  );
+  if (selector.selector_kind !== undefined) {
+
+    if (selector.path !== target) fail("test_proof_test_selector_invalid",
+      "native selector names a different source than the declared case target",
+      SELECTOR_FAILURE_DETAIL);
+    const nativeCommand = canonicalTestProofCommandIdentity(target, selector);
+    return Object.freeze({
+      test_id: nativeRuntimeTestId({ ...selector, path: nativeCommand.command_target }),
+      file: nativeCommand.command_target,
+      name: null,
+      nesting: null,
+      node_id: selector.node_id,
+      provider_id: selector.provider_id,
+      provider_version: selector.provider_version,
+      selector_kind: selector.selector_kind
+    });
+  }
+  const command = canonicalTestProofCommandIdentity(target);
+  const testId = stableRuntimeTestIdFromParts({
+    file: command.command_target, name: selector.name, nesting: selector.nesting
+  });
+  if (testId === null) fail("test_proof_test_selector_invalid",
+    "declarative test selector and declared target do not form one stable runtime identity",
+    { authority_limb: "mechanical_failure", admissibility_effect: "none" });
+  return Object.freeze({
+    test_id: testId,
+    file: command.command_target,
+    name: selector.name,
+    nesting: selector.nesting
+  });
 }
 
 export function mintLauncherTestProofAttemptContext({
@@ -659,14 +706,15 @@ export function mintLauncherTestProofAttemptContext({
     "proof binding requires the exact same-WK root controlled-contract generation"
   );
   const binding = selectedBinding(controlledContractSelection, verificationId);
-  const runtimeTestIdentity = packageReadyRuntimeTestIdentity(binding, {
-    wkId: trusted.wk_id, verificationId
+  const runtimeTestIdentity = deriveLauncherTestProofRuntimeTestIdentity({
+    binding, target
   });
   const snapshot = captureLauncherTestProofSourceSnapshot(trusted);
   assertGenerationBoundToSnapshot(
-    controlledContractSelection, snapshot, trusted.wk_id, trusted
+    controlledContractSelection, snapshot, trusted.wk_id, trusted, fail
   );
-  const command = canonicalTestProofCommandIdentity(target);
+  const command = canonicalTestProofCommandIdentity(target,
+    runtimeTestIdentity.selector_kind === undefined ? null : runtimeTestIdentity);
   const context = deepFreeze({
     schema_version: TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION,
     authority: trusted,
@@ -685,6 +733,18 @@ export function mintLauncherTestProofAttemptContext({
       test_id: runtimeTestIdentity.test_id,
       attempt: trusted.attempt
     },
+    selected_test: {
+      test_id: runtimeTestIdentity.test_id,
+      file: runtimeTestIdentity.file,
+      name: runtimeTestIdentity.name,
+      nesting: runtimeTestIdentity.nesting,
+      ...(runtimeTestIdentity.selector_kind === undefined ? {} : {
+        node_id: runtimeTestIdentity.node_id,
+        provider_id: runtimeTestIdentity.provider_id,
+        provider_version: runtimeTestIdentity.provider_version,
+        selector_kind: runtimeTestIdentity.selector_kind
+      })
+    },
     contract_binding: {
       contract_digest: controlledContractSelection.content_digest,
       contract_schema_version: controlledContractSelection.contract_schema_version,
@@ -697,6 +757,58 @@ export function mintLauncherTestProofAttemptContext({
   return context;
 }
 
+const NATIVE_DEPENDENCY_BINDINGS = new WeakSet();
+
+export function bindLauncherNativeRuntimeInputs({ context, runtimeInputs } = {}) {
+  const supplied = arguments[0] ?? {};
+  const unsupported = Object.keys(supplied).filter((key) =>
+    !["context", "runtimeInputs"].includes(key)).sort();
+  if (unsupported.length > 0) fail("test_proof_caller_identity_forbidden",
+    "native dependency authentication refuses caller-selected dependency roots or inputs",
+    { unsupported_keys: unsupported });
+  const trusted = assertLauncherTestProofAttemptContext(context);
+  if (trusted.selected_test.selector_kind === undefined) fail(
+    "test_proof_native_runtime_inputs_invalid",
+    "node:test attempts consume the launcher dependency projection, not native runtime inputs");
+  if (runtimeInputs === null || typeof runtimeInputs !== "object" ||
+      !DIGEST_RE.test(runtimeInputs.runtime_inputs_digest ?? "") ||
+      !DIGEST_RE.test(runtimeInputs.provider_asset_digest ?? "")) fail(
+    "test_proof_native_runtime_inputs_invalid",
+    "native attempts require authenticated installed runtime inputs");
+  const binding = deepFreeze({
+    schema_version: "workspace-agent-test-proof-native-dependency-population.v1",
+    run_id: trusted.evidence_identity.run_id,
+    verification_id: trusted.evidence_identity.verification_id,
+    source_snapshot_digest: trusted.source_snapshot.source_snapshot_digest,
+    selector_kind: trusted.selected_test.selector_kind,
+    application_dependency_population: runtimeInputs.dependency_population?.source ===
+      "launcher_readiness" ? {
+        authenticated: true,
+        source: "launcher_readiness",
+        readiness_digest: runtimeInputs.dependency_population.readiness_digest,
+        ...(runtimeInputs.dependency_population.dependencies === undefined ? {}
+          : { dependencies: runtimeInputs.dependency_population.dependencies })
+      } : { authenticated: true, count: 0, members: [] },
+    consumer_dependency_projection_consumed: false,
+    runtime_inputs_digest: runtimeInputs.runtime_inputs_digest
+  });
+  NATIVE_DEPENDENCY_BINDINGS.add(binding);
+  return binding;
+}
+
+export function assertLauncherNativeRuntimeInputsCurrent(binding, runtimeInputs) {
+  if (binding === null || typeof binding !== "object" || !NATIVE_DEPENDENCY_BINDINGS.has(binding)) fail(
+    "test_proof_native_runtime_inputs_invalid",
+    "native runtime currentness requires a launcher-authenticated dependency binding");
+  if (runtimeInputs?.runtime_inputs_digest !== binding.runtime_inputs_digest) fail(
+    "test_proof_native_runtime_inputs_stale",
+    "installed native runtime inputs moved during proof execution", {
+      expected: binding.runtime_inputs_digest,
+      actual: runtimeInputs?.runtime_inputs_digest ?? null
+    });
+  return binding;
+}
+
 export function assertLauncherTestProofAttemptContext(context) {
   if (context === null || typeof context !== "object" || !Object.isFrozen(context) ||
       !RUNTIME_CONTEXTS.has(context)) fail("test_proof_attempt_context_untrusted",
@@ -706,6 +818,7 @@ export function assertLauncherTestProofAttemptContext(context) {
 
 export function assertLauncherTestProofSourceSnapshotCurrent(context) {
   const trusted = assertLauncherTestProofAttemptContext(context);
+  SAVED_SOURCE_GUARDS.get(trusted.authority)?.();
   const current = captureLauncherTestProofSourceSnapshot(trusted.authority);
   if (current.source_snapshot_digest !== trusted.source_snapshot.source_snapshot_digest) fail(
     "test_proof_source_snapshot_stale",

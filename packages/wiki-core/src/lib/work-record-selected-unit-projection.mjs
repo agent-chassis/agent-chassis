@@ -1,5 +1,6 @@
 import { types as utilTypes } from "node:util";
 import {
+  SHA256_PATTERN,
   SLICE_ID_PATTERN,
   WORK_RECORD_STATUS_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
@@ -7,6 +8,16 @@ import {
 } from "./work-record-schema-constants.mjs";
 import { projectWorkRecordTestProofValidation } from "./work-record-test-proof-bindings.mjs";
 import { analyzeWorkRecordFindingsUnit } from "./work-record-findings-semantics.mjs";
+import {
+  WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES,
+  WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS,
+  WORK_RECORD_ENTRY_METADATA_PAGE_DEFAULT,
+  WORK_RECORD_ENTRY_METADATA_PAGE_MAX,
+  WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES,
+  WORK_RECORD_TEXT_PAGE_DEFAULT_SCALARS
+} from "./work-record-entry-schema.mjs";
+import { fitReadPagePopulation } from "./work-record-read-page-budget.mjs";
+import { buildNextCall } from "./next-calls-descriptor.mjs";
 
 const MAX_PROJECTED_NODES = 10000;
 const MAX_PROJECTED_DEPTH = 64;
@@ -134,6 +145,16 @@ function projectAgentNotes(value) {
   return projectStringList(value);
 }
 
+function agentNotesEqual(left, right) {
+  if (typeof left === "string" || typeof right === "string") {
+    return typeof left === "string" && typeof right === "string" && left === right;
+  }
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+    return false;
+  }
+  return left.every((entry, index) => entry === right[index]);
+}
+
 function projectReadScope(value) {
   const refs = [];
   const seen = new Set();
@@ -258,6 +279,15 @@ export function projectSelectedWorkRecordUnit(value) {
     projected.agent_notes = agentNotes;
   }
 
+  if (
+    Object.hasOwn(projected, "agent_notes") &&
+    Object.hasOwn(projected, "sections") &&
+    Object.hasOwn(projected.sections, "agent_notes") &&
+    agentNotesEqual(projected.agent_notes, projected.sections.agent_notes)
+  ) {
+    delete projected.sections.agent_notes;
+  }
+
   return projected;
 }
 
@@ -269,4 +299,221 @@ export function selectedUnitProjectionProbe(value, fields) {
     if (descriptor) Object.defineProperty(probe, field, descriptor);
   }
   return probe;
+}
+
+export const SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS = 64;
+export const SELECTED_RECORD_MEMBER_FIELDS = Object.freeze([
+  "path", "offset", "limit", "length", "expected_source_digest"
+]);
+
+function isMemberIndex(value) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function memberDiagnostic(code, message, path, recoveryPath = null) {
+  return { code, severity: "error", authority_limb: "mechanical", message, path,
+    ...(recoveryPath === null ? {} : { recovery_member_path: recoveryPath }) };
+}
+
+export function selectedRecordMemberSelectorIssues(member) {
+  if (!isObject(member) || Array.isArray(member)) {
+    return [{ path: [], message: "member must be an object with path and optional offset, limit, length and expected_source_digest" }];
+  }
+  const issues = [];
+  for (const key of Object.keys(member)) {
+    if (!SELECTED_RECORD_MEMBER_FIELDS.includes(key)) {
+      issues.push({ path: [key], message: `member does not support ${key}` });
+    }
+  }
+  const path = ownDataValue(member, "path");
+  if (!path.present || path.value === INVALID || !Array.isArray(path.value) || utilTypes.isProxy(path.value)) {
+    issues.push({ path: ["path"], message: "member.path must be an array of own-key strings and array indexes" });
+  } else {
+    if (path.value.length > SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS) {
+      issues.push({ path: ["path"],
+        message: `member.path accepts at most ${SELECTED_RECORD_MEMBER_PATH_MAX_SEGMENTS} segments` });
+    }
+    for (let index = 0; index < path.value.length; index += 1) {
+      const segment = ownDataValue(path.value, String(index));
+      if (!segment.present || (typeof segment.value !== "string" && !isMemberIndex(segment.value))) {
+        issues.push({ path: ["path", index], message: "member.path segments are strings or nonnegative safe integers" });
+      }
+    }
+  }
+  const bounded = (field, minimum, maximum) => {
+    const supplied = ownDataValue(member, field);
+    if (!supplied.present) return;
+    if (!Number.isSafeInteger(supplied.value) || supplied.value < minimum || supplied.value > maximum) {
+      issues.push({ path: [field], message: `member.${field} must be an integer from ${minimum} to ${maximum}` });
+    }
+  };
+  bounded("offset", 0, Number.MAX_SAFE_INTEGER);
+  bounded("limit", 1, WORK_RECORD_ENTRY_METADATA_PAGE_MAX);
+  bounded("length", 1, WORK_RECORD_ENTRY_BODY_PAGE_MAX_SCALARS);
+  const digest = ownDataValue(member, "expected_source_digest");
+  if (digest.present && (typeof digest.value !== "string" || !SHA256_PATTERN.test(digest.value))) {
+    issues.push({ path: ["expected_source_digest"],
+      message: "member.expected_source_digest must be the source_digest a member read returned" });
+  }
+  return issues;
+}
+
+function memberKind(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return "string";
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "number") return Number.isFinite(value) ? "number" : null;
+  if (isObject(value)) return Array.isArray(value) ? "array" : "object";
+  return null;
+}
+
+function scalarLength(text) {
+  let count = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) index += 1;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function scalarWindow(text, start, count) {
+  const scalars = [];
+  let scalar = 0;
+  for (let index = 0; index < text.length && scalars.length < count;) {
+    const code = text.charCodeAt(index);
+    const next = index + 1 < text.length ? text.charCodeAt(index + 1) : 0;
+    const width = code >= 0xd800 && code <= 0xdbff && next >= 0xdc00 && next <= 0xdfff ? 2 : 1;
+    if (scalar >= start) scalars.push(text.slice(index, index + width));
+    scalar += 1;
+    index += width;
+  }
+  return scalars;
+}
+
+function describeMember(value) {
+  const kind = memberKind(value);
+  if (kind === "string") return { kind, length: scalarLength(value) };
+  if (kind === "array") return { kind, count: value.length };
+  if (kind === "object") return { kind, count: Object.keys(value).length };
+  return { kind };
+}
+
+function resolveMember(root, path) {
+  let current = root;
+  for (let index = 0; index < path.length; index += 1) {
+    const segment = path[index];
+    const where = `member.path[${index}]`;
+    const kind = memberKind(current);
+    if (typeof segment === "number" ? kind !== "array" : kind !== "object") {
+      return { diagnostic: memberDiagnostic("record_member_path_type_mismatch",
+        `${where} ${typeof segment === "number" ? "indexes an array" : "names an object key"}, ` +
+          `but the selected value is ${kind ?? "not a JSON value"}`,
+        where, path.slice(0, index)) };
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(current, String(segment));
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, "value") ||
+        (typeof segment === "number" && segment >= current.length)) {
+      return { diagnostic: memberDiagnostic("record_member_path_missing",
+        `${where} is not a member of the selected value`, where, path.slice(0, index)) };
+    }
+    current = descriptor.value;
+  }
+  return { value: current };
+}
+
+export function projectSelectedRecordMember({ value, member, sourceDigest = null, envelope = {}, buildCall }) {
+  const path = member.path;
+  const resolved = resolveMember(value, path);
+  if (resolved.diagnostic) return { ok: false, diagnostic: resolved.diagnostic };
+  const selected = resolved.value;
+  const kind = memberKind(selected);
+
+  const pinned = (selector) => buildCall(sourceDigest === null
+    ? selector
+    : { ...selector, expected_source_digest: sourceDigest });
+  const refuse = (code, message, field) => ({ ok: false,
+    diagnostic: memberDiagnostic(code, message, `member.${field}`, path) });
+  if (kind === null) {
+    return { ok: false, diagnostic: memberDiagnostic("record_member_value_unsupported",
+      "the selected member is not a JSON value", "member.path") };
+  }
+
+  if (kind === "object" || kind === "array") {
+    if (member.length !== undefined) {
+      return refuse("record_member_selector_invalid",
+        "length ranges a string member; a container pages with offset and limit", "length");
+    }
+    const keys = kind === "object" ? Object.keys(selected) : null;
+    const total = keys === null ? selected.length : keys.length;
+    const start = member.offset ?? 0;
+    if (start > total) {
+      return refuse("record_member_range_invalid", `offset ${start} is past the ${total} immediate members`, "offset");
+    }
+    const limit = member.limit ?? WORK_RECORD_ENTRY_METADATA_PAGE_DEFAULT;
+    const rows = [];
+    for (let position = start; position < Math.min(total, start + limit); position += 1) {
+      const segment = keys === null ? position : keys[position];
+      rows.push({ ...(keys === null ? { index: segment } : { key: segment }),
+        ...describeMember(selected[segment]), next_call: pinned({ path: [...path, segment] }) });
+    }
+    const build = (count) => {
+      const end = start + count;
+      return { ...envelope,
+        member: { path, kind, offset: start, total_count: total, returned_count: count, members: rows.slice(0, count) },
+        next_calls: end < total
+          ? [pinned({ path, offset: end, ...(member.limit === undefined ? {} : { limit: member.limit }) })]
+          : [] };
+    };
+    const budget = member.limit === undefined
+      ? WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES
+      : WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES;
+    return { ok: true, result: fitReadPagePopulation(rows.length, build, budget) };
+  }
+
+  if (kind === "string") {
+    if (member.limit !== undefined) {
+      return refuse("record_member_selector_invalid",
+        "limit pages a container; a string member accepts offset and length", "limit");
+    }
+    const total = scalarLength(selected);
+    const start = member.offset ?? 0;
+    if (start > total) {
+      return refuse("record_member_range_invalid", `offset ${start} is past the ${total} scalars`, "offset");
+    }
+    const maximum = Math.min(member.length ?? WORK_RECORD_TEXT_PAGE_DEFAULT_SCALARS, total - start);
+    const scalars = scalarWindow(selected, start, maximum);
+    const build = (count) => {
+      const end = start + count;
+      return { ...envelope,
+        member: { path, kind, offset: start, length: count, total, value: scalars.slice(0, count).join("") },
+        next_calls: end < total
+          ? [pinned({ path, offset: end, ...(member.length === undefined ? {} : { length: member.length }) })]
+          : [] };
+    };
+    const budget = member.length === undefined
+      ? WORK_RECORD_ENTRY_READ_TARGET_UTF8_BYTES
+      : WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES;
+    return { ok: true, result: fitReadPagePopulation(maximum, build, budget) };
+  }
+
+  for (const field of ["offset", "limit", "length"]) {
+    if (member[field] !== undefined) {
+      return refuse("record_member_selector_invalid",
+        `${field} applies to container or string members; a ${kind} member is returned whole`, field);
+    }
+  }
+  return { ok: true, result: { ...envelope, member: { path, kind, value: selected }, next_calls: [] } };
+}
+
+export function buildSelectedRecordMemberCall({
+  tool, repository = null, identity, selectedSlice = null, member, recommended = false
+}) {
+  return buildNextCall({ tool,
+    arguments: { ...(repository === null ? {} : { repo: repository }), ...identity,
+      ...(selectedSlice === null ? {} : { selected_slice: selectedSlice }), member },
+    ...(recommended ? { recommended: true } : {}) });
 }

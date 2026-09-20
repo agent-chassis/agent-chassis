@@ -9,10 +9,7 @@ import {
   nextActionForDecisionCode,
   nextActionForFreeLocalDecisionCode
 } from "../work-record-write-route-helpers.mjs";
-import {
-  graphBlockerCodeForReadiness,
-  graphDerivationRequiredForDispatch
-} from "./dispatch-admission-policy.mjs";
+import { graphDerivationRequiredForDispatch } from "./dispatch-admission-policy.mjs";
 import { refuseFindingsOnlyAdmission } from "./findings-only-admission.mjs";
 import {
   boundedRecoveryDetail,
@@ -78,11 +75,13 @@ export async function orchestrateAgentDispatchReadiness({
     if (args.role === "worker") {
       if (!graphDerivationRequiredForDispatch(readiness.recovery?.graph_impact) &&
           !readiness.dispatchable) {
-        const graphCode = graphBlockerCodeForReadiness(readiness);
-        const classification = graphCode
-          ? null
-          : namedAuthoredReadinessClassification(readiness);
+        const classification = namedAuthoredReadinessClassification(readiness);
         const readinessDecisionCode = readiness.decision_code;
+        const controlledAcceptanceBlocked = [
+          "controlled_acceptance_disposition_missing",
+          "controlled_acceptance_incomplete",
+          "controlled_acceptance_proof_posture_invalid"
+        ].includes(readinessDecisionCode);
         const nextAction = isPaidTier
           ? nextActionForDecisionCode(
               readinessDecisionCode,
@@ -98,8 +97,8 @@ export async function orchestrateAgentDispatchReadiness({
         return {
           response: refuse({
             failure: readinessFailure(readiness),
-            blockerCode: graphCode ?? classification.code,
-            reason: graphCode ?? "work_record_not_dispatchable",
+            blockerCode: classification.code,
+            reason: "work_record_not_dispatchable",
             detail: boundedRecoveryDetail(readiness, {
               readiness_reasons: readiness.reasons ?? [],
               ...(isPaidTier && Array.isArray(readiness.validation_hints) &&
@@ -116,11 +115,17 @@ export async function orchestrateAgentDispatchReadiness({
               "wk.dispatchable": false,
               "wk.decision_code": readiness.decision_code ?? null
             },
-            continuation: graphCode ? null : continuationOrNull({
-              tool: WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME,
-              arguments: { unit: args.subject },
+            continuation: continuationOrNull({
+              tool: controlledAcceptanceBlocked
+                ? "workspace_controlled_contract_obligation_coverage_query"
+                : WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME,
+              arguments: controlledAcceptanceBlocked
+                ? { unit: String(args.subject).split("#", 1)[0] }
+                : { unit: args.subject },
               predicate: { fact: "wk.dispatchable", operator: "is_true" },
-              prerequisite: "the selected unit is not dispatchable under its authored contract",
+              prerequisite: controlledAcceptanceBlocked
+                ? "the parent WK controlled-acceptance proof posture is absent, incomplete, or invalid"
+                : "the selected unit is not dispatchable under its authored contract",
               successCondition:
                 "workspace_agent_dispatch reports the same unit dispatchable once the authored contract is corrected"
             })
@@ -148,8 +153,7 @@ export async function orchestrateAgentDispatchReadiness({
     }
 
     if (!readiness.dispatchable) {
-      const graphCode = graphBlockerCodeForReadiness(readiness);
-      const classification = graphCode ? null : namedAuthoredReadinessClassification(readiness);
+      const classification = namedAuthoredReadinessClassification(readiness);
       const readinessDecisionCode = readiness.decision_code;
       const nextAction = isPaidTier
         ? nextActionForDecisionCode(
@@ -166,8 +170,8 @@ export async function orchestrateAgentDispatchReadiness({
       return {
         response: refuse({
           failure: readinessFailure(readiness),
-          blockerCode: graphCode ?? classification.code,
-          reason: graphCode ?? "work_record_not_dispatchable",
+          blockerCode: classification.code,
+          reason: "work_record_not_dispatchable",
           detail: boundedRecoveryDetail(readiness, {
             readiness_reasons: readiness.reasons ?? [],
             ...(isPaidTier && Array.isArray(readiness.validation_hints) &&

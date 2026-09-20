@@ -224,8 +224,8 @@ function buildRevocationPropagationFixture({
       target_claim_id: `claim-${relation.target_claim_pattern_id}`
     });
   const input = {
-    input_version: "controlled-contract-verification-profile-input.v1",
-    evaluation_stage: "pre_dispatch",
+    input_version: "controlled-contract-verification-profile-input.v2",
+
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...(roles[role] ?? [])]
     })),

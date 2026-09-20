@@ -54,29 +54,18 @@ function identity(focus) {
   };
 }
 
-test("package owns exact root and focused missing-plan recovery", () => {
+test("package preserves exact root and focused missing-plan capability failure", () => {
   for (const focus of [null, "focused-slice"]) {
     const actual = buildControlledContractAssessmentRecovery({
       reasonCode: "controlled_contract_proof_plan_missing",
       contractIdentity: identity(focus)
     });
-    const arguments_ = {
-      wk_id: "WK-2012",
-      ...(focus === null ? {} : { focus }),
-      expected_content_digest: null
-    };
     assert.deepEqual(actual, {
-      status: "recoverable-incomplete",
+      status: "capability-incomplete",
       reason_code: "controlled_contract_proof_plan_missing",
       contract_identity: identity(focus),
-      next_calls: [{
-        tool: "workspace_controlled_proof_plan_build",
-        arguments: arguments_,
-        recommended: true
-      }],
-      next_action: focus === null
-        ? 'workspace_controlled_proof_plan_build({wk_id:"WK-2012", expected_content_digest:null})'
-        : 'workspace_controlled_proof_plan_build({wk_id:"WK-2012", focus:"focused-slice", expected_content_digest:null})',
+      next_calls: [],
+      recovery: null,
       missing_carrier: "proof_plan",
       expected_content_digest: null
     });
@@ -92,7 +81,8 @@ test("package owns exact stale-plan digest recovery", () => {
   });
   assert.equal(actual.stale_carrier, "proof_plan");
   assert.equal(actual.expected_content_digest, STALE_DIGEST);
-  assert.equal(actual.next_calls[0].arguments.expected_content_digest, STALE_DIGEST);
+  assert.deepEqual(actual.next_calls, []);
+  assert.equal(actual.recovery, null);
 });
 
 test("package owns request and evaluation recovery without invented CAS state", () => {
@@ -105,7 +95,8 @@ test("package owns request and evaluation recovery without invented CAS state", 
       contractIdentity: identity(null)
     });
     assert.equal(actual.missing_carrier, carrierKind);
-    assert.deepEqual(actual.next_calls[0].arguments, { carrier_kind: carrierKind });
+    assert.deepEqual(actual.next_calls, []);
+    assert.equal(actual.recovery, null);
     assert.equal(Object.hasOwn(actual, "expected_content_digest"), false);
   }
 });

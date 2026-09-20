@@ -1,3 +1,4 @@
+import { RUNTIME_BLOCKER_DESCRIPTOR as composedTaxonomy } from "../../packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -39,16 +40,27 @@ test("CCE absence, launcher absence, and invalid decision envelopes do not becom
 
   assert.match(backend.consumer_notes, /configured CCE unavailability/i);
   assert.match(backend.consumer_notes, /absent CCE response/i);
-  assert.match(operator.consumer_notes, /missing launcher declaration/i);
-  assert.match(operator.consumer_notes, /malformed, unratified, unknown, contradictory, or unauthenticated/i);
+
+  assert.match(backend.consumer_notes, /malformed, unratified, contradictory, unknown, or unauthenticated/i);
+  assert.match(operator.consumer_notes, /break-glass only/i);
+  assert.match(operator.consumer_notes, /exact authenticated external condition must be preserved/i);
+  for (const code of [
+    "launcher_declaration_missing",
+    "authority_binding_unratified",
+    "decision_envelope_malformed",
+    "decision_envelope_unknown",
+    "decision_envelope_contradictory",
+    "decision_envelope_unauthenticated"
+  ]) {
+    assert.equal(isRuntimeBlockerCode(code), true, `${code} must be its own registered identity`);
+    assert.notEqual(getRuntimeBlockerEntry(code).code, "operator_recovery_needed");
+  }
   assert.match(readiness.detail, /external capability|backend response|policy envelope/);
   assert.equal(isRuntimeBlockerCode("worker_admission_review_threshold_exceeded"), false);
 });
 
 test("taxonomy export preserves the narrowed catalog and validates every active entry", async () => {
-  const raw = JSON.parse(
-    await readFile(new URL("../../packages/wiki-core/data/runtime-blocker-codes.v1.json", import.meta.url), "utf8")
-  );
+  const raw = composedTaxonomy;
   assert.deepEqual(loadRuntimeBlockerTaxonomy().codes.map(({ code }) => code), raw.codes.map(({ code }) => code));
   assert.ok(raw.codes.every((entry) => typeof entry.code === "string" && typeof entry.summary === "string"));
   assert.equal(raw.codes.some(({ code }) => code === "worker_admission_review_threshold_exceeded"), false);

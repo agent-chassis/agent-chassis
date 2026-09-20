@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "ddbca60830480ee9d642cd4e047fc061060aa2e2f6c99828678e8e4aad4b7d94",
+  "profile_id": "proof.idempotency.effect-nonduplication",
+  "profile_version": "5.0.0",
+  "profile_digest": "6d7ab2f8910eb58d184da889470c732f462f2997ef85040f09a0ff945283c3e4",
+  "guarantee": "Two completed sequential invocations using the same input leave the elected durable effect resource observed in the same complete controlled state after the first invocation, immediately before the second invocation, and after the second invocation.",
+  "guarantee_digest": "38166c31a5bcf62c7d3cdde9af1b4ecec27b67d299a4a190a15715f96f852050",
+  "explicit_exclusions": [
+    "concurrent-replay-safety",
+    "dishonest-reference-grounding",
+    "idempotency-key-principal-scope",
+    "intervening-reset-or-mutation-history",
+    "mutation-of-resources-outside-the-elected-effect-resource",
+    "partial-commit-recovery",
+    "undeclared-runtime-actions"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "03bde4fc0186f62faedfb2343dced167cdedf1dac4380fd8cfe35f47b907241c",
+    "adequacy_result_digest": "e308bde3d2f6f3a497fbb67b3b432ed74a88ecdb56c09a605a61e8a7c23f846a",
+    "executable_control_count": 21,
+    "negative_fixture_count": 46,
+    "coverage_witness_count": 129
+  }
+}

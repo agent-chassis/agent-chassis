@@ -49,7 +49,12 @@ function observableReport(pair, position) {
 
 function reshapedAttempt(attempt, mutate) {
   const clone = structuredClone(attempt);
+  const authenticated = clone.evidence_digest;
   mutate(clone);
+
+  if (clone.evidence_digest === authenticated) {
+    clone.evidence_digest = digestTestProofEvidence(clone.evidence);
+  }
   return clone;
 }
 
@@ -101,7 +106,12 @@ test("binds two authenticated sides into one ordered content-addressed pair", as
     assert.deepEqual(side.artifacts, bundle.attempt.evidence.artifacts.map(
       ({ artifact_id: artifactId, kind, digest }) => ({ artifact_id: artifactId, kind, digest })
     ));
-    assert.equal(side.inventory_change_count, 0);
+
+    assert.equal(side.selected_test_id, bundle.context.selected_test.test_id);
+    assert.equal(side.selected_test_id, side.test_id);
+    assert.equal(side.observed_test_count, 1);
+    assert.equal(side.selected_test_executed, true);
+    assert.equal(Object.hasOwn(side, "inventory_change_count"), false);
   }
 
   assert.match(pair.pair_id, /^pair-[0-9a-f]{64}$/u);
@@ -190,9 +200,32 @@ test("requires the attempt identity the bound context minted, field for field", 
     verification_id: "claim-verify-other",
     command_id: `command-${"d".repeat(64)}`
   };
+
+  const coherent = {
+    test_id: (clone, value) => {
+      clone.evidence.test_inventory = {
+        ...clone.evidence.test_inventory,
+        selected_test_id: value, declared_test_ids: [value],
+        discovered_test_ids: [value], executed_test_ids: [value]
+      };
+    },
+    wk_id: (clone, value) => {
+      clone.evidence.evidence_identity.selected_unit = `${value}#SLICE-006`;
+    },
+    selected_unit: (clone, value) => {
+      clone.evidence.evidence_identity.wk_id = value.split("#")[0];
+    },
+    verification_id: (clone, value) => {
+      clone.evidence.contract_binding.verification_claim_id = value;
+      for (const execution of clone.evidence.falsifier_executions) {
+        execution.target_verification_id = value;
+      }
+    }
+  };
   for (const [field, value] of Object.entries(mutants)) {
     const attempt = reshapedAttempt(baseline.attempt, (clone) => {
       clone.evidence.evidence_identity[field] = value;
+      coherent[field]?.(clone, value);
     });
     assert.throws(() => buildBehavioralPreservationEvidencePair({
       baseline: { context: baseline.context, attempt }, candidate
@@ -207,7 +240,7 @@ test("requires the attempt identity the bound context minted, field for field", 
     assert.throws(() => buildBehavioralPreservationEvidencePair({
       baseline: { context: baseline.context, attempt: reshapedAttempt(baseline.attempt, mutate) },
       candidate
-    }), pairRefusal(CODES.SIDE_IDENTITY_MISMATCH));
+    }), forwardedRefusal("test_proof_receipt_projection_invalid"));
   }
 });
 
