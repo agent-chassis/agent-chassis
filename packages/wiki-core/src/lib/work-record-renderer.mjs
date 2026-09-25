@@ -553,21 +553,21 @@ export function renderWorkRecordMarkdown(record, options = {}) {
 
 export function renderWorkRecordAgentBrief(record, options = {}) {
   const { generatedAt = new Date().toISOString(), outputPath = null, sliceId = null } = options;
-
-  const metadataSliceId = findSelectedSlice(record, sliceId) ? sliceId : null;
   const { omittedFields, compactedFields } = createProjectionCompactionLists(record, "agent_brief", {
-    sliceId: metadataSliceId
+    sliceId,
+    scopePresentation: options.scopePresentation ?? null
   });
   const metadata = buildProjectionMetadata(record, "agent_brief", {
     generatedAt,
     outputPath: outputPath ?? undefined,
     omittedFields,
     compactedFields,
-    sliceId: metadataSliceId
+    sliceId
   });
   return buildBriefProjectionResult(record, metadata, {
     sliceId,
-    entryMaterial: options.entryMaterial ?? null
+    entryMaterial: options.entryMaterial ?? null,
+    scopePresentation: options.scopePresentation ?? null
   });
 }
 

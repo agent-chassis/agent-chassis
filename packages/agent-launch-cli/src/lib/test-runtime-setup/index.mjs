@@ -1,28 +1,20 @@
 
 
-import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { TEST_RUNTIME_RUNNER_CATALOG } from "@agent-chassis/controlled-contract/test-proof";
 
-import { DEPENDENCY_ECOSYSTEMS, makeTreeReadOnly, makeTreeWritable } from "./ecosystems.mjs";
+import { DEPENDENCY_ECOSYSTEMS } from "./ecosystems.mjs";
 import {
   TEST_RUNTIME_READINESS_RELATIVE_PATH,
-  defaultStateRoot,
-  defaultToolchainRoot,
-  digestJson,
+  beginPreparation,
   loadReadiness,
   measureProjectInputs,
-  publishReadiness,
-  withdrawReadiness
+  settlePreparation,
+  testRuntimeEnvironmentId
 } from "./readiness.mjs";
-import {
-  TEST_RUNTIME_RECIPES_VERSION,
-  TOOLCHAIN_NAMES,
-  TOOLCHAIN_RECIPES,
-  currentPlatformKey
-} from "./recipes.mjs";
+import { TOOLCHAIN_NAMES, TOOLCHAIN_RECIPES, currentPlatformKey } from "./recipes.mjs";
 import { TestRuntimeSetupError, findOnPath, resolveToolchain } from "./toolchains.mjs";
 import { fingerprintPopulation, measurePopulationContent } from "./tree-identity.mjs";
 import { verifyCandidateReadiness } from "../test-execution/setup-verification.mjs";
@@ -30,8 +22,6 @@ import { verifyCandidateReadiness } from "../test-execution/setup-verification.m
 export { TestRuntimeSetupError, findOnPath };
 export const TEST_RUNTIME_SETUP_RESULT_SCHEMA_VERSION = "agent-launch-test-runtime-setup-result.v1";
 export const SUPPORTED_SETUP_PLATFORMS = Object.freeze(["linux-x64"]);
-const PREPARED_MARKER_FILE = ".agent-chassis-prepared.json";
-const HOST_TOOLCHAIN_MODES = Object.freeze(["reuse", "ignore"]);
 
 export function testRuntimeRunnerNames() {
   return TEST_RUNTIME_RUNNER_CATALOG.runners.map(({ name }) => name);
@@ -55,142 +45,166 @@ function componentFromError(base, error) {
   return { ...base, status: "failed", code: error.code, message: error.message, detail: error.detail };
 }
 
-function resolveSelection({ repositoryRoot, runners }) {
+export function testRuntimeEcosystems() {
+  return Object.fromEntries(Object.entries(DEPENDENCY_ECOSYSTEMS).map(([name, ecosystem]) =>
+    [name, Object.freeze({ toolchains: ecosystem.toolchains })]));
+}
+
+export function environmentsFromRunnerSelection(runners) {
+  const environments = new Map();
+  for (const { runner, project = "." } of runners) {
+    const descriptor = TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ name }) => name === runner);
+    const ecosystem = descriptor?.dependency_ecosystem ?? null;
+    const key = `${ecosystem}\0${project}`;
+    const entry = environments.get(key) ?? { ecosystem, project, members: [], runners: [] };
+    if (!entry.runners.includes(runner)) entry.runners.push(runner);
+    environments.set(key, entry);
+  }
+  return [...environments.values()];
+}
+
+function normalizedProject(project) {
+  const normalized = project === undefined || project === "" ? "." : project;
+  return normalized === "." || (!path.isAbsolute(normalized) &&
+    !normalized.split("/").some((segment) => segment === "" || segment === "." || segment === ".."))
+    ? normalized : null;
+}
+
+function publishedEnvironments(repositoryRoot) {
+  const loaded = loadReadiness(repositoryRoot);
+  const record = loaded.ok ? loaded.record : loaded.record ?? null;
+  if (record === null) return null;
+  return (record.environments ?? []).map(({ ecosystem, project, members, runners }) => ({
+    ecosystem, project, members,
+    runners: runners.map((id) => TEST_RUNTIME_RUNNER_CATALOG.runners
+      .find(({ runner_id: runnerId }) => runnerId === id)?.name ?? id) }));
+}
+
+function resolveEnvironments({ repositoryRoot, environments }) {
   const names = testRuntimeRunnerNames();
-  let requested = runners;
+  let requested = environments;
   if (requested === null || requested.length === 0) {
-    const loaded = loadReadiness(repositoryRoot);
-    if (!loaded.ok) {
+    requested = publishedEnvironments(repositoryRoot);
+    if (requested === null) {
       return { ok: false, failure: setupFailure("test_runtime_selection_required",
-        "select at least one installed runner with --runner <name>[@<project>]",
+        "no environment was requested and none is published; run setup from the repository root " +
+        "so it detects the environments the repository declares",
         { available_runners: names }) };
     }
-    requested = loaded.record.selection.map(({ provider_id: id, project }) =>
-      ({ runner: TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ runner_id: runnerId }) =>
-        runnerId === id)?.name ?? id, project }));
   }
-  const selection = [];
-  for (const { runner, project } of requested) {
-    const descriptor = TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ name }) => name === runner);
-    if (!descriptor) {
-      return { ok: false, failure: setupFailure("test_runtime_runner_unknown",
-        `unknown runner ${runner}`, { runner, available_runners: names }) };
+  const resolved = new Map();
+  for (const entry of requested) {
+    const ecosystemName = entry.ecosystem;
+    if (!Object.hasOwn(DEPENDENCY_ECOSYSTEMS, ecosystemName ?? "")) {
+      const [unknownRunner] = (entry.runners ?? []).filter((runner) =>
+        !TEST_RUNTIME_RUNNER_CATALOG.runners.some(({ name }) => name === runner));
+      return { ok: false, failure: unknownRunner === undefined
+        ? setupFailure("test_runtime_ecosystem_unknown", `unknown dependency ecosystem ${ecosystemName}`,
+          { ecosystem: ecosystemName ?? null, available_ecosystems: Object.keys(DEPENDENCY_ECOSYSTEMS) })
+        : setupFailure("test_runtime_runner_unknown", `unknown runner ${unknownRunner}`,
+          { runner: unknownRunner, available_runners: names }) };
     }
-    const normalized = project === undefined || project === "" ? "." : project;
-    if (normalized !== "." && (path.isAbsolute(normalized) ||
-        normalized.split("/").some((segment) => segment === "" || segment === "." || segment === ".."))) {
+    const project = normalizedProject(entry.project);
+    if (project === null) {
       return { ok: false, failure: setupFailure("test_runtime_project_invalid",
-        `project ${project} must be a normalized repository-relative directory`, { project }) };
+        `project ${entry.project} must be a normalized repository-relative directory`,
+        { project: entry.project }) };
     }
-    const projectDir = normalized === "." ? repositoryRoot : path.join(repositoryRoot, normalized);
+    const projectDir = project === "." ? repositoryRoot : path.join(repositoryRoot, project);
     if (!existsSync(projectDir) || !statSync(projectDir).isDirectory()) {
       return { ok: false, failure: setupFailure("test_runtime_project_invalid",
-        `project ${normalized} is not a directory`, { project: normalized }) };
+        `project ${project} is not a directory`, { project }) };
     }
-    if (!selection.some((entry) => entry.descriptor === descriptor && entry.project === normalized)) {
-      selection.push({ descriptor, project: normalized, projectDir });
+    const members = [...new Set(entry.members ?? [])].sort();
+    for (const member of members) {
+      if (normalizedProject(member) === null || member === "." ||
+          !existsSync(path.join(projectDir, member)) || !statSync(path.join(projectDir, member)).isDirectory()) {
+        return { ok: false, failure: setupFailure("test_runtime_project_invalid",
+          `workspace member ${member} of ${project} is not a normalized member directory`,
+          { project, member }) };
+      }
     }
+    const descriptors = [];
+    for (const runner of entry.runners ?? []) {
+      const descriptor = TEST_RUNTIME_RUNNER_CATALOG.runners.find(({ name }) => name === runner);
+      if (!descriptor) {
+        return { ok: false, failure: setupFailure("test_runtime_runner_unknown",
+          `unknown runner ${runner}`, { runner, available_runners: names }) };
+      }
+      if (descriptor.dependency_ecosystem !== ecosystemName) {
+        return { ok: false, failure: setupFailure("test_runtime_runner_ecosystem_mismatch",
+          `runner ${runner} uses ${descriptor.dependency_ecosystem} dependencies, not ${ecosystemName}`,
+          { runner, ecosystem: ecosystemName, runner_ecosystem: descriptor.dependency_ecosystem }) };
+      }
+      descriptors.push(descriptor);
+    }
+    const key = `${ecosystemName}\0${project}`;
+    const existing = resolved.get(key) ?? { id: testRuntimeEnvironmentId({ ecosystem: ecosystemName, project }),
+      ecosystem: ecosystemName, project, projectDir, members: [], descriptors: [] };
+    existing.members = [...new Set([...existing.members, ...members])].sort();
+    for (const descriptor of descriptors) {
+      if (!existing.descriptors.includes(descriptor)) existing.descriptors.push(descriptor);
+    }
+    resolved.set(key, existing);
   }
-  selection.sort((left, right) => `${left.descriptor.runner_id}\0${left.project}`
-    .localeCompare(`${right.descriptor.runner_id}\0${right.project}`));
-  return { ok: true, selection };
+  const result = [...resolved.values()].map((entry) => ({ ...entry,
+    descriptors: entry.descriptors.sort((left, right) => left.runner_id.localeCompare(right.runner_id)),
+    toolchains: [...new Set([...DEPENDENCY_ECOSYSTEMS[entry.ecosystem].toolchains,
+      ...entry.descriptors.flatMap(({ toolchains }) => toolchains)])].sort() }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  return { ok: true, environments: result };
 }
 
-function readPreparedMarker(directory) {
-  try {
-    return JSON.parse(readFileSync(path.join(directory, PREPARED_MARKER_FILE), "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-async function prepareDependencies({ ecosystemName, project, projectDir, toolchains, stateRoot,
-  env, dryRun }) {
+async function detectDependencies({ root, ecosystemName, project, projectDir, members, toolchains, env,
+  selection, measure }) {
   const ecosystem = DEPENDENCY_ECOSYSTEMS[ecosystemName];
-  const base = { kind: "dependencies", ecosystem: ecosystemName, project };
-  const inputs = measureProjectInputs(ecosystemName, projectDir);
+  const base = { kind: "dependencies", ecosystem: ecosystemName, project,
+    environment: testRuntimeEnvironmentId({ ecosystem: ecosystemName, project }) };
+  const inputs = measureProjectInputs(ecosystemName, projectDir, { members });
   if (inputs.status === "lock_missing") {
     return { ...base, status: "failed", code: "test_runtime_dependency_lock_missing",
       message: `project ${project} requires ${inputs.required} for ${ecosystemName} dependencies`,
       detail: { required: inputs.required } };
   }
   const inputFiles = Object.keys(inputs.files).sort();
-  if (inputs.status === "none") {
-    return { ...base, status: "ready", record: { ecosystem: ecosystemName, project, status: "none",
-      inputs: inputFiles, inputs_digest: inputs.inputs_digest } };
-  }
-  const key = digestJson({ ecosystem: ecosystemName, project, inputs: inputs.inputs_digest,
-    toolchains: Object.fromEntries(ecosystem.toolchains.map((name) =>
-      [name, toolchains[name].content_digest])) }).slice(7, 31);
-  const directory = path.join(stateRoot, "prepared", ecosystemName, key);
-  const marker = readPreparedMarker(directory);
-  if (marker !== null) {
-    const population = marker.population_relative.map((relative) => path.join(directory, relative));
-    let current = null;
-    try {
-      current = fingerprintPopulation(population, { exclude: marker.population_exclude });
-    } catch {
-      current = null;
-    }
-    if (current === marker.fingerprint) {
-      return { ...base, status: "ready", reused: true, record: { ecosystem: ecosystemName, project,
-        status: "present", inputs: inputFiles, inputs_digest: inputs.inputs_digest, dir: directory,
-        population, population_exclude: marker.population_exclude,
-        content_digest: marker.content_digest, fingerprint: marker.fingerprint } };
-    }
-  }
-  if (dryRun) return { ...base, status: "planned", directory };
-  const staging = `${directory}.partial-${randomBytes(6).toString("hex")}`;
-  const workspace = `${directory}.work-${randomBytes(6).toString("hex")}`;
-  mkdirSync(staging, { recursive: true });
-  mkdirSync(workspace, { recursive: true });
+  const none = () => ({ ...base, status: "ready", source: "none", record: { ecosystem: ecosystemName, project,
+    members, status: "none", inputs: inputFiles, inputs_digest: inputs.inputs_digest, workspace_links: [] } });
+  if (inputs.status === "none") return none();
+  let detected;
   try {
-    const prepared = await ecosystem.prepare({ projectDir, outputDir: staging, stagingDir: workspace,
-      toolchains, manifestFiles: inputs.files, stateRoot, env });
-    const exclude = prepared.exclude ?? [];
-    for (const relative of prepared.population) makeTreeReadOnly(path.join(staging, relative));
-    makeTreeWritable(directory);
-    rmSync(directory, { recursive: true, force: true });
-    renameSync(staging, directory);
-    const population = prepared.population.map((relative) => path.join(directory, relative));
-    const identity = measurePopulationContent(population, { exclude });
-    const fingerprint = fingerprintPopulation(population, { exclude });
-    writeFileSync(path.join(directory, PREPARED_MARKER_FILE), `${JSON.stringify({
-      schema_version: "agent-chassis-prepared-dependencies-marker.v1", ecosystem: ecosystemName,
-      project, inputs_digest: inputs.inputs_digest, population_relative: prepared.population,
-      population_exclude: exclude, content_digest: identity.content_digest, fingerprint
-    }, null, 2)}\n`);
-    return { ...base, status: "ready", reused: false, record: { ecosystem: ecosystemName, project,
-      status: "present", inputs: inputFiles, inputs_digest: inputs.inputs_digest, dir: directory,
-      population, population_exclude: exclude, content_digest: identity.content_digest,
-      fingerprint } };
+    detected = await ecosystem.detect({ repositoryRoot: root, projectDir, project, members, inputs, toolchains,
+      env, selection });
   } catch (error) {
     return componentFromError(base, error);
-  } finally {
-    makeTreeWritable(staging);
-    rmSync(staging, { recursive: true, force: true });
-    makeTreeWritable(workspace);
-    rmSync(workspace, { recursive: true, force: true });
   }
+  if (detected.none === true) return none();
+  const exclude = detected.exclude ?? [];
+  const identity = measure ? { content_digest: measurePopulationContent(detected.population, { exclude })
+    .content_digest, fingerprint: fingerprintPopulation(detected.population, { exclude }) } : {};
+  return { ...base, status: "ready", source: detected.source, dir: detected.dir,
+    record: { ecosystem: ecosystemName, project, members, status: "present", source: detected.source,
+      inputs: inputFiles, inputs_digest: inputs.inputs_digest, dir: detected.dir,
+      population: detected.population, population_exclude: exclude,
+      workspace_links: detected.workspace_links ?? [],
+      ...(detected.stores === undefined ? {} : { stores: detected.stores }),
+      ...(detected.cargo_config === undefined ? {} : { cargo_config: detected.cargo_config }), ...identity } };
 }
 
 export async function runTestRuntimeSetup({
   repositoryRoot,
-  runners = null,
+  environments = null,
   toolchainVersions = {},
   toolchainExecutables = {},
-  toolchainRoot = null,
-  stateRoot = null,
-  hostToolchains = "reuse",
+  environmentSelections = {},
   dryRun = false,
+  progress = () => {},
   env = process.env,
-  platformKey = currentPlatformKey(),
-  fetchImpl = globalThis.fetch
+  platformKey = currentPlatformKey()
 } = {}) {
   const result = (status, extra) => Object.freeze({
     schema_version: TEST_RUNTIME_SETUP_RESULT_SCHEMA_VERSION,
     status,
-    ok: status === "ready" || status === "planned",
+    ok: status === "ready" || status === "detected",
     readiness_path: TEST_RUNTIME_READINESS_RELATIVE_PATH,
     dry_run: dryRun,
     ...extra
@@ -201,10 +215,6 @@ export async function runTestRuntimeSetup({
   } catch {
     return result("failed", { failure: setupFailure("test_runtime_repository_invalid",
       "the repository root does not exist", { repository_root: repositoryRoot }) });
-  }
-  if (!HOST_TOOLCHAIN_MODES.includes(hostToolchains)) {
-    return result("failed", { failure: setupFailure("test_runtime_option_invalid",
-      `host toolchain mode must be one of ${HOST_TOOLCHAIN_MODES.join(", ")}`) });
   }
   for (const name of [...Object.keys(toolchainVersions), ...Object.keys(toolchainExecutables)]) {
     if (!TOOLCHAIN_NAMES.includes(name)) {
@@ -219,103 +229,138 @@ export async function runTestRuntimeSetup({
         { toolchain: name, executable: executable ?? null }) });
     }
   }
-  for (const [label, value] of [["toolchain root", toolchainRoot], ["state root", stateRoot]]) {
-    if (value !== null && !path.isAbsolute(value)) {
-      return result("failed", { failure: setupFailure("test_runtime_option_invalid",
-        `${label} must be an absolute path`) });
-    }
-  }
-  const selected = resolveSelection({ repositoryRoot: root, runners });
-  if (!selected.ok) return result("failed", { failure: selected.failure });
-  const selectionFacts = selected.selection.map(({ descriptor, project }) =>
-    ({ provider_id: descriptor.runner_id, project }));
+  const resolved = resolveEnvironments({ repositoryRoot: root, environments });
+  if (!resolved.ok) return result("failed", { failure: resolved.failure });
+  const planned = resolved.environments;
+  const selectionFacts = planned.flatMap(({ project, descriptors }) =>
+    descriptors.map(({ runner_id: id }) => ({ provider_id: id, project })))
+    .sort((left, right) => `${left.provider_id}\0${left.project}`
+      .localeCompare(`${right.provider_id}\0${right.project}`));
+  const environmentFacts = planned.map(({ id, ecosystem, project, members, descriptors, toolchains }) =>
+    ({ id, ecosystem, project, members, runners: descriptors.map(({ runner_id: runnerId }) => runnerId),
+      toolchains }));
+  const facts = { environments: environmentFacts, selection: selectionFacts };
   if (!SUPPORTED_SETUP_PLATFORMS.includes(platformKey)) {
-    return result("failed", { selection: selectionFacts, failure: setupFailure(
+    return result("failed", { ...facts, failure: setupFailure(
       "test_runtime_platform_unsupported", `local test-runtime setup does not support ${platformKey}`,
       { platform: platformKey, supported: SUPPORTED_SETUP_PLATFORMS }) });
   }
 
-  const selectedToolchains = [...new Set(selected.selection
-    .flatMap(({ descriptor }) => descriptor.toolchains))].sort();
+  const selectedToolchains = [...new Set(planned.flatMap(({ toolchains }) => toolchains))].sort();
   for (const [name, executable] of Object.entries(toolchainExecutables)) {
     if (!selectedToolchains.includes(name)) {
-      return result("failed", { selection: selectionFacts,
+      return result("failed", { ...facts,
         failure: setupFailure("test_runtime_toolchain_unused",
-          `no selected runner uses the ${name} toolchain`,
+          `no detected environment uses the ${name} toolchain`,
           { toolchain: name, executable, selected_toolchains: selectedToolchains }) });
     }
   }
-  const resolvedToolchainRoot = toolchainRoot ?? defaultToolchainRoot(env);
-  const resolvedStateRoot = stateRoot ?? defaultStateRoot(root, env);
-  if (!dryRun) withdrawReadiness(root);
+
+  for (const [id, chosen] of Object.entries(environmentSelections)) {
+    const environment = planned.find((entry) => entry.id === id);
+    const fields = Object.keys(chosen ?? {});
+    if (environment === undefined || environment.ecosystem !== "python" ||
+        fields.length !== 1 || fields[0] !== "virtual_environment" ||
+        typeof chosen.virtual_environment !== "string" || !path.isAbsolute(chosen.virtual_environment)) {
+      return result("failed", { ...facts, failure: setupFailure("test_runtime_environment_selection_invalid",
+        `environment selection ${id} is not an absolute virtual_environment for a detected Python environment`,
+        { environment: id, selection: chosen ?? null,
+          detected_environments: planned.map(({ id: known }) => known),
+          supported: "{ virtual_environment: <absolute path> } for a python@<project> environment; npm, Go, " +
+            "Deno and Cargo dependencies follow their own installation root and configuration" }) });
+    }
+  }
+  if (dryRun) {
+    return detectAndVerify({ root, planned, facts, environmentFacts, selectionFacts, result,
+      toolchainVersions, toolchainExecutables, environmentSelections, platformKey, env, dryRun, progress });
+  }
+  const begun = beginPreparation(root, { environments: environmentFacts, selection: selectionFacts });
+  if (!begun.ok) {
+    return result("failed", { ...facts, failure: setupFailure(begun.code, begun.message, begun.detail) });
+  }
+  const { attempt } = begun;
+  let outcome;
+  try {
+    outcome = await detectAndVerify({ root, planned, facts, environmentFacts, selectionFacts, result,
+      toolchainVersions, toolchainExecutables, environmentSelections, platformKey, env, dryRun, progress });
+  } catch (error) {
+    outcome = result("failed", { ...facts,
+      failure: setupFailure("test_runtime_setup_unexpected_error",
+        `test-runtime detection stopped unexpectedly: ${error?.message ?? String(error)}`,
+        { error_code: error?.code ?? null, error_name: error?.name ?? null, stack: error?.stack ?? null }) });
+  }
+  const preparation = { id: attempt.preparation.id };
+  if (outcome.publish === undefined) {
+    const settled = settlePreparation(attempt, { status: "failed", result: outcome });
+    return settled.ok ? result("failed", { ...outcome, preparation }) : result("failed", { ...outcome, preparation,
+      publication_failure: setupFailure(settled.code, settled.message, settled.detail) });
+  }
+  const settled = settlePreparation(attempt, { status: "ready", body: outcome.publish });
+  if (!settled.ok) {
+    return result("failed", { ...outcome.report, preparation,
+      failure: setupFailure(settled.code, settled.message, settled.detail) });
+  }
+  return result("ready", { ...outcome.report, preparation,
+    readiness_digest: settled.record.readiness_digest });
+}
+
+async function detectAndVerify({ root, planned, facts, environmentFacts, selectionFacts, result,
+  toolchainVersions, toolchainExecutables, environmentSelections, platformKey, env, dryRun, progress }) {
 
   const components = [];
   const toolchains = {};
   const toolchainProjects = new Map();
-  for (const { descriptor, projectDir } of selected.selection) {
-    for (const name of descriptor.toolchains) {
+  for (const { toolchains: needed, projectDir } of planned) {
+    for (const name of needed) {
       toolchainProjects.set(name, [...new Set([...(toolchainProjects.get(name) ?? []), projectDir])]);
     }
   }
   for (const [name, projectDirs] of [...toolchainProjects].sort(([left], [right]) => left.localeCompare(right))) {
     const base = { kind: "toolchain", name };
+    progress({ phase: "toolchain", toolchain: name });
     try {
       const component = await resolveToolchain({ name, requestedVersion: toolchainVersions[name] ?? null,
-        configuredExecutable: toolchainExecutables[name] ?? null,
-        projectDirs, toolchainRoot: resolvedToolchainRoot, hostToolchains, platformKey, env, dryRun,
-        fetchImpl });
-      components.push({ ...base, status: component.source === "planned_install" ? "planned" : "ready",
-        version: component.version, version_source: component.version_source,
-        source: component.source, reused: component.reused ?? false, root: component.root });
-      if (component.source !== "planned_install") toolchains[name] = component;
+        configuredExecutable: toolchainExecutables[name] ?? null, projectDirs, env, measure: !dryRun });
+      components.push({ ...base, status: "ready", version: component.version,
+        version_source: component.version_source, source: component.source, root: component.root });
+      toolchains[name] = component;
     } catch (error) {
       components.push(componentFromError(base, error));
     }
   }
 
-  const uv = findOnPath("uv", env.PATH);
-  const preparations = [];
-  const ecosystemProjects = new Map();
-  for (const { descriptor, project, projectDir } of selected.selection) {
-    ecosystemProjects.set(`${descriptor.dependency_ecosystem}\0${project}`,
-      { ecosystemName: descriptor.dependency_ecosystem, project, projectDir });
-  }
-  for (const { ecosystemName, project, projectDir } of ecosystemProjects.values()) {
+  const detections = [];
+  for (const { id, ecosystem: ecosystemName, project, projectDir, members } of planned) {
     const needed = DEPENDENCY_ECOSYSTEMS[ecosystemName].toolchains;
-    const base = { kind: "dependencies", ecosystem: ecosystemName, project };
+    const base = { kind: "dependencies", ecosystem: ecosystemName, project, environment: id };
     if (needed.some((name) => !toolchains[name])) {
-      components.push({ ...base, status: dryRun ? "planned" : "blocked",
-        code: dryRun ? null : "test_runtime_toolchain_unavailable",
+      components.push({ ...base, status: "blocked", code: "test_runtime_toolchain_unavailable",
         message: `requires ready toolchains: ${needed.join(", ")}` });
       continue;
     }
-    const prepared = await prepareDependencies({ ecosystemName, project, projectDir, toolchains,
-      stateRoot: resolvedStateRoot, env: { ...env, uvExecutable: uv?.real ?? null }, dryRun });
-    const { record, ...fact } = prepared;
+    progress({ phase: "dependencies", environment: id });
+    const detected = await detectDependencies({ root, ecosystemName, project, projectDir, members, toolchains,
+      env, selection: environmentSelections[id] ?? null, measure: !dryRun });
+    const { record, ...fact } = detected;
     components.push(fact);
-    if (record) preparations.push(record);
+    if (record) detections.push(record);
   }
 
   const failed = components.filter(({ status }) => status === "failed" || status === "blocked");
-  if (dryRun) {
-    return result(failed.length > 0 ? "failed" : "planned", { selection: selectionFacts,
-      toolchain_root: resolvedToolchainRoot, state_root: resolvedStateRoot, components });
-  }
   if (failed.length > 0) {
-    return result("failed", { selection: selectionFacts, toolchain_root: resolvedToolchainRoot,
-      state_root: resolvedStateRoot, components, verification: [],
+    return result("failed", { ...facts, components, verification: [],
       failure: setupFailure("test_runtime_setup_incomplete",
-        `${failed.length} requested component(s) are not ready; no readiness was published`,
-        { failed_components: failed.map(({ kind, name, ecosystem, project, code }) =>
-          ({ kind, name: name ?? ecosystem, project: project ?? null, code })) }) });
+        `${failed.length} requested component(s) are not ready; this detection failed`,
+        { failed_components: failed.map(({ kind, name, ecosystem, project, environment, code }) =>
+          ({ kind, name: name ?? ecosystem, project: project ?? null, environment: environment ?? null,
+            code })) }) });
   }
+  if (dryRun) return result("detected", { ...facts, components });
   const candidateRecord = {
     status: "ready",
     repository_root: root,
     platform: platformKey,
-    recipes_version: TEST_RUNTIME_RECIPES_VERSION,
-    toolchain_root: resolvedToolchainRoot,
-    state_root: resolvedStateRoot,
+    environments: environmentFacts,
     selection: selectionFacts,
     toolchains: Object.fromEntries(Object.entries(toolchains).map(([name, component]) => [name, {
       name, version: component.version, version_source: component.version_source,
@@ -323,26 +368,22 @@ export async function runTestRuntimeSetup({
       population: component.population, population_exclude: component.population_exclude,
       content_digest: component.content_digest, fingerprint: component.fingerprint
     }])),
-    preparations
+    preparations: detections
   };
   const verification = await verifyCandidateReadiness({ repositoryRoot: root, candidateRecord,
-    selection: selected.selection });
+    environments: planned, progress });
   const unverified = verification.filter(({ ok }) => !ok);
   if (unverified.length > 0) {
-    return result("failed", { selection: selectionFacts, toolchain_root: resolvedToolchainRoot,
-      state_root: resolvedStateRoot, components, verification,
+    return result("failed", { ...facts, components, verification,
       failure: setupFailure("test_runtime_sandbox_verification_failed",
-        `${unverified.length} sandbox verification check(s) failed; no readiness was published`,
-        { failed_checks: unverified.map(({ provider_id: id, project, check, code }) =>
-          ({ provider_id: id, project, check, code })) }) });
+        `${unverified.length} sandbox verification check(s) failed; this detection failed`,
+        { failed_checks: unverified.map(({ environment, provider_id: id, project, check, code }) =>
+          ({ environment, provider_id: id, project, check, code })) }) });
   }
-  const published = publishReadiness(root, {
-    ...candidateRecord,
-    verification: verification.map(({ provider_id: id, project, check }) =>
-      ({ provider_id: id, project, check, status: "passed" })),
-    created_at: new Date().toISOString()
-  });
-  return result("ready", { selection: selectionFacts, toolchain_root: resolvedToolchainRoot,
-    state_root: resolvedStateRoot, components, verification,
-    readiness_digest: published.readiness_digest });
+  const { status: _candidate, ...body } = candidateRecord;
+  return { publish: { ...body,
+    verification: verification.map(({ environment, provider_id: id, project, check }) =>
+      ({ environment, provider_id: id, project, check, status: "passed" })),
+    created_at: new Date().toISOString() },
+  report: { ...facts, components, verification } };
 }

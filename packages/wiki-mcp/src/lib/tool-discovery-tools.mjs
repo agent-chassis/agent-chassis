@@ -495,7 +495,7 @@ export function registerToolDiscoveryTools({
     "workspace_tools_list",
     {
       description:
-        "List role/tier-visible tool names and tasks. Follow next_calls while has_more for complete source-bound paging. Use workspace_tools_describe with tool_name and verbose:true for complete detail and rank.",
+        "Compact repository capability discovery: role/tier-visible tool names and tasks. Follow next_calls while has_more for complete source-bound paging. Use workspace_tools_describe with tool_name and verbose:true for complete detail and rank.",
       inputSchema: WORKSPACE_TOOLS_LIST_INPUT_SCHEMA
     },
     async (args) => {
@@ -511,7 +511,7 @@ export function registerToolDiscoveryTools({
     "workspace_tools_describe",
     {
       description:
-        "Inspect tool routing and contracts. verbose:true restores all fields and a named compact tool's enforced schema with a guidance locator. input_contract selects editor field pages, or kind:\"guidance\": no path returns the overview; a literal path returns that complete value.",
+        "Selected repository tool detail: routing and contracts. verbose:true restores all fields and a named compact tool's enforced schema with a guidance locator. input_contract selects editor field pages, or kind:\"guidance\": no path returns the overview; a literal path returns that complete value.",
       inputSchema: WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
     },
     async (args) => {

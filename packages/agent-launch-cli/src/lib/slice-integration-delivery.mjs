@@ -515,6 +515,53 @@ export function compensateCommittedSliceRef({
   });
 }
 
+export async function resolveExactDeliveryMarkerFromObservation({
+  runGit,
+  mainRepo,
+  observation,
+  wkId,
+  sliceId,
+  commit
+}) {
+  const subject = `${wkId}#${sliceId}`;
+  const markerEvidence = (await classifySliceMarkerEvidenceFromRegion({
+    runGit, mainRepo, observation, wkId, sliceIds: [sliceId]
+  })).get(sliceId);
+  if (markerEvidence.state === SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "same-slice marker evidence could not be authenticated",
+      { subject, reason: markerEvidence.reason }
+    );
+  }
+  const markerCommits = markerEvidence.state === SLICE_MARKER_EVIDENCE_STATES.FOUND
+    ? markerEvidence.candidates
+    : [];
+  const matchingMarkerCommits = [];
+  try {
+    for (const markerCommit of markerCommits) {
+      if (await exactCurrentMarkerMatch(runGit, mainRepo, markerCommit, commit)) {
+        matchingMarkerCommits.push(markerCommit);
+      }
+    }
+  } catch (error) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "same-slice marker delivery identity could not be authenticated",
+      { subject },
+      error
+    );
+  }
+  if (matchingMarkerCommits.length > 1) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_AMBIGUOUS,
+      "multiple same-slice markers match the retained delivery",
+      { subject, match_count: matchingMarkerCommits.length }
+    );
+  }
+  return matchingMarkerCommits.length === 1 ? matchingMarkerCommits[0] : null;
+}
+
 export async function advanceSliceRefCas({
   runGit,
   runGitRefTransaction,
@@ -581,48 +628,14 @@ export async function advanceSliceRefCas({
       })).current;
     };
 
-    const markerEvidence = (await classifySliceMarkerEvidenceFromRegion({
-      runGit, mainRepo, observation, wkId, sliceIds: [sliceId]
-    })).get(sliceId);
-    if (markerEvidence.state === SLICE_MARKER_EVIDENCE_STATES.INDETERMINATE) {
-      fail(
-        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
-        "same-slice marker evidence could not be authenticated",
-        { subject, reason: markerEvidence.reason }
-      );
-    }
-    const markerCommits = markerEvidence.state === SLICE_MARKER_EVIDENCE_STATES.FOUND
-      ? markerEvidence.candidates
-      : [];
-    let matchingMarkerCommits;
-    try {
-      matchingMarkerCommits = [];
-      for (const markerCommit of markerCommits) {
-        if (await exactCurrentMarkerMatch(runGit, mainRepo, markerCommit, commit)) {
-          matchingMarkerCommits.push(markerCommit);
-        }
-      }
-    } catch (error) {
-      fail(
-        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
-        "same-slice marker delivery identity could not be authenticated",
-        { subject },
-        error
-      );
-    }
-    if (matchingMarkerCommits.length > 1) {
-      fail(
-        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_AMBIGUOUS,
-        "multiple same-slice markers match the retained delivery",
-        { subject, match_count: matchingMarkerCommits.length }
-      );
-    }
-    if (matchingMarkerCommits.length === 1) {
+    const markerCommit = await resolveExactDeliveryMarkerFromObservation({
+      runGit, mainRepo, observation, wkId, sliceId, commit
+    });
+    if (markerCommit !== null) {
       if (!await phaseIsCurrent()) {
         lastExpected = wkOld;
         continue;
       }
-      const markerCommit = matchingMarkerCommits[0];
 
       return {
         integratedCommit: markerCommit,
@@ -633,7 +646,7 @@ export async function advanceSliceRefCas({
         empty_delivery: false
       };
     }
-    if (matchingMarkerCommits.length === 0 && await sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip: wkOld })) {
+    if (await sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip: wkOld })) {
       const existing = await resolveZeroDeltaIntegrationEvidenceFromObservation({
         runGit,
         mainRepo,
@@ -748,7 +761,9 @@ export async function driveRecordCasWrite({
   markSliceComplete,
   validateRecord = null,
 
-  integratedCommit = null
+  integratedCommit = null,
+
+  resolveCapturedBase = undefined
 }) {
   let lastCurrent = null;
   for (let attempt = 1; attempt <= MAX_RECORD_CAS_ATTEMPTS; attempt += 1) {
@@ -777,7 +792,9 @@ export async function driveRecordCasWrite({
     let reviewTarget = null;
     let transition;
     if (finalSlice) {
-      reviewTarget = await buildCompleteWkReviewTarget({ runGit, mainRepo, initiative, wkId, wkRef, wkTip });
+      reviewTarget = await buildCompleteWkReviewTarget({
+        runGit, mainRepo, initiative, wkId, wkRef, wkTip, resolveCapturedBase
+      });
     }
     const currentSlice = record.slices.find((entry) => entry?.id === sliceId);
     const parentTerminal = record.status === "review" || record.status === "done";

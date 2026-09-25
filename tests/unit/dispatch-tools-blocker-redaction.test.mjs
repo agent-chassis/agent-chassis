@@ -10,7 +10,7 @@ import {
 
 import {
   createDispatchToolRegistry,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 
 async function monitorFailure(tool, input, error) {
@@ -21,7 +21,7 @@ async function monitorFailure(tool, input, error) {
       waitForRunStatus() { throw error; }
     }
   });
-  return parseStructuredTextResponse(await tools.get(tool).handler(input));
+  return readStructuredResult(await tools.get(tool).handler(input));
 }
 
 test("short ordinary monitoring diagnostics are returned byte-for-byte", async () => {

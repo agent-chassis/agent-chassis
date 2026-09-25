@@ -111,6 +111,19 @@ function nodeIdOf(record, expectation) {
   return nativeNodeId(record.file ?? expectation.target, record.test, expectation.identity_format);
 }
 
+function streamContext(expectation) {
+  return { provider_id: expectation.provider_id ?? null,
+    provider_version: expectation.provider_version ?? null,
+    selected_node_id: expectation.node_id ?? null };
+}
+
+function recordRefusal(code, expectation, record, index, recordCount) {
+  return refusal(code, { ...streamContext(expectation), record_kind: record.kind,
+    ...(Array.isArray(record.test) ? { observed_node_id: nodeIdOf(record, expectation) } : {}),
+    ...(record.kind === "test_result" ? { observed_outcome: record.outcome } : {}),
+    writer: record.src, sequence: record.seq, record_index: index, record_count: recordCount });
+}
+
 function candidateFacts(nodeId, expectation) {
   const separator = nodeId.indexOf("::");
   return { test_id: nativeRuntimeTestId({ provider_id: expectation.provider_id,
@@ -155,8 +168,9 @@ export function readNativeObservation({ channelBytes, channelOverflow = false, e
   let windowOpen = false;
   const reaches = [];
   let sessionEnded = false;
-  for (const record of records) {
-    if (sessionEnded) return refusal("test_proof_structured_events_lifecycle_invalid");
+  for (const [index, record] of records.entries()) {
+    const refuse = (code) => recordRefusal(code, expectation, record, index, records.length);
+    if (sessionEnded) return refuse("test_proof_structured_events_lifecycle_invalid");
     if (record.kind === "session_end") {
       sessionEnded = true;
       continue;
@@ -169,7 +183,7 @@ export function readNativeObservation({ channelBytes, channelOverflow = false, e
       .includes(record.kind)) continue;
     const nodeId = nodeIdOf(record, expectation);
     if (record.kind === "collected") {
-      if (collectedOnce.has(nodeId)) return refusal("test_proof_structured_test_identity_duplicate");
+      if (collectedOnce.has(nodeId)) return refuse("test_proof_structured_test_identity_duplicate");
       collectedOnce.add(nodeId);
       discovered.add(nodeId);
       continue;
@@ -180,33 +194,33 @@ export function readNativeObservation({ channelBytes, channelOverflow = false, e
     discovered.add(nodeId);
     if (record.kind === "test_start") {
       if (state.started || state.result !== null) {
-        return refusal("test_proof_structured_test_identity_duplicate");
+        return refuse("test_proof_structured_test_identity_duplicate");
       }
-      if (nodeId !== selected) return refusal("test_proof_structured_events_unselected_execution");
+      if (nodeId !== selected) return refuse("test_proof_structured_events_unselected_execution");
       state.started = true;
       started.push(nodeId);
       windowOpen = expectation.window_start !== "explicit";
     } else if (record.kind === "window_start") {
       if (expectation.window_start !== "explicit" || !state.started || state.window_start ||
           state.window_end || state.result !== null) {
-        return refusal("test_proof_structured_events_lifecycle_invalid");
+        return refuse("test_proof_structured_events_lifecycle_invalid");
       }
       state.window_start = true;
       windowOpen = true;
     } else if (record.kind === "window_end") {
       if (!state.started || state.window_end || state.result !== null ||
           (expectation.window_start === "explicit" && !state.window_start)) {
-        return refusal("test_proof_structured_events_lifecycle_invalid");
+        return refuse("test_proof_structured_events_lifecycle_invalid");
       }
       state.window_end = true;
       windowOpen = false;
     } else {
-      if (state.result !== null) return refusal("test_proof_structured_test_identity_duplicate");
+      if (state.result !== null) return refuse("test_proof_structured_test_identity_duplicate");
       if (nodeId !== selected && record.outcome !== "skipped") {
-        return refusal("test_proof_structured_events_unselected_execution");
+        return refuse("test_proof_structured_events_unselected_execution");
       }
       if (record.outcome !== "skipped" && !state.started) {
-        return refusal("test_proof_structured_events_lifecycle_invalid");
+        return refuse("test_proof_structured_events_lifecycle_invalid");
       }
       state.result = record;
       windowOpen = false;
@@ -225,7 +239,8 @@ export function readNativeObservation({ channelBytes, channelOverflow = false, e
   if (selectedState.result === null) return refusal("test_proof_structured_test_inventory_incomplete");
   const result = selectedState.result;
   if ((exitCode === 0) !== (result.outcome !== "failed")) {
-    return refusal("test_proof_structured_events_exit_status_mismatch");
+    return refusal("test_proof_structured_events_exit_status_mismatch", { ...streamContext(expectation),
+      selected_outcome: result.outcome, exit_code: exitCode, record_count: records.length });
   }
   return {
     valid: true,

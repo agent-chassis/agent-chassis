@@ -32,13 +32,14 @@ function configuredPytestRuntime(input, worktree) {
   const repositoryRoot = input?.authority?.main_repo;
   if (typeof repositoryRoot !== "string") return null;
   const resolved = resolveConfiguredPytestRuntime({ repositoryRoot, checkoutRoot: worktree,
-    target: input.target, runner: PYTEST_RUNTIME_RUNNER });
+    target: input.target, runner: PYTEST_RUNTIME_RUNNER, environment: input.environment ?? null });
   if (!resolved.configured) return null;
   if (!resolved.ok) {
     throw Object.assign(new Error(resolved.failure.message), {
       code: resolved.failure.code,
       detail: { failure: "configured_runtime_not_ready", readiness_code: resolved.failure.code,
-        recovery: resolved.failure.recovery ?? null }
+        recovery: resolved.failure.recovery ?? null,
+        ...(resolved.failure.detail === undefined ? {} : { route: resolved.failure.detail }) }
     });
   }
   return resolved;
@@ -60,7 +61,7 @@ function nativeExecution(plan, worktree) {
 
 async function prepare(resolved, input) {
   assertClosedInput(input, ["authority", "target", "authorizedTargets", "selectedTest",
-    "executionBudget"], "provider preparation refuses caller-supplied executable authority");
+    "executionBudget", "environment"], "provider preparation refuses caller-supplied executable authority");
   const selectedTest = selectedTestExecutionInput(input);
   const worktree = launcherResolvedWorktree(input);
   let runtime;
@@ -99,7 +100,8 @@ async function execute(resolved, input, selectedTest) {
   if (prepared.runtime.runtime_source === "launcher_readiness") {
     const current = configuredPytestRuntime(input, worktree);
     if (current === null || current.readiness_digest !== prepared.runtime.readiness_digest ||
-        current.interpreter !== prepared.runtime.interpreter) fail(
+        current.interpreter !== prepared.runtime.interpreter ||
+        current.route?.environment !== prepared.runtime.environment) fail(
       TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES.EXECUTION_UNTRUSTED,
       "the configured pytest runtime readiness changed after preparation");
   }

@@ -57,7 +57,7 @@ export function registerToolRouterTools({
     WORKSPACE_TOOL_ROUTER_RECOMMEND_TOOL_NAME,
     {
       description:
-        "Read-only tool guidance: a contract-checked match or its missing fields, counted clarification choices with complete-set continuation, or explicit recovery/no-route. Follow emitted candidate_view=complete for omitted choices. Grants no operation authority.",
+        "Read-only repository tool guidance when the next operation is unclear: a contract-checked match or its missing fields, counted clarification choices with complete-set continuation, or explicit recovery/no-route. Follow emitted candidate_view=complete for omitted choices. Grants no operation authority.",
       inputSchema: z
         .object({
           task_description: z.string().optional(),

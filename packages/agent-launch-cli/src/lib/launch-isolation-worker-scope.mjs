@@ -197,7 +197,7 @@ export function rollbackPreparedWorkerDirectories(entries) {
   return Object.freeze({ removed: Object.freeze(removed), preserved: Object.freeze(preserved) });
 }
 
-function createMissingDirectoryLeaf(absolute, label, repoReal, scopeMember) {
+export function createMissingDirectoryLeaf(absolute, label, repoReal, scopeMember) {
   const memberAt = (component) => scopeMemberDetail(scopeMember, repoReal, component);
   const components = path.relative(repoReal, absolute).split(path.sep);
   let current = repoReal;

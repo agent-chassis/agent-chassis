@@ -29,7 +29,7 @@ const ACCEPTANCE_VALIDATION = Object.freeze([
 ]);
 
 const PROMPT_BYTE_BUDGETS = Object.freeze({
-  reviewer: 1330,
+  reviewer: 2630,
   redteam: 4096
 });
 

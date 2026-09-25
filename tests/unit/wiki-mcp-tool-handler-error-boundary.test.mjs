@@ -76,8 +76,8 @@ test("guardToolHandler converts a synchronous throw into an MCP error result and
     result = await wrapped({ some: "args" });
   });
   assert.equal(result.isError, true);
-  assert.equal(result.content[0].type, "text");
-  assert.match(result.content[0].text, /boom from handler/);
+  assert.deepEqual(result.content, []);
+  assert.match(result.structuredContent.diagnostic, /boom from handler/);
 });
 
 test("guardToolHandler converts a rejected async handler into an MCP error result", async () => {
@@ -87,7 +87,8 @@ test("guardToolHandler converts a rejected async handler into an MCP error resul
 
   const result = await wrapped({});
   assert.equal(result.isError, true);
-  assert.match(result.content[0].text, /async boom/);
+  assert.deepEqual(result.content, []);
+  assert.match(result.structuredContent.diagnostic, /async boom/);
 });
 
 test("guardToolHandler keeps an MCP connection usable after an async rejection", async () => {
@@ -119,7 +120,8 @@ test("guardToolHandler keeps an MCP connection usable after an async rejection",
       arguments: {}
     });
     assert.equal(rejected.isError, true);
-    assert.match(rejected.content[0].text, /async transport-boundary boom/);
+    assert.deepEqual(rejected.content, []);
+    assert.match(rejected.structuredContent.diagnostic, /async transport-boundary boom/);
     assert.equal(server.isConnected(), true, "server must remain connected after rejected handler");
 
     const followUp = await client.callTool({
@@ -277,7 +279,7 @@ test("the registered content-reference route propagates the ranged-read unavaila
         limb: "ranged_read",
         reason: "content_reference_not_found"
       });
-      assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
+      assert.deepEqual(result.content, []);
       assert.equal(result.structuredContent.content_reference, undefined);
       assert.equal(result.structuredContent.next_action, undefined);
 

@@ -590,6 +590,21 @@
       "consumer_notes": "Preserve this exact identity, path, and scope member through cleanup, backend classification, and public projection. Never project it as stdio_mcp_conduit_requires_bubblewrap, and never recommend widening scope or an unchanged retry."
     },
     {
+      "code": "agent_launch.worker_test_runtime.preparation_unusable.v1",
+      "category": "operator_recovery",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A test-runtime preparation the selected worker requires is still running, failed, or changed after the launch was composed.",
+      "detail": "The canonical repository's current preparation state covers an environment the worker's frozen scope reaches, and that state is not the ready preparation the launch can use: an accepted preparation that has not settled (including one whose process died), a failed preparation, or a preparation that changed between composition and the final pre-spawn check. The refusal names the readiness code, the preparation identity, the required environments, the deciding failure codes and the producer's complete original result. No worker is started and no host runtime is substituted.",
+      "recovery": {
+        "kind": "operator_test_runtime_preparation",
+        "target": "the repository's local test-runtime preparation named by the refusal",
+        "summary": "Correct the cause the retained producer result names, then let local test-runtime preparation run again (the environment's automatic preparation or refresh). Retry the unchanged dispatch once that preparation is ready. Widening scope or retrying before preparation succeeds does not recover.",
+        "success_condition": "The repository's current preparation record is ready and covers the worker's required environments."
+      },
+      "consumer_notes": "Preserve the preparation identity, readiness code and complete producer result through cleanup, backend classification and public projection for both families. Never project it as handler_exception, stdio_mcp_conduit_requires_bubblewrap or an unclassified launch failure, and never treat a failed or unfinished preparation as an unconfigured repository."
+    },
+    {
       "code": "worker_scope_path_refused",
       "category": "work_record_readiness",
       "actor_recovery": "coordinator",
@@ -869,8 +884,8 @@
       "actor_recovery": "operator",
       "blocking": true,
       "summary": "The launcher could not start the agent process; the dispatch failed before the child began running.",
-      "detail": "A modeled pre-start launcher failure: role-plan construction, write-root preparation, sandbox plan construction, spawn, managed-run identity binding, or managed-run identity cleanup did not complete. The refusal preserves the exact producer reason (for example plain_spawn_threw, ensure_new_worker_write_roots_failed, managed_run_identity_binding_failed) and its captured diagnostic evidence. No agent process started, so no worker, review, or integration effect occurred.",
-      "consumer_notes": "Publish this identity directly with the producer reason and evidence intact. It is a modeled tooling failure, never operator_recovery_needed, and never an authenticated external condition. Do not retry automatically: an operator repairs the named pre-start cause before the unchanged dispatch is re-issued."
+      "detail": "A modeled pre-start launcher failure: managed worktree provisioning, role-plan construction, write-root preparation, sandbox plan construction, spawn, managed-run identity binding, or managed-run identity cleanup did not complete. The refusal preserves the exact producer reason (for example a required provisioning base-ref failure, plain_spawn_threw, ensure_new_worker_write_roots_failed, or managed_run_identity_binding_failed) and its captured diagnostic evidence. No agent process started, so no worker, review, proof execution, or integration effect occurred.",
+      "consumer_notes": "Publish this identity directly with the producer reason and evidence intact. It is a modeled tooling failure, never operator_recovery_needed, and never an authenticated external condition. Do not retry automatically: an operator repairs the named pre-start cause before the unchanged dispatch is re-issued. Only the worker reason managed_worktree_base_selection_missing carries a guidance next call (a read-only field lookup); it repairs nothing, and every other pre-start reason keeps no_supported_route."
     },
     {
       "code": "agent_launch.monitor.subject_observation_unavailable.v1",
@@ -952,6 +967,33 @@
       "summary": "A committed-slice integration refusal carried no recognized public classification.",
       "detail": "The launcher refused integration but supplied no public blocker classification this boundary can publish, so the refusal stays fail-closed with the producer's own code, reason, and captured evidence preserved. No mechanically supported continuation exists, because no owner named one. No integration occurred.",
       "consumer_notes": "Publish this identity directly after registered-code pass-through has failed. The committed-slice integration route uses this as the public recovery limb for a refusal it could not classify; diagnostic code and message spelling remain non-authoritative, and launcher-owned diagnostic codes and messages remain opaque. Review evidence and contributor sequencing never classify or authorize this refusal. It is a portfolio classification gap, never an external operator-recovery condition, and it grants no retry or integration authority."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.remote_invalid.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The WK forge handoff could not establish or validate its handoff destination or remote identity.",
+      "detail": "The launcher-owned forge-handoff executor refused with its remote_invalid category before any publication. The category covers three publication-identity stages: the handoff destination could not be selected from the main repository configuration (for example handoff_destination_unselected when remotes exist without origin or an explicit agent-launch.handoffDestination selector, or handoff_destination_selector_invalid), the selected remote could not be established or validated (for a hosted destination, as a canonical forge repository), or, after that, the per-WK captured base-branch identity was unavailable or invalid. The producer reason identifies the actual case (for example remote_unreadable for a missing or unreadable selected remote, remote_rewrite_config_unreadable for a failed URL-rewrite configuration read, url_rewrite_configured, remote_url_not_canonical_https, or wk_base_branch_identity_unavailable for the captured base-branch case), and detail.evidence carries the complete original failed observation when one is present. No mechanically supported continuation exists. No branch, proposal, merge, or WK transition occurred.",
+      "consumer_notes": "Publish this identity directly with category remote_invalid and the producer reason intact. It does not by itself assert that the remote configuration is invalid, or that the remote failed at all: the reason says whether the remote was missing, unreadable, or rejected, or whether the remote was valid and the per-WK captured base-branch identity was unavailable or invalid, and the evidence carries the original failed observation when present. It is a modeled tooling failure, never operator_recovery_needed, and it grants no retry, publication, or continuation authority. Re-issuing the handoff against unchanged facts reproduces the same refusal."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.eligibility_refused.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The WK forge handoff refused because the WK, its candidate or its closeout was not eligible for publication.",
+      "detail": "The launcher-owned forge-handoff executor refused with its eligibility category before any publication. The category covers the handoff's eligibility checks over the assigned WK, its selected terminal candidate, its closeout record and any existing handoff publication. The producer reason identifies the actual case (for example local_WK_not_authenticated_against_candidate when the live WK record is not an admissible closeout of the candidate-bound record, handoff_destination_changed, or a terminal-candidate recovery reason at stage candidate_resolution), and the carried detail keeps the producer's diagnostic facts, such as the closeout stage with the projection's own reason, its slice and expected or observed identities and the integration authority's failure when present, or the candidate coordinator's recovery_detail. No mechanically supported continuation exists. No branch, proposal, merge, or WK transition occurred.",
+      "consumer_notes": "Publish this identity directly with category eligibility and the producer reason and detail intact. The identity is cause-neutral: it does not by itself assert which eligibility check failed, and it is not a candidate-health verdict; the reason and detail say what was not eligible. It is a modeled refusal, never operator_recovery_needed, and it grants no retry, publication, record-rewrite, or continuation authority. Re-issuing the handoff against unchanged facts reproduces the same refusal."
+    },
+    {
+      "code": "agent_launch.wk_forge_handoff.git_transport_failed.v1",
+      "category": "backend",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A local or Git WK handoff could not observe or deliver through its selected Git transport.",
+      "detail": "The launcher-owned forge-handoff executor refused with its git_failed category on the selected local or Git destination: the product handoff ref or the destination branch could not be observed, delivery to the selected destination failed, or the delivered head was not observable afterwards. The producer stage and reason identify the case (for example destination_branch_unobservable or destination_publication_failed), and detail.evidence carries the complete original Git failure. No other destination was selected. A failed delivery leaves no handoff ref; the only possible residue is unreferenced closeout objects in the main repository. No merge, base movement or WK transition occurred.",
+      "consumer_notes": "Publish this identity directly with category git_failed and the producer stage, reason and evidence intact. It is a modeled transport failure of the selected destination, never operator_recovery_needed, and it grants no retry, publication, fallback-destination or continuation authority. Re-issuing the handoff against unchanged facts reproduces the same refusal."
     }
   ]
 }

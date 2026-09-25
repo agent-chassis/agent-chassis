@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
   positiveControls,
@@ -36,13 +35,13 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
-const packDirectory = new URL(
-  "../certification/profiles/proof.authorization.refusal-before-effects/3.0.0/",
-  import.meta.url
-);
-const packDirectoryPath = fileURLToPath(packDirectory);
-const adequacy = JSON.parse(await readFile(new URL("adequacy.json", packDirectory), "utf8"));
+const identity = {
+  profile_id: "proof.authorization.refusal-before-effects", profile_version: "4.0.0"
+};
+const packDirectoryPath = certificationDirectory(identity);
+const adequacy = await readDefinitionDocument(identity, "adequacy.json");
 
 function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({
@@ -72,11 +71,11 @@ test("refusal fixed negatives kill every fully rebound critical weakening", asyn
   const result = await runProofPackAdequacy(packDirectoryPath);
   assert.equal(result.passed, true);
   assert.equal(result.negative_fixture_count, 35);
-  assert.equal(result.coverage_witness_count, 79);
+  assert.equal(result.coverage_witness_count, 78);
   const matrix = await assertFixedNegativeCorpus({
     packDirectory: packDirectoryPath,
     expectedFixtureCount: 35,
-    expectedSurfaceCount: 78,
+    expectedSurfaceCount: 77,
     relationMutation: removeFirstMissingRelationBranch
   });
   assert.deepEqual(matrix, { fixture_count: 35, mutation_count: 28 });

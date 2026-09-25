@@ -254,13 +254,13 @@ export function collectDeclaredDependencyAddresses(record, selectedUnit) {
     entries.push({ address, source });
   };
 
-  for (const address of Array.isArray(record?.depends_on) ? record.depends_on : []) {
-    addEntry(address, "record");
-  }
-
   if (selectedUnit?.kind === "slice") {
     for (const address of Array.isArray(selectedUnit?.depends_on) ? selectedUnit.depends_on : []) {
       addEntry(address, "slice");
+    }
+  } else {
+    for (const address of Array.isArray(record?.depends_on) ? record.depends_on : []) {
+      addEntry(address, "record");
     }
   }
 

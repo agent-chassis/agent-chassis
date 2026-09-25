@@ -1,9 +1,12 @@
 
 
 import path from "node:path";
+import { isCanonicalWorkRecordBaseBranch } from
+  "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
 
 import {
   WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
+  WorktreeSubstrateError,
   WK_ID_RE,
   SLICE_ID_RE,
   fail,
@@ -72,13 +75,35 @@ export function deriveExactUnitName({ unitAddress, worktreeRoot }) {
   });
 }
 
-export function resolveIndependentUnitBase({ mainRepo, base = "main", deps = {} } = {}) {
+export function resolveIndependentUnitBase({ mainRepo, base, deps = {} } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
-  if (typeof base !== "string" || base.length === 0) {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "base must be a non-empty string");
+  if (!isCanonicalWorkRecordBaseBranch(base)) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_REF,
+      "base must be an explicitly selected canonical local branch name",
+      { required_ref: base ?? null, base_selection: "work_record.base_branch" }
+    );
   }
-  const baseSha = revParse(runGit, repo, base);
+  let baseSha;
+  try {
+    baseSha = revParse(runGit, repo, `refs/heads/${base}`);
+  } catch (error) {
+    if (error instanceof WorktreeSubstrateError &&
+        error.code === WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED) {
+      throw new WorktreeSubstrateError(error.message, {
+        code: error.code,
+        cause: error,
+        detail: Object.freeze({
+          ...(error.detail ?? {}),
+          git_operation: "rev_parse_required_base_commit",
+          repository_path: repo,
+          required_ref: base
+        })
+      });
+    }
+    throw error;
+  }
   return Object.freeze({ base_ref: base, base_sha: baseSha });
 }
 

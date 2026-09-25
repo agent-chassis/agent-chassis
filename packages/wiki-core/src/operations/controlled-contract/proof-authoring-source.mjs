@@ -1,7 +1,7 @@
 
 
-import { ControlledContractToolError, controlledContractContentDigest }
-  from '../../lib/controlled-contract-tools.mjs';
+import { CASE_COMPONENT_FIELD, CASE_COMPONENT_FIELD_PATH, CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
+  ControlledContractToolError, controlledContractContentDigest } from '../../lib/controlled-contract-tools.mjs';
 import { loadControlledContractPackage } from './package-runtime.mjs';
 import {
   parseProofSourceUnitAddress,
@@ -32,9 +32,17 @@ export async function resolveProofAuthoringCompleteness(input, options = {}) {
 
 export function proofAuthoringCompletenessSummary(facts) {
   const resolution = facts.resolution ?? facts.obligationResolution;
-  if (resolution == null) return Object.freeze({ status: 'absent', authored_obligations: 0, resolved_obligations: 0 });
-  return Object.freeze({ status: resolution.status === 'valid' ? 'complete' : 'unresolved',
-    authored_obligations: resolution.total, resolved_obligations: resolution.mapping?.obligations.length ?? 0,
+  if (resolution == null) return Object.freeze({ status: 'absent', authored_obligations: 0,
+    complete_authored_obligations: 0, selected_routes_resolved: 0 });
+  const rows = resolution.rows ?? [];
+  const completeAuthored = rows.filter(row => row.status === 'valid').length;
+  return Object.freeze({
+    status: rows.length > 0 && completeAuthored === rows.length ? 'complete' : 'unresolved',
+    status_scope: 'authored_meaning_and_currentness',
+    authored_obligations: resolution.total,
+    complete_authored_obligations: completeAuthored,
+    selected_routes_resolved: resolution.mapping?.obligations.length ?? 0,
+    selected_route_status: resolution.status,
     source_digest: resolution.source_digest, context_digest: resolution.context_digest,
     counts: resolution.counts,
     validation: { tool: 'workspace_validate_proof', arguments: {
@@ -53,6 +61,26 @@ async function sharedConstraintProjection(causes) {
   return shareRepeatedProofConstraints(causes);
 }
 
+const componentRoleCause = cause => cause.code === 'obligation_coverage_parameter_incompatible' &&
+  cause.reason === 'exact_role_refinement' && /\/selection\/parameters\/component$/u.test(cause.path ?? '');
+function attributeAuthoredCaseComponents(resolved, causes) {
+  const saved = new Map((resolved.caseSource?.content.cases ?? []).map(definition => [definition.case_id, definition]));
+  const prospective = new Map((resolved.cases ?? []).map(definition => [definition.case_id, definition]));
+  const rows = new Map((resolved.source?.content.obligations ?? []).map(row => [row.obligation_id, row]));
+  return causes.map(cause => {
+    const caseId = componentRoleCause(cause) ? rows.get(cause.obligation_id)?.case_id : undefined;
+    const component = prospective.get(caseId)?.component;
+    if (component === undefined || controlledContractContentDigest(component) ===
+        controlledContractContentDigest(saved.get(caseId)?.component ?? null)) return cause;
+    return { ...cause, field: CASE_COMPONENT_FIELD, case_id: caseId };
+  });
+}
+function authoredComponentRouting(causes) {
+  return causes.some(cause => cause.field === CASE_COMPONENT_FIELD) ? { field: CASE_COMPONENT_FIELD,
+    field_path: CASE_COMPONENT_FIELD_PATH,
+    guidance_path: [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS.case_component] } : {};
+}
+
 export async function assessProspectiveProofParameters(resolved, obligationIds, { deferRefusal = false } = {}) {
   const context = await resolveProofAuthoringContext(resolved, { assessmentIntent: 'known_parameters' });
   if (obligationIds !== undefined) context.obligation_ids = obligationIds;
@@ -66,11 +94,12 @@ export async function assessProspectiveProofParameters(resolved, obligationIds, 
       'proof_pack_exact_evaluator_unavailable'
     ].includes(d.code))
     .map(d => ({ obligation_id: row.obligation_id, ...d })));
+  const attributed = attributeAuthoredCaseComponents(resolved, causes);
   if (causes.length && !deferRefusal) throw new ControlledContractToolError('obligation_coverage_prospective_incompatible',
     'Known prospective proof parameters contradict their exact selected definitions', {
       changed: false, limb: 'mechanical_failure', member_count: new Set(causes.map(c => c.obligation_id)).size,
-      cause_count: causes.length, ...(await sharedConstraintProjection(causes)) });
-  return deferRefusal ? { ...assessment, causes } : assessment;
+      cause_count: causes.length, ...(await sharedConstraintProjection(attributed)), ...authoredComponentRouting(attributed) });
+  return deferRefusal ? { ...assessment, causes: attributed } : assessment;
 }
 
 export async function assessProspectiveProofUses(uses) {
@@ -81,7 +110,7 @@ export async function assessProspectiveProofUses(uses) {
   if (causes.length) throw new ControlledContractToolError('obligation_coverage_prospective_incompatible',
     'Known prospective proof parameters contradict their exact selected definitions', {
       changed: false, limb: 'mechanical_failure', member_count: new Set(causes.map(c => `${c.unit}/${c.obligation_id}`)).size,
-      cause_count: causes.length, ...(await sharedConstraintProjection(causes)) });
+      cause_count: causes.length, ...(await sharedConstraintProjection(causes)), ...authoredComponentRouting(causes) });
   return { definition_identities: assessments.flatMap(({ assessment }) => assessment.definition_identities) };
 }
 

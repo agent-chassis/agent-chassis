@@ -22,7 +22,7 @@ const GAP_WARNING = Object.freeze({
 });
 const RESULT_PRECEDENCE = Object.freeze(["stale", "duplicate", "infeasible", "retained_residue", "unknown", "outside_pack", "uncovered", "covered"]);
 const OBLIGATION_COVERAGE_OUTCOMES = Object.freeze([
-  'stale', 'explicit_gap', 'design_invalid', 'selected'
+  'stale', 'design_invalid', 'selected'
 ]);
 
 class AcceptanceCoverageError extends Error {
@@ -143,7 +143,7 @@ function evaluateObligationCoverage(input) {
     'acceptance_coverage_stale_obligation_unknown', 'Stale IDs must name resolved saved obligations');
   const outcomes = validation.carrier.obligations.map((row, position) => deepFreeze({
     ...clone(row), position, controlled_contract_node_ids: row.controlled_contract_node_ids ?? [],
-    outcome: stale.has(row.obligation_id) ? 'stale' : row.gap ? 'explicit_gap'
+    outcome: stale.has(row.obligation_id) ? 'stale'
       : row.design_status === 'valid' ? 'selected' : 'design_invalid',
     reason: row.diagnostics[0]?.code ?? null
   }));

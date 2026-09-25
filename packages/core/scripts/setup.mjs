@@ -32,19 +32,25 @@ Runs first-time AgentChassis setup from a consumer repo root:
   - npx wiki bootstrap --profile standard
   - copy the matching launcher template to agent-launch.toml when absent
   - npx agent-launch init-config
-  - prepare this repository's local test runtimes: find the test project from
-    the repository's own manifests, locate its toolchain on PATH, save the
-    choices in ${"`"}agent-chassis-runtime.json${"`"}, then validate, prepare and publish
-    readiness through the launcher-owned setup
+  - detect this repository's local test runtimes: find every dependency
+    environment the repository's own manifests declare (all languages,
+    workspace members included, ignored paths and test fixtures skipped),
+    locate each needed toolchain on PATH, save the toolchain locations in
+    ${"`"}agent-chassis-runtime.json${"`"}, then detect and validate the dependencies
+    you installed for each environment, prove them in the sandbox and publish
+    readiness through the launcher-owned setup; nothing is downloaded or
+    installed
   - print operator-owned root-guidance, staging, code-index, and orchestrator commands
 
 This command is for a new repository. Setup never creates, reads, modifies, or
 deletes root AGENTS.md or CLAUDE.md. Run the printed commands to create them.
 
-Test-runtime options (all optional; setup asks only about what it cannot
-determine, and says exactly which option to pass when it cannot ask):
-  --language <name>             choose the repository language when several fit
-  --runner <name>[@<project>]   choose the test runner and project directly
+Test-runtime options (all optional; setup asks only where a toolchain is
+installed when PATH has none, and says exactly which option to pass when it
+cannot ask):
+  --language <name>             detect only the environments of this language
+  --runner <name>[@<project>]   detect exactly this runner's environment
+                                instead of the repository inventory
   --executable <toolchain>=<absolute-path>
                                 where a toolchain is installed, when PATH has
                                 none or the wrong one (repeatable)
@@ -242,7 +248,7 @@ export async function runSetup({
 } = {}) {
   if (argv.includes("--test-runtimes")) {
     const { runTestRuntimesSetup } = await import("./test-runtime-setup/cli.mjs");
-    const result = await runTestRuntimesSetup({ argv, cwd, output });
+    const result = await runTestRuntimesSetup({ argv, cwd, input, output, env });
     if (!result.ok) process.exitCode = 1;
     return;
   }
@@ -274,7 +280,7 @@ export async function runSetup({
   printStep(output, "Initialize launcher config");
   runCommand("npx", ["agent-launch", "init-config"], step);
 
-  printStep(output, "Prepare local test runtimes");
+  printStep(output, "Detect local test runtimes");
   const prepared = await prepareTestRuntimes({ options, cwd, input, output, env });
   if (!prepared.ok) process.exitCode = 1;
 

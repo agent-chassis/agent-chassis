@@ -10,19 +10,15 @@ function canonical(value) {
 
 const same = (left, right) => canonical(left) === canonical(right);
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-const terminalCards = (record) => (record?.slices ?? [])
-  .filter((slice) => isObject(slice) && slice.review_purpose === "terminal_whole_wk");
-
-export const localId = (id, recordId) => {
-  if (typeof id !== "string") return null;
-  const marker = id.indexOf("#");
-  if (marker === -1) return id;
-  return id.slice(0, marker) === recordId ? id.slice(marker + 1) : null;
-};
+const isReviewConsumerSlice = (slice) => isObject(slice) && slice.review_purpose === "terminal_whole_wk";
 
 const WORK_RECORD_DATE = /^\d{4}-\d{2}-\d{2}$/u;
 export const isWorkRecordUpdatedDate = (value) =>
   typeof value === "string" && WORK_RECORD_DATE.test(value);
+
+function admissibleUpdated(before, after) {
+  return same(before, after) || (isWorkRecordUpdatedDate(before) && isWorkRecordUpdatedDate(after));
+}
 
 function sameExcept(value, other, excluded) {
   const left = { ...value };
@@ -31,21 +27,32 @@ function sameExcept(value, other, excluded) {
   return same(left, right);
 }
 
-function sameSliceExceptClosure(after, before) {
-  const left = { ...after, sections: { ...(after?.sections ?? {}) } };
-  const right = { ...before, sections: { ...(before?.sections ?? {}) } };
-  delete left.sections.closure;
-  delete right.sections.closure;
-  return sameExcept(left, right, ["status"]);
+function withoutClosure(sections) {
+  const copy = { ...(isObject(sections) ? sections : {}) };
+  delete copy.closure;
+  return copy;
 }
 
-function validRecord(value, id) {
-  return isObject(value) && typeof id === "string" && value.id === id && Array.isArray(value.slices);
+function isCanonicalReviewConsumerSlice(slice) {
+  const stringArray = (value) => Array.isArray(value) &&
+    value.every((item) => typeof item === "string" && item.length > 0);
+  const dispatchIntent = slice?.dispatch_intent;
+  return isReviewConsumerSlice(slice) && typeof slice.id === "string" &&
+    /^SLICE-\d{3}$/u.test(slice.id) && typeof slice.title === "string" &&
+    slice.title.length > 0 && slice.work_kind === "review" &&
+    typeof slice.owner === "string" && slice.owner.length > 0 &&
+    ["low", "medium", "high", "critical"].includes(slice.priority) &&
+    ["todo", "in_progress", "review", "done"].includes(slice.status) &&
+    stringArray(slice.depends_on) && stringArray(slice.read_scope) &&
+    stringArray(slice.repo_paths) && Array.isArray(slice.write_scope) &&
+    slice.write_scope.length === 0 && isObject(dispatchIntent) &&
+    dispatchIntent.intended_agent_role === "reviewer" &&
+    dispatchIntent.target_unit === "slice" &&
+    isObject(slice.acceptance) && stringArray(slice.acceptance.criteria) &&
+    stringArray(slice.acceptance.validation);
 }
 
-function firstCanonicalClosure(before, after) {
-  if (!isObject(before) || !isObject(after) || before.sections?.closure !== undefined) return false;
-  const closure = after.sections?.closure;
+function canonicalClosure(closure) {
   if (!isObject(closure) || Object.keys(closure).sort().join("\0") !== "follow_ups\0summary\0validation") {
     return false;
   }
@@ -54,80 +61,114 @@ function firstCanonicalClosure(before, after) {
     closure.follow_ups.every((entry) => typeof entry === "string");
 }
 
-export function authenticateTerminalReviewProjection({ candidateRecord, liveRecord } = {}) {
-  const id = candidateRecord?.id;
-  if (!validRecord(candidateRecord, id) || !validRecord(liveRecord, id)) {
-    return { ok: false, reason: "record_identity_mismatch" };
-  }
-  if (!["active", "todo", "review"].includes(candidateRecord.status) || liveRecord.status !== "review") {
-    return { ok: false, reason: "unsupported_parent_status" };
-  }
-  const before = terminalCards(candidateRecord);
-  const after = terminalCards(liveRecord);
-  if (before.length !== 1 || after.length !== 1 ||
-      !["todo", "review"].includes(before[0].status) || after[0].status !== "review" ||
-      !sameExcept(after[0], before[0], ["status"])) {
-    return { ok: false, reason: "terminal_review_delta" };
-  }
-  if (candidateRecord.slices.length !== liveRecord.slices.length ||
-      !sameExcept(liveRecord, candidateRecord, ["status", "slices"])) {
-    return { ok: false, reason: "unrelated_record_drift" };
-  }
-  for (let index = 0; index < candidateRecord.slices.length; index += 1) {
-    if (candidateRecord.slices[index] !== before[0] &&
-        !same(candidateRecord.slices[index], liveRecord.slices[index])) {
-      return { ok: false, reason: "unrelated_slice_drift" };
-    }
-  }
-  return { ok: true, reviewRecord: liveRecord };
+function isSliceCloseout(before, after, { deliveryAuthenticated = false } = {}) {
+  const closure = after?.sections?.closure;
+  if (!isObject(before) || !isObject(after) || before.id !== after.id ||
+      before.work_kind !== "implementation" || after.work_kind !== "implementation" ||
+      before.status === "done" || after.status !== "done" ||
+      before.sections?.closure != null ||
+      !(canonicalClosure(closure) || (deliveryAuthenticated && closure == null)) ||
+      !admissibleUpdated(before.updated, after.updated)) return false;
+  return same(withoutClosure(before.sections), withoutClosure(after.sections)) &&
+    sameExcept(before, after, ["status", "updated", "sections",
+      ...(deliveryAuthenticated ? ["integrated_delivery_sha"] : [])]);
 }
 
-export function authenticateTerminalCloseoutProjection({ candidateRecord, liveRecord } = {}) {
+function integratedDeliveryDelta(before, after, expected) {
+  const beforeValue = before?.integrated_delivery_sha ?? null;
+  const afterValue = isObject(after) && Object.hasOwn(after, "integrated_delivery_sha")
+    ? after.integrated_delivery_sha
+    : null;
+  if (same(beforeValue, afterValue)) return { changed: false };
+  const authenticated = beforeValue === null && isObject(expected) &&
+    expected.slice_id === before?.id &&
+    typeof afterValue === "string" && afterValue === expected.integrated_delivery_sha;
+  return {
+    changed: true,
+    authenticated,
+    refusal: {
+      ok: false,
+      reason: "integrated_delivery_unauthenticated",
+      slice_id: before?.id ?? null,
+      expected_slice_id: expected?.slice_id ?? null,
+      expected_integrated_delivery_sha: expected?.integrated_delivery_sha ?? null,
+      candidate_integrated_delivery_sha: beforeValue,
+      observed_integrated_delivery_sha: afterValue
+    }
+  };
+}
+
+export function authenticateWkCloseoutProjection({
+  candidateRecord, liveRecord, integratedDelivery = null
+} = {}) {
   const id = candidateRecord?.id;
-  if (!validRecord(candidateRecord, id) || !validRecord(liveRecord, id)) {
+  if (!isObject(candidateRecord) || !isObject(liveRecord) || typeof id !== "string" ||
+      liveRecord.id !== id || !Array.isArray(candidateRecord.slices) ||
+      !Array.isArray(liveRecord.slices)) {
     return { ok: false, reason: "record_identity_mismatch" };
   }
-  if (!["active", "todo", "review"].includes(candidateRecord.status) || liveRecord.status !== "review") {
+  if (candidateRecord.status === "done" || liveRecord.status !== "review") {
     return { ok: false, reason: "unsupported_parent_status" };
   }
-  const candidateTerminal = terminalCards(candidateRecord);
-  const liveTerminal = terminalCards(liveRecord);
-  if (candidateTerminal.length !== 1 || liveTerminal.length !== 1 ||
-      !["todo", "review"].includes(candidateTerminal[0].status) ||
-      liveTerminal[0].status !== "review" ||
-      !sameExcept(liveTerminal[0], candidateTerminal[0], ["status"])) {
-    return { ok: false, reason: "terminal_review_delta" };
-  }
-  if (!isWorkRecordUpdatedDate(candidateRecord.updated) ||
-      !isWorkRecordUpdatedDate(liveRecord.updated) ||
-      candidateRecord.updated === liveRecord.updated) {
+  if (!admissibleUpdated(candidateRecord.updated, liveRecord.updated)) {
     return { ok: false, reason: "updated_delta" };
   }
-  const candidateById = new Map(candidateRecord.slices.map((slice) => [slice?.id, slice]));
-  const liveById = new Map(liveRecord.slices.map((slice) => [slice?.id, slice]));
-  const declared = [...new Set(candidateTerminal[0].depends_on ?? [])].map((id) => localId(id, candidateRecord.id)).filter((sliceId) => {
-    const slice = candidateById.get(sliceId);
-    return slice?.work_kind === "implementation" && ["todo", "review"].includes(slice.status);
-  });
-  if (declared.length !== 1) return { ok: false, reason: "preterminal_dependency_cardinality" };
-  const dependencyId = declared[0];
-  const before = candidateById.get(dependencyId);
-  const after = liveById.get(dependencyId);
-  if (!after || after.work_kind !== "implementation" || after.status !== "done" ||
-      !firstCanonicalClosure(before, after) || !sameSliceExceptClosure(after, before)) {
-    return { ok: false, reason: "preterminal_dependency_delta" };
+
+  const candidateClosure = candidateRecord.sections?.closure ?? null;
+  const liveClosure = liveRecord.sections?.closure ?? null;
+  if (!same(withoutClosure(candidateRecord.sections), withoutClosure(liveRecord.sections)) ||
+      (candidateClosure !== null && !same(candidateClosure, liveClosure)) ||
+      (liveClosure !== null && !canonicalClosure(liveClosure))) {
+    return { ok: false, reason: "unrelated_sections_drift" };
   }
-  if (candidateRecord.slices.length !== liveRecord.slices.length) return { ok: false, reason: "slice_cardinality" };
-  for (const candidateSlice of candidateRecord.slices) {
-    const liveSlice = liveById.get(candidateSlice?.id);
-    if (!liveSlice) return { ok: false, reason: "slice_removed" };
-    if (candidateSlice.id === dependencyId || candidateSlice.id === candidateTerminal[0].id) continue;
-    if (!same(candidateSlice, liveSlice)) return { ok: false, reason: "unrelated_slice_drift" };
-  }
-  if (!sameExcept(liveRecord, candidateRecord, ["status", "updated", "slices"])) {
+
+  if (!sameExcept(liveRecord, candidateRecord, ["status", "updated", "sections", "slices",
+    "review_provenance", "derived_evidence", "projections"])) {
     return { ok: false, reason: "unrelated_record_drift" };
   }
-  return { ok: true, dependency_id: dependencyId, reviewRecord: liveRecord };
+
+  const candidateReview = candidateRecord.slices.filter(isReviewConsumerSlice);
+  const liveReview = liveRecord.slices.filter(isReviewConsumerSlice);
+  if (candidateReview.length > 1 || liveReview.length > 1 ||
+      (candidateReview.length === 1 && (liveReview.length !== 1 ||
+        !sameExcept(liveReview[0], candidateReview[0], ["status"]))) ||
+      (candidateReview.length === 0 && liveReview.length === 1 &&
+        !isCanonicalReviewConsumerSlice(liveReview[0]))) {
+    return { ok: false, reason: "review_consumer_slice_drift" };
+  }
+
+  const candidateOrdinary = candidateRecord.slices.filter((slice) => !isReviewConsumerSlice(slice));
+  const liveOrdinary = liveRecord.slices.filter((slice) => !isReviewConsumerSlice(slice));
+  if (candidateOrdinary.length !== liveOrdinary.length) return { ok: false, reason: "slice_cardinality" };
+  let closedSliceId = null;
+  let admittedDelivery = null;
+  for (const [index, before] of candidateOrdinary.entries()) {
+    const after = liveOrdinary[index];
+    if (!isObject(after) || after.id !== before?.id) return { ok: false, reason: "slice_removed" };
+    if (same(before, after)) continue;
+    const delivery = integratedDeliveryDelta(before, after, integratedDelivery);
+    if (delivery.changed && !delivery.authenticated) return delivery.refusal;
+    if (closedSliceId !== null ||
+        !isSliceCloseout(before, after, { deliveryAuthenticated: delivery.changed })) {
+      return { ok: false, reason: "unrelated_slice_drift", slice_id: before.id };
+    }
+    closedSliceId = before.id;
+    if (delivery.changed) admittedDelivery = integratedDelivery;
+  }
+
+  const closeoutChanged = candidateRecord.status !== liveRecord.status || closedSliceId !== null ||
+    !same(candidateRecord.sections?.closure, liveRecord.sections?.closure) ||
+    !same(candidateReview, liveReview) ||
+    !same(candidateRecord.review_provenance, liveRecord.review_provenance);
+  if (!same(candidateRecord.updated, liveRecord.updated) && !closeoutChanged) {
+    return { ok: false, reason: "updated_delta" };
+  }
+  return {
+    ok: true,
+    closed_slice_id: closedSliceId,
+    integrated_delivery: admittedDelivery,
+    closeoutRecord: liveRecord
+  };
 }
 
-export default authenticateTerminalCloseoutProjection;
+export default authenticateWkCloseoutProjection;

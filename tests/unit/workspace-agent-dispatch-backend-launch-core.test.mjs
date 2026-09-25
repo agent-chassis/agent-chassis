@@ -13,9 +13,7 @@ import {
 import {
   maybeWrapExecutorWithWorktreeProvisioning
 } from "../../packages/agent-launch-cli/src/lib/backend-worktree-binding.mjs";
-import {
-  computeWorkRecordSourceDigest
-} from "../../packages/wiki-core/src/index.mjs";
+import { computeWorkRecordSourceDigest } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 import {
   assertNoForbiddenTokens,
   createTestDispatchBackend

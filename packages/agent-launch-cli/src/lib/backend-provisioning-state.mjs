@@ -1,8 +1,7 @@
 
 
 import {
-  RUNTIME_BLOCKER_CODES,
-  getRuntimeBlockerEntry
+  RUNTIME_BLOCKER_CODES
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { serializeWorkRecordDiagnosticValue } from
   "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
@@ -21,11 +20,6 @@ import {
   sliceBranchRef
 } from "./worktree-substrate.mjs";
 import { parseLiteralCommitObject } from "./literal-commit-object.mjs";
-
-import {
-  SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES,
-  SLICE_TIP_RECONCILE_STATES
-} from "./worktree-substrate-exact-unit.mjs";
 import {
   EXACT_IMPLEMENTATION_SLICE_RE,
   MANAGED_WORKER_ATTEMPT_STATE_SCHEMA_VERSION,
@@ -34,10 +28,8 @@ import {
 import { isPlainObject } from "./backend-review-identity.mjs";
 import { readCanonicalWorkRecord } from "./backend-scope-authority.mjs";
 import { buildServerGeneratedCommitMessage } from "./commit-tool-exposure-guard.mjs";
-import {
-  isForgeConfirmedLandedPublicationIdentity,
-  LAUNCHER_TRANSITION_FAILURES
-} from "./launcher-transition-plan.mjs";
+import { isLandedPublicationIdentity } from "./launcher-transition-plan.mjs";
+import { projectProvisioningRefusal } from "./backend-provisioning-refusal-projection.mjs";
 
 import {
   SLICE_MARKER_EVIDENCE_STATES,
@@ -128,42 +120,6 @@ export function revalidateLauncherTransitionSettlement({
     });
   }
   return Object.freeze({ ok: true, reason: null });
-}
-
-const SLICE_TIP_RECONCILE_TAXONOMY_ENTRY =
-  getRuntimeBlockerEntry(MANAGED_SLICE_TIP_RECONCILE_REQUIRED);
-if (SLICE_TIP_RECONCILE_TAXONOMY_ENTRY?.actor_recovery !== "coordinator" ||
-    typeof SLICE_TIP_RECONCILE_TAXONOMY_ENTRY?.recovery?.route !== "string") {
-  throw new Error("WK-1694 slice-tip reconciliation blocker entry is absent or incompatible");
-}
-
-const SLICE_TIP_RECONCILE_BLOCKING_STATES = Object.freeze([
-  SLICE_TIP_RECONCILE_STATES.ACCUMULATED_IMPLEMENTATION_TIP,
-  SLICE_TIP_RECONCILE_STATES.ORPHANED
-]);
-
-function boundedString(value) {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function classifySliceTipReconcileRefusal(error) {
-  if (error?.code !== SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES.SLICE_TIP_RECONCILE_REQUIRED) return null;
-  const detail = error.detail;
-  if (!isPlainObject(detail)) return null;
-  if (!SLICE_TIP_RECONCILE_BLOCKING_STATES.includes(detail.reconcile_state)) return null;
-  const unit = typeof detail.unit_address === "string"
-    ? detail.unit_address.match(/^IN-\d{4}\/(WK-\d{4})\/(SLICE-\d{3})$/u)
-    : null;
-  if (unit === null) return null;
-  return {
-    subject: `${unit[1]}#${unit[2]}`,
-    reconcile_state: detail.reconcile_state,
-    slice_tip: boundedString(detail.slice_tip),
-    wk_base_ref: boundedString(detail.wk_base_ref),
-    wk_base_sha: boundedString(detail.wk_base_sha),
-    reason: boundedString(detail.reason),
-    recovery_route: boundedString(detail.recovery_route)
-  };
 }
 
 export function managedRefusal(reason, detail = null) {
@@ -454,11 +410,11 @@ function replayEquivalentDependencyEvidence({
       };
 }
 
-function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
+function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
   if (wkTip !== null) return Object.freeze({ base_ref: wkRef, base_sha: wkTip });
   let resolved;
   try {
-    resolved = resolveIndependentUnitBase({ mainRepo, deps: { runGit } });
+    resolved = resolveIndependentUnitBase({ mainRepo, base: baseBranch, deps: { runGit } });
   } catch {
     return null;
   }
@@ -471,8 +427,8 @@ function resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
   return Object.freeze({ base_ref: baseRef, base_sha: baseSha });
 }
 
-function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
-  const captured = resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch }) {
+  const captured = resolveScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
   if (captured === null) {
     return exactSliceResolutionFailure("scope_existence_base_unresolved", { wk_ref: wkRef });
   }
@@ -480,7 +436,8 @@ function resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip }) {
     runGit,
     mainRepo,
     wkRef,
-    wkTip: resolveExactRefCommit(runGit, mainRepo, wkRef)
+    wkTip: resolveExactRefCommit(runGit, mainRepo, wkRef),
+    baseBranch
   });
   if (observed === null || observed.base_ref !== captured.base_ref ||
       observed.base_sha !== captured.base_sha) {
@@ -510,6 +467,7 @@ export const EXACT_SLICE_RESOLUTION_FAILURE_REASONS = Object.freeze({
     "launcher_transition_settlement_unverifiable",
     "launcher_transition_planned_base_mismatch",
     "scope_existence_base_unresolved",
+    "scope_existence_base_selection_missing",
     "scope_existence_base_unstable"
   ]),
   [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.DEPENDENCY]: Object.freeze([
@@ -520,7 +478,8 @@ export const EXACT_SLICE_RESOLUTION_FAILURE_REASONS = Object.freeze({
   ]),
   [EXACT_SLICE_RESOLUTION_FAILURE_CLASSES.PUBLICATION]: Object.freeze([
     "dependency_publication_identity_unavailable",
-    "dependency_publication_identity_mismatch"
+    "dependency_publication_identity_mismatch",
+    "dependency_publication_not_landed"
   ])
 });
 
@@ -530,11 +489,19 @@ const EXACT_SLICE_FAILURE_CLASS_BY_REASON = new Map(
   )
 );
 
-export function resolveProspectiveScopeExistenceBase({ mainRepo, initiative, recordId, deps = {} }) {
+export function resolveProspectiveScopeExistenceBase({
+  mainRepo, initiative, recordId, baseBranch, deps = {}
+}) {
   const runGit = deps.runGit ?? defaultRunGit;
   const wkRef = perWkBranchRef(initiative, recordId);
   const wkTip = resolveExactRefCommit(runGit, mainRepo, wkRef);
-  const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+  if (wkTip === null && (typeof baseBranch !== "string" || baseBranch.length === 0)) {
+    return exactSliceResolutionFailure("scope_existence_base_selection_missing", {
+      wk_ref: wkRef,
+      required_field: "base_branch"
+    });
+  }
+  const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip, baseBranch });
   if (!stable.ok) return stable;
   return Object.freeze({
     ok: true,
@@ -621,8 +588,17 @@ export function resolveExactSliceDependencies(
     for (let index = 0; index < publicationEvidence.length; index += 1) {
       const evidence = publicationEvidence[index];
       const observed = observations[index];
+
+      if (observed?.ok === false && typeof observed.observation?.state === "string") {
+        return exactSliceResolutionFailure("dependency_publication_not_landed", {
+          dependency: evidence.address,
+          owner: "landing_observer",
+          landing_state: observed.observation.state,
+          landing_cause: observed.observation.cause ?? null
+        });
+      }
       const identity = observed?.result ?? observed;
-      if (!isForgeConfirmedLandedPublicationIdentity(identity) || identity.wk !== evidence.record_id) {
+      if (!isLandedPublicationIdentity(identity) || identity.wk !== evidence.record_id) {
         return exactSliceResolutionFailure("dependency_publication_identity_mismatch", {
           dependency: evidence.address,
           owner: "WK-2313"
@@ -634,7 +610,9 @@ export function resolveExactSliceDependencies(
       ? { publication_identities: Object.freeze([...publicationIdentities.values()]) }
       : {};
     if (dependencies.length === 0) {
-      const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+      const stable = resolveStableScopeExistenceBase({
+        runGit, mainRepo, wkRef, wkTip, baseBranch: record.base_branch
+      });
       if (!stable.ok) return stable;
       return Object.freeze({
         ok: true,
@@ -769,7 +747,9 @@ export function resolveExactSliceDependencies(
       });
     }
     if (capturedDependencyRefs.size === 0) {
-      const stable = resolveStableScopeExistenceBase({ runGit, mainRepo, wkRef, wkTip });
+      const stable = resolveStableScopeExistenceBase({
+        runGit, mainRepo, wkRef, wkTip, baseBranch: record.base_branch
+      });
       if (!stable.ok) return stable;
       return Object.freeze({
         ok: true,
@@ -835,7 +815,7 @@ export function resolveExactSliceDependencies(
         evidence.target_status === "done" && evidence.record_id !== record.id
       )
     : [];
-  const resolver = deps.resolveForgeConfirmedLandedPublicationIdentity;
+  const resolver = deps.resolveLandedPublicationIdentity;
   if (publicationEvidence.length > 0 && typeof resolver !== "function") {
     return exactSliceResolutionFailure("dependency_publication_identity_unavailable", {
       dependency: publicationEvidence[0].address,
@@ -875,70 +855,11 @@ export function serializeManagedBootstrapFailure(error) {
   });
 }
 
-export function provisioningRefusal(error) {
+export function provisioningRefusal(error, { requestedRepositoryAlias = null } = {}) {
 
-  const { cause, diagnostic } = serializeManagedBootstrapFailure(error);
-
-  const reconcile = classifySliceTipReconcileRefusal(error);
-  if (reconcile !== null) {
-    if (reconcile.reconcile_state ===
-        SLICE_TIP_RECONCILE_STATES.ACCUMULATED_IMPLEMENTATION_TIP) {
-      return {
-        accepted: false,
-        refusal: {
-          code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-          reason: LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED.code,
-          detail: Object.freeze({
-            cause,
-            diagnostic,
-            reason: "exact_slice_accumulated_implementation_requires_integration",
-            failure_class: "lifecycle",
-            reconcile_state: reconcile.reconcile_state,
-            slice_tip: reconcile.slice_tip,
-            wk_base_ref: reconcile.wk_base_ref,
-            wk_base_sha: reconcile.wk_base_sha,
-            actor_recovery: "coordinator",
-            next_action: reconcile.recovery_route ??
-              "integrate_accumulated_implementation"
-          })
-        }
-      };
-    }
-    return {
-      accepted: false,
-      refusal: {
-        code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-        reason: MANAGED_SLICE_TIP_RECONCILE_REQUIRED,
-        detail: Object.freeze({
-          cause,
-          diagnostic,
-
-          reconcile_state: reconcile.reconcile_state,
-          slice_tip: reconcile.slice_tip,
-          wk_base_ref: reconcile.wk_base_ref,
-          wk_base_sha: reconcile.wk_base_sha,
-          actor_recovery: SLICE_TIP_RECONCILE_TAXONOMY_ENTRY.actor_recovery,
-          next_action: SLICE_TIP_RECONCILE_TAXONOMY_ENTRY.recovery.route,
-          next_action_args: Object.freeze({ role: "reviewer", subject: reconcile.subject })
-        })
-      }
-    };
-  }
-  return {
-    accepted: false,
-    refusal: {
-      code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      reason: MANAGED_PROVISIONING_UNAVAILABLE,
-      detail: Object.freeze({
-        cause,
-        diagnostic,
-        recovery: Object.freeze({
-          state: "no_supported_route",
-          route: null
-        })
-      })
-    }
-  };
+  return projectProvisioningRefusal(error, serializeManagedBootstrapFailure(error), {
+    requestedRepositoryAlias
+  });
 }
 
 function invalidProvisioningStateRefusal(reason, detail = null) {

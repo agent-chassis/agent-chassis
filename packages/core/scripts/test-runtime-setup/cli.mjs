@@ -2,46 +2,46 @@
 
 import path from "node:path";
 
-import {
-  REPOSITORY_RUNTIME_CONFIG_FILE,
-  configuredToolchainExecutables,
-  configuredToolchainVersions,
-  loadTestRuntimeConfig,
-  readRepositoryRuntimeConfig
-} from "./config.mjs";
+import { loadTestRuntimeConfig } from "./config.mjs";
 
 export const TEST_RUNTIMES_USAGE = `Usage: agent-chassis setup --test-runtimes [options]
 
-Prepares the local test runtimes that saved test proofs of the selected
-runners need, in an existing repository (run from the repository root):
-  - installs missing selected toolchains (Node, Python, Go, Rust/Cargo, Deno)
-    at supported pinned versions into an explicit toolchain root,
-  - prepares the project's lockfile-pinned test dependencies with the standard
-    package manager into launcher-owned state,
-  - verifies every component inside the launcher sandbox, then publishes
-    .agent-launch/test-runtimes/readiness.v1.json.
-Proof attempts (workspace_verify_proof) never download or install anything.
+Detects every local test environment this repository declares, in an
+existing repository (run from the repository root):
+  - finds each dependency environment from the repository's own manifests
+    (npm packages and their workspace members, Python projects, Go modules,
+    Cargo packages, Deno projects), in every language at once, skipping
+    ignored paths and test fixtures,
+  - finds the toolchains you installed (Node, Python, Go, Rust/Cargo, Deno)
+    at their configured locations or on PATH and checks any version the
+    repository pins,
+  - finds the dependencies you installed for each environment (its
+    node_modules, virtual environment, Go module cache, Cargo registry or
+    Deno cache) and checks they hold what the project declares,
+  - proves each environment's toolchains and every test runner it declares or
+    its toolchain provides inside the launcher sandbox, then publishes
+    .agent-launch/test-runtimes/readiness.json as ready with one ID per
+    environment (for example npm@. or python@services/api); a failed run is
+    published there as failed with its complete result, never as ready.
+It never downloads or installs a toolchain or dependency: install or repair
+what a failure names yourself, then rerun it. Several environments and runners
+coexist; nothing is chosen from a list. Proof attempts (workspace_verify_proof)
+never download or install anything either; they route each saved test to its
+environment, or to one named with their optional environment parameter.
 
 Options:
-  --runner <name>[@<project>]   select a runner (repeatable); names:
-                                <runners>
-                                omitted: repeat the published selection
-  --toolchain <name>=<version>  request an exact supported toolchain version
-  --runtime-config <file>       read the selection, and any explicit toolchain
-                                executable locations, from one JSON file
-                                (resolved against this directory); not
-                                combinable with --runner, --toolchain or
-                                --host-toolchains. With neither this nor
-                                --runner, the repository's own
-                                agent-chassis-runtime.json is used when it
-                                exists, then the published selection.
-  --toolchain-root <dir>        absolute toolchain installation root
-  --state-root <dir>            absolute prepared-dependency state root
-  --host-toolchains reuse|ignore
-                                reuse compatible host installations (default)
-                                or always use the toolchain root
-  --dry-run                     report the plan without installing or publishing
-  --json                        print the structured result`;
+  --runner <name>[@<project>]   detect exactly this runner's environment
+                                instead of the repository inventory
+                                (repeatable); names: <runners>
+  --toolchain <name>=<version>  require an exact installed toolchain version
+  --runtime-config <file>       read an explicit runner selection and/or
+                                toolchain executable locations from one JSON
+                                file (resolved against this directory); not
+                                combinable with --runner or --toolchain, and
+                                never saved
+  --dry-run                     detect and validate without the sandbox proof
+                                or publishing
+  --json                        print the structured result (progress goes to stderr)`;
 
 export function parseRunnerSelector(value) {
   const parts = value.split("@");
@@ -70,8 +70,7 @@ function optionValue(argv, index, name) {
 }
 
 export function parseTestRuntimesArgs(argv) {
-  const options = { runners: [], toolchainVersions: {}, toolchainRoot: null, stateRoot: null,
-    hostToolchains: "reuse", hostToolchainsExplicit: false, runtimeConfig: null,
+  const options = { runners: [], toolchainVersions: {}, runtimeConfig: null,
     dryRun: false, json: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -95,17 +94,6 @@ export function parseTestRuntimesArgs(argv) {
       if (value === "") throw new Error("--runtime-config requires a file path");
       options.runtimeConfig = value;
       index = next;
-    } else if (name === "--toolchain-root" || name === "--state-root") {
-      const { value, next } = optionValue(argv, index, name);
-      if (!path.isAbsolute(value)) throw new Error(`${name} must be an absolute path`);
-      options[name === "--toolchain-root" ? "toolchainRoot" : "stateRoot"] = value;
-      index = next;
-    } else if (name === "--host-toolchains") {
-      const { value, next } = optionValue(argv, index, name);
-      if (!["reuse", "ignore"].includes(value)) throw new Error(`invalid --host-toolchains value: ${value}`);
-      options.hostToolchains = value;
-      options.hostToolchainsExplicit = true;
-      index = next;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -113,8 +101,7 @@ export function parseTestRuntimesArgs(argv) {
 
   if (options.runtimeConfig !== null && !options.help) {
     for (const [flag, supplied] of [["--runner", options.runners.length > 0],
-      ["--toolchain", Object.keys(options.toolchainVersions).length > 0],
-      ["--host-toolchains", options.hostToolchainsExplicit]]) {
+      ["--toolchain", Object.keys(options.toolchainVersions).length > 0]]) {
       if (supplied) throw new Error(`--runtime-config cannot be combined with ${flag}`);
     }
   }
@@ -123,10 +110,10 @@ export function parseTestRuntimesArgs(argv) {
 
 function renderComponent(component) {
   const label = component.kind === "toolchain" ? component.name
-    : `${component.ecosystem} dependencies (${component.project})`;
-  const detail = component.status === "ready" || component.status === "planned"
+    : `${component.environment ?? `${component.ecosystem}@${component.project}`} dependencies`;
+  const detail = component.status === "ready"
     ? [component.version && `${component.version} [${component.version_source}]`,
-      component.source && `source ${component.source}`, component.reused ? "reused" : null]
+      component.source && `source ${component.source}`, component.dir && `at ${component.dir}`]
       .filter(Boolean).join(", ")
     : `${component.code}: ${component.message}`;
   return `  ${component.status.padEnd(8)} ${label}${detail ? ` - ${detail}` : ""}`;
@@ -136,7 +123,8 @@ export function renderTestRuntimeSetupResult(result) {
   const lines = [`test runtime setup: ${result.status}`];
   for (const component of result.components ?? []) lines.push(renderComponent(component));
   for (const check of result.verification ?? []) {
-    lines.push(`  ${check.ok ? "verified" : "FAILED  "} ${check.provider_id} (${check.project}) ${check.check}` +
+    lines.push(`  ${check.ok ? "verified" : "FAILED  "} ${[check.environment, check.provider_id, check.check]
+      .filter(Boolean).join(" ")}` +
       (check.ok ? "" : ` - ${check.code}${check.diagnostic ? `: ${check.diagnostic}` : ""}`));
   }
   if (result.failure) {
@@ -148,34 +136,47 @@ export function renderTestRuntimeSetupResult(result) {
   return `${lines.join("\n")}\n`;
 }
 
+function collectedOutput() {
+  const lines = [];
+  return { sink: { write: (text) => { lines.push(text); return true; } },
+    read: () => lines.join("").split("\n").filter((line) => line !== "") };
+}
+
 export async function runTestRuntimesSetup({ argv, cwd = process.cwd(),
-  output = process.stdout } = {}) {
-  const setup = await import("@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs");
+  input = process.stdin, output = process.stdout, errorOutput = process.stderr, env = process.env } = {}) {
   const options = parseTestRuntimesArgs(argv);
   if (options.help) {
+    const setup = await import("@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs");
     output.write(`${TEST_RUNTIMES_USAGE.replace("<runners>",
       setup.testRuntimeRunnerNames().join(", "))}\n`);
     return { ok: true };
   }
 
-  const saved = options.runtimeConfig === null && options.runners.length === 0
-    ? readRepositoryRuntimeConfig(cwd) : { present: false };
-  const config = options.runtimeConfig !== null
-    ? loadTestRuntimeConfig(options.runtimeConfig, { cwd })
-    : saved.present ? { ...saved, source: REPOSITORY_RUNTIME_CONFIG_FILE } : null;
-  const result = await setup.runTestRuntimeSetup({
+  const config = options.runtimeConfig === null ? null
+    : loadTestRuntimeConfig(options.runtimeConfig, { cwd });
+  const { prepareRepositoryTestRuntimes } = await import("./prepare.mjs");
+  const collected = options.json ? collectedOutput() : null;
+  const prepared = await prepareRepositoryTestRuntimes({
     repositoryRoot: cwd,
-    runners: config !== null ? config.runners
-      : options.runners.length > 0 ? options.runners : null,
-    toolchainVersions: config !== null ? configuredToolchainVersions(config)
-      : options.toolchainVersions,
-    toolchainExecutables: config !== null ? configuredToolchainExecutables(config) : {},
-    toolchainRoot: options.toolchainRoot,
-    stateRoot: options.stateRoot,
-    hostToolchains: options.hostToolchains,
-    dryRun: options.dryRun
+    runners: options.runners,
+    toolchainVersions: options.toolchainVersions,
+    runtimeConfig: config,
+
+    locatePathToolchains: false,
+    command: { invocation: "setup --test-runtimes" },
+
+    ...(options.json ? { interactive: false } : {}),
+    dryRun: options.dryRun,
+    input,
+    output: collected === null ? output : collected.sink,
+
+    progressOutput: collected === null ? output : errorOutput,
+    env
   });
-  output.write(options.json ? `${JSON.stringify(result, null, 2)}\n`
-    : renderTestRuntimeSetupResult(result));
-  return result;
+  if (collected !== null) {
+    output.write(`${JSON.stringify({ ...(prepared.result ?? { status: prepared.status }),
+      setup_status: prepared.status, excluded: prepared.excluded ?? [],
+      report: collected.read() }, null, 2)}\n`);
+  }
+  return prepared;
 }

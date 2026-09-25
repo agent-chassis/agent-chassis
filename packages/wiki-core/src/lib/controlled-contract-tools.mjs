@@ -130,7 +130,7 @@ export const CONTROLLED_CONTRACT_ACCEPTANCE_COVERAGE_ROW_AUTHORING_SCHEMA =
 
 import { PROOF_AUTHORING_FIELD_SCHEMAS } from
   "@agent-chassis/controlled-contract/proof-contract";
-import { CASE_VERIFICATION_ASSOCIATION_FIELD, NATIVE_TEST_CASE_AMENDMENT_SCHEMA,
+import { CASE_COMPONENT_FIELD, CASE_VERIFICATION_ASSOCIATION_FIELD, NATIVE_TEST_CASE_AMENDMENT_SCHEMA,
   NATIVE_TEST_CASE_AUTHORING_GUIDANCE } from
   "@agent-chassis/controlled-contract/native-test-cases";
 import { STABLE_TEST_PROOF_AUTHORING_LIMITS, VERIFICATION_BUNDLE_VOCABULARY } from
@@ -291,15 +291,19 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
     "replacement and reconciles their dependent obligations, cases and test targets. " +
     "A behavioral requirement names a subject and an observable behavior. Its verification " +
     "names a verifier, what it observes, and a fails_when statement describing the contrary " +
-    "result, so the check can tell the two apart. Take structures and accepted values from " +
-    "the published schema (this tool's verbose describe). After saving, query reads the saved " +
+    "result, so the check can tell the two apart. The declared inputSchema is compact; this " +
+    "tool's verbose describe is its complete enforced structure. Accepted values are selected " +
+    "guidance: pass one member name as input_contract.path to read only it -- vocabulary, " +
+    "required_object_shapes, behavioral_example, native_runtime_test_vocabulary, " +
+    "case_authoring or unresolved_coverage -- or [] for every member. After saving, query reads the saved " +
     "authoring, workspace_validate_proof diagnoses saved inputs, and workspace_verify_proof " +
     "executes saved proofs when execution is intended. Neither this guidance nor a successful " +
     "save establishes lifecycle readiness. For an obligation verified by test_execution, " +
     "case_authoring gives each listed family's exact provider identity, node_id form and " +
-    "falsification fields. When no catalog proof of the obligation has been identified, keep " +
-    "controlled_acceptance required and record the obligation gap described by " +
-    "unresolved_coverage; a partial search is not non-applicability. What can run a selected " +
+    "falsification fields, which verification a case may name, how a second test of one " +
+    "requirement adds its own verification, and component constraints. When no catalog proof of the obligation has been identified, keep " +
+    "controlled_acceptance required and use unresolved_coverage to distinguish route support " +
+    "from genuinely missing requirement or verification meaning. What can run a selected " +
     "proof today is not an authoring input and is never recorded here: workspace_verify_proof " +
     "reports execution capability at verify time.",
   authored_path_root: "$.contract_requirements",
@@ -312,31 +316,29 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE = Object.freeze({
   }),
   case_authoring: NATIVE_TEST_CASE_AUTHORING_GUIDANCE,
   unresolved_coverage: Object.freeze({
-    applies_when: "No catalog proof has been identified for an obligation, or discovery pages " +
-      "remain unread. Whether anything can execute a proof is not one of these conditions and " +
-      "is never an authored gap.",
+    applies_when: "Verification meaning is missing or contradictory. Missing catalog or " +
+      "execution support is route readiness and is not an authored field.",
     record: Object.freeze({
       controlled_acceptance: Object.freeze({ disposition: "required" }),
       obligation_fields: Object.freeze({
-        gap: Object.freeze({ gap_kind: "<catalog_gap>",
-          reason: "<what was searched and the exact missing fact>" }),
+        statement: "author the property that must hold",
+        controlled_contract_node_ids: "link the current requirement and verification claims",
         mechanism: "optional {owner, kind, selector} naming the intended check",
-        proof_name: "omit until an exact catalog name is chosen; unknown names refuse"
+        proof_name: "optional exact executable route; absence does not erase complete meaning"
       })
     }),
     gap_kinds: OBLIGATION_COVERAGE_GAP_KINDS,
     distinctions: Object.freeze([
-      "catalog_gap: the search for an admitted proof of the property is unresolved; record what " +
-        "was searched and what is still unread. Reading every page is not a prerequisite for " +
-        "following a candidate that is already known, and an unread page is not evidence that no " +
-        "proof exists.",
-      "Execution capability is not a gap kind. A proof whose selected route nothing can run today " +
-        "is authored exactly like any other: select it, author its case, and leave execution to " +
-        "workspace_verify_proof, which reports the incapacity with its own enumerated cause. A " +
+      "The authored gap field and all former gap kinds are retired. A supplied gap is refused; " +
+        "an existing source retaining one stays invalid until the author explicitly preserves " +
+        "its evidence while writing the actual missing requirement or verification meaning.",
+      "Execution capability is not authored meaning. Author the complete verification meaning; " +
+        "when an executable route is intentionally selected, author that route's required inputs " +
+        "and leave execution to workspace_verify_proof, which reports incapacity with its own cause. A " +
         "refused request shape, an unknown provider identity or a provider version the catalog " +
         "does not list is a request defect to correct, not a gap.",
-      "A gap is an unresolved annotation: the obligation and its requirement remain, and the gap " +
-        "confers no proof credit, readiness or exemption.",
+      "Implementation, execution, inspection, or review being unfinished grants no proof credit " +
+        "but does not itself make otherwise-complete authored meaning incomplete.",
       "opted_out is the explicit controlled-acceptance exemption; its rationale is authored " +
         "meaning that is neither inferred nor classified. Discovery misses, unread pages, " +
         "unsupported targets and missing authoring inputs are not evidence for it.",
@@ -543,6 +545,9 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS = Object.freeze(
   requirement_rebinding: requirementGuidanceMember("required_object_shapes", "requirement_rebinding"),
   requirement_retirement: requirementGuidanceMember("required_object_shapes", "requirement_retirement"),
   case_verification_association: requirementGuidanceMember("case_authoring", "verification_association"),
+  case_additional_verification: requirementGuidanceMember("case_authoring", "verification_association",
+    "additional_verification"),
+  case_component: requirementGuidanceMember("case_authoring", "component"),
   runtime_test_fields: Object.freeze({
     "boundary.kind": requirementGuidanceMember(
       "native_runtime_test_vocabulary", "provider_bound_boundary_kinds"),
@@ -560,6 +565,10 @@ export const CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH = Object.freeze(
   CASE_VERIFICATION_ASSOCIATION_FIELD.replace("[]", ".[]").split("."));
 export const CASE_VERIFICATION_ASSOCIATION_FIELD_PATH =
   `$.${CASE_VERIFICATION_ASSOCIATION_FIELD}`;
+export { CASE_COMPONENT_FIELD };
+export const CASE_COMPONENT_REQUEST_PATH = Object.freeze(
+  CASE_COMPONENT_FIELD.replace("[]", ".[]").split("."));
+export const CASE_COMPONENT_FIELD_PATH = `$.${CASE_COMPONENT_FIELD}`;
 const requirementItem = ["contract_requirements", "requirements", "[]"];
 const requirementVerification = [...requirementItem, "verification"];
 const locations = CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS;
@@ -579,6 +588,7 @@ export const CONTROLLED_CONTRACT_REQUIREMENT_REQUEST_GUIDANCE_LOCATIONS = Object
   [[...requirementVerification, "fails_when"], requirementGuidanceMember("required_object_shapes", "statement")],
   [[...requirementVerification, "runtime_test"], requirementGuidanceMember("runtime_test_authoring")],
   [CASE_VERIFICATION_ASSOCIATION_REQUEST_PATH, locations.case_verification_association],
+  [CASE_COMPONENT_REQUEST_PATH, locations.case_component],
   [["contract_requirements", "notes", "[]", "kind"], locations.note_kinds],
   [["contract_requirements", "unrepresentable_meaning", "[]", "reason"], locations.residue_reasons]
 ].map(([path, guidancePath]) => Object.freeze({ path: Object.freeze(path), guidance_path: guidancePath })));

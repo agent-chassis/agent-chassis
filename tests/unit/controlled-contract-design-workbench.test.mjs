@@ -479,10 +479,43 @@ test("mandatory acceptance gaps explicitly conflict with reassuring coverage pro
   assert.deepEqual(obligations.owner_result, originalObligation);
   assert.ok(consistency.rows.some((row) =>
     row.reason_codes.includes("controlled_contract_cross_owner_mandatory_claim_unmapped")));
+  const mandatoryConflict = consistency.rows.find((row) =>
+    row.reason_codes.includes("controlled_contract_cross_owner_mandatory_claim_unmapped"));
+  assert.deepEqual(mandatoryConflict.evidence.unmapped_mandatory_node_ids,
+    ["claim-unmapped"]);
   assert.deepEqual(obligations.reconciliation, {
     status: "conflicting",
     reason_codes: ["controlled_contract_cross_owner_mandatory_claim_unmapped"],
     unmapped_mandatory_count: 1
+  });
+});
+
+test("cross-owner method conflicts preserve both authored values and exact identities", () => {
+  const input = completeInput(1);
+  input.runtimeProofEligibility = [{
+    obligation_id: "OBLIGATION-0",
+    verification_id: "claim-verify-0",
+    classification: "conflicting",
+    reason_code: "controlled_contract_cross_owner_verification_method_conflict",
+    mechanism_kind: "inspection",
+    verification_method: "test_execution",
+    proof_kind: "saved_selection",
+    mapping_classification: "mapped",
+    mapping_reason_code: null
+  }];
+  const result = deriveControlledContractDesignWorkbench(input);
+  const conflict = byId(result, "cross_owner_consistency").rows.find((entry) =>
+    entry.reason_codes.includes(
+      "controlled_contract_cross_owner_verification_method_conflict"));
+  assert.deepEqual(conflict.semantic_identity, {
+    identity_kind: "verification_method", obligation_id: "OBLIGATION-0"
+  });
+  assert.deepEqual({ obligation_id: conflict.evidence.obligation_id,
+    verification_id: conflict.evidence.verification_id,
+    mechanism_kind: conflict.evidence.mechanism_kind,
+    verification_method: conflict.evidence.verification_method }, {
+    obligation_id: "OBLIGATION-0", verification_id: "claim-verify-0",
+    mechanism_kind: "inspection", verification_method: "test_execution"
   });
 });
 

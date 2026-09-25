@@ -11,6 +11,7 @@ import { CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_UPSERT_DECLARED_INPUT_SCHEMA } 
 import { MCP_WRITE_SEMANTICS } from './register-tool.mjs';
 import { INPUT_CONTRACT_SCHEMA_SOURCES } from './compact-tool-declaration-registry.mjs';
 import { requestSchema } from './proof-request-schema.mjs';
+import { proofAuthoringSchema } from './proof-authoring-input-schema.mjs';
 
 export { requestSchema };
 
@@ -27,13 +28,11 @@ function upsertDeclaration(z, focus) {
     .extend({ focus }).describe(declared.description);
 }
 
-export function registerProofAuthoringTools({ defineTool, z, focus, respond, identity, inputBoundary }) {
+export function registerProofAuthoringTools({ defineTool, z, focus, respond, identity, inputBoundary,
+  validationDeps = Object.freeze({}) }) {
   for (const tool of CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_TOOL_DEFINITIONS) {
     const operation = tool.name === 'workspace_validate_proof' ? 'validate' : tool.name.split('_').at(-1);
-    const inputSchema = inputBoundary(
-      requestSchema(z, tool.inputSchema, tool.inputSchema.$defs,
-        { memoize: operation === 'upsert' }).extend({ focus })
-    );
+    const inputSchema = inputBoundary(proofAuthoringSchema(tool, z, focus));
     defineTool(tool.name, {
       description: tool.description,
       writeSemantics: ['upsert', 'remove'].includes(operation)
@@ -56,7 +55,7 @@ export function registerProofAuthoringTools({ defineTool, z, focus, respond, ide
       const { repo, unit, focus, obligation_id, diagnostic_group_id,
         expected_content_digest, parameter_detail, inventory, cursor,
         contract_requirements, controlled_acceptance, removal_scope, ...changes } = args;
-      return handlers[tool.name]({ repoRoot: workspace.dir, ...identity(unit), focus: focus ?? null,
+      const operationInput = { repoRoot: workspace.dir, ...identity(unit), focus: focus ?? null,
         ...(obligation_id === undefined ? {} : { obligationId: obligation_id }),
         ...(diagnostic_group_id === undefined ? {} : { diagnosticGroupId: diagnostic_group_id }),
         ...(Object.hasOwn(args, 'expected_content_digest') ? { expectedContentDigest: expected_content_digest } : {}),
@@ -67,7 +66,10 @@ export function registerProofAuthoringTools({ defineTool, z, focus, respond, ide
         ...(removal_scope === undefined ? {} : { removalScope: removal_scope }),
         ...(parameter_detail === undefined ? {} : { parameterDetail: parameter_detail }),
         ...(inventory === undefined ? {} : { inventory }),
-        ...(cursor === undefined ? {} : { cursor }), ...changes });
+        ...(cursor === undefined ? {} : { cursor }), ...changes };
+      return tool.name === 'workspace_validate_proof'
+        ? handlers[tool.name](operationInput, validationDeps)
+        : handlers[tool.name](operationInput);
     }), { losslessDelivery: true });
   }
 }

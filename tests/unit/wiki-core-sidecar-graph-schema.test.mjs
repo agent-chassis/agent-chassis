@@ -4,25 +4,29 @@ import assert from "node:assert/strict";
 import {
   assertValidSidecarResultEnvelope,
   cloneSidecarTrustEnvelopeFixture,
+  SIDECAR_ENVELOPE_REQUIRED_FIELDS,
+  SIDECAR_EVIDENCE_BASIS_VALUES,
+  SIDECAR_SOURCE_KIND_VALUES,
+  SIDECAR_TRUST_ENVELOPE_FIXTURES,
+  validateSidecarResultEnvelope
+} from "../../packages/wiki-core/src/lib/sidecar-schema.mjs";
+import {
   compareSidecarCliMcpParity,
-  createSidecarGraphState,
   createSidecarParityFixture,
   normalizeSidecarCliJsonOutput,
   normalizeSidecarMcpStructuredContent,
-  SIDECAR_ENVELOPE_REQUIRED_FIELDS,
-  SIDECAR_EVIDENCE_BASIS_VALUES,
+  SIDECAR_PARITY_REQUIRED_TRUST_FIELDS,
+  SIDECAR_PARITY_SURFACE_EXPECTATIONS,
+  SIDECAR_PARITY_TRANSPORTS
+} from "../../packages/wiki-core/src/lib/sidecar-parity.mjs";
+import {
+  createSidecarGraphState,
   SIDECAR_GRAPH_EDGE_KIND_VALUES,
   SIDECAR_GRAPH_NODE_KIND_VALUES,
   SIDECAR_GRAPH_SCHEMA_VERSION,
-  SIDECAR_PARITY_REQUIRED_TRUST_FIELDS,
-  SIDECAR_PARITY_SURFACE_EXPECTATIONS,
-  SIDECAR_PARITY_TRANSPORTS,
-  SIDECAR_SOURCE_KIND_VALUES,
-  SIDECAR_TRUST_ENVELOPE_FIXTURES,
   validateSidecarGraphSection,
-  validateSidecarGraphState,
-  validateSidecarResultEnvelope
-} from "../../packages/wiki-core/src/index.mjs";
+  validateSidecarGraphState
+} from "../../packages/wiki-core/src/lib/sidecar-graph-schema.mjs";
 import {
   SIDECAR_GRAPH_PROVENANCE_EVIDENCE_BASIS_VALUES,
   SIDECAR_GRAPH_PROVENANCE_SOURCE_KIND_VALUES

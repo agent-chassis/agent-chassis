@@ -113,7 +113,7 @@ function facts(evidence) {
 
 test("saved proof requirements and exact evaluator determine satisfaction", async () => {
   const resolved = await resolveExactProofEvaluator({ proofPack: { profile: {
-    profile_id: "proof.verification.test-validity", profile_version: "10.0.0" } } });
+    profile_id: "proof.verification.test-validity", profile_version: "11.0.0" } } });
   assert.equal(resolved.status, "resolved");
   const evaluate = (evidence) => resolved.evaluate({ semantic_facts: facts(evidence) });
   assert.equal(evaluate(receipt()).satisfaction, "satisfied");
@@ -135,10 +135,12 @@ test("saved proof requirements and exact evaluator determine satisfaction", asyn
   assert.throws(() => facts({ schema_version: "workspace-agent-runner-test-result.v1",
     operation: "runner_test", ok: true }), { code: "verify_proof.evidence_invalid.v1" });
 
-  const other = await resolveExactProofEvaluator({ proofPack: { profile: {
-    profile_id: "proof.verification.test-validity", profile_version: "9.0.0" } } });
-  assert.equal(other.status, "not_executable");
+  for (const retired of ["9.0.0", "10.0.0"]) {
+    const other = await resolveExactProofEvaluator({ proofPack: { profile: {
+      profile_id: "proof.verification.test-validity", profile_version: retired } } });
+    assert.equal(other.status, "not_executable", retired);
+  }
   await assert.rejects(resolveExactProofEvaluator({ proofPack: { profile: {
-    profile_id: "proof.verification.test-validity", profile_version: "10.0.0" } },
+    profile_id: "proof.verification.test-validity", profile_version: "11.0.0" } },
   expectedImplementationDigest: sha("0") }), { code: "verify_proof.evaluator_digest_mismatch.v1" });
 });

@@ -17,6 +17,8 @@ import {
   buildDispatchMechanicalRefusal,
   NO_SUPPORTED_ROUTE_RECOVERY
 } from "../dispatch-tool-helpers.mjs";
+import { buildDispatchGuidanceRefusal, GUIDANCE_CAPABILITY_OWNER } from
+  "../dispatch-guidance-contract.mjs";
 import { classifyMechanicalRuntimeBlocker } from "./runtime-blocker-classifier.mjs";
 import { projectBoundedExactPolicyPayloadIssueReadiness } from
   "./agent-dispatch-cce-admission.mjs";
@@ -274,54 +276,44 @@ export function reviewerShaSubjectCorrection(subject) {
 
 export function reviewerShaSubjectRefusal({ subject, requestSchemaAuthority = null }) {
   const correction = reviewerShaSubjectCorrection(subject);
-  const predicate = Object.freeze({
-    fact: "dispatch.workspace_agent_dispatch_description_loaded",
-    operator: "is_true"
-  });
-  const continuation = buildDispatchContinuation({
-    tool: "workspace_tools_describe",
-    arguments: {
-      tool_name: AGENT_DISPATCH_TOOL_NAME,
-      verbose: true
-    },
-    successPredicate: predicate,
-    requestSchemaAuthority
-  });
-  if (continuation === null) {
-    throw new TypeError(
-      "workspace_tools_describe request-schema authority is unavailable for reviewer SHA-subject recovery"
-    );
-  }
-  return buildDispatchMechanicalRefusal({
+  const factEntries = [
+    ["dispatch.subject_role_accepted", false],
+    ["dispatch.role", "reviewer"],
+    ["dispatch.subject_commit_sha_shaped", true],
+    ["dispatch.canonical_subject_present", false]
+  ];
+  const decidingFacts = factEntries.map(([field, value]) => ({ field, value }));
+  const observedFacts = Object.fromEntries(factEntries);
+  const common = {
     code: DISPATCH_BLOCKER_CODES.ROLE_POLICY_VIOLATION,
-    decidingFacts: [
-      { field: "dispatch.subject_role_accepted", value: false },
-      { field: "dispatch.role", value: "reviewer" },
-      { field: "dispatch.subject_commit_sha_shaped", value: true },
-      { field: "dispatch.canonical_subject_present", value: false },
-      { field: "dispatch.workspace_agent_dispatch_description_loaded", value: false }
-    ],
-    observedFacts: {
-      "dispatch.subject_role_accepted": false,
-      "dispatch.role": "reviewer",
-      "dispatch.subject_commit_sha_shaped": true,
-      "dispatch.canonical_subject_present": false,
-      "dispatch.workspace_agent_dispatch_description_loaded": false
+    decidingFacts,
+    observedFacts,
+    route: AGENT_DISPATCH_TOOL_NAME
+  };
+  const built = buildDispatchGuidanceRefusal({
+    ...common,
+    guidance: {
+      tool: "workspace_tools_describe",
+      arguments: { tool_name: AGENT_DISPATCH_TOOL_NAME, verbose: true },
+      information:
+        "The registered workspace_agent_dispatch call contract: canonical WK or slice subject plus diff_base_sha and reviewed_sha."
     },
-    nextCalls: [continuation],
     recovery: {
-      state: "callable",
-      prerequisite:
-        "the caller has not loaded the registered workspace_agent_dispatch call contract",
-      operation: "workspace_tools_describe",
-      success_condition:
-        "workspace_tools_describe returns the registered workspace_agent_dispatch description containing the canonical subject and complete SHA-pair call shape",
-      success_predicate: continuation.success_predicate,
-      selected_from: ["dispatch.workspace_agent_dispatch_description_loaded"]
+      responsible_actor: "coordinator",
+      prerequisite: "the request names a commit SHA as its coordination subject",
+      selected_from: ["dispatch.canonical_subject_present"],
+      retry_condition:
+        "resubmit workspace_agent_dispatch with the already-known canonical subject and the SHA pair"
     },
-    route: AGENT_DISPATCH_TOOL_NAME,
     carried: correction,
     requestSchemaAuthority
+  });
+  if (built.refusal) return built.refusal;
+  return buildDispatchMechanicalRefusal({
+    ...common,
+    noSupportedRoute: true,
+    recovery: NO_SUPPORTED_ROUTE_RECOVERY,
+    carried: { ...correction, guidance_unavailable: built.unavailable }
   });
 }
 
@@ -409,6 +401,14 @@ function scopePathCorrectionRefusal({ blockerCode, facts, role, subject, carried
   });
 }
 
+export function carriedBackendRefusalFor(backendClassification) {
+  return Object.freeze({
+    blocker_code: publicBackendBlockerCode(backendClassification),
+    cause: backendClassification?.cause?.code ?? null,
+    originating_detail_location: "blocker.detail.originating_detail"
+  });
+}
+
 export function backendRefusalCarrier(backendClassification, {
   role = null,
   subject = null
@@ -416,12 +416,33 @@ export function backendRefusalCarrier(backendClassification, {
   const causeCode = backendClassification?.cause?.code ?? null;
   const blockerCode = publicBackendBlockerCode(backendClassification);
   const classifiedRecovery = backendClassification?.recovery ?? null;
+  const carriedBackendRefusal = carriedBackendRefusalFor(backendClassification);
 
-  const carriedBackendRefusal = Object.freeze({
-    blocker_code: blockerCode,
-    cause: causeCode,
-    originating_detail_location: "blocker.detail.originating_detail"
-  });
+  if (classifiedRecovery?.state === "guidance") {
+    return buildDispatchMechanicalRefusal({
+      code: blockerCode,
+      decidingFacts: [
+        { field: "dispatch.backend_accepted", value: false },
+        { field: "dispatch.backend_cause", value: causeCode }
+      ],
+      observedFacts: {
+        "dispatch.backend_accepted": false,
+        "dispatch.backend_cause": causeCode
+      },
+      noSupportedRoute: true,
+      recovery: NO_SUPPORTED_ROUTE_RECOVERY,
+      route: AGENT_DISPATCH_TOOL_NAME,
+      carried: {
+        launcher_backend_refusal: carriedBackendRefusal,
+        guidance_unavailable: Object.freeze({
+          available: false,
+          missing: Object.freeze(["guidance_consumer_for_refusal_reason"]),
+          owner: GUIDANCE_CAPABILITY_OWNER,
+          proposal_location: "blocker.detail.recovery"
+        })
+      }
+    });
+  }
   const scopePathFacts = declaredScopePathFacts(backendClassification);
   if (scopePathFacts !== null) {
     return scopePathCorrectionRefusal({
@@ -492,7 +513,21 @@ export function backendRefusalCarrier(backendClassification, {
       "dispatch.backend_cause": causeCode
     },
     noSupportedRoute: true,
-    recovery: NO_SUPPORTED_ROUTE_RECOVERY,
+    recovery: classifiedRecovery?.state === "no_supported_route" &&
+        typeof classifiedRecovery.responsible_actor === "string" &&
+        typeof classifiedRecovery.prerequisite === "string" &&
+        typeof classifiedRecovery.operator_action === "string" &&
+        typeof classifiedRecovery.retry_condition === "string" &&
+        typeof classifiedRecovery.explanation === "string"
+      ? Object.freeze({
+          state: "no_supported_route",
+          responsible_actor: classifiedRecovery.responsible_actor,
+          prerequisite: classifiedRecovery.prerequisite,
+          operator_action: classifiedRecovery.operator_action,
+          retry_condition: classifiedRecovery.retry_condition,
+          explanation: classifiedRecovery.explanation
+        })
+      : NO_SUPPORTED_ROUTE_RECOVERY,
     route: AGENT_DISPATCH_TOOL_NAME,
     carried: {
       launcher_backend_refusal: carriedBackendRefusal

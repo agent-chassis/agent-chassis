@@ -21,7 +21,8 @@ test('P9 deterministic complete documentation detects missing, extra and edited 
   assert.equal(expected.has(retiredPage), false);
   assert.equal(expected.has('proof.verification.test-validity@8.0.0.md'), false);
   assert.equal(expected.has('proof.verification.test-validity@9.0.0.md'), false);
-  assert.equal(expected.has('proof.verification.test-validity@10.0.0.md'), true);
+  assert.equal(expected.has('proof.verification.test-validity@10.0.0.md'), false);
+  assert.equal(expected.has('proof.verification.test-validity@11.0.0.md'), true);
   const directory = await mkdtemp(path.join(os.tmpdir(), 'pack-parameter-docs-'));
   try {
     assert.equal((await checkParameterDocumentation(directory, expected)).missing.length, expected.size);

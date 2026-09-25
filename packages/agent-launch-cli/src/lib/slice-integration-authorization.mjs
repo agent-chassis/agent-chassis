@@ -7,10 +7,18 @@ import path from "node:path";
 import {
   computeWorkRecordSourceDigest
 } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
+import { isCanonicalWorkRecordBaseBranch } from
+  "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
+import {
+  classifyExplicitBaseMergeTreeResult,
+  explicitBaseMergeTreeArgs,
+  registerExplicitBaseMergeTreeCapabilityCorrection
+} from "./explicit-base-merge-tree.mjs";
 import { buildWkSliceMarkerTrailer } from "./commit-tool-exposure-guard.mjs";
 import { parseLiteralCommitObject } from "./literal-commit-object.mjs";
 import { readCompleteCanonicalContractGenerationIdentity } from
   "./canonical-contract-generation-identity.mjs";
+import { resolveCapturedWkBase } from "./worktree-substrate-identity.mjs";
 
 export const SLICE_INTEGRATION_SCHEMA_VERSION = "slice-integration.v1";
 export const SLICE_INTEGRATION_BOUNDARY_AUTHORIZATION_SCHEMA_VERSION =
@@ -33,6 +41,8 @@ export const SLICE_INTEGRATION_DIAGNOSTIC_CODES = Object.freeze({
   SLICE_COMMIT_COMPENSATION_FAILED:
     "agent_launch.slice_integration.slice_commit_compensation_failed.v1",
   REBASE_CONFLICT: "agent_launch.slice_integration.rebase_conflict.v1",
+  GIT_CAPABILITY_UNAVAILABLE:
+    "agent_launch.slice_integration.git_capability_unavailable.v1",
   REBASE_RESTORE_FAILED: "agent_launch.slice_integration.rebase_restore_failed.v1",
   WK_ADVANCE_CONFLICT: "agent_launch.slice_integration.wk_advance_conflict.v1",
   REVIEW_FREEZE_FAILED: "agent_launch.slice_integration.review_freeze_failed.v1",
@@ -428,28 +438,45 @@ export function resolveZeroDeltaIntegrationEvidence({
 
 export function sliceHasNoRemainingDelta({ runGit, mainRepo, baseSha, commit, wkTip }) {
   return runMaybeAsyncGenerator(function* noDeltaSteps() {
+  const args = explicitBaseMergeTreeArgs({
+    baseSha,
+    currentSha: wkTip,
+    incomingSha: commit,
+    noReplaceObjects: true
+  });
   const merged = yield runGit({
     repo: mainRepo,
-    args: [
-      "--no-replace-objects",
-      "merge-tree", "--write-tree", "--no-messages",
-      "--merge-base", baseSha,
-      wkTip,
-      commit
-    ]
+    args
   });
-  if (!merged || merged.ok !== true) {
-    fail(
-      SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT,
-      "the immutable exact-slice delivery conflicts with the current WK tip",
-      {
-        base_sha: baseSha,
-        slice_sha: commit,
-        wk_sha: wkTip,
-        stdout: String(merged?.stdout ?? "").slice(0, 8192),
-        stderr: String(merged?.stderr ?? merged?.error ?? "").slice(0, 8192)
-      }
-    );
+  const interpreted = classifyExplicitBaseMergeTreeResult({
+    operation: "resolve_slice_remaining_delta",
+    repo: mainRepo,
+    args,
+    baseSha,
+    currentSha: wkTip,
+    incomingSha: commit,
+    result: merged
+  });
+  if (interpreted.kind !== "success") {
+    const conflict = interpreted.kind === "content_conflict";
+    const code = interpreted.kind === "required_capability_unavailable"
+      ? SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_CAPABILITY_UNAVAILABLE
+      : conflict
+        ? SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT
+        : SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_FAILED;
+    const error = new SliceIntegrationError(conflict
+      ? "agent-launch slice-integration: the immutable exact-slice delivery conflicts with the current WK tip"
+      : "agent-launch slice-integration: explicit-base merge-tree execution failed", {
+      code,
+      detail: { merge_tree: interpreted.diagnostic }
+    });
+    if (interpreted.kind === "required_capability_unavailable") {
+      registerExplicitBaseMergeTreeCapabilityCorrection(error, {
+        repo: mainRepo,
+        diagnostic: interpreted.diagnostic
+      });
+    }
+    throw error;
   }
   const appliedTree = assertOid(
     String(merged.stdout ?? "").split(/\r?\n/u)[0].trim(),
@@ -1126,10 +1153,22 @@ export function isLastIncompleteImplementationSlice(
   });
 }
 
-export function buildCompleteWkReviewTarget({ runGit, mainRepo, initiative, wkId, wkRef, wkTip }) {
+export function buildCompleteWkReviewTarget({
+  runGit, mainRepo, initiative, wkId, wkRef, wkTip, resolveCapturedBase = resolveCapturedWkBase
+}) {
   return runMaybeAsyncGenerator(function* completeReviewTargetSteps() {
-  const mainSha = yield revParse(runGit, mainRepo, "refs/heads/main");
-  const diffBaseSha = (yield git(runGit, mainRepo, ["merge-base", mainSha, wkTip], "could not derive complete-WK review diff base")).stdout.trim();
+  const unitAddress = `${initiative}/${wkId}`;
+  const capturedBase = resolveCapturedBase({ mainRepo, unitAddress });
+  if (capturedBase === null || typeof capturedBase?.base_ref !== "string" ||
+      !isCanonicalWorkRecordBaseBranch(capturedBase.base_ref)) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "complete-WK review target requires the WK's authenticated captured base branch", {
+        unit_address: unitAddress,
+        captured_base_ref: typeof capturedBase?.base_ref === "string" ? capturedBase.base_ref : null
+      });
+  }
+  const baseTipSha = yield revParse(runGit, mainRepo, `refs/heads/${capturedBase.base_ref}`);
+  const diffBaseSha = (yield git(runGit, mainRepo, ["merge-base", baseTipSha, wkTip], "could not derive complete-WK review diff base")).stdout.trim();
   assertOid(diffBaseSha, "diffBaseSha");
   return Object.freeze({
     schema_version: SLICE_INTEGRATION_SCHEMA_VERSION,
@@ -1185,24 +1224,44 @@ export function replayCommitRangeOnto({ runGit, mainRepo, baseSha, commit, onto 
           parents: parentLine.slice(1)
         });
     }
+    const mergeArgs = explicitBaseMergeTreeArgs({
+      baseSha: originalParent,
+      currentSha: replayedParent,
+      incomingSha: originalCommit
+    });
     const merge = yield runGit({
       repo: mainRepo,
-      args: [
-        "merge-tree", "--write-tree", "--no-messages",
-        "--merge-base", originalParent,
-        replayedParent,
-        originalCommit
-      ]
+      args: mergeArgs
     });
-    if (!merge || merge.ok !== true) {
-      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT,
-        "the immutable exact-slice delivery conflicts with the current WK tip", {
-          base_sha: originalParent,
-          slice_sha: originalCommit,
-          wk_sha: replayedParent,
-          stdout: String(merge?.stdout ?? "").slice(0, 8192),
-          stderr: String(merge?.stderr ?? merge?.error ?? "").slice(0, 8192)
+    const interpreted = classifyExplicitBaseMergeTreeResult({
+      operation: "replay_immutable_slice_delivery",
+      repo: mainRepo,
+      args: mergeArgs,
+      baseSha: originalParent,
+      currentSha: replayedParent,
+      incomingSha: originalCommit,
+      result: merge
+    });
+    if (interpreted.kind !== "success") {
+      const conflict = interpreted.kind === "content_conflict";
+      const code = interpreted.kind === "required_capability_unavailable"
+        ? SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_CAPABILITY_UNAVAILABLE
+        : conflict
+          ? SLICE_INTEGRATION_DIAGNOSTIC_CODES.REBASE_CONFLICT
+          : SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_FAILED;
+      const error = new SliceIntegrationError(conflict
+        ? "agent-launch slice-integration: the immutable exact-slice delivery conflicts with the current WK tip"
+        : "agent-launch slice-integration: explicit-base merge-tree execution failed", {
+        code,
+        detail: { merge_tree: interpreted.diagnostic }
+      });
+      if (interpreted.kind === "required_capability_unavailable") {
+        registerExplicitBaseMergeTreeCapabilityCorrection(error, {
+          repo: mainRepo,
+          diagnostic: interpreted.diagnostic
         });
+      }
+      throw error;
     }
     const tree = assertOid(String(merge.stdout ?? "").split(/\r?\n/u)[0].trim(), "replayed tree");
     const message = (yield git(

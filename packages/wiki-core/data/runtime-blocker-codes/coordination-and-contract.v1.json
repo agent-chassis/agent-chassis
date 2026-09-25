@@ -309,20 +309,6 @@
       "summary": "Candidate, repository, B/W, schema, record, or bound-state identity is invalid or moved."
     },
     {
-      "code": "agent_launch.terminal_candidate.status.candidate_bound.v1",
-      "category": "backend",
-      "actor_recovery": "none",
-      "blocking": false,
-      "summary": "The exact candidate is retained by an active terminal-review context."
-    },
-    {
-      "code": "agent_launch.terminal_candidate.status.live_coordination_inadmissible.v1",
-      "category": "work_record_readiness",
-      "actor_recovery": "coordinator",
-      "blocking": true,
-      "summary": "Live canonical terminal-review coordination is mechanically inadmissible."
-    },
-    {
       "code": "agent_launch.terminal_candidate.status.candidate_stale_w.v1",
       "category": "backend",
       "actor_recovery": "coordinator",
@@ -330,18 +316,11 @@
       "summary": "The authenticated candidate embeds an older W and may use the closed advance route."
     },
     {
-      "code": "agent_launch.terminal_candidate.status.candidate_authored_contract_divergent.v1",
-      "category": "work_record_readiness",
-      "actor_recovery": "coordinator",
-      "blocking": true,
-      "summary": "The unchanged-W v2 candidate differs from live canonical authored contract content."
-    },
-    {
       "code": "agent_launch.terminal_candidate.status.candidate_healthy.v1",
       "category": "backend",
       "actor_recovery": "automatic_proceed",
       "blocking": false,
-      "summary": "The exact candidate is healthy and any reviewer next call is mechanically demonstrated."
+      "summary": "The exact candidate is healthy with a selected durable version; review is reported only as an advisory review-consumer projection."
     },
     {
       "code": "agent_launch.terminal_candidate.canonical_root_invalid.v1",

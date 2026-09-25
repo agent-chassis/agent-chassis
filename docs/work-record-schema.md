@@ -43,6 +43,17 @@ A `work-record.v1` JSON record identifies the work item and its lifecycle:
 and scope arrays such as `read_scope`, `repo_paths`, `write_scope`, `depends_on`,
 `blocks`, and `related`.
 
+`base_branch`, when present, is the WK-level local branch from which the
+persistent WK fork is first captured. It is an ordinary record-level scalar and
+must be a canonical short local branch name such as `main`, `master`, or
+`release/next`; full refs and revision expressions are invalid. The field is
+optional in stored records so historical records remain schema-valid. A WK with
+no existing authenticated allocation must author it before first dispatch.
+Slices do not carry or choose a base: they start from the evolving parent WK
+tip. Once allocated, the WK's captured `base_ref` and fixed `base_sha` remain
+authoritative for retries, adoption, recovery, and forge handoff. Adding or
+changing `base_branch` later cannot rebase an existing WK.
+
 The public schema distinction is:
 
 - `record_kind` says what kind of record this is. Current `WK-*` records use
@@ -89,7 +100,9 @@ The public schema distinction is:
   slice material, with exact duplicate refs removed at their first occurrence.
   The combined population is limited to 16 references and 65,536 rendered
   UTF-8 bytes. References remain identities, not capabilities: preparation
-  rechecks repository and declared source visibility, captures the referenced
+  rechecks repository and source visibility (for a managed worker, coverage by
+  the frozen resolved read/write membership at the scope-existence base minus
+  launcher exclusions), captures the referenced
   WK closure through the launcher-owned frozen source set, and grants no worker
   MCP access or additional authority.
 - `proof_posture` is the sole persistent controlled-acceptance disposition

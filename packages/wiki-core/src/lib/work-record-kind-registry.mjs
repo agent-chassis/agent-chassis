@@ -17,6 +17,7 @@ import {
   isNullableString,
   addDiagnostic
 } from "./work-record-schema-validators.mjs";
+import { isCanonicalWorkRecordBaseBranch } from "./work-record-base-branch.mjs";
 
 export const DECISION_STATUS_VALUES = Object.freeze([
   "proposed",
@@ -186,6 +187,15 @@ function validateFieldByType(diagnostics, record, name, descriptor, spec, path, 
     return;
   }
   const value = record[name];
+  if (name === "base_branch" && !isCanonicalWorkRecordBaseBranch(value)) {
+    addDiagnostic(
+      diagnostics,
+      "invalid_record",
+      `${path} must be a canonical local branch name, not a ref or revision expression`,
+      { path }
+    );
+    return;
+  }
   switch (descriptor.type) {
     case "reserved":
 

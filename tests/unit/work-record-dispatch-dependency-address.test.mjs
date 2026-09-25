@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  collectDeclaredDependencyAddresses,
   collectDependencyBlockers,
   resolveDependencyEvidenceVector
 } from '../../packages/wiki-core/src/lib/work-record-dispatch-dependencies.mjs';
@@ -9,6 +10,19 @@ import {
   WORK_RECORD_STATUS_VALUES,
   WORK_RECORD_WORK_KIND_VALUES
 } from '../../packages/wiki-core/src/lib/work-record-schema-constants.mjs';
+
+test('declared dependency selection is slice-only for slices and record-only otherwise', () => {
+  const record = { depends_on: ['WK-1001'] };
+  assert.deepEqual(collectDeclaredDependencyAddresses(record, {
+    kind: 'slice', depends_on: []
+  }), []);
+  assert.deepEqual(collectDeclaredDependencyAddresses(record, {
+    kind: 'slice', depends_on: ['WK-1002']
+  }), [{ address: 'WK-1002', source: 'slice' }]);
+  assert.deepEqual(collectDeclaredDependencyAddresses(record, {
+    kind: 'work_item', depends_on: []
+  }), [{ address: 'WK-1001', source: 'record' }]);
+});
 
 function normalizeDependencyAddress({
   configuredAliases = [],

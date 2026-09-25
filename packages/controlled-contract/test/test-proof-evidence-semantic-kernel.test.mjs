@@ -8,6 +8,8 @@ import {
   TestProofEvidenceSemanticKernelError,
   evaluateTestProofEvidenceSemantics
 } from "../lib/test-proof-evidence-semantic-kernel.mjs";
+import { evaluateExecutionTestValidity as evaluateCurrent } from
+  "../profiles/proof.verification.test-validity/11.0.0/evaluator.mjs";
 
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const selectedTestId = `test-${"1".repeat(64)}`;
@@ -177,9 +179,9 @@ function resolution() {
   };
 }
 
-function evaluate(receipts) {
+function evaluate(receipts, bound = resolution()) {
   return evaluateTestProofEvidenceSemantics({
-    resolution: resolution(),
+    resolution: bound,
     receipts,
     expected: {
       wk_id: "WK-2458",
@@ -272,4 +274,132 @@ test("refuses duplicate and contradictory authenticated populations", () => {
   second.evidence_identity.run_id = "run-post-delivery-second";
   assert.throws(() => evaluate([receipt(), second]),
     (error) => error.code === "verify_proof.evidence_population_contradictory.v1");
+});
+
+const INSTRUMENTATION = { reason_code: "test_proof_native_instrumentation_unsupported",
+  detail: { reason: "body_not_single_scalar_return" } };
+
+function unavailableMember(value, index = 0) {
+  const row = value.falsifier_executions[index];
+  Object.assign(row, { provider_support: "unsupported", isolated: false, falsified_status: "not_run",
+    failure_reason_code: null, status: "review_only", limitation: structuredClone(INSTRUMENTATION),
+    evidence_artifact_ids: [] });
+  row.mutation.observed = false;
+  value.capability_limitations.push({ check_kind: "falsifier", check_id: row.falsifier_id,
+    ...structuredClone(INSTRUMENTATION) });
+  value.artifacts = value.artifacts.filter(({ kind }) => kind !== "falsifier_result");
+  return value;
+}
+
+function secondMember(value) {
+  const second = structuredClone(value.falsifier_executions[0]);
+  second.falsifier_id = "falsifier-component-second";
+  second.attempt_id = `attempt-${"e".repeat(64)}`;
+  second.mutation.mutation_id = "mutation-component-second";
+  value.falsifier_executions.push(second);
+  return value;
+}
+
+function withDeclared(ids) {
+  const bound = resolution();
+  bound.test_proof.falsifiers = ids.map((id) => ({ falsifier_id: id }));
+  return bound;
+}
+
+const currentVerdict = (facts) => evaluateCurrent({ semantic_facts: facts });
+
+test("an unavailable declared mutation is a limitation beside a proven selected test", () => {
+  const facts = evaluate([unavailableMember(receipt())]);
+  assert.equal(facts.status, "facts");
+  assert.equal(facts.facts.candidate.passed, true);
+  assert.deepEqual(facts.facts.falsifiers.observations.map(({ outcome }) => outcome), ["unavailable"]);
+  assert.equal(facts.facts.falsifiers.complete, true);
+  assert.equal(facts.facts.falsifiers.all_detected, false, "raw detection fact is preserved");
+  assert.deepEqual(facts.facts.falsifiers.outcome_counts,
+    { detected: 0, survived: 0, unavailable: 1, unevaluable: 0 });
+
+  assert.deepEqual(currentVerdict(facts), { satisfaction: "satisfied", diagnostics: [],
+    semantic_judgment: "exact_pack_evaluator", authority: "non_authoritative" });
+  assert.equal(currentVerdict(facts).diagnostics.some(
+    ({ code }) => code === "test_validity_execution_falsifier_inert"), false);
+});
+
+test("registry-declared unavailable falsification proves a passing selected test", () => {
+  const bound = withDeclared([]);
+  bound.test_proof.falsification_provider = { mode: "registry_unsupported" };
+  const value = receipt();
+  value.falsifier_executions = [];
+  value.artifacts = value.artifacts.filter(({ kind }) => kind !== "falsifier_result");
+  value.capability_limitations = [{ check_kind: "falsifier", check_id: null,
+    reason_code: "test_proof_registry_falsification_unsupported", detail: null }];
+  const facts = evaluate([value], bound);
+  assert.equal(facts.status, "facts");
+  assert.equal(facts.facts.falsifiers.declared_unsupported, true);
+  assert.equal(currentVerdict(facts).satisfaction, "satisfied");
+
+  const missing = structuredClone(value);
+  missing.capability_limitations = [];
+  assert.throws(() => evaluate([missing], bound),
+    (error) => error.code === "verify_proof.evidence_population_contradictory.v1");
+
+  assert.throws(() => evaluate([value], withDeclared(["falsifier-component"])),
+    (error) => error.code === "verify_proof.evidence_population_contradictory.v1");
+});
+
+test("an unavailable member neither excuses a survivor nor hides a detection", () => {
+  const detectedBeside = unavailableMember(secondMember(receipt()), 1);
+  detectedBeside.artifacts = receipt().artifacts;
+  const bound = withDeclared(["falsifier-component", "falsifier-component-second"]);
+  const mixed = evaluate([detectedBeside], bound);
+  assert.deepEqual(mixed.facts.falsifiers.observations.map(({ outcome }) => outcome),
+    ["detected", "unavailable"]);
+  assert.equal(currentVerdict(mixed).satisfaction, "satisfied");
+
+  const survivor = structuredClone(detectedBeside);
+  Object.assign(survivor.falsifier_executions[0], { status: "not_detected",
+    falsified_status: "passed", failure_reason_code: null });
+  const survived = evaluate([survivor], bound);
+  assert.deepEqual(survived.facts.falsifiers.observations.map(({ outcome }) => outcome),
+    ["survived", "unavailable"]);
+  const verdict = currentVerdict(survived);
+  assert.equal(verdict.satisfaction, "unsatisfied");
+  assert.deepEqual(verdict.diagnostics.map(({ code }) => code),
+    ["test_validity_execution_falsifier_inert"]);
+});
+
+test("incomplete or unevaluable falsification for a passing candidate is relationship-local not_executable", () => {
+  const incomplete = evaluate([receipt()],
+    withDeclared(["falsifier-component", "falsifier-component-missing"]));
+  assert.equal(incomplete.status, "not_executable");
+  assert.equal(incomplete.reason_code, "verify_proof.falsifier_evidence_not_evaluable.v1");
+  assert.deepEqual(incomplete.diagnostics, [{
+    code: "verify_proof.falsifier_population_incomplete.v1",
+    reason_code: "verify_proof.falsifier_population_incomplete.v1",
+    details: { expected_falsifier_ids: ["falsifier-component", "falsifier-component-missing"],
+      observed_falsifier_ids: ["falsifier-component"] }
+  }]);
+
+  const unreached = receipt();
+  Object.assign(unreached.falsifier_executions[0], { status: "not_detected",
+    falsified_status: "passed", failure_reason_code: null });
+  unreached.falsifier_executions[0].mutation.observed = false;
+  const unevaluable = evaluate([unreached]);
+  assert.equal(unevaluable.status, "not_executable");
+  assert.deepEqual(unevaluable.diagnostics.map(({ code }) => code),
+    ["verify_proof.falsifier_outcome_unevaluable.v1"]);
+  assert.equal(unevaluable.diagnostics[0].details.mutation_observed, false);
+  assert.equal(unevaluable.diagnostics[0].details.outcome, "unevaluable");
+});
+
+test("inconsistent unsupported-member evidence is still refused as unauthenticated", () => {
+  const withoutLimitation = unavailableMember(receipt());
+  withoutLimitation.capability_limitations = [];
+  assert.throws(() => evaluate([withoutLimitation]), (error) =>
+    error.code === "verify_proof.evidence_invalid.v1" &&
+    error.details.diagnostics.diagnostics.some(({ code }) =>
+      code === "runtime_falsifier_limitation_incoherent"));
+  const mismatched = unavailableMember(receipt());
+  mismatched.capability_limitations[0].reason_code = "test_proof_native_runner_unsupported";
+  assert.throws(() => evaluate([mismatched]),
+    (error) => error.code === "verify_proof.evidence_invalid.v1");
 });

@@ -30,16 +30,24 @@ import {
   settleWithinDeadline
 } from "./dispatch-monitor-call-deadline.mjs";
 import { projectRunFinalResultPublication } from "./dispatch-final-result-publication.mjs";
-import { projectPublishedSliceLifecycle } from
-  "./dispatch-run-status-authored-contract-projection.mjs";
+import {
+  projectPublishedControlledGeneration,
+  projectCompactSliceLifecycle,
+  projectPublishedSliceLifecycle
+} from "./dispatch-run-status-authored-contract-projection.mjs";
 import { projectPublishedIntegrationReceipt } from
   "./dispatch-run-status-integration-receipt-projection.mjs";
 import { createAuthoredContractRetention } from
   "./dispatch-run-status-authored-contract-retention.mjs";
-import { observeRunProofVerification, projectRunProofVerificationDetail } from
+import { observeRunProofVerification, projectCompactRunProofVerification,
+  projectRunProofVerificationDetail } from
   "./dispatch-run-proof-verification.mjs";
+import { AUTHENTICATED_INTEGRATION_CONTINUATION } from
+  "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import {
+  adoptDurableLifecycleFailures,
   createLifecycleCheckpoint,
+  LIFECYCLE_RETRY_DECISIONS,
   LIFECYCLE_RETRY_FACT_KINDS,
   lifecycleRetryFactsOf,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
@@ -48,6 +56,7 @@ import {
   projectInFlightLifecycleResolution,
   projectLifecycleResolution,
   recordLifecycleFailure,
+  retryAssessmentNextAction,
   WORKER_SLICE_SUBJECT_RE
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
@@ -86,6 +95,35 @@ export {
 export { runPostWorkerSliceLifecycle } from "./dispatch-post-worker-lifecycle.mjs";
 
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+const HOT_PRODUCER_DECISIONS = new Set([
+  LIFECYCLE_RETRY_DECISIONS.UNCHANGED,
+  LIFECYCLE_RETRY_DECISIONS.CHANGED,
+  LIFECYCLE_RETRY_DECISIONS.COMPLETED,
+  LIFECYCLE_RETRY_DECISIONS.OUTSIDE_ALLOCATION,
+  LIFECYCLE_RETRY_DECISIONS.PRODUCER_UNDECIDED
+]);
+const RESTART_PRODUCER_DECISIONS = new Set([
+  LIFECYCLE_RETRY_DECISIONS.CURRENT_REFUSAL,
+  LIFECYCLE_RETRY_DECISIONS.CORRECTION_UNESTABLISHED,
+  LIFECYCLE_RETRY_DECISIONS.PRODUCER_UNDECIDED
+]);
+const WITHHELD_PRODUCER_MEANINGS = Object.freeze({
+  [LIFECYCLE_RETRY_DECISIONS.UNCHANGED]: "the inputs this refusal was decided on are " +
+    "unchanged, so no integration attempt was made and no failure event was recorded",
+  [LIFECYCLE_RETRY_DECISIONS.OUTSIDE_ALLOCATION]: "the canonical scope changed, but the " +
+    "delivery touches paths outside the scope its attempt was allocated; a revised " +
+    "contract is new-generation work and never authorizes integrating this delivery",
+  [LIFECYCLE_RETRY_DECISIONS.PRODUCER_UNDECIDED]: "the producing owner could not decide " +
+    "whether the refusal was corrected; that is not a correction, so no integration " +
+    "attempt was made",
+  [LIFECYCLE_RETRY_DECISIONS.CURRENT_REFUSAL]: "after a restart the producer re-derived " +
+    "a current refusal read-only; the retained failure's correction facts did not " +
+    "survive the restart, so no integration attempt was made",
+  [LIFECYCLE_RETRY_DECISIONS.CORRECTION_UNESTABLISHED]: "after a restart the retained " +
+    "failure's correction facts are gone; a current admission pass does not prove the " +
+    "historical failure was corrected, so no integration attempt was made"
+});
 
 const ATTEMPT_LINEAGE_PROJECTION_KEYS = Object.freeze([
   "schema_version", "state", "prior_run_id", "replacement_run_id", "monitor_handle",
@@ -190,6 +228,37 @@ export {
   buildCloseoutWorkflowContinuation,
   CLOSEOUT_WORKFLOW_CONTINUATION_SCHEMA_VERSION
 } from "./dispatch-closeout-continuation.mjs";
+
+function compactLifecycleResolution(resolution, status) {
+  if (!Array.isArray(resolution?.retained_failures)) return resolution;
+  const { retained_failures: retained, required_correction: mirrored, ...facts } = resolution;
+  const omitted = ["retained_failures"];
+  if (mirrored !== undefined) omitted.push("required_correction");
+  if (facts.retry_assessment !== null && typeof facts.retry_assessment === "object" &&
+      Object.hasOwn(facts.retry_assessment, "assessment_evidence")) {
+    const { assessment_evidence: _evidence, ...assessment } = facts.retry_assessment;
+    facts.retry_assessment = Object.freeze(assessment);
+    omitted.push("retry_assessment.assessment_evidence");
+  }
+  let historyCall = null;
+  try {
+    historyCall = buildDispatchContinuation({
+      tool: "workspace_agent_run_status",
+      arguments: { subject: status.subject,
+        ...(typeof status.run_id === "string" ? { attempt_id: status.run_id } : {}),
+        detail: { kind: "failure_history" } },
+      successPredicate: { fact: "monitor.failure_history_detail_read", operator: "is_true" }
+    });
+  } catch {
+    historyCall = null;
+  }
+  return Object.freeze({
+    ...facts,
+    retained_failure_count: retained.length,
+    ...(historyCall === null ? {} : { failure_history_call: historyCall }),
+    omitted_members: Object.freeze(omitted)
+  });
+}
 
 export function registerRunMonitorRoutes(ctx) {
   const {
@@ -570,76 +639,208 @@ export function registerRunMonitorRoutes(ctx) {
       return settledAdvance(checkpoint.finalized);
     }
 
-    const assessRetainedFailure = async () => {
+    const run = () => Object.freeze({
+      subject: status.subject,
+      monitor_handle: status.monitor_handle,
+      run_id: status.run_id
+    });
+    const retainedClass = () => checkpoint.retained_failure_origin === "durable_journal"
+      ? { failure_class: LIFECYCLE_RETRY_FACT_KINDS.RETAINED_BEFORE_RESTART,
+          correction_condition: "not_retained_after_restart" }
+      : checkpoint.retry_facts?.kind === LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC
+        ? { failure_class: LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC,
+            correction_condition: checkpoint.retry_facts.producer_facts.correction_condition }
+        : { failure_class: LIFECYCLE_RETRY_FACT_KINDS.NO_CORRECTION_CONDITION,
+            correction_condition: "none_supplied" };
+    const withhold = (fields) => {
+      checkpoint.retry_decision = null;
+      checkpoint.retry_assessment = retryAssessment({
+        ...retainedClass(),
+        ...fields,
+        attempt_withheld: true,
+        automatic_retry: "stopped_within_this_request",
+        retained_failure_returned: true
+      });
+      return false;
+    };
+    const permit = (decision) => {
+      checkpoint.retry_decision = Object.freeze(decision);
+      return true;
+    };
+    const boundaryFailure = (decision, operation, owner, error) => withhold({
+      decision,
+      boundary: Object.freeze({ operation, owner }),
+      ...(error === undefined ? {} : {
+        assessment_evidence: captureLifecycleFailureEvidence(error, { operation })
+      }),
+      meaning: "the retry assessment boundary named here did not produce a " +
+        "decision this runtime can act on; that is not a correction, so no " +
+        "integration attempt was made"
+    });
+
+    const producerAnswer = (value, accepted) => value !== null && typeof value === "object" &&
+      value.grants_authority === false && accepted.has(value.decision) &&
+      (value.decision !== LIFECYCLE_RETRY_DECISIONS.CHANGED ||
+        (Array.isArray(value.changed_inputs) && value.changed_inputs.length > 0 &&
+          value.changed_inputs.every((entry) => typeof entry === "string")));
+    const producerFields = (value) => ({
+      decision: value.decision,
+      ...(value.reason === undefined ? {} : { reason: value.reason }),
+      ...(value.changed_inputs === undefined ? {} : { changed_inputs: value.changed_inputs }),
+      ...(value.offending_paths === undefined ? {} : { offending_paths: value.offending_paths }),
+      ...(value.allocated_write_scope === undefined
+        ? {} : { allocated_write_scope: value.allocated_write_scope }),
+      ...(value.code === undefined ? {} : { code: value.code }),
+      ...(value.missing_evidence === undefined ? {} : { missing_evidence: value.missing_evidence }),
+      ...(value.owner === undefined ? {} : { owner: value.owner }),
+      ...(value.current_admission === undefined
+        ? {} : { current_admission: value.current_admission }),
+      ...(value.evidence === undefined ? {} : { assessment_evidence: value.evidence })
+    });
+    const PRODUCER_ASSESSMENT_OWNER = "dispatch_backend.assessManagedLifecycleRetry";
+    const RESTART_REDERIVATION_OWNER = "dispatch_backend.rederiveManagedLifecycleRefusal";
+    const COMPLETION_OWNER = "dispatch_backend.resolveCommittedSliceIntegrationContinuation";
+
+    const assessRetainedFailure = async (completion) => {
+
+      if (checkpoint.phase !== POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION) {
+        return permit({ decision: LIFECYCLE_RETRY_DECISIONS.POST_INTEGRATION_REENTRY });
+      }
+      if (completion?.completed === true) {
+        return permit({ decision: LIFECYCLE_RETRY_DECISIONS.COMPLETED });
+      }
+
+      if (completion?.error !== null && completion?.error !== undefined) {
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.COMPLETION_OBSERVATION_FAILED,
+          "integration_completion_observation", COMPLETION_OWNER, completion.error);
+      }
+      if (checkpoint.retained_failure_origin === "durable_journal") {
+        return rederiveAfterRestart();
+      }
       const facts = checkpoint.retry_facts ?? null;
       if (facts === null || facts.kind !== LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC) {
-        checkpoint.retry_decision = Object.freeze({
-          decision: "fresh_authenticated_attempt",
-          reason: "cause_and_correction_condition_unknown"
+        return withhold({
+          decision: LIFECYCLE_RETRY_DECISIONS.NO_CORRECTION_CONDITION,
+          missing_evidence: "a producer-owned correction condition for this failure",
+          owner: "the producer of the retained failure named in latest_failure",
+          meaning: "this failure's producer supplied no correction condition, so no " +
+            "owner can establish that it was corrected; its cause and evidence are " +
+            "in latest_failure and slice_lifecycle, and no integration attempt was made"
         });
-        return true;
       }
       if (typeof dispatchBackend?.assessManagedLifecycleRetry !== "function") {
-        checkpoint.retry_decision = Object.freeze({
-          decision: "correction_unknown",
-          reason: "correction_assessment_unavailable"
-        });
-        return true;
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_UNAVAILABLE,
+          "lifecycle_retry_correction_assessment", PRODUCER_ASSESSMENT_OWNER);
       }
       let assessed;
       try {
         assessed = await dispatchBackend.assessManagedLifecycleRetry({
-          run: Object.freeze({
-            subject: status.subject,
-            monitor_handle: status.monitor_handle,
-            run_id: status.run_id
-          }),
+          run: run(),
           facts: facts.producer_facts
         });
       } catch (error) {
-        assessed = {
-          decision: "correction_unknown",
-          reason: "correction_assessment_failed",
-          evidence: captureLifecycleFailureEvidence(error, {
-            operation: "lifecycle_retry_correction_assessment"
-          })
-        };
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_FAILED,
+          "lifecycle_retry_correction_assessment", PRODUCER_ASSESSMENT_OWNER, error);
       }
-      const unchanged = assessed?.decision === "relevant_inputs_unchanged";
-      const decision = Object.freeze({
-        decision: typeof assessed?.decision === "string" ? assessed.decision : "correction_unknown",
-        ...(assessed?.changed_inputs === undefined ? {} : { changed_inputs: assessed.changed_inputs }),
-        ...(assessed?.reason === undefined ? {} : { reason: assessed.reason }),
-        ...(assessed?.evidence === undefined ? {} : { assessment_evidence: assessed.evidence })
+      if (!producerAnswer(assessed, HOT_PRODUCER_DECISIONS)) {
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_MALFORMED,
+          "lifecycle_retry_correction_assessment", PRODUCER_ASSESSMENT_OWNER, assessed);
+      }
+      if (assessed.decision === LIFECYCLE_RETRY_DECISIONS.CHANGED ||
+          assessed.decision === LIFECYCLE_RETRY_DECISIONS.COMPLETED) {
+        return permit(producerFields(assessed));
+      }
+      return withhold({
+        ...producerFields(assessed),
+        ...(assessed.decision === LIFECYCLE_RETRY_DECISIONS.PRODUCER_UNDECIDED
+          ? { boundary: Object.freeze({
+              operation: "lifecycle_retry_correction_assessment",
+              owner: PRODUCER_ASSESSMENT_OWNER
+            }) }
+          : {}),
+        meaning: WITHHELD_PRODUCER_MEANINGS[assessed.decision]
       });
-      if (unchanged) {
-        checkpoint.retry_decision = null;
-        checkpoint.retry_assessment = retryAssessment({
-          failure_class: LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC,
-          correction_condition: facts.producer_facts.correction_condition,
-          ...decision,
-          automatic_retry: "stopped_within_this_request",
-          retained_failure_returned: true,
-          meaning: "the inputs this refusal was decided on are unchanged, so no " +
-            "integration attempt was made and no failure event was recorded"
-        });
-        return false;
-      }
-      checkpoint.retry_decision = decision;
-      return true;
     };
 
-    if (checkpoint.in_flight === null) {
+    const rederiveAfterRestart = async () => {
+      if (typeof dispatchBackend?.rederiveManagedLifecycleRefusal !== "function") {
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_UNAVAILABLE,
+          "lifecycle_retry_restart_rederivation", RESTART_REDERIVATION_OWNER);
+      }
+      let rederived;
+      try {
+        rederived = await dispatchBackend.rederiveManagedLifecycleRefusal({ run: run() });
+      } catch (error) {
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_FAILED,
+          "lifecycle_retry_restart_rederivation", RESTART_REDERIVATION_OWNER, error);
+      }
+      if (!producerAnswer(rederived, RESTART_PRODUCER_DECISIONS)) {
+        return boundaryFailure(LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_MALFORMED,
+          "lifecycle_retry_restart_rederivation", RESTART_REDERIVATION_OWNER, rederived);
+      }
+      return withhold({
+        ...producerFields(rederived),
+        ...(rederived.decision === LIFECYCLE_RETRY_DECISIONS.PRODUCER_UNDECIDED
+          ? { boundary: Object.freeze({
+              operation: "lifecycle_retry_restart_rederivation",
+              owner: RESTART_REDERIVATION_OWNER
+            }) }
+          : {}),
+        meaning: WITHHELD_PRODUCER_MEANINGS[rederived.decision]
+      });
+    };
 
-      if (request.bound === true) {
-        return checkpoint.retained_failure === null
-          ? { lifecycle: null, advance_in_flight: false }
-          : failedAdvance(checkpoint.retained_failure);
+    const adoptDurableFailureHistory = async () => {
+      if (checkpoint.durable_history_read === null) {
+        const read = Promise.resolve().then(() => dispatchBackend.readManagedRunObservation({
+          caller_session_id: dispatchSessionIdentity,
+          subject: status.subject,
+          attemptId: status.run_id
+        })).then((observed) => {
+          const tuple = observed?.selected?.dispatch_tuple;
+          if (observed?.ok !== true || tuple?.assigned_unit !== status.subject ||
+              tuple?.launch_ref !== status.monitor_handle || tuple?.run_id !== status.run_id) {
+            return { unavailable: observed ?? { ok: false, code: "failure_history_read_empty" } };
+          }
+          if (checkpoint.retained_failure === null && checkpoint.in_flight === null) {
+            adoptDurableLifecycleFailures(checkpoint, observed.selected.failures);
+          }
+          return { unavailable: null };
+        }, (error) => ({
+          unavailable: captureLifecycleFailureEvidence(error, {
+            operation: "durable_failure_history_read"
+          })
+        }));
+        checkpoint.durable_history_read = read;
+        retainAbandonedWork(read);
       }
-      if (checkpoint.retained_failure !== null && !(await assessRetainedFailure())) {
-        request.bound = true;
-        return failedAdvance(checkpoint.retained_failure);
+      return checkpoint.durable_history_read;
+    };
+
+    const observeCompletion = () => {
+      if (checkpoint.completion_observation === null) {
+        const observation = Promise.resolve()
+          .then(() => dispatchBackend.resolveCommittedSliceIntegrationContinuation({
+            subject: status.subject,
+            status
+          }))
+          .then((continuation) => ({
+            completed: continuation?.[AUTHENTICATED_INTEGRATION_CONTINUATION] === true &&
+              continuation.completed === true,
+            error: null
+          }), (error) => ({ completed: false, error }));
+        checkpoint.completion_observation = observation;
+        retainAbandonedWork(observation);
+        observation.then(() => {
+          if (checkpoint.completion_observation === observation) {
+            checkpoint.completion_observation = null;
+          }
+        });
       }
+      return checkpoint.completion_observation;
+    };
+
+    const startLifecycleAttempt = () => {
       const invocationId = randomUUID();
       const invoke = dispatchBackend?.runPostWorkerSliceLifecycle ?? runPostWorkerSliceLifecycle;
       const statusWithCheckpoint = { ...status };
@@ -653,10 +854,9 @@ export function registerRunMonitorRoutes(ctx) {
       attempt = Promise.resolve()
         .then(() => invoke({ workspace, status: statusWithCheckpoint }))
         .then((result) => {
-
           checkpoint.retained_failure = null;
+          checkpoint.retained_failure_origin = null;
           checkpoint.retry_facts = null;
-
           if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION) {
             checkpoint.integration = result?.integration ?? null;
             checkpoint.finalized = result;
@@ -664,43 +864,51 @@ export function registerRunMonitorRoutes(ctx) {
           }
           return result;
         })
-
         .catch(async (error) => {
           const failure = recordLifecycleFailure(
             checkpoint,
             buildLifecycleFailure(checkpoint, error)
           );
           checkpoint.retained_failure = failure;
-
+          checkpoint.retained_failure_origin = "this_process";
           const facts = lifecycleRetryFactsOf(error);
           const tuple = facts?.execution_tuple;
           checkpoint.retry_facts = tuple?.assigned_unit === status.subject &&
             tuple?.launch_ref === status.monitor_handle && tuple?.run_id === status.run_id
             ? facts
             : null;
-
           const permitted = checkpoint.retry_decision ?? null;
           checkpoint.retry_decision = null;
           checkpoint.retry_assessment = retryAssessment({
-            ...(checkpoint.retry_facts === null
+            ...(checkpoint.phase !== POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION
               ? {
-                  failure_class: LIFECYCLE_RETRY_FACT_KINDS.UNKNOWN,
-                  correction_condition: "unknown",
-                  decision: "fresh_authenticated_attempt_on_a_later_explicit_request",
-                  meaning: "the cause and its correction condition are unknown to this " +
-                    "runtime; automatic retries stop, and a later explicit run_status " +
-                    "request makes one fresh authenticated attempt"
+                  failure_class: LIFECYCLE_RETRY_FACT_KINDS.POST_INTEGRATION,
+                  correction_condition: "not_applicable",
+                  decision: LIFECYCLE_RETRY_DECISIONS.POST_INTEGRATION_REENTRY,
+                  meaning: "the delivery is already integrated; a later explicit request " +
+                    "re-enters only the failed post-integration step and never integrates"
+                }
+              : checkpoint.retry_facts === null
+              ? {
+                  failure_class: LIFECYCLE_RETRY_FACT_KINDS.NO_CORRECTION_CONDITION,
+                  correction_condition: "none_supplied",
+                  decision: LIFECYCLE_RETRY_DECISIONS.NO_CORRECTION_CONDITION,
+                  missing_evidence: "a producer-owned correction condition for this failure",
+                  owner: "the producer of the retained failure named in latest_failure",
+                  meaning: "this failure's producer supplied no correction condition, so " +
+                    "no owner can establish that it was corrected and later requests " +
+                    "withhold another attempt; its cause and evidence are in " +
+                    "latest_failure and slice_lifecycle"
                 }
               : {
                   failure_class: LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC,
                   correction_condition: checkpoint.retry_facts.producer_facts.correction_condition,
-                  decision: "reassessed_on_a_later_explicit_request"
+                  decision: LIFECYCLE_RETRY_DECISIONS.PENDING
                 }),
             automatic_retry: "stopped_within_this_request",
             ...(permitted === null ? {} : { attempt_permitted_by: permitted })
           });
           if (typeof dispatchBackend?.recordManagedLifecycleFailure === "function") {
-
             const pendingPublication = Object.freeze({
               subject: status.subject,
               run: Object.freeze({
@@ -717,13 +925,98 @@ export function registerRunMonitorRoutes(ctx) {
           }
           throw new RecordedLifecycleFailure(failure);
         })
-
         .finally(() => {
           if (checkpoint.in_flight === attempt) checkpoint.in_flight = null;
         });
       checkpoint.in_flight = attempt;
-
       retainAbandonedWork(attempt);
+      return attempt;
+    };
+
+    if (checkpoint.in_flight === null) {
+
+      if (request.bound === true) {
+        return checkpoint.retained_failure === null
+          ? { lifecycle: null, advance_in_flight: false }
+          : failedAdvance(checkpoint.retained_failure);
+      }
+      let completion = null;
+      if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION &&
+          typeof dispatchBackend?.resolveCommittedSliceIntegrationContinuation === "function" &&
+          (checkpoint.retained_failure !== null ||
+            typeof dispatchBackend?.readManagedRunObservation === "function")) {
+        const completionOutcome = await settleWithinDeadline(observeCompletion(), deadline);
+        if (!completionOutcome.settled) return { lifecycle: null, advance_in_flight: true };
+        completion = completionOutcome.value;
+      }
+      const completed = completion?.completed === true;
+      if (checkpoint.retained_failure === null &&
+          typeof dispatchBackend?.readManagedRunObservation === "function") {
+        const historyRead = adoptDurableFailureHistory();
+        const historyOutcome = await settleWithinDeadline(historyRead, deadline);
+        if (!historyOutcome.settled) return { lifecycle: null, advance_in_flight: true };
+        const unavailable = historyOutcome.value?.unavailable ?? null;
+        if (unavailable !== null && checkpoint.durable_history_read === historyRead) {
+          checkpoint.durable_history_read = null;
+        }
+        if (unavailable !== null && completed) {
+
+          checkpoint.failure_history_durability = Object.freeze({
+            state: "unavailable",
+            code: "failure_history_read_failed",
+            boundary: Object.freeze({
+              operation: "durable_failure_history_read",
+              owner: "dispatch_backend.readManagedRunObservation"
+            }),
+            read_result: unavailable
+          });
+        } else if (unavailable !== null) {
+
+          checkpoint.retry_decision = null;
+          checkpoint.retry_assessment = retryAssessment({
+            failure_class: LIFECYCLE_RETRY_FACT_KINDS.RETAINED_BEFORE_RESTART,
+            correction_condition: "not_observable",
+            decision: LIFECYCLE_RETRY_DECISIONS.FAILURE_HISTORY_UNAVAILABLE,
+            boundary: Object.freeze({
+              operation: "durable_failure_history_read",
+              owner: "dispatch_backend.readManagedRunObservation"
+            }),
+            assessment_evidence: unavailable,
+            attempt_withheld: true,
+            automatic_retry: "stopped_within_this_request",
+            meaning: "this attempt's durable failure history could not be read, so " +
+              "whether it already failed is unknown and no integration attempt was made"
+          });
+          request.bound = true;
+          return failedAdvance(Object.freeze({
+            invoked: false,
+            phase: checkpoint.phase,
+            integrated: false
+          }));
+        }
+      }
+      if (completed) {
+        permit({ decision: LIFECYCLE_RETRY_DECISIONS.COMPLETED });
+      } else if (checkpoint.retained_failure !== null) {
+        if (checkpoint.retry_start_in_flight === null) {
+          const start = Promise.resolve().then(() => assessRetainedFailure(completion));
+          checkpoint.retry_start_in_flight = start;
+          retainAbandonedWork(start);
+        }
+        const retryStart = checkpoint.retry_start_in_flight;
+        const retryStartOutcome = await settleWithinDeadline(retryStart, deadline);
+        if (!retryStartOutcome.settled) {
+          return { lifecycle: null, advance_in_flight: true };
+        }
+        if (checkpoint.retry_start_in_flight === retryStart) {
+          checkpoint.retry_start_in_flight = null;
+        }
+        if (!retryStartOutcome.value) {
+          request.bound = true;
+          return failedAdvance(checkpoint.retained_failure);
+        }
+      }
+      if (checkpoint.in_flight === null) startLifecycleAttempt();
     } else if (request.bound === true && request.attempt !== checkpoint.in_flight) {
 
       return checkpoint.retained_failure === null
@@ -770,7 +1063,7 @@ export function registerRunMonitorRoutes(ctx) {
     "workspace_agent_run_status",
     {
       description:
-        "Observe one canonical dispatch subject immediately or for a bounded timeout. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result.",
+        "Observe one canonical dispatch subject immediately or for a bounded timeout. attempt_id only disambiguates retained runs; detail pages are read-only. Managed-worker observation advances lifecycle; terminal means finalized, child_terminal does not. Follow next_action. Retained review text is usable advisory evidence; required formal attestation settles in the same result. A managed worker's proof_verification reports its recorded workspace_verify_proof calls apart from lifecycle, with the last call's compact recorded outcome and an exact detail call returning that call's outcome and complete evidence; reads never re-run a proof. Default status is a compact answer that names what it omits; include_final_result:true returns the complete result.",
       inputSchema: z.object({
         repo: z.string().optional(),
         subject: z.string().refine(
@@ -1086,10 +1379,21 @@ export function registerRunMonitorRoutes(ctx) {
           accepted.attempt_lineage_resolution = attemptLineageResolution;
         }
         if (terminality.lifecycle_resolution) {
-          accepted.lifecycle_resolution = terminality.lifecycle_resolution;
+          accepted.lifecycle_resolution = includeFullFinalResult
+            ? terminality.lifecycle_resolution
+            : compactLifecycleResolution(terminality.lifecycle_resolution, status);
         }
         if (!terminality.terminal) {
-          accepted.next_action = LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY;
+
+          accepted.next_action = retryAssessmentNextAction(
+            terminality.lifecycle_resolution?.retry_assessment
+          ) === null
+            ? LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY
+            : terminality.lifecycle_resolution.next_action;
+
+          if (terminality.lifecycle_resolution?.required_correction !== undefined) {
+            accepted.required_correction = terminality.lifecycle_resolution.required_correction;
+          }
         }
 
         const closeoutOutcome = await settleWithinDeadline(buildCloseoutWorkflowContinuation({
@@ -1106,9 +1410,11 @@ export function registerRunMonitorRoutes(ctx) {
             callerSessionId: dispatchSessionIdentity,
             status
           }), deadline);
-          accepted.proof_verification = proofOutcome.settled
-            ? proofOutcome.value
-            : Object.freeze({ state: "unavailable", code: "run_status_call_bound_elapsed", grants_authority: false });
+          accepted.proof_verification = !proofOutcome.settled
+            ? Object.freeze({ state: "unavailable", code: "run_status_call_bound_elapsed", grants_authority: false })
+            : includeFullFinalResult
+              ? proofOutcome.value
+              : projectCompactRunProofVerification(proofOutcome.value);
         }
 
         if (lifecycle) {
@@ -1119,10 +1425,20 @@ export function registerRunMonitorRoutes(ctx) {
             status,
             lifecycle: published
           });
-          accepted.slice_lifecycle = projectPublishedIntegrationReceipt(
-            projectPublishedSliceLifecycle(published, { retention }),
+          const complete = projectPublishedIntegrationReceipt(
+            projectPublishedControlledGeneration(
+              projectPublishedSliceLifecycle(published, { retention }),
+              { retention }
+            ),
             { retention }
           );
+
+          accepted.slice_lifecycle = includeFullFinalResult
+            ? complete
+            : projectCompactSliceLifecycle(complete, {
+              subject: status.subject,
+              attemptId: status.run_id ?? null
+            });
         }
         Object.assign(accepted, projectRunFinalResultPublication(
           finalResult,

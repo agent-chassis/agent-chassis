@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import { resolveProspectiveScopeExistenceBase } from "./backend-provisioning-state.mjs";
+import { baseSelectionMissingPreflightMessage } from "./backend-provisioning-refusal-projection.mjs";
 import { readCanonicalWorkRecord } from "./backend-scope-authority.mjs";
 import {
   WORKER_SCOPE_PATH_REFUSED,
@@ -57,6 +58,8 @@ function notEvaluated(reason, message = null) {
   });
 }
 
+export const BASE_SELECTION_MISSING_REASON = "scope_existence_base_selection_missing";
+
 export function preflightWorkerScope({ dir, unitAddress, deps = {} } = {}) {
   const match = typeof unitAddress === "string" ? unitAddress.match(EXACT_IMPLEMENTATION_SLICE_RE) : null;
   if (match === null) return report(WORKER_SCOPE_PREFLIGHT_STATUS.NOT_APPLICABLE);
@@ -83,12 +86,17 @@ export function preflightWorkerScope({ dir, unitAddress, deps = {} } = {}) {
       mainRepo,
       initiative: record.initiative,
       recordId: match[1],
+      baseBranch: record.base_branch,
       deps
     });
   } catch (error) {
     return notEvaluated("scope_existence_base_unresolved", error?.message ?? String(error));
   }
-  if (prospective.ok !== true) return notEvaluated(prospective.reason);
+  if (prospective.ok !== true) {
+    return notEvaluated(prospective.reason, prospective.reason === BASE_SELECTION_MISSING_REASON
+      ? baseSelectionMissingPreflightMessage(match[1])
+      : null);
+  }
   const base = Object.freeze({
     ref: prospective.scope_existence_base.base_ref,
     sha: prospective.scope_existence_base.base_sha,

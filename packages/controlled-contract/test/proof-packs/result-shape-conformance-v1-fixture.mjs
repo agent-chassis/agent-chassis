@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const RESULT_SHAPE_CONFORMANCE_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.result-shape.conformance/3.0.0/profile.json",
+  "../../profiles/proof.result-shape.conformance/4.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 

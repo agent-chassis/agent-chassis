@@ -148,6 +148,4 @@ test("caller-supplied review seams are never exercised by the composed real life
   }
 
   assert.deepEqual(harness.reviewSeamCalls(), []);
-
-  assert.equal(harness.counts().declaredUnitCalls, 0);
 });

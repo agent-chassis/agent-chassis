@@ -8,9 +8,9 @@ instances nor executes observation providers or `verify_proof`.
 
 The [complete generated index](proof-pack-parameters/index.md) links every current
 catalog definition exactly once. The current catalog owns membership, including
-test-validity 10.0.0 and its execution evaluator. Historical directories
-are evidence; directory enumeration and historical fixture counts do not select
-current definitions.
+test-validity 11.0.0 and its execution evaluator. Only catalog identities are
+stored; retired definitions and their certifications are deleted under the
+[certification retirement and storage policy](versioning.md#certification-retirement-and-storage).
 
 ## Exact binding and publication
 
@@ -34,13 +34,20 @@ unchanged, and its shipped evaluation template binds
 current provider registry. Exact loads of 9.0.0 or 7.0.0 return
 `proof_pack_exact_version_not_current` with requested/current identities. Saved
 selections pinned to 9.0.0 keep refusing until their owners explicitly refresh
-them; no pin is rewritten automatically.
-Historical profiles, admissions and
-certification results retain their original bytes. They are not accepted through
-a compatibility reader or substituted for the selected current version.
+them; no pin is rewritten automatically. The mutation limitation cutover then
+publishes test-validity 11.0.0 as the sole current identity with a changed
+guarantee and evaluator (see [Versioning](versioning.md#mutation-limitation-cutover)):
+unavailable mutation neither earns nor withholds credit, and exact loads of 10.0.0
+refuse the same way. Its role and parameter population is unchanged.
+Retired profiles, admissions and certifications are deleted rather than retained.
+No compatibility reader accepts them, and nothing substitutes them for the
+selected current version.
 
 The existing full-census certification and admission generator certifies the new
-exact definitions. Definition certification establishes reusable declaration
+exact definitions. Each current definition's certification documents are stored
+in one `certification.json.gz` archive whose member bytes carry the certified
+digests. Runtime metadata stays raw under `profiles/<id>/<version>/`
+(see [Versioning](versioning.md#certification-retirement-and-storage)). Definition certification establishes reusable declaration
 adequacy under its existing experimental/local authority; it does not establish
 that a particular implementation satisfies the guarantee. The parameter schema
 and semantic checks additionally bind metadata before admission publication.
@@ -167,21 +174,16 @@ package's exact metadata/profile/admission owners remain authoritative.
 
 ## Validation and reconciliation
 
-The cutover ledger in the package test data records historical, work record baseline
-and new identities, profile digests and each role refinement. Its original
-39 definitions, 968 roles and 744 parameters remain historical reconciliation
-evidence. The current population contains 37 definitions, 959 roles and 735
-parameters. The removed current identities are
-`proof.verification.test-validity@7.0.0`, with two roles and two parameters, and
-`proof.scope.write-confinement@4.0.0`, with seven roles and seven parameters;
-`proof.verification.test-validity@10.0.0` is current, replacing 9.0.0 with the same
-role and parameter population. Write confinement is
+The current population contains 37 definitions, 959 roles and 735 parameters,
+and the parameter tests check every current contract's role coverage and
+mutation refusals directly. `proof.verification.test-validity@11.0.0` is current,
+replacing 10.0.0 with the same role and parameter population. Write confinement is
 deactivated as a selectable proof: it has no catalog entry, no controlled intent
 and no discovery candidate. Repository write-scope enforcement and candidate-diff
 checks do not depend on it. The live population is projected from the current
-catalog exactly once on every load. Historical profile, companion and
-certification bytes and the original ledger remain unchanged; the obsolete 7.0.0
-and write-confinement 4.0.0 pages are excluded from the generated current docs.
+catalog exactly once on every load. Retired definitions, including
+test-validity 7.0.0 to 10.0.0 and write-confinement 4.0.0, have no files and no
+generated documentation page.
 
 A saved selection of a definition outside the current catalog is never
 substituted, repinned or deleted. Exact loading refuses it with
@@ -200,12 +202,13 @@ obligations for work record, separate from its coordinator-owned implementation 
 
 ## Prospective native compatibility
 
-The current `proof.verification.test-validity@10.0.0` component role accepts exactly
+The current `proof.verification.test-validity@11.0.0` component role accepts exactly
 one explicit `cc:runtime_component` with `repository_path` or `profile_term`
 identity. The suite remains exactly one `cc:test`/`profile_term`, distinct from
-the component. The authenticated execution guarantee and evaluator implementation
-are unchanged from v9. Historical v8 and v9 bytes are retained; exact v8 or v9
-selection is not an alias for v10 and saved pins move only through explicit refresh.
+the component. Its authenticated execution guarantee and evaluator treat an
+unavailable mutation as a capability limitation rather than missing credit.
+Retired v8, v9 and v10 are deleted; exact v8, v9 or v10 selection is not an
+alias for v11, and saved pins move only through explicit refresh.
 
 `inspectParameterSource`, profile binding validation and candidate offers share
 the package reference-role predicate. Ordinary native/proof edits use the existing

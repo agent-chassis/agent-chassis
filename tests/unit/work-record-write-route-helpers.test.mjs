@@ -9,7 +9,8 @@ import path from "node:path";
 import {
   runWorkspaceWorkRecordAdmissionRefreshRoute,
   createCompactWorkRecordEditResponse,
-  createCompactContractEditResponse
+  createCompactContractEditResponse,
+  createCompactValidateDispatchResponse
 } from "../../packages/wiki-mcp/src/lib/work-record-write-route-helpers.mjs";
 
 async function withWorkspace(run) {
@@ -189,5 +190,58 @@ for (const [label, compactor] of [
       !response.next_action || !/stale_source_digest/.test(response.next_action),
       "non-stale refusal must not carry the stale retry next_action"
     );
+  });
+}
+
+const BASE_GUIDANCE = "Root WK-0892 selects no base_branch; author it on the root, then dispatch.";
+
+function readinessWithPreflight(reason, overrides = {}) {
+  return {
+    schema_version: "dispatch-readiness.v1",
+    record_id: "WK-0892",
+    unit: { kind: "slice", address: "WK-0892#SLICE-001" },
+    dispatch_role: "implementation",
+    dispatchable: true,
+    decision_code: "dispatchable",
+    reasons: [],
+    worker_scope_preflight: {
+      schema_version: "worker-scope-preflight.v1", status: "not_evaluated", base: null,
+      refusal: null, reason, evaluated: [], pending_at_launch: []
+    },
+    ...overrides
+  };
+}
+
+for (const tier of ["paid_cce", "free_local"]) {
+  test(`WK-2669: ${tier} validate-dispatch surfaces missing base selection guidance`, () => {
+    const readiness = readinessWithPreflight(
+      { code: "scope_existence_base_selection_missing", message: BASE_GUIDANCE });
+    const response = createCompactValidateDispatchResponse("repo", readiness, tier);
+    assert.equal(response.next_action, BASE_GUIDANCE);
+    assert.equal(response.dispatchable, true);
+    assert.equal(response.decision_code, "dispatchable");
+    assert.deepEqual(response.worker_scope_preflight, readiness.worker_scope_preflight);
+  });
+
+  test(`WK-2669: ${tier} keeps dispatch guidance for unrelated or unexplained not_evaluated reasons`, () => {
+    for (const reason of [
+      { code: "initiative_unresolvable", message: null },
+      { code: "scope_existence_base_unresolved", message: "git failed" },
+      { code: "scope_existence_base_selection_missing", message: null }
+    ]) {
+      const response = createCompactValidateDispatchResponse("repo", readinessWithPreflight(reason), tier);
+      assert.equal(response.next_action, "Dispatch implementation worker via workspace_agent_dispatch",
+        JSON.stringify(reason));
+    }
+  });
+
+  test(`WK-2669: ${tier} higher-priority refusal guidance outranks missing base selection`, () => {
+    const response = createCompactValidateDispatchResponse("repo", readinessWithPreflight(
+      { code: "scope_existence_base_selection_missing", message: BASE_GUIDANCE },
+      { dispatchable: false, decision_code: "record_validation_failure" }), tier);
+    assert.equal(response.dispatchable, false);
+    assert.equal(response.decision_code, "record_validation_failure");
+    assert.equal(response.next_action,
+      "Fix work-record validation errors reported in reasons and re-validate");
   });
 }

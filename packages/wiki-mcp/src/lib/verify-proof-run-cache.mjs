@@ -14,6 +14,7 @@ import { isTrustedManagedWorkerTestRunAuthority } from
 import { captureDiagnosticEvidence } from
   "../../../agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { persistVerifyProofCachedRecord } from "./mcp-response.mjs";
+import { projectRetainedVerifyProofOutcomeSummary } from "./verify-proof-result-summary.mjs";
 import { verifiedManagedWorkerSliceBinding } from "./verify-proof-candidate-context.mjs";
 import { VERIFY_PROOF_RUN_CACHE_NAMESPACE, verifyProofRunCacheDirectory } from
   "./verify-proof-run-record-reader.mjs";
@@ -136,6 +137,8 @@ function verificationRecord({ attempt, request, kind, record, recordIdentity, ca
     subject: structuredClone(record.subject ?? null),
     subject_binding: structuredClone(record.subject_binding ?? null),
     tested_source: testedSource(record),
+
+    ...(kind === "aggregate" ? { outcome_summary: projectRetainedVerifyProofOutcomeSummary(record) } : {}),
 
     coverage_scope: "requested_selection_only",
     grants_authority: false,

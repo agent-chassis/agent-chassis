@@ -12,12 +12,13 @@ The composition lives in `packages/wiki-mcp/src/lib/selected-response-snapshot.m
 It composes incumbent owners and adds no store, codec, limit or authority:
 
 - `mcp-response.mjs` retains bytes (`jsonContent` forced spill), reads them back
-  (`readSpilledMcpContentReference`) and measures the complete two-channel frame
+  (`readSpilledMcpContentReference`) and measures the complete structured frame
   (`measureMcpInlineResultBytes`).
 - `createTaskResultSnapshotRegistry` is the only pager, snapshot identity, cursor,
   expiry, field and scalar-range mechanism. The composition injects its
   complete-frame measurement, original-order paging and a scalar range bound
-  whose duplicated base64 frame fits.
+  whose base64 frame fits (three source bytes per four characters, published
+  once).
 - `buildNextCall` and `buildPublicMechanicalRefusal` own emitted calls and refusals.
 
 The readiness adapter lives in
@@ -33,9 +34,16 @@ detail.
 
 Every summary, detail page, empty page, refusal and recovery frame fits
 `min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, activeMcpInlineByteLimit())`,
-measured on the complete result including both channels, escaping and emitted
-calls. The bound is a delivery bound, not a content cap: every omitted member or
+measured on the complete serialized result including escaping, frame keys and
+emitted calls. The bound is a delivery bound, not a content cap: every omitted member or
 value stays reachable through a collection page, a field inventory or scalar ranges.
+
+Proof-intent discovery candidate pages and selected proof detail use the same
+class and the same scalar-range arithmetic
+(`scalarRangeBytesWithinDeliveryBound`), for page admission and for every
+emitted range continuation. They keep their own session: `proof_name`
+selectors and the package catalogue's source-change refusal are proof
+semantics, not a retained-carrier source.
 
 ## Retained source
 

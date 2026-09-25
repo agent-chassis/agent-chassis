@@ -86,7 +86,7 @@ export function resolveBasenameOnPath(name, pathEnv) {
   return null;
 }
 
-function readShebangLine(filePath) {
+export function readShebangLine(filePath) {
   let fd;
   try {
     fd = openSync(filePath, "r");

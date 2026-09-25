@@ -1,20 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-
-const _TEMPLATES_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../templates"
-);
-
-const _ADOPTION_SEED_SOURCE = JSON.parse(
-  readFileSync(path.join(_TEMPLATES_DIR, "IN-0001.adoption-seed.json"), "utf8")
-);
-
-export function getStaticIn0001AdoptionSeed() {
-  return JSON.parse(JSON.stringify(_ADOPTION_SEED_SOURCE));
-}
-
+export { getStaticIn0001AdoptionSeed } from "./lib/adoption-seed.mjs";
 export { getContractDir, loadManifest, readContractFile } from "./lib/contract.mjs";
 export {
   SIDECAR_CANONICALITY_VALUES,
@@ -256,6 +240,7 @@ export {
   writeValidatedWorkRecord
 } from "./operations/work-records.mjs";
 export { upsertWorkRecordEntry, readWorkRecordEntry } from "./operations/work-record-entries.mjs";
+export { isCanonicalWorkRecordBaseBranch } from "./lib/work-record-base-branch.mjs";
 export {
   acceptWorkRecordEscalation,
   authorWorkRecordEscalation,

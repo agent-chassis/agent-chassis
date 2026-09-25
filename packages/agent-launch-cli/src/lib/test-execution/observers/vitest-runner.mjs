@@ -27,6 +27,8 @@ function visit(task, fn) {
 const selectedFile = (task) => repositoryPath(config, task.file.filepath) === config.selected.file;
 const isSelected = (task) => selectedFile(task) && sameTitles(titlePath(task), config.selected.test);
 
+let selectedResult = null;
+
 export default class LauncherTestProofRunner extends TestRunner {
   onCollected(files) {
     for (const file of files) {
@@ -43,6 +45,7 @@ export default class LauncherTestProofRunner extends TestRunner {
   async onBeforeRunTask(test) {
     await super.onBeforeRunTask(test);
     if (isSelected(test) && test.mode !== "run" && test.mode !== "queued") {
+      selectedResult = { test, reported: true };
       channel.emit("test_result", { file: config.selected.file, test: titlePath(test),
         outcome: "skipped", assertion_failure: false, error: null });
     }
@@ -59,15 +62,35 @@ export default class LauncherTestProofRunner extends TestRunner {
   }
 
   onAfterRunTask(test) {
-    if (isSelected(test)) {
+    if (isSelected(test) && selectedResult?.reported !== true) {
       const state = test.result?.state;
-      const error = test.result?.errors?.[0] ?? null;
-      const assertion = error?.name === "AssertionError";
-      const outcome = state === "pass" ? "passed" : state === "fail" ? "failed" : "skipped";
-      channel.emit("test_result", { file: config.selected.file, test: titlePath(test), outcome,
-        assertion_failure: outcome === "failed" && assertion,
-        error: outcome === "failed" ? errorFacts(error, assertion) : null });
+      selectedResult = { test, reported: false, error: test.result?.errors?.[0] ?? null,
+        outcome: state === "pass" ? "passed" : state === "fail" ? "failed" : "skipped" };
     }
     return super.onAfterRunTask(test);
+  }
+
+  onAfterRunSuite(suite) {
+    const recorded = selectedResult;
+    if (recorded !== null && !recorded.reported) {
+      let encloses = false;
+      for (let node = recorded.test.suite; node !== undefined; node = node.suite) {
+        if (node === suite) encloses = true;
+      }
+      const suiteError = suite.result?.errors?.[0] ?? null;
+      if (encloses && suiteError !== null && recorded.outcome === "passed") {
+        recorded.outcome = "failed";
+        recorded.error = suiteError;
+      }
+      if (suite === recorded.test.file) {
+        recorded.reported = true;
+        const { outcome, error } = recorded;
+        const assertion = error?.name === "AssertionError";
+        channel.emit("test_result", { file: config.selected.file, test: titlePath(recorded.test), outcome,
+          assertion_failure: outcome === "failed" && assertion,
+          error: outcome === "failed" ? errorFacts(error, assertion) : null });
+      }
+    }
+    return super.onAfterRunSuite?.(suite);
   }
 }

@@ -36,11 +36,8 @@ import {
 } from "./terminal-review-materialization.mjs";
 import {
   assertTerminalWkCandidateVersionDecision,
-  deriveRecoveredTerminalWkCandidateIdentity,
-  freezeRecoveredTerminalWkCandidateInputs,
   inspectTerminalWkCandidateVersion,
   TERMINAL_WK_CANDIDATE_CODES,
-  TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3,
   observeExactDirectCommitRef,
   readTerminalCandidateCurrentRef,
   verifyTerminalWkCandidateObjectBinding
@@ -240,6 +237,29 @@ function closedTerminalCandidateRecoveryDiagnostic(value) {
   });
 }
 
+export const TERMINAL_CANDIDATE_EXCLUSION_REFUSED_CODE =
+  "agent_launch.terminal_candidate.exclusion_refused.v1";
+
+const TERMINAL_CANDIDATE_EXCLUSION_REFUSALS = Object.freeze({
+  invalid_arguments: Object.freeze({ status_observation: false }),
+  candidate_not_stale_w: Object.freeze({ status_observation: true }),
+  repository_root_unavailable: Object.freeze({ status_observation: false }),
+  candidate_not_stale_w_inside_exclusion: Object.freeze({ status_observation: true })
+});
+
+export const TERMINAL_CANDIDATE_EXCLUSION_REFUSAL_REASONS = Object.freeze(
+  Object.keys(TERMINAL_CANDIDATE_EXCLUSION_REFUSALS)
+);
+
+const terminalCandidateExclusionRefusals = new WeakMap();
+
+export function projectTerminalCandidateExclusionRefusal(error) {
+  if ((typeof error !== "object" || error === null) && typeof error !== "function") {
+    return null;
+  }
+  return terminalCandidateExclusionRefusals.get(error) ?? null;
+}
+
 export function createBackendTerminalCandidateCoordination(ctx) {
   const {
     frozenSliceReviewContexts,
@@ -259,8 +279,12 @@ export function createBackendTerminalCandidateCoordination(ctx) {
 
   function terminalCandidateExclusionRefusal(reason) {
     const error = new Error(`terminal candidate exclusion refused: ${reason}`);
-    error.code = "agent_launch.terminal_candidate.exclusion_refused.v1";
+    error.code = TERMINAL_CANDIDATE_EXCLUSION_REFUSED_CODE;
     error.reason = reason;
+    terminalCandidateExclusionRefusals.set(error, Object.freeze({
+      reason,
+      ...TERMINAL_CANDIDATE_EXCLUSION_REFUSALS[reason]
+    }));
     return error;
   }
 
@@ -532,18 +556,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     return resolveTerminalReviewLifecycleDecision(inputs, retainedSubject).decision;
   }
 
-  function isReconstructedCurrentRecordProjection(binding, unit) {
-    return isPlainObject(binding) && Object.isFrozen(binding) &&
-      binding.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3 &&
-      unit.contract_source === "canonical_current_record" &&
-      typeof binding.terminal_review_subject === "string" &&
-      typeof binding.terminal_review_contract_digest === "string" &&
-      unit.subject === binding.terminal_review_subject &&
-      unit.record_id === binding.canonical_wk_id &&
-      typeof unit.slice_id === "string" &&
-      unit.subject === `${unit.record_id}#${unit.slice_id}`;
-  }
-
   function historicalTerminalReviewEvidence(terminalCandidate) {
     const unit = terminalCandidate?.review_unit ?? null;
     if (unit === null || unit === undefined) return null;
@@ -552,7 +564,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
         typeof unit.review_unit_contract !== "string") {
       throw terminalReviewLifecycleRefusal("historical_review_evidence_is_not_launcher_owned");
     }
-    if (isReconstructedCurrentRecordProjection(terminalCandidate.binding, unit)) return null;
+    if (unit.contract_source === "canonical_current_record") return null;
     if (unit.contract_source !== "exact_candidate_tree") {
       throw terminalReviewLifecycleRefusal("historical_review_evidence_is_not_launcher_owned");
     }
@@ -722,37 +734,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
       address,
       integratedDeliverySubject
     });
-  }
-
-  async function authenticateTerminalCandidatePreparation({
-    historicalReviewUnit
-  } = {}) {
-    const reviewUnit = isPlainObject(historicalReviewUnit) &&
-        typeof historicalReviewUnit.record_id === "string" &&
-        typeof historicalReviewUnit.slice_id === "string"
-      ? resolveCanonicalTerminalReviewCoordinationStateForInvariantDecision(
-        worktreeProvisioningConfig.mainRepo,
-        historicalReviewUnit.record_id,
-        historicalReviewUnit.slice_id
-      ).unit
-      : null;
-    if (!isPlainObject(historicalReviewUnit) || !isPlainObject(reviewUnit) ||
-        historicalReviewUnit.contract_source !== "exact_candidate_tree" ||
-        typeof historicalReviewUnit.canonical_parent_wk_contract !== "string" ||
-        typeof historicalReviewUnit.review_unit_contract !== "string" ||
-        typeof reviewUnit.canonical_parent_wk_contract !== "string" ||
-        typeof reviewUnit.review_unit_contract !== "string" ||
-        !sameTerminalReviewAddress(historicalReviewUnit, reviewUnit)) {
-      throw terminalReviewLifecycleRefusal(
-        "terminal_candidate_prepublication_review_contract_identity_mismatch"
-      );
-    }
-    return (await resolveAuthenticatedTerminalReviewLifecycleDecision({
-      historicalParentContract: historicalReviewUnit.canonical_parent_wk_contract,
-      liveParentContract: reviewUnit.canonical_parent_wk_contract,
-      recordId: reviewUnit.record_id,
-      reviewSliceId: reviewUnit.slice_id
-    })).decision;
   }
 
   function verifyRetainedTerminalReviewAttemptContract(contract) {
@@ -1148,61 +1129,7 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     });
   }
 
-  async function resolveSelectedCandidatePublicationState(wkId) {
-    if (worktreeProvisioningConfig?.mainRepo == null) return null;
-    let candidate;
-    try {
-      candidate = await readTerminalCandidateCurrentRef({
-        mainRepo: worktreeProvisioningConfig.mainRepo,
-        canonicalWkId: wkId,
-        runGit: reviewContextRunGit
-      });
-    } catch {
-      return null;
-    }
-    if (candidate === null || candidate === undefined) return null;
-
-    let wkRef;
-    try {
-      const raw = await reviewContextRunGit({
-        repo: worktreeProvisioningConfig.mainRepo,
-        args: ["show", `${candidate}:wiki/work-records/${wkId}.json`]
-      });
-      const record = JSON.parse(typeof raw === "string" ? raw : raw?.stdout ?? "");
-      if (record?.id !== wkId || !/^IN-[0-9]{4}$/u.test(record?.initiative ?? "")) return null;
-      wkRef = `refs/heads/wk/${record.initiative}/${wkId}`;
-    } catch {
-      return null;
-    }
-    let binding;
-    try {
-      const frozen = await freezeRecoveredTerminalWkCandidateInputs({
-        mainRepo: worktreeProvisioningConfig.mainRepo,
-        candidate,
-        canonicalWkId: wkId,
-        wkRef,
-        runGit: reviewContextRunGit
-      });
-      binding = await deriveRecoveredTerminalWkCandidateIdentity({
-        frozen, runGit: reviewContextRunGit
-      });
-    } catch {
-      return null;
-    }
-    if (binding?.candidate !== candidate) return null;
-    const versionDecision = await inspectTerminalWkCandidateVersion({
-      binding, runGit: reviewContextRunGit
-    });
-
-    return Object.freeze({ binding, version_decision: versionDecision });
-  }
-
-  async function resolveTerminalCandidatePublicationState(wkId) {
-    if (typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) return null;
-    const targetKey = currentTerminalReviewTargetByWk.get(wkId);
-    if (targetKey === undefined) return resolveSelectedCandidatePublicationState(wkId);
-    const context = frozenReviewContextsByTarget.get(targetKey);
-    if (context === undefined) return resolveSelectedCandidatePublicationState(wkId);
+  async function retainedTerminalCandidatePublicationState(context) {
     if (verifyFrozenWkReviewTargetAgainstObjectStore({
       mainRepo: context.main_repo,
       context,
@@ -1217,7 +1144,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
       binding: context.terminal_candidate_binding,
       runGit: reviewContextRunGit
     });
-
     return Object.freeze({
       binding: context.terminal_candidate_binding,
       materialization: context.terminal_candidate_materialization,
@@ -1231,17 +1157,14 @@ export function createBackendTerminalCandidateCoordination(ctx) {
       : null;
     if (address === null) return null;
     const targetKey = currentTerminalReviewTargetByWk.get(address[1]);
-    if (targetKey === undefined ||
-        frozenReviewContextsByTarget.get(targetKey)?.review_subject !== subject) {
-      return null;
-    }
-    return resolveTerminalCandidatePublicationState(address[1]);
+    const context = targetKey === undefined ? undefined : frozenReviewContextsByTarget.get(targetKey);
+    if (context === undefined || context.review_subject !== subject) return null;
+    return retainedTerminalCandidatePublicationState(context);
   }
 
   return {
     observeTerminalCandidateBoundState,
     decideTerminalReviewLifecycle,
-    authenticateTerminalCandidatePreparation,
     withTerminalCandidateAdvanceExclusion,
     sameTerminalReviewAddress,
     bindFrozenReviewContext,
@@ -1249,7 +1172,6 @@ export function createBackendTerminalCandidateCoordination(ctx) {
     recoverTerminalReviewContext,
     refreshTerminalReviewAttemptContract,
     resolveTerminalCandidateReviewMaterial,
-    resolveTerminalCandidatePublicationState,
     resolveTerminalReviewPublicationState
   };
 }

@@ -24,8 +24,14 @@ function describeCaptureError(error) {
     : description;
 }
 
-export function captureDiagnosticEvidence(input) {
+export function captureDiagnosticEvidence(input, { publishedFields = {} } = {}) {
   const firstPaths = new Map();
+  const published = new Map();
+  for (const [field, object] of Object.entries(publishedFields)) {
+    if (typeof object === "object" && object !== null && !published.has(object)) {
+      published.set(object, field);
+    }
+  }
   const captureFailures = [];
 
   const pending = [];
@@ -80,6 +86,10 @@ export function captureDiagnosticEvidence(input) {
     }
     if (value === null) return null;
     if (firstPaths.has(value)) return { $ref: firstPaths.get(value) };
+    if (published.has(value)) {
+      firstPaths.set(value, path);
+      return { $type: "published_field", field: published.get(value) };
+    }
     if (depth >= DIAGNOSTIC_EVIDENCE_MAX_DEPTH) {
 
       const segment = segments.length + pending.length;

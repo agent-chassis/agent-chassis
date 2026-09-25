@@ -62,39 +62,43 @@ interpreter, package tree, dependency installation, or wiki-MCP runtime.
 
 ## Result channels
 
-A structured tool result carries the same value through both channels. The
-`structuredContent` object stays the authoritative machine-readable payload, and
-the single text block in `content` holds JSON text that parses to a value deeply
-equivalent to it. A client that reads only the rendered text channel therefore
-recovers the same stable fields as a client that understands `structuredContent`.
-Structured error envelopes obey exactly the same shaping and additionally retain
-`isError: true`. An unstructured thrown error is translated into the registered
+A structured tool result carries its complete value once, in
+`structuredContent`, with `content: []`. No serialized JSON copy, abbreviated
+copy or textual pointer to the value is published beside it; the repository
+supports only this current contract and keeps no text mirror for clients that
+read only rendered text. Structured error envelopes, translated thrown errors,
+input-recovery refusals, spill references, persistence refusals and
+continuation pages obey exactly the same shaping, and error results
+additionally retain `isError: true`. An unstructured thrown error is translated into the registered
 public mechanical refusal envelope. Its ordinary diagnostic remains separate
 from deciding identities and is preserved byte-for-byte. Diagnostic/free-form/
 untrusted text is not inherently sensitive; only an explicit structured
 sensitive component is removed, with its genuine closed reason.
 
-That contract is enforced at the public guard boundary, not only inside the
-`jsonContent` and `errorContent` helpers. Every result a registered handler
-returns passes through the guard, so a handler that shapes its own result — or
-that mutates a helper-produced `structuredContent` afterwards, as tool discovery
-does when it re-attaches `package_versions` and the work-record write routes do
-when they re-attach `selected_unit` — is normalized back onto the two-channel
-contract before it leaves the server. Normalization is idempotent: a result whose
-text channel already parses to an equivalent value and whose complete
-serialization already fits is returned untouched. A result with no
-`structuredContent` passes through unchanged.
+`structuredToolResult` in `packages/wiki-mcp/src/lib/mcp-response.mjs` is the
+one constructor of that frame, and the contract is enforced at the public guard
+boundary, not only inside the `jsonContent` and `errorContent` helpers. Every
+result a registered handler returns passes through the guard, so a handler that
+shapes its own result — or that mutates a helper-produced `structuredContent`
+afterwards, as tool discovery does when it re-attaches `package_versions` and the
+work-record write routes do when they re-attach `selected_unit` — leaves on the
+structured contract: any text block beside `structuredContent` is removed,
+independently meaningful non-text blocks (resource, image, audio) and top-level
+protocol metadata such as `_meta` are preserved, and the final frame is admitted
+or spilled as below. Normalization is idempotent: a result already in that form
+whose complete serialization fits is returned untouched. A result with no
+`structuredContent` — an ordinary unstructured text result or the SDK's own
+request-validation refusal — passes through unchanged.
 
 Inline admission is decided on the UTF-8 byte size of the complete prospective
-`CallToolResult` — both channels, the JSON-string escaping the text channel pays
-for embedding JSON inside a JSON string, the frame keys, and preserved top-level
-result metadata such as `_meta`. Nothing is added to the frame afterwards, so no
-inline result exceeds the configured limit. Because
-both channels are counted, a payload that would have fit a single-copy budget can
-legitimately spill.
+`CallToolResult` as serialized — the compact structured value with its string
+escaping, the frame keys, and preserved top-level result metadata such as
+`_meta`. `measureMcpInlineResultBytes` is the one measurement owner; route pagers
+use it to make the same decision without probing persistence. Nothing is added
+to the frame afterwards, so no inline result exceeds the configured limit.
 
 A result that does not fit is persisted once to the existing file-backed
-reference, and both channels then carry the same bounded
+reference, and `structuredContent` then carries the bounded
 `wiki-mcp-spilled-response.v1` envelope: reason, byte counts, a bounded preview,
 and the content reference with its digest and ranged-continuation window. An
 oversized structured error retains `isError: true`, and reading the reference
@@ -107,12 +111,12 @@ second time.
 `total_bytes` and `inline_byte_limit` are **not comparable**, and an envelope in
 which `total_bytes` is smaller than `inline_byte_limit` is not a contradiction:
 
-- `inline_byte_limit` is compared against the complete two-channel
-  `CallToolResult` described above — `structuredContent`, the text channel that
-  repeats it as an escaped JSON string, and the frame keys. That is roughly twice
-  the payload plus escaping.
+- `inline_byte_limit` is compared against the complete serialized
+  `CallToolResult` described above — compact `structuredContent`, the frame keys
+  and any preserved protocol metadata.
 - `total_bytes` measures the **retained payload alone**, as persisted: one
-  two-space-indented JSON document, with no frame and no second channel.
+  two-space-indented JSON document with no frame. Indentation and frame overhead
+  differ, so either quantity can be the larger.
 
 The envelope therefore carries `measurement`, an
 `mcp-response-spill-measurement.v1` block that states both quantities and which
@@ -143,11 +147,10 @@ block and reports `complete_frame_bytes_exceeded_inline_byte_limit`. This block
 explains the arithmetic; it changes no threshold and no admission decision.
 
 When persistence itself fails, the boundary returns one deterministic bounded
-refusal through both channels rather than the oversized original or a generic
-unstructured fallback:
+structured refusal rather than the oversized original or a generic unstructured
+fallback:
 
-- `isError: true`, and `content` JSON that parses to a value deeply equivalent to
-  `structuredContent`.
+- `isError: true`, the refusal in `structuredContent`, and `content: []`.
 - `schema_version: mcp-response-refusal.v1` and
   `code: mcp_response.spill_persistence_failed.v1`.
 - `reason`, `inline_byte_limit`, and `total_bytes` describing what could not be
@@ -296,9 +299,10 @@ request rather than a chore handed back to the caller.
   Schema, CAS, identity, integrity and publication checks remain in force, and
   each refusal identifies its mechanical failure or returned policy decision.
   Marking a record `done` supplies no evidence that a forge merge occurred.
-- **Forge confirmation remains authenticated.** The trusted forge helper retains
-  its exact candidate, pull-request head and mergeability checks, two
-  work-record-only closeout commits, confirmed merge and exact reconciliation.
+- **Forge confirmation remains authenticated.** Trusted forge handoff prepares
+  the two work-record-only closeout commits before publication, and the trusted
+  forge merge helper retains its exact candidate, pull-request head and
+  mergeability checks, confirmed merge and exact reconciliation.
   An unconfirmed merge remains unconfirmed regardless of local record status;
   reconciliation failure after a confirmed merge remains typed partial success.
   Ordinary edits neither invoke those operations nor manufacture their evidence.
@@ -338,7 +342,7 @@ request rather than a chore handed back to the caller.
   answered before the record is loaded — declares no publication outcome at all
   rather than a null one, because there is no attempted write to describe.
 
-## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+## Common fixed-fork squash candidate, independent review and exact forge lifecycle
 
 Every forge publication publishes the same thing, whichever delivery workflow the
 repository selected.
@@ -349,20 +353,31 @@ repository selected.
   publishes `C` unchanged. The current base tip is not a construction input.
   There is no direct-`W` alternative, no second constructor and no additional
   candidate store or ref family.
-- **Terminal review is conditional; candidate authentication is not.** Terminal
-  review belongs to the repository's selected workflow, not to construction. A
-  workflow that selects it hands publication a reviewer materialization, and that
-  checkout is authenticated. A workflow that does not select it hands publication
-  no materialization: no terminal-review unit is invented, no review evidence is
-  fabricated and no reviewer checkout is required. The candidate object binding,
-  its tree and sole-parent topology, its version selection and the controlled
-  generation authority are authenticated on every publication alike, and the
-  published result names which workflow it ran under.
-- **A selected candidate is publishable on its own terms.** When no terminal
-  review target exists, publication state is recovered from the candidate already
-  selected on its durable current ref: its base, tree and sole parent come from
-  the candidate object itself, and the WK ref is named by the canonical record
-  that candidate carries. Recovery consults no current landing state.
+- **The candidate is publication material; review is an independent consumer.**
+  Every fresh final integration constructs `C` and materializes its squashed
+  candidate worktree, whether or not the canonical record designates a terminal
+  review unit. No review unit, review contract, review evidence or retained
+  reviewer context is an input to construction, reconstruction, recovery,
+  materialization or publication, and the candidate bytes carry no review field.
+  Publication requires the squashed candidate worktree bound to exactly `C`; its
+  presence says nothing about whether a review ran. The candidate object binding,
+  its tree and sole-parent topology, the worktree, the selected version and the
+  controlled generation are authenticated on every publication, and the result
+  carries no review-selection fact. A terminal review, when one is dispatched,
+  consumes this same exact candidate.
+- **A selected candidate is resolved from durable state on every call.** Forge
+  publication resolves `C` from the fixed current-selection ref through the
+  terminal-candidate coordinator: it authenticates the exact-`W` generation,
+  re-derives and verifies `C`, converges its selected version and materializes
+  the worktree. Process memory does not participate, so a fresh process and a
+  warm one resolve the same state. When the current ref is absent but the durable
+  fork and WK refs survive, the same candidate is reconstructed byte for byte; when
+  either durable ref is absent the stable
+  `terminal_candidate_recovery_current_ref_absent` verdict is genuine absence. A
+  failed read, an invalid candidate or an authentication failure is never absence:
+  it keeps its authenticated cause, stops that attempt before any forge effect,
+  and the registered `workspace_wk_forge_handoff` route reports it with
+  `stage: "candidate_resolution"`. Recovery consults no current landing state.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
   the existing exclusion before the branch or the proposal is touched. A moved or
@@ -371,16 +386,19 @@ repository selected.
   enacted; the absence of a configured decision is not a local denial.
 - **Publication is create-or-observe and nothing more.** The result reports the
   exact candidate and proposal identity and the truthful effects. Repeating a
-  handoff recovers the same proposal rather than opening a duplicate, a branch
+  handoff recovers the same proposal and the already-published closeout chain
+  rather than opening a duplicate or appending closeout commits again, a branch
   already present at different bytes refuses rather than being republished, and
-  publication neither merges nor completes the WK.
-- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
-  exactly two WK-only commits carrying the actual applicable closure evidence and
-  then the parent review-to-done transition; a workflow without terminal review
-  has no terminal-review record fabricated for it. Merge takes the exact
-  authenticated pull-request head only on confirmed mergeability, and an
-  unmerged, unknown, moved or foreign state leaves the canonical parent in
-  review. The confirmed merged base record is canonical, and a reconciliation
+  publication neither merges nor completes the WK on the base branch.
+- **Closeout preserves the published bytes.** Before initial publication, both
+  workflows keep `C` beneath exactly two WK-only commits carrying the actual
+  applicable closure evidence and then the parent review-to-done transition, so
+  the initially published pull request already carries parent status `done`;
+  that status is branch-local until a confirmed merge. A workflow without
+  terminal review has no terminal-review record fabricated for it. Merge takes
+  the exact authenticated pull-request head only on confirmed mergeability and
+  adds no commits, and an unmerged, unknown, moved or foreign state leaves the
+  canonical parent in review. The confirmed merged base record is canonical, and a reconciliation
   failure is a typed partial success.
 
 ## Recorded worker proof verification and observation

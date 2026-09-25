@@ -173,7 +173,7 @@ test("the complete diagnostic reaches both MCP channels", () => {
   const result = errorContent(refusal);
   assert.equal(result.isError, true);
   assert.deepEqual(result.structuredContent, refusal.envelope);
-  assert.deepEqual(JSON.parse(result.content[0].text), refusal.envelope);
+  assert.deepEqual(result.structuredContent, refusal.envelope);
   const projected = result.structuredContent.warning.payload.details.internal_exception;
   assert.equal(projected.schema_version,
     CONTROLLED_CONTRACT_INTERNAL_EXCEPTION_DIAGNOSTIC_SCHEMA_VERSION);

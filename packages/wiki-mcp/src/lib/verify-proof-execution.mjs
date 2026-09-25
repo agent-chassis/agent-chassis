@@ -4,6 +4,7 @@ import { VerifyProofOperationError, parseVerifyProofTimeout, resolveVerifyProofO
 import { executeLauncherVerifyProofReceiptPopulation } from "../../../agent-launch-cli/src/lib/workspace-agent-verify-proof-capability.mjs";
 import { deriveLauncherTestProofRuntimeTestIdentity, mintLauncherTestProofAttemptContext } from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
 import { mintTestProofExecutionBudget, runWorkspaceAgentTestProofAttempt } from "../../../agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs";
+import { validateTestProofEnvironmentSelection } from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-provider-registry.mjs";
 import { extractTestProofRuntimeEvidenceReceipt } from "../../../agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
 import { captureDiagnosticEvidence } from "../../../agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { VERIFY_PROOF_TOOL_NAME, projectProofAuthoringRecoveryCall, projectObservedEvidence,
@@ -39,7 +40,7 @@ function aggregateStatus(statuses) {
 }
 
 function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
-  diagnostics = [] }) {
+  diagnostics = [], requestedEnvironment = null }) {
   const statuses = proofResults.map(({ status }) => status);
   const status = reasonCode === null ? aggregateStatus(statuses) : "not_executable";
   const counts = {
@@ -68,6 +69,8 @@ function aggregateResult({ resolution, runtime, proofResults, reasonCode = null,
     contract_generation: resolution.contract_generation,
     contract_digest: resolution.contract_digest ?? null,
     subject_binding: runtime?.candidateIdentity ?? null,
+
+    requested_environment: requestedEnvironment,
     reason_code: reasonCode,
     diagnostics: structuredClone(diagnostics),
     counts,
@@ -117,13 +120,19 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
     const repair = blocker === null ? undefined : projectDefinitionRepairQuestion({
       reasonCode: unavailableReason, verificationId: proof.verification_id
     });
+
     const recovery = projectedRecovery === undefined
-      ? blocker === null ? undefined : Object.freeze({
-      action: definitionBlocked ? DEFINITION_BLOCKER_ACTIONS[unavailableReason] :
-        "repair_the_named_proof_prerequisite",
-      ...(recoveryCall === null ? {} : { recovery_call: recoveryCall }),
-      retry_operation: VERIFY_PROOF_TOOL_NAME,
-      ...(repair === undefined ? {} : { repair })
+      ? blocker === null ? undefined : Object.freeze(definitionBlocked ? {
+        action: DEFINITION_BLOCKER_ACTIONS[unavailableReason],
+        ...(recoveryCall === null ? {} : { recovery_call: recoveryCall }),
+        retry_operation: VERIFY_PROOF_TOOL_NAME,
+        ...(repair === undefined ? {} : { repair })
+      } : {
+        action: "repair_the_named_proof_prerequisite",
+        condition: unavailableReason,
+        subject: Object.freeze({ test_proof_id: proof.test_proof_id,
+          verification_id: proof.verification_id }),
+        ...(repair === undefined ? {} : { repair })
       }) : structuredClone(projectedRecovery);
     return {
       test_proof_id: proof.test_proof_id, verification_id: proof.verification_id,
@@ -139,7 +148,7 @@ export function buildUnavailableProofResult({ resolution, runtime, proof, blocke
     };
 }
 
-function preflightFailureResult(resolution, runtime) {
+function preflightFailureResult(resolution, runtime, requestedEnvironment) {
   const diagnostics = resolution.diagnostics ?? [];
   const proofResults = (resolution.proofs ?? []).map((proof) => {
     const blockers = proof.failure ? [proof.failure] : diagnostics.filter((diagnostic) =>
@@ -150,7 +159,7 @@ function preflightFailureResult(resolution, runtime) {
       reasonCode: blockers[0]?.reason_code ?? "verify_proof.proof_unavailable.v1" });
   });
   return aggregateResult({ resolution, runtime, proofResults,
-    reasonCode: resolution.reason_code, diagnostics });
+    reasonCode: resolution.reason_code, diagnostics, requestedEnvironment });
 }
 
 function individualResolution(population, proof, relationship) {
@@ -348,7 +357,28 @@ export async function executeVerifyProofForContext({
   const ineligible = resolution.ineligible ?? (resolution.status === "not_executable" ? resolution.proofs : []);
   if (!eligible.length) {
     await runtime.assertCurrentIdentity();
-    return preflightFailureResult(resolution, runtime);
+    return preflightFailureResult(resolution, runtime, args?.environment ?? null);
+  }
+  const requestedEnvironment = args?.environment ?? null;
+  if (requestedEnvironment !== null) {
+
+    const unique = [...new Map(eligible.map((proof) => [proof.execution_key, proof])).values()];
+    const checked = (deps.validateEnvironmentSelection ?? validateTestProofEnvironmentSelection)({
+      repositoryRoot: runtime.authority.main_repo, checkoutRoot: runtime.authority.worktree_path,
+      environment: requestedEnvironment,
+      proofs: unique.map((proof) => ({ test_proof_id: proof.test_proof_id,
+        obligation_ids: [...new Set(proof.relationships.map(({ obligation_id: id }) => id))].sort(),
+        target: proof.declared_target.target, binding: proof.test_proof })) });
+    if (!checked.ok) {
+      await runtime.assertCurrentIdentity();
+      throw new VerifyProofOperationError("verify_proof.environment_incompatible.v1",
+        `prepared environment ${requestedEnvironment} cannot run every selected proof`, {
+          requested_environment: requestedEnvironment,
+          incompatible: structuredClone(checked.incompatible),
+          valid_choices: [...checked.valid_choices],
+          prepared_environments: [...checked.prepared_environments]
+        });
+    }
   }
   const verificationIds = [...new Set(eligible.map(({ verification_id: id }) => id))].sort();
   const resolveBindings = deps.resolveBindings ?? runtime.resolveBindings;
@@ -380,15 +410,17 @@ export async function executeVerifyProofForContext({
   const budget = mintTestProofExecutionBudget({ timeoutMs: timeout.milliseconds, signal });
   try {
     return await executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
-      completeSelection, budget, timeout });
+      completeSelection, budget, timeout, requestedEnvironment });
   } finally {
     budget.dispose();
   }
 }
 
 async function executeResolvedPopulation({ resolution, eligible, ineligible, runtime, deps,
-  completeSelection, budget, timeout }) {
+  completeSelection, budget, timeout, requestedEnvironment }) {
   const evidenceByExecution = new Map();
+  const runtimeEnvironmentByExecution = new Map();
+  const mintAttemptContext = deps.mintAttemptContext ?? mintLauncherTestProofAttemptContext;
 
   const unavailableProofs = new Set(ineligible);
   const unavailableResult = (proof) => {
@@ -419,20 +451,25 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       proofAuthority: runtime.authority, targets: [target],
       validationBindings: { [target]: [proof.verification_id] },
       resolveBindings: async ({ verificationIds: requested }) => subsetSelection(completeSelection, requested),
-      mintAttemptContext: deps.mintAttemptContext ?? mintLauncherTestProofAttemptContext,
+      mintAttemptContext: requestedEnvironment === null ? mintAttemptContext
+        : (input) => mintAttemptContext({ ...input, environment: requestedEnvironment }),
       runAttempt: ({ context }) => (deps.runAttempt ?? runWorkspaceAgentTestProofAttempt)({
         context, executionBudget: budget }),
       extractReceipt: deps.extractReceipt ?? extractTestProofRuntimeEvidenceReceipt,
       assertCurrentIdentity: runtime.assertCurrentIdentity
     });
       evidenceByExecution.set(proof.execution_key, executed.evidence_by_target[target] ?? []);
+      runtimeEnvironmentByExecution.set(proof.execution_key,
+        executed.runtime_environments_by_target?.[target]?.[0] ?? null);
       await runtime.assertCurrentIdentity();
     } catch (error) {
 
       const interruption = budget.interruption();
       if (interruption !== null && !evidenceByExecution.has(proof.execution_key) &&
           budgetInterruptionCause(error)) {
-        interrupted.set(proof.execution_key, { interruption, ...interruptedRunFacts(error) });
+
+        interrupted.set(proof.execution_key, { interruption, ...interruptedRunFacts(error),
+          evidence: captureDiagnosticEvidence(error) });
         continue;
       }
       const projected = projectVerifyProofFailure(error, { subject: resolution.subject?.requested ?? null,
@@ -440,7 +477,8 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       const continuation = verifyProofFailureContinuationFacts(projected);
       if (continuation?.verification_id === proof.verification_id && continuation.target === target) {
         await runtime.assertCurrentIdentity();
-        localUnavailable.set(proof.execution_key, projected);
+        localUnavailable.set(proof.execution_key, { projected,
+          executionStatus: continuation.execution_status });
         continue;
       }
       throw error;
@@ -458,7 +496,8 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       ...(entry.interrupted_stage ? { interrupted_stage: entry.interrupted_stage } : {}) };
     return buildUnavailableProofResult({ resolution, runtime, proof,
       blockers: [{ code: reasonCode, reason_code: reasonCode, test_proof_id: proof.test_proof_id,
-        verification_id: proof.verification_id, authority_limb: "mechanical_failure", details: facts }],
+        verification_id: proof.verification_id, authority_limb: "mechanical_failure",
+        details: entry.evidence === undefined ? facts : { ...facts, evidence: entry.evidence } }],
       reasonCode, readinessStatus: "ready",
       executionStatus: phase === "interrupted" ? "interrupted" : "not_started",
       recovery: { action: outcome.action, retry_operation: VERIFY_PROOF_TOOL_NAME, facts } });
@@ -471,10 +510,12 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
     if (notReached !== undefined) {
       return interruptionResult(proof, { interruption: notReached }, "unstarted");
     }
+
     const local = localUnavailable.get(proof.execution_key);
     if (local !== undefined) return buildUnavailableProofResult({ resolution, runtime, proof,
-      blockers: local.diagnostics ?? [], reasonCode: local.reason_code, readinessStatus: "ready",
-      recovery: local.recovery });
+      blockers: local.projected.diagnostics ?? [], reasonCode: local.projected.reason_code,
+      readinessStatus: "ready", recovery: local.projected.recovery,
+      executionStatus: local.executionStatus });
     const receipts = evidenceByExecution.get(proof.execution_key);
 
     const selectedTest = (deps.deriveRuntimeTestIdentity ??
@@ -533,6 +574,7 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
       observed_evidence: projectObservedEvidence(
         receipts[0], proof.declared_target.target, selectedTest.test_id
       ),
+      runtime_environment: structuredClone(runtimeEnvironmentByExecution.get(proof.execution_key) ?? null),
       relationship_results: relationshipResults
     };
   });
@@ -549,7 +591,7 @@ async function executeResolvedPopulation({ resolution, eligible, ineligible, run
         unstarted_execution_count: unstarted.size }
     }])];
   return aggregateResult({ resolution, runtime, proofResults,
-    diagnostics: aggregateDiagnostics });
+    diagnostics: aggregateDiagnostics, requestedEnvironment });
 }
 
 export { aggregateResult, VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION };

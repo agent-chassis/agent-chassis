@@ -19,7 +19,7 @@ const packageRoot = path.resolve(import.meta.dirname, "..");
 
 async function witnessBearingInput() {
   return JSON.parse(await readFile(path.join(packageRoot,
-    "profiles/proof.verification.test-validity/5.0.0/evaluation-input.template.json"), "utf8"));
+    "profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json"), "utf8"));
 }
 
 function declarativeInput() {

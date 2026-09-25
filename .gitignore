@@ -66,3 +66,4 @@ docs/scratch/*
 scratch/*
 
 *.bak
+wiki/.wiki-mcp.json

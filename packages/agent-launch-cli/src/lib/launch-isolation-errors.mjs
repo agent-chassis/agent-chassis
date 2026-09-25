@@ -46,6 +46,9 @@ export const BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES = Object.freeze({
 
   GIT_STATUS_WRAPPER_ASSET_UNAVAILABLE:
     "agent_launch.isolation.git_status_wrapper_asset_unavailable.v1",
+
+  TEST_RUNTIME_PROJECTION_REFUSED:
+    "agent_launch.isolation.test_runtime_projection_refused.v1",
   READ_ONLY_MOUNT: "read_only_mount",
   SANDBOX_WRITE_DENIAL: "sandbox_write_denial",
   PLAN_INVALID: "agent_launch.isolation.plan_invalid.v1"

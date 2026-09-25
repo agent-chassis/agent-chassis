@@ -55,8 +55,10 @@ function request(overrides = {}) {
     unit: "WK-9298",
     shaping_mode: "redteam",
     title: "Standalone redteam",
+    depends_on: [],
     read_scope: ["AGENTS.md"],
     repo_paths: ["docs/work-record-schema.md"],
+    write_scope: [],
     acceptance: { criteria: ["Inspect only."], validation: ["node --test"] },
     ...overrides,
   };

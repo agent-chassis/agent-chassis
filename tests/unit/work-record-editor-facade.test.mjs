@@ -16,13 +16,17 @@ test("general work-record editor exports one registry-backed core facade", () =>
   assert.equal(WORK_RECORD_EDIT_FIELD_REGISTRY.some(
     ({ field, kind, facade }) => facade && field === "sections.tasks" && kind === "task"
   ), true);
+  assert.equal(WORK_RECORD_EDIT_FIELD_REGISTRY.some(
+    ({ field, kind, applicability, facade }) => facade && field === "base_branch" &&
+      kind === "scalar" && applicability.length === 1 && applicability[0] === "record"
+  ), true);
 });
 
 test("Stage A enrolled registry values share one closed exact-content contract", () => {
   const enrolled = WORK_RECORD_EDIT_FIELD_REGISTRY.filter(entry =>
     entry.facade && entry.actions.some(action => workRecordEditUsesEntryContent(entry, action)));
   assert.deepEqual([...new Set(enrolled.map(entry => entry.field))].sort(),
-    ["sections.agent_notes", "sections.summary", "sections.tasks"]);
+    ["sections.agent_notes", "sections.summary", "sections.tasks", "sections.why_it_matters"]);
   for (const accepted of [
     { text: "" },
     { ref: "opaque" },

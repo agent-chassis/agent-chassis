@@ -6,7 +6,7 @@ For one exact closed declared policy and one exact raw UTF-8 guidance artifact, 
 
 Profile digest: 2acf4c49da5b019ad3efa919b4c750ff9f700ef28fef8f4a1921745bd9228bc8. Parameter digest: b274c9450994dcfd8c9b1d036cca764dc6e22998e48c47b738b9852d5c614b57.
 
-Admission digest: bd0561dcf8f4fbbe4a23a042575c701afd89325e5b69628091d3df83b4cf8aea.
+Admission digest: 00224989fa444ced0caccd7bdc65be297429aa18abb4b776944f3f8873d64de3.
 
 Roles: 21/21 accounted; 2 owned gaps. Semantic parameters: 14; internal roles: 7.
 

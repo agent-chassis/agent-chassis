@@ -281,6 +281,9 @@ function normalizeCanonicalSummary(canonicalSummary) {
     write_scope: Array.isArray(canonicalSummary.write_scope)
       ? canonicalSummary.write_scope.filter(isNonEmptyString)
       : [],
+    scope_presentation: isObject(canonicalSummary.scope_presentation)
+      ? cloneJson(canonicalSummary.scope_presentation)
+      : null,
 
     acceptance_criteria: Array.isArray(canonicalSummary.acceptance_criteria)
       ? canonicalSummary.acceptance_criteria

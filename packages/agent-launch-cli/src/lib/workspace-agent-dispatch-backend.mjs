@@ -510,8 +510,13 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         status: run,
         facts
       }),
+
+    rederiveManagedLifecycleRefusal: ({ run } = {}) =>
+      backendContext.rederiveCommittedSliceIntegrationRefusal({
+        subject: run?.subject,
+        status: run
+      }),
     resolveCommittedSliceIntegrationContinuation: backendContext.resolveCommittedSliceIntegrationContinuation,
-    resolveTerminalCandidatePublicationState: backendContext.resolveTerminalCandidatePublicationState,
     resolveTerminalReviewPublicationState: backendContext.resolveTerminalReviewPublicationState,
     observeTerminalCandidateBoundState: backendContext.observeTerminalCandidateBoundState,
 

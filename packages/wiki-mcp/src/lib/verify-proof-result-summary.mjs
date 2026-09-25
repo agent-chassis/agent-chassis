@@ -1,10 +1,14 @@
 const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
-const VERIFY_PROOF_TOOL_NAME = "workspace_verify_proof";
 import { VERIFY_PROOF_SUMMARY_SCHEMA_VERSION, isVerifyProofEvidenceReference } from "./mcp-response.mjs";
-import { projectProofEvidencePresentation } from
+import { mcpContentReferenceFirstCall, mcpContentReferenceReassembly } from
+  "./mcp-content-reference-tools.mjs";
+import { PUBLIC_PROOF_STATUS_VALUES, projectProofEvidencePresentation } from
   "./verify-proof-result-detail.mjs";
 const SUMMARY_DIAGNOSTIC_CODE_LIMIT = 8;
-const SUMMARY_STATUSES = Object.freeze(["satisfied", "unsatisfied", "not_executable"]);
+const SUMMARY_STATUSES = PUBLIC_PROOF_STATUS_VALUES;
+
+export const RETAINED_OUTCOME_SUMMARY_BYTE_BUDGET = 4096;
+export const VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION = "workspace-verify-proof-outcome-summary.v1";
 
 function summaryDiagnosticFacts(diagnostics) {
   const entries = Array.isArray(diagnostics) ? diagnostics : [];
@@ -33,28 +37,33 @@ function summaryRepair(repair) {
   };
 }
 
-function summaryRecovery(recovery) {
+function summaryRecovery(recovery, proof = null) {
   if (recovery === null || typeof recovery !== "object") return undefined;
-  const repair = summaryRepair(recovery.repair);
+  const { repair: rawRepair, subject, follow_up_call: call, ...rest } = structuredClone(recovery);
+  const repair = summaryRepair(rawRepair);
+  const ownSubject = proof !== null && subject?.test_proof_id === proof.test_proof_id &&
+    subject?.verification_id === proof.verification_id;
   return {
-    action: recovery.action,
-    ...(recovery.recovery_call === undefined ? {} : {
-      recovery_call: structuredClone(recovery.recovery_call)
-    }),
-    retry_operation: recovery.retry_operation ?? VERIFY_PROOF_TOOL_NAME,
+    ...rest,
+    ...(subject === undefined || ownSubject ? {} : { subject }),
+    ...(call === undefined ? {} : { follow_up_call: {
+      tool: call.tool,
+      arguments: Object.fromEntries(Object.entries(call.arguments ?? {}).map(([key, value]) =>
+        [key, proof !== null && value === proof.test_proof_id ? { from_row: "test_proof_id" } : value]))
+    } }),
     ...(repair === undefined ? {} : { repair })
   };
 }
 
 function proofReason(proof) {
-  if (proof.status === "satisfied") return undefined;
-  const recovery = summaryRecovery(proof.recovery);
+  if (proof.status === "proven") return undefined;
+  const recovery = summaryRecovery(proof.recovery, proof);
   return { reason_code: proof.reason_code ?? null,
     ...(recovery === undefined ? {} : { recovery }) };
 }
 
 function relationshipReason(relationship) {
-  if (relationship.status === "satisfied") return undefined;
+  if (relationship.status === "proven") return undefined;
   const facts = summaryDiagnosticFacts(relationship.diagnostics);
   return { reason_code: relationship.reason_code ?? null,
     ...(facts.diagnostic_count === 0 ? {} : facts) };
@@ -67,22 +76,46 @@ function summaryLimitations(proof) {
   return codes.size === 0 ? undefined : [...codes].sort();
 }
 
+function summaryMutation(mutation) {
+  if (mutation.status === "not_run") return undefined;
+  return {
+    status: mutation.status,
+    ...Object.fromEntries(["detected", "survived", "unavailable", "unevaluable"]
+      .filter((outcome) => mutation[`${outcome}_count`] > 0)
+      .map((outcome) => [outcome, mutation[`${outcome}_count`]]))
+  };
+}
+
+function summarySelectedTest(selected) {
+  if (selected === null || typeof selected !== "object") return undefined;
+  return {
+    test_id: selected.test_id,
+    ...(typeof selected.file === "string" ? { file: selected.file } : {}),
+    ...(typeof selected.name === "string" ? { name: selected.name } : {}),
+    ...(typeof selected.node_id === "string" ? { node_id: selected.node_id } : {})
+  };
+}
+
 function summaryRow(proof) {
-  const selected = proof.observed_evidence?.selected_status;
   const limitations = summaryLimitations(proof);
   const presentation = projectProofEvidencePresentation(proof);
+  const mutation = summaryMutation(presentation.mutation_evidence);
+  const selectedTest = summarySelectedTest(proof.selected_test);
   return {
     test_proof_id: proof.test_proof_id,
     verification_id: proof.verification_id,
     status: proof.status,
     readiness_status: proof.readiness_status,
     execution_status: proof.execution_status,
-    ...(presentation.mutation_evidence.status === "not_run" ? {}
-      : { mutation_evidence: presentation.mutation_evidence.status }),
+    ...(selectedTest === undefined ? {} : { selected_test: selectedTest }),
+
+    selected_status: presentation.test_observation.status,
+    ...(mutation === undefined ? {} : { mutation_evidence: mutation }),
     ...(typeof proof.declared_target?.target === "string"
       ? { declared_target: proof.declared_target.target } : {}),
-    ...((selected === "passed" || selected === "failed")
-      ? { selected_status: selected } : {}),
+
+    ...(typeof proof.runtime_environment?.environment === "string"
+      ? { environment: proof.runtime_environment.environment } : {}),
     ...(limitations === undefined ? {} : { capability_limitations: limitations }),
     reason: proofReason(proof),
     obligations: (proof.relationship_results ?? []).map((relationship) => ({
@@ -126,15 +159,11 @@ function materializeRows(rows) {
   return { proofs, reasons };
 }
 
-function evidenceRetrieval(reference) {
+export function verifyProofEvidenceRetrieval(reference) {
   const { content_reference: contentReference } = reference;
   return Object.freeze({
-    first_call: Object.freeze({
-      tool: contentReference.read_tool,
-      arguments: Object.freeze({ ref_id: contentReference.ref_id,
-        offset: contentReference.range.offset, length: contentReference.range.length })
-    }),
-    reassembly: "repeat_with_offset_next_offset_until_eof_then_concatenate_data_base64_and_parse_utf8_json",
+    first_call: mcpContentReferenceFirstCall(contentReference),
+    reassembly: mcpContentReferenceReassembly("decode the verified bytes as UTF-8 and parse JSON"),
     expected: Object.freeze({ byte_count: contentReference.byte_count,
       sha256: contentReference.sha256,
       schema_version: reference.evidence_schema_version,
@@ -142,11 +171,8 @@ function evidenceRetrieval(reference) {
   });
 }
 
-export function projectVerifyProofSummary(evidence, { evidenceReference, fits = () => true }) {
-  if (!isVerifyProofEvidenceReference(evidenceReference) ||
-      evidenceReference.item_identity !== evidence.result_digest) {
-    throw new TypeError("verify-proof summary requires the evidence reference of the same result");
-  }
+export function projectVerifyProofOutcomeCore(evidence, { fits = () => true,
+  decorate = (summary) => summary } = {}) {
   const rows = evidence.proof_results.map(summaryRow);
   const relationshipRows = evidence.proof_results.flatMap((proof) => proof.relationship_results ?? []);
   const counts = Object.freeze({
@@ -160,21 +186,23 @@ export function projectVerifyProofSummary(evidence, { evidenceReference, fits = 
   });
   const aggregateFacts = summaryDiagnosticFacts(evidence.diagnostics);
   const priority = rows.map((row, index) => ({ row, index }))
-    .sort((left, right) => Number(left.row.status === "satisfied") -
-      Number(right.row.status === "satisfied") || left.index - right.index);
+    .sort((left, right) => Number(left.row.status === "proven") -
+      Number(right.row.status === "proven") || left.index - right.index);
   const build = (retained) => {
     const keep = new Set(priority.slice(0, retained).map(({ index }) => index));
     const kept = rows.filter((_row, index) => keep.has(index));
     const omitted = rows.filter((_row, index) => !keep.has(index));
     const { proofs, reasons } = materializeRows(kept);
-    return Object.freeze({
-      schema_version: VERIFY_PROOF_SUMMARY_SCHEMA_VERSION,
+    const recovery = evidence.recovery === undefined ? undefined : summaryRecovery(evidence.recovery);
+    return Object.freeze(decorate({
       subject: structuredClone(evidence.subject),
       subject_binding: structuredClone(evidence.subject_binding),
       status: evidence.status,
+      ...(evidence.requested_environment == null ? {}
+        : { requested_environment: evidence.requested_environment }),
       ...(evidence.authority_limb === undefined ? {} : { authority_limb: evidence.authority_limb }),
       ...(evidence.reason_code === undefined ? {} : { reason_code: evidence.reason_code }),
-      ...(evidence.recovery === undefined ? {} : { recovery: structuredClone(evidence.recovery) }),
+      ...(recovery === undefined ? {} : { recovery }),
       counts,
       proofs,
       proofs_returned: proofs.length,
@@ -184,13 +212,11 @@ export function projectVerifyProofSummary(evidence, { evidenceReference, fits = 
       ...aggregateFacts,
       diagnostic_redaction_count: Array.isArray(evidence.diagnostic_redactions)
         ? evidence.diagnostic_redactions.length : 0,
-      result_digest: evidence.result_digest,
-      evidence: structuredClone(evidenceReference),
-      evidence_retrieval: evidenceRetrieval(evidenceReference)
-    });
+      result_digest: evidence.result_digest
+    }));
   };
-  let candidate = build(rows.length);
-  if (fits(candidate)) return candidate;
+  const complete = build(rows.length);
+  if (fits(complete)) return complete;
   let low = 0;
   let high = rows.length - 1;
   let best = build(0);
@@ -199,6 +225,40 @@ export function projectVerifyProofSummary(evidence, { evidenceReference, fits = 
     const attempt = build(middle);
     if (fits(attempt)) { best = attempt; low = middle + 1; } else high = middle - 1;
   }
-  candidate = best;
-  return candidate;
+  return best;
+}
+
+export function projectVerifyProofSummary(evidence, { evidenceReference, fits = () => true }) {
+  if (!isVerifyProofEvidenceReference(evidenceReference) ||
+      evidenceReference.item_identity !== evidence.result_digest) {
+    throw new TypeError("verify-proof summary requires the evidence reference of the same result");
+  }
+  return projectVerifyProofOutcomeCore(evidence, {
+    fits,
+    decorate: (core) => ({
+      schema_version: VERIFY_PROOF_SUMMARY_SCHEMA_VERSION,
+      ...core,
+      evidence: structuredClone(evidenceReference),
+      evidence_retrieval: verifyProofEvidenceRetrieval(evidenceReference)
+    })
+  });
+}
+
+export function projectRetainedVerifyProofOutcomeSummary(evidence) {
+  return projectVerifyProofOutcomeCore(evidence, {
+    fits: (candidate) => retainedOutcomeSummaryBytes(candidate) <=
+      RETAINED_OUTCOME_SUMMARY_BYTE_BUDGET,
+    decorate: (core) => ({ schema_version: VERIFY_PROOF_OUTCOME_SUMMARY_SCHEMA_VERSION, ...core })
+  });
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value !== null && typeof value === "object") return Object.fromEntries(
+    Object.keys(value).sort().map((key) => [key, canonicalValue(value[key])]));
+  return value;
+}
+
+export function retainedOutcomeSummaryBytes(summary) {
+  return Buffer.byteLength(JSON.stringify(canonicalValue(summary)), "utf8");
 }

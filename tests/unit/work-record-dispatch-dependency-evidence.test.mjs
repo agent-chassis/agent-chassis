@@ -13,12 +13,14 @@ import { fileURLToPath } from "node:url";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 
 import {
-  WORK_RECORD_DISPATCH_DECISION_CODES,
-  computeWorkRecordSourceDigest,
-  evaluateWorkRecordPolicy,
+  WORK_RECORD_DISPATCH_DECISION_CODES
+} from "../../packages/wiki-core/src/lib/work-record-dispatch.mjs";
+import { computeWorkRecordSourceDigest } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
+import { evaluateWorkRecordPolicy } from "../../packages/wiki-core/src/lib/work-record-policy.mjs";
+import {
   validateWorkRecordDispatch,
   validateWorkRecordDispatchReport
-} from "../../packages/wiki-core/src/index.mjs";
+} from "../../packages/wiki-core/src/operations/validate-dispatch.mjs";
 
 import {
   validateWorkRecordDispatchById as validateWorkRecordDispatchCore,

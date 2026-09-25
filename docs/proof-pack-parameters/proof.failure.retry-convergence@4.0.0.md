@@ -6,7 +6,7 @@ For one caller-declared history containing exactly one failed attempt and one la
 
 Profile digest: d02af58e4476a861dec78a43e484fd0f22e095f541be604953c23cd217ef4241. Parameter digest: 1b33185f2cabd879d9435d7c780a3e07760c5629a778b14ca66f182db6c925cf.
 
-Admission digest: 7f13f79c61aa66c19018ed5be4775fe7cead53fa71aebabb3d7df5a93c1b35ba.
+Admission digest: 3a02002811917bf3069cdb88df65088d61d3e85f62053ff36f51af0ea1cd9409.
 
 Roles: 32/32 accounted; 4 owned gaps. Semantic parameters: 25; internal roles: 7.
 

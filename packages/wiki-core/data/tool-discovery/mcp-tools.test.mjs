@@ -639,5 +639,5 @@ test('ready-slice descriptor is installed supported free-local and role policy i
     manifest.fragments.reduce((total, entry) => total + entry.tool_count, 0),
   );
 
-  assert.equal(manifest.expected_tool_count, 111);
+  assert.equal(manifest.expected_tool_count, 112);
 });

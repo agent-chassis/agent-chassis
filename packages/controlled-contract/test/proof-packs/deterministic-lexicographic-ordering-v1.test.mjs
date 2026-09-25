@@ -22,14 +22,15 @@ import { buildLexicographicDocuments } from
   "./deterministic-lexicographic-ordering-v1-fixture.mjs";
 import { executeMutant } from
   "./deterministic-lexicographic-ordering-v1-harness.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
 const execFileAsync = promisify(execFile);
-const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.ordering.lexicographic-conformance/3.0.0");
+const identity = { profile_id: "proof.ordering.lexicographic-conformance", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 const admittedDirectory = path.join(packageRoot,
-  "profiles/proof.ordering.lexicographic-conformance/3.0.0");
-const profile = JSON.parse(await readFile(path.join(packDirectory, "profile.json"), "utf8"));
+  "profiles/proof.ordering.lexicographic-conformance/4.0.0");
+const profile = await readDefinitionDocument(identity, "profile.json");
 const descriptors = Object.freeze({
   "comparator-evidence": { kind: "artifact_file", relative_path: "evidence.json" },
   "conformance-report": { kind: "artifact_file", relative_path: "conformance.json" },

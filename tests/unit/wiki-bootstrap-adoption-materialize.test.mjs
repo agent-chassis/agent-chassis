@@ -5,10 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  bootstrapRepo,
-  createWikiRecord
-} from "../../packages/wiki-core/src/index.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
+import { createWikiRecord } from "../../packages/wiki-core/src/operations/create.mjs";
 
 import { withTempDir } from "../wiki-bootstrap-adoption-helpers.mjs";
 

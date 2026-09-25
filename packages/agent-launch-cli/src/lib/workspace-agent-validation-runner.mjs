@@ -339,7 +339,7 @@ export async function runWorkspaceAgentValidation(input = {}) {
   });
 
   const flag = operationSpec.node_flag;
-  const nodeBinary = process.execPath;
+  const nodeBinary = testProofProviderExecution?.node_runtime?.executable ?? process.execPath;
 
   const envSource = isPlainObject(input.env) ? input.env : process.env;
   const planEnv = {};
@@ -497,10 +497,9 @@ function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outputBound
     : null;
   const observationValid = proofObservation === null || testProofObservation?.valid === true;
   const ok = ran && !interrupted && exitCode === 0 && observationValid;
+
   let disposition;
   if (!ran) {
-    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
-  } else if (!observationValid) {
     disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
   } else if (ok) {
     disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.PASSED;
@@ -542,7 +541,7 @@ function settleConfinedCapture({ baseEvidence, capture, startedAtMs, outputBound
       retains: "head_and_tail"
     }),
 
-    stdout: proofObservation !== null ? "" : capture.stdout.text,
+    stdout: capture.stdout.text,
     stderr: capture.stderr.text,
     started_at_ms: startedAtMs,
     ended_at_ms: capture.endedAtMs,
@@ -864,13 +863,15 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
   }
   let executionBudget = null;
   let nativeExecution = null;
+  let nodeRuntime = null;
   try {
     if (Object.hasOwn(input, "executionBudget")) {
       executionBudget = assertTestProofExecutionBudget(input.executionBudget);
     }
     if (Object.hasOwn(input, "testProofProviderExecution")) {
-      nativeExecution = assertLauncherTestProofProviderExecution(
-        input.testProofProviderExecution).native ?? null;
+      const providerExecution = assertLauncherTestProofProviderExecution(input.testProofProviderExecution);
+      nativeExecution = providerExecution.native ?? null;
+      nodeRuntime = providerExecution.node_runtime ?? null;
     }
   } catch (error) {
     return buildRefusal(
@@ -891,15 +892,26 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
       executionBudget });
   }
   const dependencyProof = authority.dependency_proof;
-  const dependencyBinds = dependencyProof?.projection_selected === true
+  const reviewerBinds = dependencyProof?.projection_selected === true
     ? [...dependencyProof.reviewer_read_only_binds]
     : [];
   if (dependencyProof?.projection_selected === true) {
     assertSelectedDependencyMountIntegrity(dependencyProof);
   }
-  const mountpoint = path.join(authority.worktree_path, "node_modules");
-  const createdMountpoint = dependencyBinds.length > 0 && !existsSync(mountpoint);
-  if (createdMountpoint) mkdirSync(mountpoint, { mode: 0o700 });
+
+  const validatorCacheBinds = (dependencyProof?.validator_cache_read_only_binds ?? [])
+    .filter(({ dst }) => !reviewerBinds.some((bind) => bind.dst === dst));
+
+  const preparedBinds = nodeRuntime?.binds ?? [];
+  const dependencyBinds = [...preparedBinds, ...[...reviewerBinds, ...validatorCacheBinds]
+    .filter(({ dst }) => !preparedBinds.some((bind) => bind.dst === dst))];
+  const mountpoints = [...new Set([...(nodeRuntime?.mountpoints ?? []),
+    ...(reviewerBinds.length > 0 ? [path.join(authority.worktree_path, "node_modules")] : []),
+    ...validatorCacheBinds.map(({ dst }) => dst)])];
+
+  const createdMountpoints = mountpoints.filter((mountpoint) => !existsSync(mountpoint) &&
+    existsSync(path.dirname(mountpoint)));
+  for (const mountpoint of createdMountpoints) mkdirSync(mountpoint, { mode: 0o700 });
   try {
     const result = await runWorkspaceAgentValidation({
       operation: "node_test",
@@ -927,7 +939,7 @@ export async function runLauncherTestProofDeclaredTest(input = {}) {
       closure_effect: "none"
     });
   } finally {
-    if (createdMountpoint) rmSync(mountpoint, { recursive: true, force: true });
+    for (const mountpoint of createdMountpoints) rmSync(mountpoint, { recursive: true, force: true });
   }
 }
 

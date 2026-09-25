@@ -88,6 +88,7 @@
     "workspace_tools_list": ["direct"],
     "workspace_validate_dispatch": ["direct"],
     "workspace_wk_forge_handoff": ["direct"],
+    "workspace_wk_landing_status": ["direct"],
     "workspace_work_record_edit": ["direct"],
     "workspace_work_record_entry_read": ["direct"],
     "workspace_work_record_entry_upsert": ["direct"],
@@ -408,6 +409,10 @@
       "operator"
     ],
     "workspace_wk_forge_handoff": [
+      "orchestrator",
+      "operator"
+    ],
+    "workspace_wk_landing_status": [
       "orchestrator",
       "operator"
     ],

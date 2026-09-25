@@ -93,7 +93,7 @@ identity. Recovery-envelope failures keep their narrower
 
 **Controlled-acceptance disposition is a separate mechanical prerequisite.**
 For implementation work, readiness and managed dispatch independently derive
-the parent WK's `controlled_acceptance_state` from canonical `proof_posture` and
+the exact selected unit's `controlled_acceptance_state` from canonical `proof_posture` and
 the current authenticated workbench population as `absent`, `incomplete`,
 `complete`, or `opted_out`. The first two refuse before
 persistent-WK allocation, generation persistence, attempt recording, executor
@@ -101,6 +101,21 @@ invocation, child-process creation, or worker-visible composition and return
 an exact ordinary obligation-coverage query recovery call. The query returns
 the combined revision needed for a subsequent controlled-contract obligation
 coverage upsert.
+A mechanically complete population whose authenticated source moved also
+refuses before effects. Dispatch retains
+`controlled_acceptance_source_not_current`; preflight and provisioning preserve
+that originating cause, publish the distinct launcher structural code
+`agent_launch.worktree_provisioning_dispatch.controlled_acceptance_source_not_current.v1`,
+and carry `source_refresh_required` rather than a generic authoring correction.
+Blocked slice dispatch carries the exact `WK-*#SLICE-*` address in its callable
+obligation-query continuation.
+An exception from the managed controlled-acceptance classifier, or a malformed
+projection produced at the managed boundary, is different from semantic
+incompleteness. Preflight and provisioning retain the originating code and
+details, attribute the failure to the fixed system operation that failed, and
+publish `recovery: null`. They never offer obligation query/upsert as a repair
+for an internal failure. Canonical semantic incompleteness and stale-source
+failures continue through their own refusal paths and recovery contracts.
 Findings-only review and redteam work remains dispatchable at its legitimate
 pre-authoring lifecycle points. Their managed snapshot still authenticates the
 one derived projection, but absent or incomplete state is not an implementation
@@ -233,8 +248,8 @@ reconstructs discarded recovery or owns CCE schema semantics.
 implementation axis, the registered route composes the launcher's read-only
 worker scope preflight with the wiki-core validator. It resolves the prospective
 scope-existence base with the launcher's own resolver, which is the persistent
-WK tip when that branch exists and otherwise the configured base the allocator
-would cut it from. It then runs the same frozen-authority resolution the scope
+WK tip when that branch exists and otherwise the record-level `base_branch`
+commit the allocator would capture. It then runs the same frozen-authority resolution the scope
 freeze runs. It never allocates, snapshots, writes a ref, or creates a directory.
 The response carries `worker_scope_preflight` with `status` (`passed`,
 `refused`, or `not_evaluated`), the `base` ref, SHA and `source`, the
@@ -253,6 +268,12 @@ unresolvable base or a supplied non-live record store, never changes the
 decision. Launch remains authoritative and refuses the same path facts with the
 same `worker_scope_path_refused` detail through
 `canonical_scope_resolution_failed`.
+
+For an unallocated WK, absence of `base_branch` is reported as
+`scope_existence_base_selection_missing`; preflight never substitutes the
+checkout branch, `HEAD`, `main`, `master`, or any branch inventory candidate.
+An already-provisioned WK instead uses its authenticated captured base and
+moving WK tip even when the historical record omits `base_branch`.
 
 A launch refusal carries that verdict to the public dispatch result. The
 backend detail declares `cause.code: "worker_scope_path_refused"`, the typed
@@ -525,7 +546,11 @@ or action-like value inside an error remains diagnostic data and cannot make an
 operation callable.
 
 A valid top-level `detail.recovery` state remains authoritative, including
-`no_supported_route`. Only when no valid recovery carrier is present may a
+`no_supported_route` and `guidance`. A valid `guidance` carrier (`route`,
+bounded `args`, `information`, `prerequisite`, `responsible_actor`) is
+preserved as guidance: never callable, never downgraded, and the
+classification's `next_action` stays null. Malformed guidance is rejected into
+`schema_rejected`. Only when no valid recovery carrier is present may a
 valid declared top-level next-action triple supply a callable continuation.
 Launcher-owned reconciliation branches publish their supported recovery
 directly. When the launcher has no supported recovery, it publishes
@@ -583,6 +608,8 @@ a partially-correct refusal is worse than a loud failure. Every envelope carries
   is not a limb, and neither is naming a route the agent cannot invoke;
 - **a recovery** that, when callable, names the currently FALSE prerequisite, the
   operation capable of changing it, and a machine-checkable success condition;
+  or, when `guidance`, names a read that informs an ordinary action without
+  changing anything (below);
 - **the authenticated facts it observed** (`observed_facts`), so a later boundary
   re-evaluates the same envelope against the producer's facts instead of against
   whatever the world looks like when it is read.
@@ -591,6 +618,30 @@ The envelope is a pure function of its inputs — no clock, no randomness, no
 ambient state — so identical authenticated facts reproduce an identical refusal
 and an identical action. That is what makes a repeated correct refusal readable
 as correct rather than as a loop.
+
+### Guidance: information, not correction
+
+Not every usable next call is corrective. When the fix is an ordinary action
+whose inputs the caller must look up, the limb is guidance:
+
+- every entry is `{kind: "guidance", tool, arguments, recommended?, information}`;
+  kindless entries keep their corrective or router meaning, unknown kinds and
+  mixed lists refuse;
+- the tool's canonical `side_effects` are exactly `["read_only"]`, it is in the
+  active server's registered (profile/tier-filtered) set, and its complete
+  arguments pass that registrar's own request schema — with no process-global
+  schema fallback — at construction and final validation;
+- entries carry no `success_predicate` or `prerequisite_predicate`;
+- `recovery` is `{state: "guidance", operation, responsible_actor, prerequisite,
+  information, selected_from, blocker_unchanged: true}` plus optional
+  `operator_action`, `retry_condition`, `explanation`. It states no success
+  condition and claims no repair or authority. `responsible_actor` resolves the
+  still-failed prerequisite, not the read;
+- `selected_from` facts are published, agree with `observed_facts`, and no fact
+  may describe caller knowledge or the offered read;
+- the scalar `next_action` is null.
+
+Validation paths that require a corrective continuation reject guidance.
 
 ### One contract, always enforced
 
@@ -1497,8 +1548,12 @@ dependency reasons are `unit_dependencies_unmet` (including nested
 `fact_resolution_failed` diagnostics), `dependency_identity_unresolved`,
 `dependency_self_edge_forbidden`, and
 `dependency_not_present_on_wk_branch`; publication reasons are
-`dependency_publication_identity_unavailable` and
-`dependency_publication_identity_mismatch`. These classes map exactly to
+`dependency_publication_identity_unavailable`,
+`dependency_publication_identity_mismatch` (a successful result that is not the
+exact landed carrier for that dependency), and
+`dependency_publication_not_landed` (the read-only landing observer answered
+`awaiting_human_landing`, `contradictory` or `unavailable`; its `landing_state`
+and original `landing_cause` are retained). These classes map exactly to
 `LIFECYCLE_ALLOCATION_FAILED`, `DEPENDENCY_IDENTITY_UNRESOLVED`, and
 `PUBLICATION_IDENTITY_UNRESOLVED`, respectively. A missing, malformed, or
 unknown class fails loudly and never defaults to dependency. Lifecycle mismatch
@@ -1531,6 +1586,18 @@ generation receipts, applicability, and the prior/current structural-diff
 allowlist. This boundary does not establish semantic independence or current
 applicability for an unsupported artifact; those remain governed by the current
 contract lifecycle under decision.
+
+The same persistence transition also materializes the exact reader package for
+each selected manifest. It writes only that manifest's census-selected carrier
+and evaluation-input bytes under the manifest-selected generation paths and the
+same authenticated manifest as the generation's embedded `manifest.json`.
+Those paths are runtime layout, not additional active-carrier identities: they
+do not enter the descriptor population, generation digest, receipt constituent
+count, or repository-path classification. Unselected generation archives and
+unrelated nested files remain accumulated state and are neither enumerated nor
+copied. The runtime layout is derived from the already-bound manifest and
+descriptor bytes; it never reads a newer authoring generation from ambient
+`main`.
 
 The transition mechanically refuses malformed or non-ordinary flat active
 entries, an incomplete or unauthenticated nonempty active population, corrupt or
@@ -1571,6 +1638,18 @@ replace, select, or waive the required generation or its receipt. Only after
 admission does the WK tip rebind to the receipt's `final_tip`, and the existing
 exact persistent-ref/worktree/binding coherence proof then runs under the per-WK
 lock, so ref movement between admission and that proof refuses.
+
+Receipt admission additionally re-reads the complete manifest-selected runtime
+layout from that same object graph. A receipt proving only the flat constituent
+paths and visible manifests is therefore insufficient: missing, corrupt, or
+contradictory generation members or embedded manifests refuse before record
+snapshotting, slice allocation, or worker execution. Repeated preparation
+observes a no-op only when both representations remain exact; a changed
+generation materializes its newly selected layout without deleting unrelated or
+formerly selected archive state. Consequently the fresh implementation
+worktree created from the authenticated WK tip is directly readable through the
+normal production contract reader without any read-time repair or authoring
+workspace access.
 
 A successfully persisted generation stays on the WK ref. When a later
 provisioning stage refuses, the generation-persistence commit is intentionally
@@ -1939,9 +2018,11 @@ review receipt by itself are never continuation authority on their own.
 
 ### Fail-closed continuation refusals
 
-Missing, malformed, stale, superseded, duplicate, contradictory, ambiguous,
-repair-required, and mixed-time evidence all refuse without mutation and without
-replaying integration. Continuation refusals carry the stable code
+Missing, malformed, stale, superseded, duplicate, contradictory, ambiguous, and
+mixed-time evidence all refuse without mutation and without replaying
+integration. A stale canonical record over an authenticated integration is not a
+refusal: continuation returns the integration with its pending or blocked
+`record_reconciliation` substate, read-only. Continuation refusals carry the stable code
 `agent_launch.slice_integration.continuation_authority_refused.v1` with a closed
 reason, including:
 
@@ -1953,8 +2034,6 @@ reason, including:
   refs;
 - `reviewed_delivery_base_mismatch` — the authenticated delivery base disagrees
   with the binding's frozen base;
-- `canonical_record_repair_required` — continuation is read-only and refuses
-  rather than performing a canonical record write;
 - `live_slice_ref_unavailable`, `live_wk_ref_unavailable`, `live_ref_disagreement`,
   `continuation_authority_changed_during_lookup` — a live ref is unreadable, or
   refs or evidence moved during the joined lookup;
@@ -2324,8 +2403,14 @@ repository's deterministic `.cache/controlled-contract/validators` location.
 The existing launcher pre-spawn warm remains the sole publisher. Before composing
 that bind, the launcher runs the package-owned verify path, requires the
 writing-repository-derived root and package-byte-derived current toolchain identity,
-rejects redirected, non-owned, escaping, or path-substituted backing, and creates
-only empty launcher-owned mountpoint ancestors in the detached checkout.
+rejects redirected, non-owned, world-writable, escaping, or path-substituted
+backing, and creates only empty launcher-owned mountpoint ancestors in the
+detached checkout. The publisher creates the cache root, its missing ancestors,
+and every cache directory beneath it owner-only (`0700`) independent of the
+process umask, so a permissive umask cannot publish backing this check refuses.
+Verification stays read-only: backing that already exists world-writable is
+refused as `validator_cache_containment_violation` and is neither repaired nor
+re-permissioned by the publisher, the verify path, or the launcher.
 The confined reviewer receives no cache write authority. The snapshot package then
 selects and digest-verifies its own exact retained identity from that root, so an
 older immutable snapshot can use the artifact published for its bytes while absent,
@@ -2394,3 +2479,50 @@ Their absence or write failure cannot suppress the current run outcome and canno
 affect a later dispatch. They grant no mutation, dispatch, retry, integration,
 completion, acceptance, or veto authority. The receipt-store functionality still
 owned by implementation and integration consumers remains unchanged.
+
+### Deterministic worker-start witness support
+
+Registered integration tests may pass a closed, branded direct-code composition
+to the in-process dispatch runtime. Its fixed worker probe is selected only by
+the importing test module, never by an MCP request, startup environment, PATH,
+or CLI option. The runtime accepts no unbranded executor object.
+
+The composition retains production dispatch assessment, provisioning,
+assignment authentication, bubblewrap confinement, required MCP conduit,
+process supervision, and run-identity binding. It substitutes the model
+executable only after the production Codex launch plan has been built, then
+runs the modified command with the shared isolated-spawn primitive. The probe
+acknowledges the actual delivered assignment and declared source, confirms an
+undeclared repository sentinel is unreadable, and exercises the authenticated
+conduit. It neither executes proofs nor emits implementation completion.
+
+This support proves only the worker-start boundary exercised by the fixture. It
+does not grant dispatch authority, loosen confinement, manufacture a successful
+worker result, or cover a live model/provider. Environmental prerequisites fail
+loudly and never select an unconfined fallback.
+
+The connected delivery witness is the same kind of branded composition with a
+closed set of fixed worker programs. Its proof-free `observation_delivery`
+scenario lets a registered test observe a managed attempt past delivery: inside
+the production confinement the fixed child authenticates and initializes the
+required MCP conduit, writes one fixed `src/canary.txt`, commits it through the
+real closed-input `commit` tool, requires that tool to report the commit, closes
+the connection and exits normally. It invokes no proof tool. The delivered bytes
+are test supplied; the launcher's terminal observation, the post-worker
+lifecycle and integration remain production. A child that exits without the
+conduit handshake is still refused as a readiness failure.
+
+The paired proof-availability witness uses a second fixed test entrypoint with
+the same dispatch composition and worker probe. That entrypoint additionally
+passes one branded, immutable proof-execution test composition directly to the
+server. The composition makes both the orchestrator proof-executor dependency
+and the launcher proof-provider dependency fail loudly with distinct fixed
+unavailable codes. It cannot be selected through MCP input, environment, PATH,
+or a CLI flag, and the server rejects an unbranded lookalike.
+
+The paired runs repeat the complete public authoring, selected-slice recovery,
+dispatch, confinement, and assignment/source acknowledgement journey. Their
+normalized authored, dispatch, launch, and worker observations must match, with
+zero proofs executed and zero verification credit. This establishes worker-start
+independence from explicitly disabled proof-execution facilities; it does not
+claim that the default lane executed a proof or establish live provider health.

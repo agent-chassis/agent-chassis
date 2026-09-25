@@ -494,34 +494,9 @@
         "selection": {
           "$ref": "#/$defs/selection"
         },
-        "gap": {
-          "$ref": "#/$defs/gap"
-        },
         "case_id": {
           "type": "string",
           "pattern": "^case-[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
-        }
-      }
-    },
-    "gap": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "gap_kind",
-        "reason"
-      ],
-      "properties": {
-        "gap_kind": {
-          "enum": [
-            "catalog_gap",
-            "implementation_not_delivered",
-            "review_only",
-            "no_proof_required"
-          ]
-        },
-        "reason": {
-          "type": "string",
-          "minLength": 1
         }
       }
     },

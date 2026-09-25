@@ -2,7 +2,10 @@ import { deflateSync, inflateSync } from "node:zlib";
 
 export const SIDECAR_STORE_PAYLOAD_MAX_DECODED_BYTES = 32 * 1024 * 1024;
 
-const HEADER_BYTES = 4;
+const HEADER_BYTES = 5;
+const MODE_RAW = 0;
+const MODE_DEFLATE = 1;
+const RAW_BELOW_BYTES = 2048;
 const DEFLATE_LEVEL = 6;
 const utf8 = new TextDecoder("utf-8", { fatal: true });
 
@@ -39,12 +42,11 @@ function assertExpectedShape(value, expect, label) {
   return value;
 }
 
-export function encodeSidecarStorePayload(value, label = "sidecar store") {
+export function prepareSidecarStorePayload(value, label = "sidecar store") {
   if (!value || typeof value !== "object") {
     throw new TypeError(`${label} payload must be an object or array`);
   }
-  const text = JSON.stringify(canonicalValue(value));
-  const raw = Buffer.from(text, "utf8");
+  const raw = Buffer.from(JSON.stringify(canonicalValue(value)), "utf8");
   if (raw.byteLength > SIDECAR_STORE_PAYLOAD_MAX_DECODED_BYTES) {
     const error = new Error(
       `${label} payload is ${raw.byteLength} bytes; the limit is ${SIDECAR_STORE_PAYLOAD_MAX_DECODED_BYTES}`
@@ -52,35 +54,60 @@ export function encodeSidecarStorePayload(value, label = "sidecar store") {
     error.code = "sidecar_store_payload_too_large";
     throw error;
   }
+  return { label, expect: Array.isArray(value) ? "array" : "object", raw };
+}
+
+function framed(mode, decodedLength, body) {
+  const payload = Buffer.allocUnsafe(HEADER_BYTES + body.byteLength);
+  payload.writeUInt8(mode, 0);
+  payload.writeUInt32BE(decodedLength, 1);
+  body.copy(payload, HEADER_BYTES);
+  return payload;
+}
+
+export function encodePreparedSidecarStorePayload({ label, raw }) {
+  if (raw.byteLength < RAW_BELOW_BYTES) return framed(MODE_RAW, raw.byteLength, raw);
   const stream = deflateSync(raw, { level: DEFLATE_LEVEL });
   if (stream.byteLength > deflateBound(raw.byteLength)) {
     throw new Error(`${label} payload compressed beyond the Deflate bound`);
   }
-  const payload = Buffer.allocUnsafe(HEADER_BYTES + stream.byteLength);
-  payload.writeUInt32BE(raw.byteLength, 0);
-  stream.copy(payload, HEADER_BYTES);
-  return payload;
+  return framed(MODE_DEFLATE, raw.byteLength, stream);
 }
 
-export function decodeSidecarStorePayload(bytes, label = "sidecar store", { expect = "object" } = {}) {
+export function encodeSidecarStorePayload(value, label = "sidecar store") {
+  return encodePreparedSidecarStorePayload(prepareSidecarStorePayload(value, label));
+}
+
+export function readSidecarStorePayload(bytes, label = "sidecar store", { expect = "object" } = {}) {
   if (!(bytes instanceof Uint8Array)) throw invalidPayload(`${label} payload is not a BLOB`);
   if (bytes.byteLength <= HEADER_BYTES || bytes.byteLength > SIDECAR_STORE_PAYLOAD_MAX_ENCODED_BYTES) {
     throw invalidPayload(`${label} payload length ${bytes.byteLength} is invalid`);
   }
   const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const declared = buffer.readUInt32BE(0);
-  if (declared === 0 || declared > SIDECAR_STORE_PAYLOAD_MAX_DECODED_BYTES ||
-      bytes.byteLength - HEADER_BYTES > deflateBound(declared)) {
-    throw invalidPayload(`${label} payload declares an invalid length ${declared}`);
-  }
+  const mode = buffer.readUInt8(0);
+  const declared = buffer.readUInt32BE(1);
+  const body = buffer.subarray(HEADER_BYTES);
   let raw;
-  try {
-    raw = inflateSync(buffer.subarray(HEADER_BYTES), { maxOutputLength: declared });
-  } catch (cause) {
-    throw invalidPayload(`${label} payload is not a valid bounded Deflate stream`, cause);
-  }
-  if (raw.byteLength !== declared) {
-    throw invalidPayload(`${label} payload decoded ${raw.byteLength} bytes, expected ${declared}`);
+  if (mode === MODE_RAW) {
+    if (declared === 0 || declared >= RAW_BELOW_BYTES || body.byteLength !== declared) {
+      throw invalidPayload(`${label} raw payload declares an invalid length ${declared}`);
+    }
+    raw = body;
+  } else if (mode === MODE_DEFLATE) {
+    if (declared < RAW_BELOW_BYTES || declared > SIDECAR_STORE_PAYLOAD_MAX_DECODED_BYTES ||
+        body.byteLength > deflateBound(declared)) {
+      throw invalidPayload(`${label} compressed payload declares an invalid length ${declared}`);
+    }
+    try {
+      raw = inflateSync(body, { maxOutputLength: declared });
+    } catch (cause) {
+      throw invalidPayload(`${label} payload is not a valid bounded Deflate stream`, cause);
+    }
+    if (raw.byteLength !== declared) {
+      throw invalidPayload(`${label} payload decoded ${raw.byteLength} bytes, expected ${declared}`);
+    }
+  } else {
+    throw invalidPayload(`${label} payload has unknown mode ${mode}`);
   }
   let value;
   try {
@@ -88,7 +115,23 @@ export function decodeSidecarStorePayload(bytes, label = "sidecar store", { expe
   } catch (cause) {
     throw invalidPayload(`${label} payload is not valid UTF-8 JSON`, cause);
   }
-  return assertExpectedShape(value, expect, label);
+  return { value: assertExpectedShape(value, expect, label), raw };
+}
+
+export function decodeSidecarStorePayload(bytes, label = "sidecar store", options = {}) {
+  return readSidecarStorePayload(bytes, label, options).value;
+}
+
+export function samePreparedSidecarStorePayload(prepared, stored) {
+  return Buffer.compare(prepared.raw, stored.raw) === 0;
+}
+
+export function reuseOrEncodeSidecarStorePayload(prepared, storedBytes) {
+  if (storedBytes !== null && storedBytes !== undefined && samePreparedSidecarStorePayload(prepared,
+    readSidecarStorePayload(storedBytes, prepared.label, { expect: prepared.expect }))) {
+    return storedBytes;
+  }
+  return encodePreparedSidecarStorePayload(prepared);
 }
 
 export function sameSidecarStorePayload(left, right) {

@@ -366,14 +366,45 @@ test("hoisting only happens when the reference is genuinely cheaper than repeati
   );
 });
 
-test("two distinct instances of the same shape are not merged into one definition", () => {
+const REFERENT = (label, max = 256) => z.object({
+  repository: z.string().min(1).max(max).describe(`${label} repository`),
+  path: z.string().min(1).max(1024).describe("Repository-relative path")
+}).strict();
+
+test("distinct instances with byte-identical projections share one definition", () => {
   const projected = projectZodRequestContract(z.object({
-    left: z.object({ a: z.string().min(1).max(256), b: z.string().min(1).max(256) }).strict(),
-    right: z.object({ a: z.string().min(1).max(256), b: z.string().min(1).max(256) }).strict()
+    left: REFERENT("Declared"), right: REFERENT("Declared"), third: REFERENT("Declared")
+  }).strict(), { shareIdenticalProjections: true });
+  const names = Object.keys(projected.$defs ?? {});
+  assert.equal(names.length, 1);
+  for (const key of ["left", "right", "third"]) {
+    assert.deepEqual(projected.contract.properties[key], { $ref: `#/$defs/${names[0]}` });
+  }
+  const identityOnly = projectZodRequestContract(z.object({
+    left: REFERENT("Declared"), right: REFERENT("Declared"), third: REFERENT("Declared")
   }).strict());
-  assert.equal(projected.$defs, undefined);
-  assert.equal(projected.contract.properties.left.type, "object");
-  assert.equal(projected.contract.properties.right.type, "object");
+  assert.equal(identityOnly.$defs, undefined, "by default distinct instances stay inline");
+  assert.deepEqual(projected.$defs[names[0]], identityOnly.contract.properties.left);
+});
+
+test("near-equal projections are never merged", () => {
+  const projected = projectZodRequestContract(z.object({
+    base: REFERENT("Declared"), bound: REFERENT("Declared", 255), prose: REFERENT("Observed")
+  }).strict(), { shareIdenticalProjections: true });
+  assert.equal(projected.$defs, undefined, JSON.stringify(projected.$defs));
+  assert.equal(projected.contract.properties.bound.properties.repository.maxLength, 255);
+  assert.equal(projected.contract.properties.prose.properties.repository.description, "Observed repository");
+});
+
+test("an occurrence with an omission keeps its disclosure inline", () => {
+  const refined = REFERENT("Declared").refine(() => true, { message: "owner rule" });
+  const projected = projectZodRequestContract(z.object({
+    left: REFERENT("Declared"), right: REFERENT("Declared"), guarded: refined
+  }).strict(), { shareIdenticalProjections: true });
+  const guarded = projected.contract.properties.guarded;
+  assert.equal(guarded.$ref, undefined);
+  assert.equal(guarded.unprojected[0].reason, "undeclared_refinement");
+  assert.deepEqual(projected.unprojected.map(({ path }) => path), ["$.guarded"]);
 });
 
 const ANSWER_UNION = (() => {

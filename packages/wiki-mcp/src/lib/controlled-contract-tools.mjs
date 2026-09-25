@@ -10,6 +10,8 @@ import {
 
 import { proofAuthoringFocusInputSchema } from "./proof-authoring-input-schema.mjs";
 import { registerProofAuthoringTools } from "./proof-authoring-tools.mjs";
+import { proofAuthoringValidationTestCompositionDeps } from
+  "./proof-authoring-validation-test-composition.mjs";
 import { registerProofDiscoveryTool } from "./proof-discovery-tools.mjs";
 import { registerVerifyProofTool } from "./verify-proof-tool.mjs";
 import { VERIFY_PROOF_TOOL_NAME } from "./verify-proof-public-result.mjs";
@@ -19,12 +21,12 @@ import {
 } from "./mcp-response.mjs";
 
 const CONTROLLED_CONTRACT_ROUTE_METADATA = Object.freeze([
-  ["workspace_controlled_proof_intents_discover", "sha256:bf8382ad730c1846d4767df985655cc5cfa14752a58873a07830d873cc49f557"],
-  ["workspace_verify_proof", "sha256:34c955781288195c7905436416079fe322dda9af0358ae789639acc54df1dc08"],
+  ["workspace_controlled_proof_intents_discover", "sha256:d47d4f56248f499ba17b503a1a5b49415143c108f66c515217b727fcdbdfb917"],
+  ["workspace_verify_proof", "sha256:6c86be2ab88442345a9d7bcb8d6de201d87d50b70120c455ecb5f17484f3664a"],
   ["workspace_controlled_contract_obligation_coverage_upsert", "sha256:23c9913bde7a8f7f85a626d4a49c9481891209b509302340d06e7f8cff033564"],
   ["workspace_controlled_contract_obligation_coverage_remove", "sha256:0738fab5bb5549392b9113c2fff30162a14be8ef97353ae5c568cb08907671a4"],
   ["workspace_controlled_contract_obligation_coverage_query", "sha256:430e4e6cd50d6e7dd87b93f842d83123b48e2c40a8377f8c41d8c6af21ad7d13"],
-  ["workspace_validate_proof", "sha256:0f628fa5bc9f44711ecab49b4f2e3128660efd821fb0a7fee91c9ff7509005c9"]
+  ["workspace_validate_proof", "sha256:7e26d26777d665bda2ddd1cd5db0255b3656917655dd28cc8e1491a4399c520f"]
 ].map(([name, discoveryMetadataSha256]) => Object.freeze({
   name,
   discoveryMetadataSha256
@@ -87,6 +89,7 @@ export function createControlledContractToolRegistry({
   errorContent,
   resolveWorkspaceRepo,
   verifyProofDeps = {},
+  proofAuthoringValidationTestComposition = null,
   persistVerifyProofEvidence = persistVerifyProofEvidenceReference,
   responseEnv = process.env
 }) {
@@ -118,7 +121,9 @@ export function createControlledContractToolRegistry({
           issues: parsed.error.issues.slice(0, 32).map((issue) => ({
             code: issue.code,
             path: issue.path.map((part) =>
-              typeof part === "number" ? part : String(part))
+              typeof part === "number" ? part : String(part)),
+            ...(Array.isArray(issue.keys)
+              ? { keys: issue.keys.map((key) => String(key)) } : {})
           }))
         } } };
       }
@@ -159,7 +164,9 @@ export function createControlledContractToolRegistry({
     focus,
     respond,
     identity: parseProofSourceUnitAddress,
-    inputBoundary: obligationCoverageInputSchema
+    inputBoundary: obligationCoverageInputSchema,
+    validationDeps: proofAuthoringValidationTestCompositionDeps(
+      proofAuthoringValidationTestComposition)
   });
 
   const materializedNames = entries.map(({ name }) => name);

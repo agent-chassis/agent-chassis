@@ -100,19 +100,19 @@ test('an authored mechanism conflicts; an unauthored one is an absent fact', () 
     'controlled_contract_cross_owner_verification_method_conflict');
 });
 
-test('an authored explicit gap carries its kind and the author reason', () => {
+test('a retired authored gap is only an invalid authored source diagnostic', () => {
   const gapCoverage = { source: { content_digest: 'saved-source' }, sourceCurrent: true,
     rows: [{ obligation_id: 'OBL-GAP', design_status: 'invalid',
       mechanism: { kind: 'test' }, controlled_contract_node_ids: ['A'],
       gap: { gap_kind: 'catalog_gap', reason: 'No admitted catalog proof covers it.' },
-      diagnostics: [{ code: 'obligation_coverage_explicit_gap' }] }],
+      diagnostics: [{ code: 'obligation_coverage_authored_gap_retired' }] }],
     authoringApplicability: { selection_relationships: [{ obligation_id: 'OBL-GAP' }] } };
   const row = classify(contract, gapCoverage)
     .find(entry => entry.obligation_id === 'OBL-GAP');
   assert.equal(row.classification, 'unresolved');
-  assert.equal(row.reason_code, 'obligation_coverage_explicit_gap');
-  assert.deepEqual(row.gap,
-    { gap_kind: 'catalog_gap', reason: 'No admitted catalog proof covers it.' });
+  assert.equal(row.reason_code, 'obligation_coverage_authored_gap_retired');
+  assert.equal(row.proof_kind, null);
+  assert.equal(Object.hasOwn(row, 'gap'), false);
 });
 
 const binding = (id, proof = `proof-${id}`) => ({ verification_claim_id: id, test_proof_id: proof });

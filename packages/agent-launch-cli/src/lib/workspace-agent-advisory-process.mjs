@@ -1,6 +1,7 @@
 import { captureLauncherAgentSessionContract } from "./stdio-mcp-conduit-authority.mjs";
 import { resolveLaunchSelection } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
 import { finalizeAdvisoryProcessLaunch } from "./workspace-agent-advisory-result-settlement.mjs";
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
 
 export function createAdvisoryProcessRunner({
   executors,
@@ -66,7 +67,8 @@ export function createAdvisoryProcessRunner({
           missing_result: Object.freeze({
             code: "advisory_process_failed",
             reason: error?.code ?? "advisory_process_failed",
-            detail: null
+
+            detail: Object.freeze({ evidence: captureDiagnosticEvidence(error) })
           })
         })
       });

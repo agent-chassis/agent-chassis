@@ -26,18 +26,15 @@ import {
   evaluateStableProofPackFixtureV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDeclaredCertificationDocument, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.cancellation.isolation/3.0.0"
-);
+const identity = { profile_id: "proof.cancellation.isolation", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(name) {
-  return JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({
@@ -435,9 +432,7 @@ test("every fixed negative rejects canonically and satisfies its weakened candid
   ]);
   const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
   const documents = await Promise.all(adequacy.negative_contract_fixtures.map(
-    async ({ path: fixturePath }) => JSON.parse(await readFile(
-      path.join(repositoryRoot, fixturePath), "utf8"
-    ))
+    ({ path: fixturePath }) => readDeclaredCertificationDocument(fixturePath)
   ));
   const byId = new Map(documents.map((document) => [document.fixture_id, document]));
   const canonical = evaluateNegativeContractFixtures(profile, documents, {

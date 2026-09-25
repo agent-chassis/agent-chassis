@@ -1392,7 +1392,7 @@
       "capable_packs": [
         {
           "profile_id": "proof.verification.test-validity",
-          "profile_version": "10.0.0"
+          "profile_version": "11.0.0"
         }
       ],
       "compatibility": {

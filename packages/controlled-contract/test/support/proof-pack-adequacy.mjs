@@ -34,6 +34,11 @@ import { APPLICABILITY_MODES, OPERATORS } from "../../lib/vocabulary-v1.mjs";
 import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "./proof-pack-adequacy-constants.mjs";
+import {
+  CertificationArtifactError,
+  certificationMember,
+  readCertificationArchive
+} from "./certification-artifact.mjs";
 
 const PROOF_PACK_ADEQUACY_VERSION =
   "controlled-contract-proof-pack-adequacy.experimental.v0.2";
@@ -1606,6 +1611,62 @@ async function readJsonSource(filePath, label) {
   return parseJsonSource(text, filePath, label);
 }
 
+function asAdequacyError(error) {
+  if (!(error instanceof CertificationArtifactError)) return error;
+  return new ProofPackAdequacyError(error.code, error.message, error.details);
+}
+
+async function readPackArchive(directory) {
+  try {
+    return await readCertificationArchive(directory, { label: "certification_archive" });
+  } catch (error) {
+    throw asAdequacyError(error);
+  }
+}
+
+function readArchiveMember(archive, memberPath, label) {
+  try {
+    const { value, sha256, source_base64: sourceBase64 } =
+      certificationMember(archive, memberPath, { label });
+    return { value, sha256, source_base64: sourceBase64 };
+  } catch (error) {
+    throw asAdequacyError(error);
+  }
+}
+
+function certificationMemberPath(adequacy, declaredPath, label) {
+  const segments = declaredPath.replaceAll("\\", "/").split("/");
+  if (segments.includes("..")) throw new ProofPackAdequacyError(
+    `${label}_parent_segment_forbidden`,
+    `${label} must not contain a parent-directory segment`,
+    { declared_path: declaredPath }
+  );
+  const prefix = "packages/controlled-contract/test/certification/profiles/" +
+    `${adequacy.profile_id}/${adequacy.profile_version}/`;
+  if (!declaredPath.startsWith(prefix)) throw new ProofPackAdequacyError(
+    `${label}_outside_certification_archive`,
+    `${label} must be a member of its definition's certification archive`,
+    { declared_path: declaredPath, archive_directory: prefix }
+  );
+  return declaredPath.slice(prefix.length);
+}
+
+async function resolveRuntimeProfilePath(repositoryRoot, adequacy) {
+  const packageDirectory = path.join(repositoryRoot, "packages/controlled-contract");
+  const { value: catalog } = await readJsonSource(
+    path.join(packageDirectory, "profiles/catalog.json"), "profile_catalog"
+  );
+  const entry = catalog.packs?.find((pack) =>
+    pack.profile_id === adequacy.profile_id &&
+    pack.profile_version === adequacy.profile_version);
+  if (!entry) throw new ProofPackAdequacyError(
+    "proof_pack_identity_not_current",
+    "adequacy declaration names a profile identity the current catalog does not select",
+    { profile_id: adequacy.profile_id, profile_version: adequacy.profile_version }
+  );
+  return path.join(packageDirectory, entry.path, "profile.json");
+}
+
 async function resolveDeclaredPath(repositoryRoot, declaredPath, label) {
   const segments = declaredPath.replaceAll("\\", "/").split("/");
   if (segments.includes("..")) throw new ProofPackAdequacyError(
@@ -2088,22 +2149,31 @@ async function loadProofPack(packDirectory, {
   profileSource = null
 } = {}) {
   const directory = path.resolve(packDirectory);
-  const profilePath = path.join(directory, "profile.json");
-  const adequacyPath = path.join(directory, "adequacy.json");
+  const archive = await readPackArchive(directory);
+  const adequacyDocument = readArchiveMember(archive, "adequacy.json", "adequacy");
+  const adequacy = adequacyDocument.value;
+  if (adequacy?.profile_id !== archive.profile_id ||
+      adequacy?.profile_version !== archive.profile_version) throw new ProofPackAdequacyError(
+    "adequacy_profile_identity_mismatch",
+    "adequacy declaration does not identify the definition its archive certifies",
+    {
+      declared_profile_id: adequacy?.profile_id,
+      declared_profile_version: adequacy?.profile_version,
+      archive_profile_id: archive.profile_id,
+      archive_profile_version: archive.profile_version
+    }
+  );
+  const profilePath = await resolveRuntimeProfilePath(path.resolve(repositoryRoot), adequacy);
   if (profileSource !== null && path.resolve(profileSource.path) !== profilePath) {
     throw new ProofPackAdequacyError(
       "proof_pack_profile_source_mismatch",
-      "preloaded profile source must identify the pack's canonical profile.json"
+      "preloaded profile source must identify the pack's runtime profile.json"
     );
   }
-  const [profileDocument, adequacyDocument] = await Promise.all([
-    profileSource === null
-      ? readJsonSource(profilePath, "profile")
-      : Promise.resolve(parseJsonSource(profileSource.text, profilePath, "profile")),
-    readJsonSource(adequacyPath, "adequacy")
-  ]);
+  const profileDocument = profileSource === null
+    ? await readJsonSource(profilePath, "profile")
+    : parseJsonSource(profileSource.text, profilePath, "profile");
   const profile = profileDocument.value;
-  const adequacy = adequacyDocument.value;
   if (profile.schema_version !== PROFILE_SCHEMA_VERSION_V1) {
     throw new ProofPackAdequacyError(
       "proof_pack_profile_schema_unsupported",
@@ -2157,10 +2227,9 @@ async function loadProofPack(packDirectory, {
   const negativeFixtureSnapshots = [];
   const negativeFixtures = [];
   for (const declaration of adequacy.negative_contract_fixtures ?? []) {
-    const fixturePath = await resolveDeclaredPath(
-      repositoryRoot, declaration.path, "negative_fixture"
-    );
-    const fixtureDocument = await readJsonSource(fixturePath, "negative_fixture");
+    const fixtureDocument = readArchiveMember(archive,
+      certificationMemberPath(adequacy, declaration.path, "negative_fixture"),
+      "negative_fixture");
     if (fixtureDocument.sha256 !== declaration.sha256) throw new ProofPackAdequacyError(
       "negative_fixture_digest_mismatch",
       "negative fixture content does not match its declared digest",
@@ -2198,12 +2267,9 @@ async function loadProofPack(packDirectory, {
   let coverageWitnessIndex = null;
   let coverageWitnessSnapshot = null;
   if (adequacy.coverage_witness_index !== undefined) {
-    const witnessPath = await resolveDeclaredPath(
-      repositoryRoot, adequacy.coverage_witness_index.path, "coverage_witness_index"
-    );
-    const witnessDocument = await readJsonSource(
-      witnessPath, "coverage_witness_index"
-    );
+    const witnessDocument = readArchiveMember(archive, certificationMemberPath(
+      adequacy, adequacy.coverage_witness_index.path, "coverage_witness_index"
+    ), "coverage_witness_index");
     if (witnessDocument.sha256 !== adequacy.coverage_witness_index.sha256) {
       throw new ProofPackAdequacyError(
         "coverage_witness_digest_mismatch",
@@ -2276,7 +2342,7 @@ async function loadProofPack(packDirectory, {
   const pack = deepFreeze({
     directory,
     profile_path: profilePath,
-    adequacy_path: adequacyPath,
+    certification_archive_path: archive.path,
     repository_root: path.resolve(repositoryRoot),
     executable_module_path: executableModulePath,
     executable_dependency_paths: dependencyPaths,

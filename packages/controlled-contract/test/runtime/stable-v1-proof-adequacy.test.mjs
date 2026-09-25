@@ -12,6 +12,12 @@ import { profileDigest } from "../../lib/profile-digest.mjs";
 import { executableDependencyClosure } from "../support/executable-dependency-closure.mjs";
 import { assertComponentExclusionApplicability, loadExactAdmittedProofPack } from
   "../../lib/admitted-proof-packs.mjs";
+import {
+  CERTIFICATION_ARCHIVE_NAME,
+  certificationDirectory,
+  readCertificationArchive,
+  readDefinitionDocument
+} from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const repositoryRoot = path.resolve(packageRoot, "../..");
@@ -19,8 +25,6 @@ const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 const catalog = await readJson(path.join(packageRoot, "profiles/catalog.json"));
 const current = [...catalog.packs];
 const execFileAsync = promisify(execFile);
-const certificationDirectory = (pack) => path.join(packageRoot,
-  "test/certification/profiles", pack.profile_id, pack.profile_version);
 
 test("all current definitions execute their complete certification populations", async () => {
   assert.ok(current.length > 0);
@@ -29,13 +33,13 @@ test("all current definitions execute their complete certification populations",
   for (const pack of current) {
     const directory = certificationDirectory(pack);
     const [profile, adequacy, certified] = await Promise.all([
-      readJson(path.join(directory, "profile.json")),
-      readJson(path.join(directory, "adequacy.json")),
-      readJson(path.join(directory, "certification-result.full-census.json"))
+      readDefinitionDocument(pack, "profile.json"),
+      readDefinitionDocument(pack, "adequacy.json"),
+      readDefinitionDocument(pack, "certification-result.full-census.json")
     ]);
     const actual = pack.profile_id === "proof.verification.test-validity"
       ? runTestValidityCertification(profile, adequacy,
-        await readJson(path.join(directory, "corpus.json")))
+        await readDefinitionDocument(pack, "corpus.json"))
       : await runProofPackAdequacy(directory, { variationMode: "full_census" });
     assert.equal(actual.passed, true, `${pack.profile_id}: ${JSON.stringify(actual.diagnostics)}`);
     assert.deepEqual(actual, certified, `${pack.profile_id} certification drift`);
@@ -64,10 +68,7 @@ test("current publication binds source-clean evaluator bytes to complete certifi
   ], { cwd: repositoryRoot, maxBuffer: 8 * 1024 * 1024 });
   const publication = JSON.parse(stdout);
   assert.equal(publication.profiles, current.length);
-  assert.deepEqual(await readJson(path.join(packageRoot,
-    "test/certification/profiles/catalog.json")), catalog);
-  assert.deepEqual(await readJson(path.join(generatedRoot,
-    "test/certification/profiles/catalog.json")), catalog);
+  assert.deepEqual(await readJson(path.join(generatedRoot, "profiles/catalog.json")), catalog);
   const totals = { definitions: 0, controls: 0, negatives: 0, witnesses: 0 };
   for (const pack of current) {
     const runtime = path.join(packageRoot, pack.path);
@@ -78,21 +79,21 @@ test("current publication binds source-clean evaluator bytes to complete certifi
     for (const name of [
       "profile.json", "admission.json", "evaluation-input.template.json", "parameter-contract.json"
     ]) {
-      assert.equal(await readFile(path.join(runtime, name), "utf8"),
-        await readFile(path.join(certification, name), "utf8"), `${pack.profile_id}/${name}`);
       assert.equal(await readFile(path.join(generatedRuntime, name), "utf8"),
         await readFile(path.join(runtime, name), "utf8"), `${pack.profile_id}/generated/${name}`);
     }
-    for (const name of ["adequacy.json", "certification-result.full-census.json"]) {
-      assert.equal(await readFile(path.join(generatedCertification, name), "utf8"),
-        await readFile(path.join(certification, name), "utf8"),
-        `${pack.profile_id}/generated/${name}`);
-    }
+
+    const [generatedArchive, storedArchive] = await Promise.all([
+      readCertificationArchive(generatedCertification, { identity: pack }),
+      readCertificationArchive(certification, { identity: pack })
+    ]);
+    assert.deepEqual(generatedArchive.members, storedArchive.members,
+      `${pack.profile_id}/generated/${CERTIFICATION_ARCHIVE_NAME}`);
     const [profile, admission, adequacy, result] = await Promise.all([
-      readJson(path.join(runtime, "profile.json")),
-      readJson(path.join(runtime, "admission.json")),
-      readJson(path.join(certification, "adequacy.json")),
-      readJson(path.join(certification, "certification-result.full-census.json"))
+      readDefinitionDocument(pack, "profile.json"),
+      readDefinitionDocument(pack, "admission.json"),
+      readDefinitionDocument(pack, "adequacy.json"),
+      readDefinitionDocument(pack, "certification-result.full-census.json")
     ]);
     assert.equal(profile.schema_version, "controlled-contract-verification-profile.v2");
     assert.equal(admission.profile_digest, profileDigest(profile));
@@ -120,9 +121,7 @@ test("current publication binds source-clean evaluator bytes to complete certifi
     totals.witnesses += result.coverage_witness_count;
     if (pack.profile_id === "proof.verification.test-validity") {
       assert.deepEqual([result.control_count, result.negative_fixture_count,
-        result.coverage_witness_count], [10, 9, 9]);
-      assert.equal(await readFile(path.join(generatedCertification, "result.json"), "utf8"),
-        await readFile(path.join(certification, "result.json"), "utf8"));
+        result.coverage_witness_count], [14, 9, 9]);
       assert.equal(await readFile(path.join(generatedRuntime, "evaluator.mjs"), "utf8"),
         await readFile(path.join(runtime, "evaluator.mjs"), "utf8"));
     }

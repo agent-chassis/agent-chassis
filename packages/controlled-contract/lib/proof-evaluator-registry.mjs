@@ -4,12 +4,12 @@ import { readFile } from "node:fs/promises";
 const PROOF_EVALUATOR_REGISTRY_ID = "controlled-contract-proof-evaluator-registry";
 const PROOF_EVALUATOR_REGISTRY_VERSION = "2.0.0";
 const entries = Object.freeze({
-  "proof.verification.test-validity\u000010.0.0": Object.freeze({
-    module_path: "profiles/proof.verification.test-validity/10.0.0/evaluator.mjs",
+  "proof.verification.test-validity\u000011.0.0": Object.freeze({
+    module_path: "profiles/proof.verification.test-validity/11.0.0/evaluator.mjs",
     export_name: "evaluateExecutionTestValidity",
     implementation_id: "proof.verification.test-validity.execution-evaluator",
-    implementation_version: "8.0.0",
-    implementation_digest: "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f"
+    implementation_version: "9.0.0",
+    implementation_digest: "sha256:1ab1b1817b591583293a6d093e1a93b53e71b146e8c7b30f89df4eb479f6ef7a"
   })
 });
 

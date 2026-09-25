@@ -151,7 +151,7 @@ export async function instrumentGoTestFile({ source, selected }) {
   const tree = await parseSource("go", source);
   const testing = testingImportName(tree);
   const edits = [];
-  const observed = [];
+  const declared = [];
   for (const node of namedChildren(tree.rootNode)) {
     const name = node.type === "function_declaration" ? node.childForFieldName("name")?.text : null;
     if (name === null || !TEST_FUNCTION_RE.test(name) ||
@@ -159,12 +159,13 @@ export async function instrumentGoTestFile({ source, selected }) {
     const parameter = testing === null ? null : testingParameter(node, testing);
     const body = node.childForFieldName("body");
     if (parameter === null || body === null) continue;
-    observed.push(name);
+    declared.push(name);
+    if (name !== selected) continue;
     edits.push({ index: bodyProbeIndex(body),
       insert: ` defer zzLauncherTestProofEnter(${parameter}, ${goString(name)})();` });
   }
-  if (!observed.includes(selected)) unsupported("selected_test_not_observable", { test: selected });
-  return { source: applyEdits(source, edits), package_name: packageName(tree), tests: observed };
+  if (!declared.includes(selected)) unsupported("selected_test_not_observable", { test: selected });
+  return { source: applyEdits(source, edits), package_name: packageName(tree), tests: declared };
 }
 
 function emitterSource({ prefix, channel, nonce, sourceId }) {
@@ -210,12 +211,34 @@ import (
 )
 
 ${emitterSource({ prefix: "zzLauncherTestProofObserver", channel, nonce, sourceId: "go.observer" })}
+// The selected root lifecycle: the runner-started *testing.T whose name is the
+// selected function's. A direct call with that same T, or a call of the
+// selected function under another runtime name (as a subtest), runs unchanged
+// and observes nothing. The first-registered cleanup runs after the selected
+// test's subtests and every later-registered cleanup, so it closes the window
+// and reports Go's own final outcome of the selected test.
+var zzLauncherTestProofRoot struct {
+\tsync.Mutex
+\tt *testing.T
+}
+
 func zzLauncherTestProofEnter(t *testing.T, name string) func() {
+\tzzLauncherTestProofRoot.Lock()
+\troot := zzLauncherTestProofRoot.t == nil && t.Name() == name
+\tif root {
+\t\tzzLauncherTestProofRoot.t = t
+\t}
+\tzzLauncherTestProofRoot.Unlock()
+\tif !root {
+\t\treturn func() {}
+\t}
 \tpanicked := false
 \tpanicMessage := ""
 \ttest := []string{name}
 \tzzLauncherTestProofObserverEmit(map[string]any{"kind": "test_start", "test": test, "file": ${goString(file)}})
 \tt.Cleanup(func() {
+\t\tzzLauncherTestProofObserverEmit(map[string]any{"kind": "window_end", "test": test,
+\t\t\t"file": ${goString(file)}})
 \t\tfailed := t.Failed() || panicked
 \t\toutcome := "passed"
 \t\tif failed {
@@ -233,16 +256,14 @@ func zzLauncherTestProofEnter(t *testing.T, name string) func() {
 \t\t\t"file": ${goString(file)}, "outcome": outcome, "assertion_failure": failed && !panicked,
 \t\t\t"error": failure})
 \t})
+\t// Records a panic of the selected function body and re-raises it; Go runs
+\t// the cleanup above before the re-raised panic ends the test binary.
 \treturn func() {
 \t\tif recovered := recover(); recovered != nil {
 \t\t\tpanicked = true
 \t\t\tpanicMessage = fmt.Sprint(recovered)
-\t\t\tzzLauncherTestProofObserverEmit(map[string]any{"kind": "window_end", "test": test,
-\t\t\t\t"file": ${goString(file)}})
 \t\t\tpanic(recovered)
 \t\t}
-\t\tzzLauncherTestProofObserverEmit(map[string]any{"kind": "window_end", "test": test,
-\t\t\t"file": ${goString(file)}})
 \t}
 }
 `;

@@ -3,15 +3,21 @@ import { isConcreteSidecarCommit } from "./sidecar-repository-identity.mjs";
 import {
   decodeSidecarStorePayload,
   encodeSidecarStorePayload,
+  prepareSidecarStorePayload,
+  readSidecarStorePayload,
+  reuseOrEncodeSidecarStorePayload,
+  samePreparedSidecarStorePayload,
   sameSidecarStorePayload
 } from "./sidecar-store-codec.mjs";
 import {
+  assertStoreSymbolEdge,
   binaryCompare,
   decodeStoreUnitPayload,
   materializeStoreEdge,
   materializeStoreNode,
   readStorePublication,
   selectStoreCounts,
+  selectedDataError,
   storeContributionKey,
   storeUnitContributionAttributes
 } from "./sidecar-store-queries.mjs";
@@ -403,10 +409,10 @@ function normalizeProviderInput(delta) {
     if (providers.has(key)) throw new Error(`sidecar provider ${key} is duplicated`);
     providers.set(key, {
       input_identity: nonEmpty(provider.input_identity, "provider.input_identity"),
-      metadata: encodeSidecarStorePayload({
+      metadata: {
         descriptor: plainObject(provider.descriptor, "provider.descriptor"),
         coverage: plainObject(provider.coverage, "provider.coverage")
-      }, `provider ${key} metadata`)
+      }
     });
   }
   const symbols = new Map();
@@ -421,8 +427,8 @@ function normalizeProviderInput(delta) {
       providerId,
       symbolId,
       rawSymbol: nonEmpty(symbol.raw_symbol, "symbol.raw_symbol"),
-      payload: encodeSidecarStorePayload({ document_path: documentPath,
-        payload: plainObject(symbol.payload ?? {}, "symbol.payload") }, `symbol ${symbolId}`)
+      payload: { document_path: documentPath,
+        payload: plainObject(symbol.payload ?? {}, "symbol.payload") }
     });
   }
   const documents = new Map();
@@ -467,7 +473,7 @@ function normalizeProviderInput(delta) {
     target.refs.add(symbolId);
   }
   const edgeKeys = new Set();
-  const externalEdges = [];
+  const externalEdges = new Map();
   for (const edge of delta.symbol_edges ?? []) {
     const providerId = storedProvider(providers, edge.provider_id, "symbol edge");
     const record = {
@@ -487,8 +493,7 @@ function normalizeProviderInput(delta) {
     const documentPath = edge.document_path ?? null;
     if (documentPath === null) {
       const { from_symbol: from, to_symbol: to, ...payload } = record;
-      externalEdges.push({ providerId, from, to,
-        payload: encodeSidecarStorePayload(payload, `symbol edge ${record.edge_id}`) });
+      externalEdges.set(key, { providerId, from, to, payload, seid: null, relinked: null });
       continue;
     }
     const target = document(providerId, nonEmpty(documentPath, "symbol edge document_path"));
@@ -529,15 +534,16 @@ function replaceProviderData(writer, delta) {
     const existing = writer.prepare(
       "SELECT pid, input_identity, metadata FROM providers WHERE provider_key = ?"
     ).get(key);
+    const metadata = reuseOrEncodeSidecarStorePayload(
+      prepareSidecarStorePayload(provider.metadata, `provider ${key} metadata`), existing?.metadata);
     if (!existing) {
       providerIds.set(key, Number(writer.prepare(`INSERT INTO providers(provider_key, input_identity,
-        metadata) VALUES (?, ?, ?)`).run(key, provider.input_identity, provider.metadata).lastInsertRowid));
+        metadata) VALUES (?, ?, ?)`).run(key, provider.input_identity, metadata).lastInsertRowid));
       continue;
     }
-    if (existing.input_identity !== provider.input_identity ||
-        !sameSidecarStorePayload(existing.metadata, provider.metadata)) {
+    if (existing.input_identity !== provider.input_identity || metadata !== existing.metadata) {
       writer.prepare("UPDATE providers SET input_identity = ?, metadata = ? WHERE pid = ?")
-        .run(provider.input_identity, provider.metadata, existing.pid);
+        .run(provider.input_identity, metadata, existing.pid);
     }
     providerIds.set(key, existing.pid);
   }
@@ -550,13 +556,15 @@ function replaceProviderData(writer, delta) {
     const existing = writer.prepare(
       "SELECT raw_sid, payload FROM provider_symbols WHERE symbol_sid = ? AND pid = ?"
     ).get(symbolSid, pid);
+    const payload = reuseOrEncodeSidecarStorePayload(
+      prepareSidecarStorePayload(symbol.payload, `symbol ${symbol.symbolId}`), existing?.payload);
     if (!existing) {
       writer.prepare("INSERT INTO provider_symbols(symbol_sid, pid, raw_sid, payload) VALUES (?, ?, ?, ?)")
-        .run(symbolSid, pid, rawSid, symbol.payload);
-    } else if (existing.raw_sid !== rawSid || !sameSidecarStorePayload(existing.payload, symbol.payload)) {
+        .run(symbolSid, pid, rawSid, payload);
+    } else if (existing.raw_sid !== rawSid || payload !== existing.payload) {
       if (existing.raw_sid !== rawSid) writer.released.add(existing.raw_sid);
       writer.prepare("UPDATE provider_symbols SET raw_sid = ?, payload = ? WHERE symbol_sid = ? AND pid = ?")
-        .run(rawSid, symbol.payload, symbolSid, pid);
+        .run(rawSid, payload, symbolSid, pid);
     }
     keptSymbols.add(`${symbolSid}\0${pid}`);
   }
@@ -581,13 +589,13 @@ function replaceProviderData(writer, delta) {
   for (const document of input.documents.values()) {
     const pid = providerIds.get(document.providerId);
     const documentSid = writer.intern(document.documentPath);
-    const payload = encodeSidecarStorePayload({
-      occurrences: document.occurrences, symbol_edges: document.symbol_edges
-    }, `provider document ${document.documentPath}`);
     const existing = writer.prepare(
       "SELECT did, payload FROM provider_documents WHERE document_sid = ? AND pid = ?"
     ).get(documentSid, pid);
-    if (existing && sameSidecarStorePayload(existing.payload, payload)) {
+    const payload = reuseOrEncodeSidecarStorePayload(prepareSidecarStorePayload({
+      occurrences: document.occurrences, symbol_edges: document.symbol_edges
+    }, `provider document ${document.documentPath}`), existing?.payload);
+    if (existing && payload === existing.payload) {
       keptDocuments.add(existing.did);
       continue;
     }
@@ -615,25 +623,54 @@ function replaceProviderData(writer, delta) {
     }
   }
 
-  const edgeKey = (pid, fromSid, toSid, payload) =>
-    `${pid}\0${fromSid}\0${toSid}\0${Buffer.from(payload).toString("base64")}`;
-  const storedEdges = new Map(scopedProviders.flatMap(({ pid }) => writer.prepare(
-    "SELECT seid, pid, from_sid, to_sid, payload FROM provider_symbol_edges WHERE pid = ?"
-  ).all(pid)).map((row) => [edgeKey(row.pid, row.from_sid, row.to_sid, row.payload), row]));
-  for (const edge of input.externalEdges) {
-    const pid = providerIds.get(edge.providerId);
-    const fromSid = edge.from === null ? null : writer.intern(edge.from);
-    const toSid = edge.to === null ? null : writer.intern(edge.to);
-    const key = edgeKey(pid, fromSid, toSid, edge.payload);
-    if (storedEdges.delete(key)) continue;
-    writer.prepare("INSERT INTO provider_symbol_edges(pid, from_sid, to_sid, payload) VALUES (?, ?, ?, ?)")
-      .run(pid, fromSid, toSid, edge.payload);
+  const storedEdgeKeys = new Set();
+  const unmatchedEdges = [];
+  for (const { pid, provider_key: providerKey } of scopedProviders) {
+    const label = `symbol edge of provider ${providerKey}`;
+    for (const row of writer.prepare(`SELECT e.seid, e.from_sid, e.to_sid, f.value AS from_symbol,
+      t.value AS to_symbol, e.payload FROM provider_symbol_edges e
+      LEFT JOIN strings f ON f.sid = e.from_sid LEFT JOIN strings t ON t.sid = e.to_sid
+      WHERE e.pid = ?`).iterate(pid)) {
+      const stored = readSidecarStorePayload(row.payload, label);
+      const edgeId = assertStoreSymbolEdge(providerKey, stored.value).edge_id;
+      const key = `${providerKey}\0${edgeId}`;
+      if (storedEdgeKeys.has(key)) {
+        throw selectedDataError(`symbol edge ${edgeId} of provider ${providerKey} is stored more than once`);
+      }
+      storedEdgeKeys.add(key);
+      const edge = input.externalEdges.get(key);
+      if (edge && samePreparedSidecarStorePayload(
+        prepareSidecarStorePayload(edge.payload, `symbol edge ${edgeId}`), stored)) {
+        edge.seid = row.seid;
+        if (edge.from !== row.from_symbol || edge.to !== row.to_symbol) {
+          edge.relinked = [row.from_sid, row.to_sid];
+        }
+        continue;
+      }
+      unmatchedEdges.push(row.seid, row.from_sid, row.to_sid);
+    }
   }
-  for (const row of storedEdges.values()) {
-    writer.prepare("DELETE FROM provider_symbol_edges WHERE seid = ?").run(row.seid);
-    for (const sid of [row.from_sid, row.to_sid]) {
+  storedEdgeKeys.clear();
+  for (let index = 0; index < unmatchedEdges.length; index += 3) {
+    writer.prepare("DELETE FROM provider_symbol_edges WHERE seid = ?").run(unmatchedEdges[index]);
+    for (const sid of [unmatchedEdges[index + 1], unmatchedEdges[index + 2]]) {
       if (sid !== null) writer.released.add(sid);
     }
+  }
+  for (const edge of input.externalEdges.values()) {
+    if (edge.relinked !== null) {
+      writer.prepare("UPDATE provider_symbol_edges SET from_sid = ?, to_sid = ? WHERE seid = ?")
+        .run(edge.from === null ? null : writer.intern(edge.from),
+          edge.to === null ? null : writer.intern(edge.to), edge.seid);
+      for (const sid of edge.relinked) {
+        if (sid !== null) writer.released.add(sid);
+      }
+    }
+    if (edge.seid !== null) continue;
+    writer.prepare("INSERT INTO provider_symbol_edges(pid, from_sid, to_sid, payload) VALUES (?, ?, ?, ?)")
+      .run(providerIds.get(edge.providerId), edge.from === null ? null : writer.intern(edge.from),
+        edge.to === null ? null : writer.intern(edge.to),
+        encodeSidecarStorePayload(edge.payload, `symbol edge ${edge.payload.edge_id}`));
   }
 
   const keptProviders = new Set(providerIds.values());

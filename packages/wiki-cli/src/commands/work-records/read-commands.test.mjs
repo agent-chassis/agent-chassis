@@ -45,8 +45,9 @@ function captureCommandRun(fn) {
   };
 }
 
-function createFixtureRepo() {
+function createFixtureRepo(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wk-read-commands-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.mkdirSync(path.join(dir, "wiki", "work-records"), { recursive: true });
   fs.copyFileSync(
     path.join(fixtureRoot, "valid", "minimal.json"),
@@ -72,8 +73,8 @@ async function assertJsonCommand({ command, argv, expectedExitCode, expectedJson
   assert.deepEqual(JSON.parse(output), expectedJson);
 }
 
-test("work-records read commands keep valid JSON exits at zero", async () => {
-  const dir = createFixtureRepo();
+test("work-records read commands keep valid JSON exits at zero", async (t) => {
+  const dir = createFixtureRepo(t);
   const validLoad = await expectedLoad(dir, "WK-9001");
 
   await assertJsonCommand({
@@ -106,8 +107,8 @@ test("work-records read commands keep valid JSON exits at zero", async () => {
   });
 });
 
-test("work-records read commands set exitCode for invalid and missing JSON results", async () => {
-  const dir = createFixtureRepo();
+test("work-records read commands set exitCode for invalid and missing JSON results", async (t) => {
+  const dir = createFixtureRepo(t);
   const invalidLoad = await expectedLoad(dir, "WK-9102");
   const missingLoad = await expectedLoad(dir, "WK-9111");
 

@@ -5,8 +5,6 @@ import test from "node:test";
 
 import {
   REPOSITORY_RUNTIME_CONFIG_FILE,
-  configuredToolchainExecutables,
-  configuredToolchainVersions,
   parseTestRuntimeConfig,
   serializeTestRuntimeConfig
 } from "../../packages/core/scripts/test-runtime-setup/config.mjs";
@@ -25,31 +23,43 @@ test("the closed shape carries the selection and any explicit toolchain location
     toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } }
   }), {
     runners: [{ runner: "go-test", project: "." }],
-    toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } }
+    toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } },
+    environments: {}
   });
 
   const minimal = parse({ runners: [{ runner: "pytest" }, { runner: "go-test", project: "svc/api" }] });
   assert.deepEqual(minimal, {
     runners: [{ runner: "pytest", project: "." }, { runner: "go-test", project: "svc/api" }],
-    toolchains: {}
+    toolchains: {},
+    environments: {}
   });
 
   const unversioned = parse({ runners: [{ runner: "deno" }],
     toolchains: { deno: { executable: "/opt/deno/deno" } } });
   assert.deepEqual(unversioned.toolchains, { deno: { executable: "/opt/deno/deno", version: null } });
-  assert.deepEqual(configuredToolchainVersions(unversioned), {});
-  assert.deepEqual(configuredToolchainExecutables(unversioned), { deno: "/opt/deno/deno" });
 });
 
-test("setup inputs are projected from the validated document", () => {
-  const config = parse({
-    runners: [{ runner: "go-test" }, { runner: "deno" }],
-    toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" },
-      deno: { executable: "/opt/deno/deno" } }
-  });
-  assert.deepEqual(configuredToolchainVersions(config), { go: "1.27.1" });
-  assert.deepEqual(configuredToolchainExecutables(config),
-    { go: "/opt/go/bin/go", deno: "/opt/deno/deno" });
+test("toolchain locations alone are a complete document: the inventory decides the environments", () => {
+  assert.deepEqual(parse({ toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } } }),
+    { runners: [], toolchains: { go: { executable: "/opt/go/bin/go", version: "1.27.1" } }, environments: {} });
+});
+
+test("an explicitly selected Python virtual environment is a closed, absolute, per-environment choice", () => {
+  assert.deepEqual(parse({ environments: { "python@.": { virtual_environment: "/srv/app/.venv" },
+    "python@services/api": { virtual_environment: "/opt/venvs/api" } } }).environments,
+  { "python@.": { virtual_environment: "/srv/app/.venv" },
+    "python@services/api": { virtual_environment: "/opt/venvs/api" } });
+  refuses({ environments: [] }, /environments must be an object/u);
+  refuses({ environments: { "npm@.": { virtual_environment: "/x" } } },
+    /environments\.npm@\. must name a python@<project> environment/u);
+  refuses({ environments: { "python@.": { virtual_environment: ".venv" } } },
+    /environments\.python@\.\.virtual_environment must be the absolute path/u);
+  refuses({ environments: { "python@.": { interpreter: "/usr/bin/python3" } } },
+    /environments\.python@\. has unknown field interpreter/u);
+  const text = serializeTestRuntimeConfig({ runners: [], toolchains: {},
+    environments: { "python@.": { virtual_environment: "/srv/app/.venv" } } });
+  assert.deepEqual(parseTestRuntimeConfig(text, { source: "runtime.json" }).environments,
+    { "python@.": { virtual_environment: "/srv/app/.venv" } });
 });
 
 test("malformed documents are refused rather than partially applied", () => {
@@ -60,7 +70,7 @@ test("malformed documents are refused rather than partially applied", () => {
       /the configuration must be an object/u);
   }
   refuses({ runners: [{ runner: "go-test" }], extra: true }, /unknown field extra/u);
-  refuses({ toolchains: {} }, /runners must be a nonempty array/u);
+  refuses({}, /the configuration must name runners, toolchains or environments/u);
   refuses({ runners: [] }, /runners must be a nonempty array/u);
   refuses({ runners: {} }, /runners must be a nonempty array/u);
 });
@@ -108,13 +118,13 @@ test("the parser resolves nothing: unknown names reach the launcher-owned setup"
   const config = parse({ runners: [{ runner: "no-such-runner", project: "svc" }],
     toolchains: { ruby: { executable: "/opt/ruby/bin/ruby" } } });
   assert.deepEqual(config.runners, [{ runner: "no-such-runner", project: "svc" }]);
-  assert.deepEqual(configuredToolchainExecutables(config), { ruby: "/opt/ruby/bin/ruby" });
+  assert.deepEqual(config.toolchains, { ruby: { executable: "/opt/ruby/bin/ruby", version: null } });
 });
 
 test("what setup saves is exactly what it reads back", () => {
   assert.equal(REPOSITORY_RUNTIME_CONFIG_FILE, "agent-chassis-runtime.json");
   const resolved = { runners: [{ runner: "go-test", project: "go" }],
-    toolchains: { go: { executable: "/usr/local/go/bin/go", version: null } } };
+    toolchains: { go: { executable: "/usr/local/go/bin/go", version: null } }, environments: {} };
   const text = serializeTestRuntimeConfig(resolved);
   assert.equal(text, `{
   "runners": [
@@ -139,5 +149,11 @@ test("what setup saves is exactly what it reads back", () => {
   const bare = serializeTestRuntimeConfig({ runners: [{ runner: "pytest", project: "." }],
     toolchains: {} });
   assert.deepEqual(parseTestRuntimeConfig(bare, { source: "runtime.json" }),
-    { runners: [{ runner: "pytest", project: "." }], toolchains: {} });
+    { runners: [{ runner: "pytest", project: "." }], toolchains: {}, environments: {} });
+
+  const located = serializeTestRuntimeConfig({ runners: [],
+    toolchains: { node: { executable: "/usr/bin/node", version: null } } });
+  assert.equal(located, '{\n  "toolchains": {\n    "node": {\n      "executable": "/usr/bin/node"\n    }\n  }\n}\n');
+  assert.deepEqual(parseTestRuntimeConfig(located, { source: "runtime.json" }),
+    { runners: [], toolchains: { node: { executable: "/usr/bin/node", version: null } }, environments: {} });
 });

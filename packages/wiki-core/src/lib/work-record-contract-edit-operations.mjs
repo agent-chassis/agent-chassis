@@ -27,6 +27,7 @@ import {
   refusal,
   selectScopedTarget
 } from "./work-record-contract-edit-shared.mjs";
+import { isCanonicalWorkRecordBaseBranch } from "./work-record-base-branch.mjs";
 
 const STRING_SCHEMA = Object.freeze({ type: "string" });
 const CONTENT_STRING_SCHEMA = Object.freeze({ type: "string", entry_content: true });
@@ -70,6 +71,7 @@ function fieldEntry(entry) {
 
 export const WORK_RECORD_EDIT_FIELD_REGISTRY = Object.freeze([
   fieldEntry({ id: "title.record", field: "title", kind: "scalar", canonical_address: ["title"], applicability: ["record"], value_schema: NONEMPTY_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
+  fieldEntry({ id: "base_branch.record", field: "base_branch", kind: "scalar", canonical_address: ["base_branch"], applicability: ["record"], value_schema: { ...NONEMPTY_STRING_SCHEMA, format: "local_branch_name" }, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "priority.record", field: "priority", kind: "scalar", canonical_address: ["priority"], applicability: ["record"], value_schema: { type: "string", enum: Object.freeze(["critical", "high", "medium", "low"]) }, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "owner.record", field: "owner", kind: "scalar", canonical_address: ["owner"], applicability: ["record"], value_schema: NONEMPTY_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
   fieldEntry({ id: "summary.record_slice", field: "sections.summary", kind: "scalar", canonical_address: ["sections", "summary"], applicability: ["record", "slice"], value_schema: CONTENT_STRING_SCHEMA, actions: REPLACE, owner: "editWorkRecordByUnit", facade: true }),
@@ -498,6 +500,9 @@ function normalizeScalarValue(entry, value) {
     return { ok: false, message: `${entry.field} must be one of: ${schema.enum.join(", ")}` };
   }
   const normalized = schema.trim ? value.trim() : value;
+  if (schema.format === "local_branch_name" && !isCanonicalWorkRecordBaseBranch(normalized)) {
+    return { ok: false, message: `${entry.field} must be a canonical local branch name, not a ref or revision expression` };
+  }
   if (schema.min_length && normalized.length < schema.min_length) {
     return { ok: false, message: `${entry.field} must not be blank` };
   }

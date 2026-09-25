@@ -26,10 +26,8 @@ test("advance authenticates complete current generation before freezing W inputs
   const body = advanceBody();
   const authenticate = body.indexOf("authenticateAdvanceGeneration({");
   const freeze = body.indexOf("freezeTerminalWkCandidateInputs({");
-  const reconstructed = body.indexOf("freezeReconstructedTerminalWkCandidateInputs({");
   assert.ok(authenticate >= 0);
   assert.ok(freeze > authenticate);
-  assert.ok(reconstructed > authenticate);
   assert.match(body, /generationAuthentication,\s*\n\s*runGit/u);
 });
 
@@ -96,8 +94,12 @@ test("production advance refuses an absent generation without mutating the candi
   assert.equal(casCalls, 0);
 });
 
-test("v3 final recheck binds the canonical record digest as well as the review contract", () => {
+test("advance derives from the W record digest and generation, never a review contract", () => {
   const body = advanceBody();
-  assert.match(body, /selection\.schema === "v3" && finalLive\.contract\.digest !== snapshot\.live\.digest/u);
+  assert.match(body, /canonicalWkDigest: selection\.digest/u);
+  for (const reviewInput of ["review_contract_digest", "review_subject", "decideTerminalReviewLifecycle",
+    "freezeReconstructedTerminalWkCandidateInputs"]) {
+    assert.equal(body.includes(reviewInput), false, reviewInput);
+  }
   assert.match(body, /authenticatedControlledContractGenerationsEqual\(\s*finalGenerationAuthentication,\s*generationAuthentication\)/u);
 });

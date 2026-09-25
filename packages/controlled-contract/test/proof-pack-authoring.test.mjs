@@ -126,7 +126,9 @@ test("the CLI returns the same bounded projection and accepts no path input", ()
     "--profile-version", refusalPack.profileVersion,
     "--intent", refusalIntent
   ];
-  const output = execFileSync(process.execPath, args, { encoding: "utf8" });
+  const output = execFileSync(process.execPath, args, {
+    encoding: "utf8", timeout: 30_000, maxBuffer: 1024 * 1024
+  });
   assert.deepEqual(JSON.parse(output), describeProofPackAuthoring(refusalPack));
   assert(Buffer.byteLength(output, "utf8") <= MAX_AUTHORING_PROJECTION_BYTES);
   const rejected = spawnSync(process.execPath, [
@@ -134,7 +136,8 @@ test("the CLI returns the same bounded projection and accepts no path input", ()
     "--profile-id", refusalPack.profileId,
     "--profile-version", refusalPack.profileVersion,
     "--profile-path", "/tmp/forged/profile.json"
-  ], { encoding: "utf8" });
+  ], { encoding: "utf8", timeout: 30_000, maxBuffer: 1024 * 1024 });
+  assert.equal(rejected.error, undefined, rejected.error?.message);
   assert.notEqual(rejected.status, 0);
   assert.match(rejected.stderr, /unknown argument/u);
 });

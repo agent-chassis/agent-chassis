@@ -8,7 +8,7 @@ import {
 import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.ordering.visibility-after-durable-settlement/3.0.0/profile.json",
+  "../../profiles/proof.ordering.visibility-after-durable-settlement/4.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 

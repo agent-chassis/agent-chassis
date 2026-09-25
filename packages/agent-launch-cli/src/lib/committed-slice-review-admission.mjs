@@ -12,6 +12,12 @@ import { createWorkerScopeTreeReader } from "./backend-worker-scope-tree.mjs";
 import { deriveCanonicalUnitScope } from "./canonical-unit-scope.mjs";
 import { resolveCommitWriteScopeMatcher } from "./exact-slice-commit-binding.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
+import {
+  classifyExplicitBaseMergeTreeResult,
+  explicitBaseMergeTreeArgs,
+  explicitBaseMergeTreeCapabilityCorrection,
+  registerExplicitBaseMergeTreeCapabilityCorrection
+} from "./explicit-base-merge-tree.mjs";
 
 const SUBJECT_RE = /^(WK-\d{4})#(SLICE-\d{3})$/u;
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -23,7 +29,11 @@ export const COMMITTED_SLICE_REVIEW_ADMISSION_SCHEMA_VERSION =
 export const COMMITTED_SLICE_REVIEW_IDENTITY_SCHEMA_VERSION =
   "canonical-committed-slice-review-binding.v1";
 export const COMMITTED_SLICE_REVIEW_ADMISSION_CODES = Object.freeze({
-  REFUSED: "agent_launch.committed_slice_review_admission.refused.v1"
+  REFUSED: "agent_launch.committed_slice_review_admission.refused.v1",
+  GIT_CAPABILITY_UNAVAILABLE:
+    "agent_launch.committed_slice_review_admission.git_capability_unavailable.v1",
+  MERGE_TREE_EXECUTION_FAILED:
+    "agent_launch.committed_slice_review_admission.merge_tree_execution_failed.v1"
 });
 
 export class CommittedSliceReviewAdmissionError extends Error {
@@ -54,7 +64,8 @@ export const COMMITTED_SLICE_SCOPE_CORRECTION_CONDITION = "committed_slice_scope
 const SCOPE_REFUSAL_CORRECTIONS = new WeakMap();
 
 export function committedSliceScopeRefusalCorrection(value) {
-  return SCOPE_REFUSAL_CORRECTIONS.get(value) ?? null;
+  return SCOPE_REFUSAL_CORRECTIONS.get(value) ??
+    explicitBaseMergeTreeCapabilityCorrection(value) ?? null;
 }
 
 function canonicalize(value) {
@@ -146,20 +157,46 @@ function parseNulList(raw) {
 }
 
 function resolveRemainingDelta({ runGit, mainRepo, diffBaseSha, wkSha, reviewedSha }) {
+  const args = explicitBaseMergeTreeArgs({
+    baseSha: diffBaseSha,
+    currentSha: wkSha,
+    incomingSha: reviewedSha
+  });
   const merged = runGit({
     repo: mainRepo,
-    args: [
-      "merge-tree", "--write-tree", "--no-messages",
-      "--merge-base", diffBaseSha,
-      wkSha,
-      reviewedSha
-    ]
+    args
   });
-  if (merged?.ok !== true) {
-    fail("committed_slice_delta_not_applicable", {
-      status: merged?.status ?? null,
-      stderr: merged?.stderr ?? merged?.error ?? null
+  const interpreted = classifyExplicitBaseMergeTreeResult({
+    operation: "resolve_committed_slice_remaining_delta",
+    repo: mainRepo,
+    args,
+    baseSha: diffBaseSha,
+    currentSha: wkSha,
+    incomingSha: reviewedSha,
+    result: merged
+  });
+  if (interpreted.kind !== "success") {
+    const reason = interpreted.kind === "content_conflict"
+      ? "committed_slice_delta_not_applicable"
+      : interpreted.kind === "required_capability_unavailable"
+        ? "required_git_capability_unavailable"
+        : "explicit_base_merge_tree_execution_failed";
+    const code = interpreted.kind === "required_capability_unavailable"
+      ? COMMITTED_SLICE_REVIEW_ADMISSION_CODES.GIT_CAPABILITY_UNAVAILABLE
+      : interpreted.kind === "execution_failure"
+        ? COMMITTED_SLICE_REVIEW_ADMISSION_CODES.MERGE_TREE_EXECUTION_FAILED
+        : COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED;
+    const refusal = new CommittedSliceReviewAdmissionError(reason, {
+      code,
+      detail: { reason, merge_tree: interpreted.diagnostic }
     });
+    if (interpreted.kind === "required_capability_unavailable") {
+      registerExplicitBaseMergeTreeCapabilityCorrection(refusal, {
+        repo: mainRepo,
+        diagnostic: interpreted.diagnostic
+      });
+    }
+    throw refusal;
   }
   const appliedTree = oid(
     String(merged.stdout ?? "").split(/\r?\n/u)[0].trim(),
@@ -339,6 +376,28 @@ export function resolveCommittedSliceScopeDecisionInputs({
   }
   const [, recordId, sliceId] = match;
   return deriveScopeDecisionInputs({ runGit, mainRepo, subject, reviewUnit, recordId, sliceId });
+}
+
+export function resolveCommittedSliceScopeOffenders({
+  mainRepo,
+  writeScope,
+  diffBaseSha,
+  reviewedSha,
+  runGit = defaultRunGit
+} = {}) {
+  if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) || !Array.isArray(writeScope)) {
+    fail("canonical_review_state_unavailable");
+  }
+  const scope = resolveScopeMembership({
+    runGit, mainRepo, writeScope, diffBaseSha: oid(diffBaseSha, "diff_base_sha")
+  });
+  const changedRaw = runGit({
+    repo: mainRepo,
+    args: ["diff", "--name-only", "-z", diffBaseSha, oid(reviewedSha, "reviewed_sha"), "--"]
+  });
+  if (changedRaw?.ok !== true) fail("committed_slice_diff_unresolvable");
+  return Object.freeze([...new Set(parseNulList(changedRaw.stdout).filter((entry) =>
+    scope.matcher.matches(entry) !== true))].sort());
 }
 
 export function resolveCommittedSliceReviewAdmission({

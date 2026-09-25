@@ -144,3 +144,24 @@ test("repeated objects, escaped keys, and failing getters are explicit", () => {
     ({ path, step, message: error.message })),
   [{ path: '$["broken"]', step: "get", message: "getter refused" }]);
 });
+
+test("an object published beside the evidence is encoded once and named, not repeated", () => {
+  const detail = { stderr: "x".repeat(4096), argv: ["merge-tree"] };
+  const error = Object.assign(new Error("carrier"), {
+    detail,
+    cause: Object.assign(new Error("inner"), { detail })
+  });
+  const evidence = captureDiagnosticEvidence(error, { publishedFields: { detail } });
+  assert.deepEqual(evidence.capture_failures, []);
+  assert.deepEqual(evidence.value.properties.detail, { $type: "published_field", field: "detail" });
+  assert.deepEqual(evidence.value.cause.properties.detail, { $ref: '$["detail"]' });
+  assert.doesNotMatch(JSON.stringify(evidence), /xxxx/u, "the published object is not re-encoded");
+
+  const unpublished = captureDiagnosticEvidence(error);
+  assert.deepEqual(unpublished.value.properties.detail, roundTrip(detail));
+
+  assert.deepEqual(
+    captureDiagnosticEvidence(error, { publishedFields: { detail: "x" } }).value.properties.detail,
+    roundTrip(detail)
+  );
+});

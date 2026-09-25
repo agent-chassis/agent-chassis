@@ -11,6 +11,7 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/work-record-entry-material.mjs";
 
 import { resolveLauncherConfiguredWorkspaceAlias } from "./codex-role-mcp-env.mjs";
+import { resolvedMembershipCoverage } from "./backend-worker-scope-tree.mjs";
 
 export const WORKER_ASSIGNMENT_CAPTURE_SCHEMA_VERSION = "worker-assignment-capture.v1";
 
@@ -54,20 +55,38 @@ export function createCapturedRecordLoader({
   };
 }
 
+function frozenMaterialSourceAuthorization(scopeAuthority) {
+  const resolved = scopeAuthority?.resolved_scope;
+  const readable = resolved?.readable;
+  const writable = resolved?.writable;
+  if (!Array.isArray(readable?.files) || !Array.isArray(readable?.directories) ||
+      !Array.isArray(writable?.files) || !Array.isArray(writable?.directories) ||
+      !Array.isArray(scopeAuthority?.scope_exclusions)) {
+    throw new Error("assignment material capture requires the frozen resolved scope authority");
+  }
+  return resolvedMembershipCoverage({
+    files: [...readable.files, ...writable.files],
+    directories: [...readable.directories, ...writable.directories]
+  }, { exclusions: scopeAuthority.scope_exclusions });
+}
+
 export async function captureWorkerAssignmentMaterial({
   record,
   selectedUnitContract = null,
+  scopeAuthority,
   repository,
   dir,
   loadWorkRecordById = defaultLoadWorkRecordById
 } = {}) {
   const selected = selectedUnitContract ?? record;
+  const authorizeSource = frozenMaterialSourceAuthorization(scopeAuthority);
   const material = await resolveWorkRecordEntryMaterial({
     record,
     selected,
     repository,
     dir,
-    loadWorkRecordById: createCapturedRecordLoader({ record, loadWorkRecordById })
+    loadWorkRecordById: createCapturedRecordLoader({ record, loadWorkRecordById }),
+    authorizeSource
   });
   if (!material.ok) return Object.freeze({ ok: false, diagnostic: material.diagnostic });
   return Object.freeze({

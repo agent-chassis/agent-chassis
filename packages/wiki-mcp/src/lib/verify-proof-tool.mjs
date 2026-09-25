@@ -17,6 +17,7 @@ import { mintVerifyProofInvocationId, recordVerifyProofRunResult, resolveVerifyP
   from "./verify-proof-run-cache.mjs";
 import { executeVerifyProofForContext, aggregateResult, VERIFY_PROOF_AGGREGATE_SCHEMA_VERSION }
   from "./verify-proof-execution.mjs";
+import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 export { executeVerifyProofForContext, projectDefinitionRepairQuestion } from "./verify-proof-execution.mjs";
 
 async function executeProductionVerifyProof({ args, env, repoRoot, repository, deps, signal, run }) {
@@ -82,7 +83,8 @@ async function executeProductionVerifyProof({ args, env, repoRoot, repository, d
     runtime: null,
     proofResults: [],
     reasonCode: result.reason_code,
-    diagnostics: []
+    diagnostics: [],
+    requestedEnvironment: args.environment ?? null
   }), ...(result.recovery === undefined ? {} : { recovery: result.recovery }) });
 }
 
@@ -115,12 +117,23 @@ function deliveryFailure(result, error) {
   } });
 }
 
-const VERIFY_PROOF_DESCRIPTION = "Execute existing saved proofs selected by one subject per call, using installed providers, with timeout and cancellation support. Results present the selected test observation separately from mutation evidence: mutation supplies additional falsification evidence for the same proof, and unavailable mutation does not erase an observed pass or failure. Evaluator outcomes and missing-credit diagnostics remain unchanged. A WK ID (WK-1234) or slice address (WK-1234#SLICE-001) selects that unit's saved proof population; a saved test_proof_id or obligation_id narrows verification to that subject. When that ID is saved in more than one source, the bare call refuses and lists every source choice; add source {unit, focus?} to select exactly one, e.g. {\"subject\":\"test-proof-00170a30e83e042b20d409d42a2bb49cd3da7cda\",\"source\":{\"unit\":\"WK-1234#SLICE-001\"}}. Return advisory results with lossless evidence retrieval.";
+const VERIFY_PROOF_DESCRIPTION = "Execute existing saved proofs selected by one subject per call, using installed providers, with timeout and cancellation support. Each requested proof is proven, unproven or not_executable for the tested source only, never for the whole unit. Rows name the selected test and its observed outcome (passed, failed, skipped or not_observed) separately from mutation evidence: a detected mutation adds falsification evidence, a surviving mutation is counterevidence, and unavailable mutation is a capability limitation that neither earns nor withholds credit, so a passing selected test with unavailable mutation and every other required check holding is proven with that limitation. Incomplete or unevaluable required evidence is not_executable with its reason codes. Rows carry the actual evaluator diagnostic codes and a recovery only where a correction is known. A canonical work-record ID or slice address selects that unit's saved proof population; a saved test_proof_id or obligation_id narrows verification to that subject. When that ID is saved in more than one source, the bare call refuses and lists every source choice; add source {unit, focus?}, where unit is the canonical work-record ID or slice address holding the saved proof, to select exactly one. Return advisory results with lossless evidence retrieval.";
 const VERIFY_PROOF_SOURCE_DESCRIPTION =
   "Optional for a saved test_proof_id or obligation_id only; refused with a WK or slice subject. " +
   "Selects exactly one saved proof source: unit is the source's WK ID or slice address and focus is " +
   "its controlled-contract focus. Omitted focus selects the root source. The subject must exist in " +
   "that source; no other source is searched. Selection grants no execution authority.";
+const VERIFY_PROOF_ENVIRONMENT_DESCRIPTION =
+  "Optional. Names one prepared environment that local test-runtime setup published, as " +
+  "<ecosystem>@<repository-relative installation root> (for example \"npm@.\", \"go_modules@services/api\" " +
+  "or \"python@tools/lint\"); setup's readiness report lists every environment with its workspace members " +
+  "and proved runners. Omitted, each selected test routes independently: its saved runner binding names the " +
+  "dependency ecosystem, the target suffix is recorded as a language hint, and the environment whose " +
+  "installation root owns the target runs it, so one call may use several environments and languages. " +
+  "Named, it must serve every selected proof (same ecosystem, runner proved there, target inside it) or the " +
+  "call refuses before anything executes and lists each incompatible target and the valid choices; nothing is " +
+  "filtered out. It is an identity only, never a command, path, variable, root or mount, and grants no " +
+  "visibility, source or preparation.";
 const VERIFY_PROOF_SOURCE_UNIT_DESCRIPTION =
   "The saved proof source's canonical WK ID (\"WK-1234\") or slice address (\"WK-1234#SLICE-001\").";
 
@@ -153,6 +166,8 @@ export function registerVerifyProofTool({
       }).strict().optional().describe(VERIFY_PROOF_SOURCE_DESCRIPTION),
       repo: z.string().optional(),
       timeout: verifyProofTimeoutInputSchema(z),
+      environment: z.string().min(3).max(512).regex(TEST_RUNTIME_ENVIRONMENT_ID_RE).optional()
+        .describe(VERIFY_PROOF_ENVIRONMENT_DESCRIPTION),
       git_sha: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u).optional()
     }).strict()
   }, async (args, extra = undefined) => {
@@ -167,6 +182,7 @@ export function registerVerifyProofTool({
     const run = { attempt: null, invocationId: mintVerifyProofInvocationId() };
 
     const request = { subject: args.subject, timeout: args.timeout ?? null,
+      ...(args.environment === undefined ? {} : { environment: args.environment }),
       ...(args.source === undefined ? {} : { source: {
         unit: args.source.unit, ...(args.source.focus === undefined ? {} : { focus: args.source.focus })
       } }) };

@@ -5,11 +5,11 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 
+import { computeWorkRecordSourceDigest } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 import {
-  computeWorkRecordSourceDigest,
-  renderWorkRecordAgentBriefById,
-  validateWorkRecordDispatch
-} from "../../packages/wiki-core/src/index.mjs";
+  renderWorkRecordAgentBriefById
+} from "../../packages/wiki-core/src/operations/work-record-render.mjs";
+import { validateWorkRecordDispatch } from "../../packages/wiki-core/src/operations/validate-dispatch.mjs";
 import {
   buildControlledAcceptanceProofPosture
 } from "../../packages/wiki-core/src/lib/work-record-proof-posture.mjs";

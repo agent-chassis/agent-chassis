@@ -1,7 +1,8 @@
 
 
 import {
-  reconcileIntegratedSliceRecord,
+  INTEGRATED_RECORD_RECONCILIATION_STATES,
+  observeIntegratedSliceDelivery,
   SLICE_INTEGRATION_DIAGNOSTIC_CODES,
   SliceIntegrationError
 } from "../../../agent-launch-cli/src/lib/slice-integration.mjs";
@@ -12,8 +13,13 @@ import {
   deriveManagedRunIdentityTupleFromBindingPair
 } from "../../../agent-launch-cli/src/lib/managed-run-process-identity.mjs";
 import {
+  COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS,
   resolveCommittedSliceIntegrationRetryFacts
 } from "../../../agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
+import {
+  EXPLICIT_BASE_MERGE_TREE_CAPABILITY,
+  EXPLICIT_BASE_MERGE_TREE_CORRECTION_CONDITION
+} from "../../../agent-launch-cli/src/lib/explicit-base-merge-tree.mjs";
 import {
   attributeIntegrationRefusal,
   attributeLifecycleRefusal,
@@ -40,8 +46,90 @@ export const LIFECYCLE_FAILURE_HISTORY_LIMIT = 5;
 export const LIFECYCLE_RESOLUTION_NEXT_ACTIONS = Object.freeze({
   RESOLVE_FAILURE: "resolve_lifecycle_failure_then_retry_run_status",
   AWAIT_SLICE_COMMIT: "retry_run_status_after_exact_slice_commit",
-  RETRY: "retry_wait_or_check_status"
+  RETRY: "retry_wait_or_check_status",
+  REPAIR_RETRY_ASSESSMENT: "repair_retry_assessment_then_check_status",
+  ESCALATE_MISSING_RETRY_CAPABILITY: "escalate_missing_retry_capability",
+  REQUIRES_NEW_GENERATION: "delivery_requires_new_generation_work"
 });
+
+export const LIFECYCLE_RETRY_DECISIONS = Object.freeze({
+
+  UNCHANGED: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.UNCHANGED,
+  CHANGED: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.CHANGED,
+  COMPLETED: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.COMPLETED,
+  PRODUCER_UNDECIDED: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.UNKNOWN,
+  OUTSIDE_ALLOCATION: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.OUTSIDE_ALLOCATION,
+  CURRENT_REFUSAL: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.CURRENT_REFUSAL,
+  CORRECTION_UNESTABLISHED: COMMITTED_SLICE_INTEGRATION_RETRY_DECISIONS.CORRECTION_UNESTABLISHED,
+
+  PENDING: "reassessed_on_a_later_explicit_request",
+  NO_CORRECTION_CONDITION: "correction_condition_unavailable",
+  COMPLETION_OBSERVATION_FAILED: "completion_observation_failed",
+  ASSESSMENT_UNAVAILABLE: "correction_assessment_unavailable",
+  ASSESSMENT_FAILED: "correction_assessment_failed",
+  ASSESSMENT_MALFORMED: "correction_assessment_malformed",
+  FAILURE_HISTORY_UNAVAILABLE: "failure_history_unavailable",
+
+  POST_INTEGRATION_REENTRY: "post_integration_step_reentered_on_a_later_explicit_request"
+});
+
+const RETRY_DECISION_NEXT_ACTIONS = new Map([
+  [LIFECYCLE_RETRY_DECISIONS.PENDING, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE],
+  [LIFECYCLE_RETRY_DECISIONS.UNCHANGED, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE],
+  [LIFECYCLE_RETRY_DECISIONS.OUTSIDE_ALLOCATION,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REQUIRES_NEW_GENERATION],
+  [LIFECYCLE_RETRY_DECISIONS.NO_CORRECTION_CONDITION,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.ESCALATE_MISSING_RETRY_CAPABILITY],
+  [LIFECYCLE_RETRY_DECISIONS.CURRENT_REFUSAL,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.ESCALATE_MISSING_RETRY_CAPABILITY],
+  [LIFECYCLE_RETRY_DECISIONS.CORRECTION_UNESTABLISHED,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.ESCALATE_MISSING_RETRY_CAPABILITY],
+  [LIFECYCLE_RETRY_DECISIONS.PRODUCER_UNDECIDED,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RETRY_ASSESSMENT],
+  [LIFECYCLE_RETRY_DECISIONS.COMPLETION_OBSERVATION_FAILED,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RETRY_ASSESSMENT],
+  [LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_UNAVAILABLE,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RETRY_ASSESSMENT],
+  [LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_FAILED,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RETRY_ASSESSMENT],
+  [LIFECYCLE_RETRY_DECISIONS.ASSESSMENT_MALFORMED,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RETRY_ASSESSMENT],
+  [LIFECYCLE_RETRY_DECISIONS.FAILURE_HISTORY_UNAVAILABLE,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.REPAIR_RETRY_ASSESSMENT]
+]);
+
+export function retryAssessmentNextAction(assessment) {
+  return RETRY_DECISION_NEXT_ACTIONS.get(assessment?.decision) ?? null;
+}
+
+export const LIFECYCLE_REQUIRED_CORRECTION_SCHEMA_VERSION =
+  "workspace-agent-lifecycle-required-correction.v1";
+const PREREQUISITE_STANDS = new Set([
+  LIFECYCLE_RETRY_DECISIONS.PENDING,
+  LIFECYCLE_RETRY_DECISIONS.UNCHANGED
+]);
+const REQUIRED_CORRECTIONS = new Map([
+  [EXPLICIT_BASE_MERGE_TREE_CORRECTION_CONDITION, Object.freeze({
+    schema_version: LIFECYCLE_REQUIRED_CORRECTION_SCHEMA_VERSION,
+    grants_authority: false,
+    kind: "serving_runtime_prerequisite",
+    prerequisite: EXPLICIT_BASE_MERGE_TREE_CAPABILITY,
+    requirement: "the Git executable selected by the serving launcher runtime must " +
+      "support `git merge-tree --write-tree --merge-base`",
+    correction: "correct that runtime's Git installation or executable selection; " +
+      "there is no fallback merge algorithm",
+    then: "call workspace_agent_run_status again for the same retained run " +
+      "(same subject and attempt_id); it rechecks the capability, and only a changed " +
+      "capability permits another integration attempt of the same delivery",
+    retry_alone_repairs: false
+  })]
+]);
+
+export function retryAssessmentRequiredCorrection(assessment) {
+  if (assessment?.failure_class !== LIFECYCLE_RETRY_FACT_KINDS.DETERMINISTIC ||
+      !PREREQUISITE_STANDS.has(assessment?.decision)) return null;
+  return REQUIRED_CORRECTIONS.get(assessment.correction_condition) ?? null;
+}
 
 const FINALIZED_LIFECYCLE_RESOLUTION = Object.freeze({
   schema_version: RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION,
@@ -51,7 +139,9 @@ const FINALIZED_LIFECYCLE_RESOLUTION = Object.freeze({
 
 export const LIFECYCLE_RETRY_FACT_KINDS = Object.freeze({
   DETERMINISTIC: "deterministic",
-  UNKNOWN: "unknown"
+  NO_CORRECTION_CONDITION: "no_producer_correction_condition",
+  RETAINED_BEFORE_RESTART: "retained_before_restart",
+  POST_INTEGRATION: "post_integration"
 });
 const LIFECYCLE_RETRY_FACTS = new WeakMap();
 
@@ -190,7 +280,8 @@ export function createLifecycleCheckpoint() {
   };
 
   for (const field of ["pending_failure_publications", "retained_failure", "retry_facts",
-    "retry_assessment", "retry_decision"]) {
+    "retry_assessment", "retry_decision", "retry_start_in_flight", "durable_history_read",
+    "retained_failure_origin", "completion_observation"]) {
     Object.defineProperty(checkpoint, field, {
       value: field === "pending_failure_publications" ? [] : null,
       enumerable: false,
@@ -204,28 +295,48 @@ export function recordLifecycleFailure(checkpoint, failure) {
   if (!checkpoint || !Array.isArray(checkpoint.failure_history)) return failure;
   checkpoint.failure_attempts =
     (Number.isInteger(checkpoint.failure_attempts) ? checkpoint.failure_attempts : 0) + 1;
-
-  const failureCause = closedFailureCause(failure?.failure_cause);
-  const evidenceSummary = summarizeLifecycleFailureEvidence(failure?.evidence);
-  checkpoint.failure_history.push(Object.freeze({
-    phase: typeof failure?.phase === "string" ? failure.phase : null,
-    error_code: typeof failure?.error_code === "string" ? failure.error_code : null,
-    error_message: typeof failure?.error_message === "string" ? failure.error_message : null,
-    error_message_truncated: failure?.error_message_truncated === true,
-    ...(failureCause === null ? {} : { failure_cause: failureCause }),
-    ...(evidenceSummary === null ? {} : { evidence_summary: evidenceSummary })
-  }));
+  checkpoint.failure_history.push(retainedFailureEntry(failure));
   while (checkpoint.failure_history.length > LIFECYCLE_FAILURE_HISTORY_LIMIT) {
     checkpoint.failure_history.shift();
   }
   return failure;
 }
 
-function resolveLifecycleNextAction(phase, latestFailure, lifecycle = null) {
+function retainedFailureEntry(failure) {
+  const failureCause = closedFailureCause(failure?.failure_cause);
+  const evidenceSummary = summarizeLifecycleFailureEvidence(failure?.evidence);
+  return Object.freeze({
+    phase: typeof failure?.phase === "string" ? failure.phase : null,
+    error_code: typeof failure?.error_code === "string" ? failure.error_code : null,
+    error_message: typeof failure?.error_message === "string" ? failure.error_message : null,
+    error_message_truncated: failure?.error_message_truncated === true,
+    ...(failureCause === null ? {} : { failure_cause: failureCause }),
+    ...(evidenceSummary === null ? {} : { evidence_summary: evidenceSummary })
+  });
+}
+
+export function adoptDurableLifecycleFailures(checkpoint, failures) {
+  const recorded = Array.isArray(failures) ? failures : [];
+  if (!checkpoint || !Array.isArray(checkpoint.failure_history) || recorded.length === 0) {
+    return false;
+  }
+  checkpoint.failure_attempts = recorded.length;
+  checkpoint.failure_history.splice(0, checkpoint.failure_history.length,
+    ...recorded.slice(-LIFECYCLE_FAILURE_HISTORY_LIMIT).map((item) => retainedFailureEntry(item.failure)));
+  checkpoint.retained_failure = recorded.at(-1).failure;
+  checkpoint.retained_failure_origin = "durable_journal";
+  checkpoint.failure_history_durability = Object.freeze({ state: "durable" });
+  return true;
+}
+
+function resolveLifecycleNextAction(phase, latestFailure, lifecycle = null, retryAssessment = null) {
   if (lifecycle?.publication_retry_required === true) {
     return LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY;
   }
-  if (latestFailure !== null) return LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE;
+  const assessed = retryAssessmentNextAction(retryAssessment);
+  if (latestFailure !== null) return assessed ?? LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE;
+
+  if (retryAssessment?.attempt_withheld === true && assessed !== null) return assessed;
   if (phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION) {
     return LIFECYCLE_RESOLUTION_NEXT_ACTIONS.AWAIT_SLICE_COMMIT;
   }
@@ -244,6 +355,12 @@ export function projectLifecycleResolution({ lifecycle, checkpoint = null } = {}
     : 0;
   const latestFailure = history.length > 0 ? history[history.length - 1] : null;
   const phase = typeof lifecycle.phase === "string" ? lifecycle.phase : null;
+  const nextAction = resolveLifecycleNextAction(phase, latestFailure, lifecycle,
+    checkpoint?.retry_assessment ?? null);
+  const requiredCorrection = latestFailure !== null &&
+    nextAction === LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE
+    ? retryAssessmentRequiredCorrection(checkpoint?.retry_assessment)
+    : null;
   return Object.freeze({
     schema_version: RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION,
     resolved: false,
@@ -259,7 +376,9 @@ export function projectLifecycleResolution({ lifecycle, checkpoint = null } = {}
     latest_failure: latestFailure,
 
     ...(checkpoint?.retry_assessment ? { retry_assessment: checkpoint.retry_assessment } : {}),
-    next_action: resolveLifecycleNextAction(phase, latestFailure, lifecycle)
+
+    ...(requiredCorrection === null ? {} : { required_correction: requiredCorrection }),
+    next_action: nextAction
   });
 }
 
@@ -268,7 +387,8 @@ export function projectInFlightLifecycleResolution(checkpoint = null) {
   if (checkpoint?.phase === POST_WORKER_LIFECYCLE_PHASES.FINALIZED) {
     return FINALIZED_LIFECYCLE_RESOLUTION;
   }
-  const projected = projectLifecycleResolution({
+
+  const { required_correction: _superseded, ...projected } = projectLifecycleResolution({
     lifecycle: { phase: checkpoint?.phase ?? POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION },
     checkpoint
   });
@@ -285,13 +405,19 @@ export function checkpointFromStatus(status) {
 }
 
 export async function recoverIntegratedSliceResult({ mainRepo, binding, sliceRef, wkRef, runGit, deps = {} }) {
-  return await (deps.reconcileIntegratedSliceRecord ?? reconcileIntegratedSliceRecord)({
+  return await (deps.reconcileIntegratedSliceRecord ?? observeIntegratedSliceDelivery)({
     mainRepo,
     unitAddress: binding.unit_address,
     sliceRef,
     wkRef,
     deps: { runGit }
   });
+}
+
+export function recordReconciliationOutstanding(integration) {
+  const state = integration?.record_reconciliation?.state;
+  return state === INTEGRATED_RECORD_RECONCILIATION_STATES.PENDING ||
+    state === INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED;
 }
 
 export async function delegateSliceIntegrationToHost({ status, bindings, adapter }) {

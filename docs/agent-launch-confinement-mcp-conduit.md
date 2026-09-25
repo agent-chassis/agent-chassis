@@ -501,8 +501,13 @@ run identity continue to authenticate against the canonical root.
 
 Frozen assignments may also select immutable work-record entry material. The
 launcher resolves those refs only from the selected canonical source set,
-checks the recipient's declared read/repository/write visibility, and captures
-the complete referenced WK closure through the same private snapshot owner.
+checks the recipient's source visibility, and captures the complete
+referenced WK closure through the same private snapshot owner. For a managed
+worker, visibility is coverage by the frozen resolved read and write membership
+at the scope-existence base, minus the launcher exclusions, through the same
+containment predicate the scope tree owns; a glob admits only records present at
+that base, and a reference never grants source access by itself. Reviewer
+findings capture keeps its own declared read/repository/write check.
 Every reference must belong to the trusted repository identity bound to the
 canonical repository. A reference or `record.repo` never supplies that identity.
 
@@ -830,16 +835,20 @@ that owns the published test-runtime readiness. No caller supplies an
 executable, argv, environment, cwd, mount or root.
 
 The launcher binds these read-only at their recorded paths: the recorded
-toolchain roots, the prepared dependency trees, its observer assets and its own
-attempt driver. Proof execution alone binds the host's actual `/tmp` at `/tmp`
+toolchain roots, the detected dependency installations, its observer assets and its own
+attempt driver with the driver's working-copy copier. Proof execution alone binds the host's actual `/tmp` at `/tmp`
 and sets `TMPDIR=/tmp`; the shared launcher baseline and ordinary validation
 retain their private `/tmp` mount. Each native proof invocation mints a unique
 `/tmp/agent-chassis-proof-*` root for `HOME`, caches, instrumentation and
 its working copy, and removes that owned root after completion, failure or
 cancellation without touching other `/tmp` entries. The driver receives a closed
-plan on stdin. It creates the attempt's working copy of the prepared project,
-omitting only the root-relative entries the plan names. It links the
-prepared dependency population into the copy and writes the launcher's
+plan on stdin. It creates the attempt's working copy of the project
+from exactly the project-relative entries the plan lists, which the launcher
+selects through Git before launch (see
+[Local test runtime setup](local-test-runtime-setup.md#verification-and-readiness)):
+files keep their current bytes and modes, links are recreated unfollowed, and
+nothing outside the list is read. It links the
+detected dependency installation into the copy and writes the launcher's
 instrumented sources, observer configuration and observation channel.
 It then starts the runner and relays one framed message on launcher fd 3: its
 status line, then the channel bytes with their length and digest. That status
@@ -849,6 +858,141 @@ state, including the readiness record itself, stays masked inside the attempt.
 Setup's in-sandbox verification probes run through the same confined-invocation
 machinery before readiness is published, but retain the ordinary private-temp
 posture because they are setup validation rather than `workspace_verify_proof`.
+
+## Prepared test runtimes in the coding worker
+
+A managed implementation worker's ordinary commands use the toolchains and
+dependencies the operator installed and local test-runtime detection
+published, inside the same sparse confinement. Codex and Claude reach one family-neutral composer
+(`test-execution/worker-runtime.mjs`) with only launcher-settled facts: the
+canonical repository, the worker checkout and the frozen worker scope
+authority. It loads the published readiness record, resolves each resolved
+scope member to its containing prepared environment (per ecosystem, longest
+containing installation root), and re-proves each such environment through the
+same runtime-input owner the verifier uses. An environment with no proved
+runner is projected like any other. No caller supplies a root, mount, path,
+environment or readiness record, and no ancestor search is made. A repository
+that was never prepared gets no projection; the launch is unchanged.
+
+A current preparation that is `preparing` or `failed` is not a runtime the
+worker can use and is never read as "nothing prepared". When the worker's
+scope reaches any environment of that preparation, the composer throws
+`WorkerTestRuntimePreparationError` and the launch refuses before any worker
+starts with `agent_launch.worker_test_runtime.preparation_unusable.v1`. Its
+detail keeps the readiness code, the preparation identity, the required
+environments, the deciding failure, component and check codes, the producer's
+complete original result and the `readinessRecovery` wording, without bounding
+or path redaction. Both families refuse through the shared
+`launch-failure-cause.mjs` transport: Codex while its worker plan is built
+(`plan_build_threw`) and Claude in its spawn catch, each after its usual
+cleanup, with conduit cleanup evidence secondary. A worker whose scope reaches
+none of that preparation's environments composes nothing and launches.
+
+The composer freezes one runtime identity (repository, checkout, selected unit,
+source digest, readiness digest, per-environment public ID, workspace members,
+proved runners, dependency and toolchain identities) and a launcher-minted
+command table. The table is published
+content-addressed and read-only under the canonical repository's
+`.agent-launch/test-runtimes/worker-runtime/`. The planner then binds, read-only:
+
+- each selected toolchain's recorded installation at its own path, and each
+  non-npm detected dependency installation (a virtual environment or the
+  interpreter's site packages outside the system roots, the `DENO_DIR`, the
+  `GOMODCACHE`, a vendored Cargo directory, or only the `registry`/`git` stores
+  of `CARGO_HOME` plus a `CARGO_HOME` configuration file that declares
+  vendoring) at its own path, outside the source tree. A store's parent (such
+  as the whole `CARGO_HOME` with its credentials) is never bound. A toolchain source that equals or contains `HOME`, the
+  canonical repository or the worker checkout, or lies inside the checkout, is
+  never bound: that project reports `test_runtime_toolchain_bind_too_broad`
+  with the source and the protected root it contains;
+- the installed npm `node_modules` at `<checkout>/<project>/node_modules`. This is
+  the only in-repository read-only mount a sparse worker receives, and only this
+  launcher-composed projection can supply it. Caller `readOnlyRoots` inside the
+  repository still refuse with `sandbox_write_denial`. Each workspace member
+  link in it is relative (`node_modules/<name> -> ../<member>`), so inside the
+  namespace it resolves to that member's source in the worker's own checkout,
+  never to the canonical repository or the installation's own location. Every linked member
+  directory must already be visible in the worker's frozen read or write scope;
+  otherwise the environment reports
+  `test_runtime_workspace_member_outside_scope` with the member directories for
+  the coordinator to add, and the scope is never widened;
+- the table at `/agent-launch-test-runtime` and the package command entry
+  (`test-runtime-entry/entry`) at `/agent-launch-test-runtime-entry`.
+
+A private tmpfs at `/agent-launch-test-runtime-scratch` holds per-project
+mutable build, cache and temporary state. The model's `HOME`, configuration,
+authentication and conduit environment are unchanged. The child `PATH` gains
+`/agent-launch-test-runtime/bin` first. Each projected command name (`node`,
+`python3`, `go`, `gofmt`, `cargo`, `rustc`, `deno`) there is a link to the one
+entry.
+
+The entry reads only the frozen table. It selects the row by the command name
+and the canonical working directory, then `exec`s the recorded executable, so
+the caller's argv, streams, exit status, signals and cancellation are
+unchanged. Each ecosystem owner's closed `projectCommands` fact decides which
+commands need a project environment: `python3`, `go`, `cargo` and `deno` do,
+while `node`, `gofmt` and `rustc` are toolchain-only.
+
+A project command runs only from inside a prepared project, with that project's
+ecosystem environment:
+
+- Python runs the project's detected virtual environment (or the detected
+  interpreter when the project's requirements are installed there);
+- Go runs with the read-only module cache, `GOPROXY=off`, `GOFLAGS=-mod=readonly`
+  and `GOWORK=off`, with `GOCACHE` and `GOPATH` in scratch;
+- Cargo runs the caller's own arguments offline against the detected source
+  (the project's vendored directory, or the `CARGO_HOME` registry with
+  `CARGO_HOME` naming it), exactly as the verifier does, plus the recorded
+  `RUSTC` and `RUSTDOC`.
+
+Outside every prepared project, a project command exits 127 and names the
+prepared project directories it can run from. An argv path never selects
+another project's dependencies. A harness started through `#!/usr/bin/env <name>`
+keeps the interpreter its launcher search path resolved, so the projected
+commands never change the coding model, MCP host or connector executable.
+
+Apart from an unusable required preparation, a missing, invalid or stale
+runtime is not a dispatch gate. The affected rows
+report the exact condition when the runtime is used, with its subject, effects,
+uncertainty, actor and action: `readinessRecovery` (the operator repairs the
+named installation, then local test-runtime detection, whose producer is
+`agent-chassis setup --test-runtimes`, runs again), or the missing dependency input files or workspace member
+directories for the coordinator to add to scope. The same applies to an
+incomplete installation (every missing executable and its expected path), a
+stale input or population, or a prepared link into a repository that is not a
+declared workspace member (local package provenance). No host runtime is substituted, and no
+readiness or completion summary claims a command ran.
+
+The final pre-spawn check (`assertWorkerTestRuntimeMountsUnchanged`, reached
+from `spawnIsolated`) reloads the record and compares it with the projection's
+`identity.readiness_digest`. A preparation that changed after composition
+(preparing, failed or a newer ready record) refuses with the same code and
+`test_runtime_preparation_changed`. This is a launch-time check; it does not
+revoke a worker already running.
+
+Launch selection is frozen. Ordinary commands are evidence of execution with
+that frozen runtime. They do not establish that a dependency input edited later
+matches it. Explicit `workspace_verify_proof` checks its own currentness.
+
+Mountpoints follow the shared sparse-worker lifecycle:
+
+- A destination below only skeleton directories is created inside the
+  namespace, before the read-only remount.
+- A destination below a visible host directory needs an empty host leaf. Only
+  the missing leaf is created (never a parent), with the shared sparse-worker
+  leaf primitive, and it joins the attempt's precreation cleanup.
+- An occupied destination (file, symlink or populated directory) refuses with
+  `agent_launch.isolation.test_runtime_projection_refused.v1`. The refusal
+  reports `authority_limb: mechanical` and leaves the occupant unchanged. So do
+  a scope member at or below the destination, and a dependency source that is
+  also reachable through a writable or runtime root.
+- An existing empty leaf is used but never becomes launcher-owned.
+- Dependency binds follow every writable bind and precede the final secret,
+  private-family and decision masks, so an authorized writable ancestor keeps
+  its dependency child read-only.
+- Source and mountpoint identities are rechecked immediately before spawn.
+- After the child terminates, only still-empty, identity-matching leaves this
+  launch created are removed. Replaced or populated ones are preserved.
 
 ## Optional stdio-MCP transcript capture
 
@@ -1003,3 +1147,43 @@ and frozen bind plan as execution evidence. Replacement revalidates that retaine
 content-addressed root; it never rebuilds a selection from a changed canonical
 installation. Projection evidence grants no review, repository, lifecycle, snapshot,
 source, generation, or election authority, and no dependency path is writable.
+
+## Closed confined-worker probe composition
+
+The integration suite has one direct-code-only worker probe composition for
+testing the model-executable boundary. The production dispatcher still owns
+worktree provisioning, assignment construction and authentication, scope
+projection, bubblewrap planning and execution, MCP-conduit creation, process
+supervision, and managed-run identity binding. After that plan exists, the
+composition replaces only the final Codex executable with a fixed in-repository
+Node program and executes the resulting plan through the normal bubblewrap
+spawn path.
+
+The probe has fixed source and receipt paths and no MCP argument, environment
+variable, PATH lookup, CLI flag, callback, or executable parameter can select
+it or alter its program. From inside confinement it reads the delivered
+assignment, reads a token from the declared source path, authenticates to the
+projected MCP conduit, lists the available tools, attempts to read a fixed
+undeclared sentinel, and writes a bounded receipt through a declared writable
+file. Tests correlate that receipt with independently observed managed-run and
+source identities.
+
+This is test support, not a production launcher mode and not implementation
+completion evidence. It stops at worker start and assignment/source
+acknowledgement. Missing bubblewrap, namespace, conduit, or launcher
+prerequisites fail the test explicitly; there is no unconfined or silent-skip
+fallback.
+
+A paired fixed server entrypoint combines this same confined-worker probe with a
+separate branded proof-execution-unavailable composition. The latter replaces
+only the proof executor and proof provider dependencies with fixed fail-loud
+unavailable implementations; it does not replace implementation dispatch,
+provisioning, assignment authentication, bubblewrap, the MCP conduit, process
+supervision, or identity binding. No request, environment value, PATH override,
+CLI flag, or arbitrary callback selects either composition.
+
+The owner-level composition test invokes both unavailable dependencies and
+rejects an unbranded lookalike. The connected paired witness independently
+observes that every server generation ran the fixed selected entrypoint and that
+both the default and proof-disabled lanes reached equivalent confined assignment
+and source acknowledgement with no proof execution or verification credit.

@@ -73,7 +73,7 @@ async function composeRegisteredStatus() {
         attempt_id: run.run_id,
         ...args
       });
-      return JSON.parse(response.content[0].text);
+      return response.structuredContent;
     }
   };
 }

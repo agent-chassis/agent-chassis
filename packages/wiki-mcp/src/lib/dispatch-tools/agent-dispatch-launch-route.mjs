@@ -19,6 +19,7 @@ import {
 } from "./agent-dispatch-refusal-projection.mjs";
 import { projectBoundedExactPolicyPayloadIssueReadiness } from
   "./agent-dispatch-cce-admission.mjs";
+import { decideBaseSelectionRecovery } from "./dispatch-base-selection-guidance.mjs";
 
 const DISPATCH_LAUNCH_BACKEND_REASON = "launch_backend_unavailable";
 const DISPATCH_LAUNCH_BACKEND_DETAIL = Object.freeze({
@@ -107,7 +108,9 @@ export async function executeAgentDispatchLaunch({
   dispatchSessionIdentity,
   buildTransitionRefusal,
   projectPublicReadiness,
-  jsonContent
+  jsonContent,
+  requestSchemaAuthority = null,
+  reassessmentAvailable = false
 }) {
   const admissionDetail = {
     role: args.role,
@@ -249,6 +252,19 @@ export async function executeAgentDispatchLaunch({
           : {})
       }));
     }
+
+    const baseSelection = await decideBaseSelectionRecovery({
+      classification: backendClassification,
+      launch,
+      role: args.role,
+      subject: args.subject,
+      workspace,
+      requestSchemaAuthority,
+      reassessmentAvailable
+    });
+    if (baseSelection?.kind === "reassess") {
+      return Object.freeze({ reassess: baseSelection.evidence });
+    }
     return jsonContent(buildTransitionRefusal({
       readinessSource: readiness,
       failure: backendClassification.transition_failure,
@@ -257,7 +273,7 @@ export async function executeAgentDispatchLaunch({
       detail: publicBackendDetail,
       nextAction: backendClassification.next_action,
       previousPlan: prospectiveTransitionPlan,
-      refusal: backendRefusalCarrier(backendClassification, {
+      refusal: baseSelection?.refusal ?? backendRefusalCarrier(backendClassification, {
         role: args.role,
         subject: args.subject
       })

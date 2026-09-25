@@ -40,6 +40,7 @@ import {
   OPTIONAL_STRING_TOP_LEVEL_FIELDS
 } from "./work-record-schema-constants.mjs";
 import { validateWorkRecordProofPostureInto } from "./work-record-proof-posture.mjs";
+import { isCanonicalWorkRecordBaseBranch } from "./work-record-base-branch.mjs";
 
 export const WORK_RECORD_EXPECTED_ENVELOPE_FIELD = "expected";
 export const WORK_RECORD_LEGACY_EXPECTED_ENVELOPE_FIELD = "expected_envelope";
@@ -574,6 +575,15 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
   }
   for (const field of OPTIONAL_STRING_TOP_LEVEL_FIELDS) {
     validateNullableStringField(diagnostics, record, field, { path: field });
+  }
+  if (hasOwn(record, "base_branch") &&
+      !isCanonicalWorkRecordBaseBranch(record.base_branch)) {
+    addDiagnostic(
+      diagnostics,
+      "invalid_record",
+      "base_branch must be a canonical local branch name, not a ref or revision expression",
+      { path: "base_branch" }
+    );
   }
 
   validateEnumField(diagnostics, record, "work_kind", WORK_RECORD_WORK_KIND_VALUES, {

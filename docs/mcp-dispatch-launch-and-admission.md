@@ -107,7 +107,13 @@ The path is:
    record, the selected unit contract, and the selected assignment material. The
    material is resolved beside the scope freeze from the same authenticated
    canonical inputs, through the shared entry-material resolver, against the
-   repository identity the dispatch route already resolved. Its existing
+   repository identity the dispatch route already resolved. Each referenced
+   source record must be covered by the frozen resolved read and write
+   membership at the scope-existence base, minus the launcher exclusions, as
+   answered by the scope-tree containment predicate; the declared arrays are not
+   reinterpreted, so a glob admits only records present at that base. The
+   assignment's own record needs no grant, and a reference remains an identity,
+   never a source permission. Its existing
    diagnostics — foreign repository, out-of-scope source, malformed reference,
    missing version, and the reference/byte limits — refuse the freeze, so an
    unresolvable assignment never reaches a family executor and no worker is
@@ -146,7 +152,10 @@ The delivered task opens with one shared, family-neutral instruction: implement
 the assigned task, read only the listed readable paths and modify only the
 listed writable paths, use the tools available in the session, run
 `workspace_verify_proof` and report its result before committing, and report a
-blocker when required work falls outside scope. The prompt names no family tool,
+blocker when required work falls outside scope. The package-owned managed-worker
+guide (`data/role-guides/managed-worker.md` in `@agent-chassis/agent-launch-core`)
+follows, inlined once; it defers execution and completion ordering to the
+runtime instructions. The prompt names no family tool,
 confinement mechanism, or alternative editing or validation route; the
 launcher-granted tools and confinement remain the authority. The existing
 commit-then-result completion protocol follows unchanged.
@@ -246,7 +255,7 @@ The registered identities for the launcher and monitoring families are:
 
 | Failure family | Public identity |
 | --- | --- |
-| The launcher could not start the child agent | `agent_launch.launch_failed_before_start.v1` |
+| Pre-worker provisioning or the launcher could not start the child agent | `agent_launch.launch_failed_before_start.v1` |
 | A registered handler raised an untyped exception | `mcp_response.handler_exception.v1` |
 | A launcher composition cannot authenticate one lifecycle protocol generation | `stdio_mcp_lifecycle_protocol_incompatible` |
 | The launcher could not observe a monitored subject | `agent_launch.monitor.subject_observation_unavailable.v1` |
@@ -257,6 +266,9 @@ The registered identities for the launcher and monitoring families are:
 | A corrective-status recovery awaits launcher retirement | `agent_launch.managed_corrective_status.launcher_retirement_incomplete.v1` |
 | An authenticated CCE decision refused slice integration | `agent_launch.slice_integration.cce_policy_refused.v1` |
 | A slice-integration refusal carried no recognized classification | `agent_launch.slice_integration.classification_unavailable.v1` |
+| WK forge handoff could not select its destination or establish or validate the selected remote identity (executor category `remote_invalid`; the reason, such as `handoff_destination_unselected`, `remote_unreadable` or `remote_rewrite_config_unreadable`, names the case) | `agent_launch.wk_forge_handoff.remote_invalid.v1` |
+| WK forge handoff refused because the WK, its candidate or its closeout was not eligible for publication (executor category `eligibility`; the reason, such as `local_WK_not_authenticated_against_candidate` or `handoff_destination_changed`, names the case and the detail keeps its diagnostic facts) | `agent_launch.wk_forge_handoff.eligibility_refused.v1` |
+| A local or Git WK handoff could not observe or deliver through its selected Git transport (executor category `git_failed`; the stage and reason, such as `destination_publication_failed`, name the case) | `agent_launch.wk_forge_handoff.git_transport_failed.v1` |
 | Prospective or allocated launcher-transition lifecycle failure | `launcher_transition.prospective_lifecycle_unavailable.v1`, `launcher_transition.lifecycle_allocation_failed.v1` |
 | A backend refusal identity is absent or undeclared | `launcher_transition.backend_refusal_identity_missing.v1`, `launcher_transition.backend_refusal_identity_unknown.v1` |
 
@@ -418,10 +430,76 @@ so no caller has to read a nested source diagnostic to learn what to do, while
 the substrate's own typed diagnostic is preserved underneath unchanged. The
 blocker is narrow by construction: it is selected from the trusted substrate
 diagnostic alone, never from caller input, and every other condition keeps its
-existing code. In particular an unresolvable canonical base is an operator
-reconciliation problem, not a review-recovery one, so it continues to report as
-`managed_worktree_provisioning_unavailable` along with genuinely absent
-provisioning and unrelated Git, configuration, allocation, or worktree failures.
+existing code. An unresolvable canonical WK base remains an operator
+reconciliation problem rather than a review-recovery condition.
+
+The fresh-WK selected-base path has a still narrower public diagnosis. The
+canonical record-level `base_branch` is the only selector. If it is absent on
+an unallocated WK, dispatch refuses before worker start and directs the
+coordinator to author it through the ordinary work-record editor. If it is
+present and the required-base resolver's typed operation reports that real Git
+failed to resolve `refs/heads/<base_branch>^{commit}`, and the trusted
+provisioner proves that exact local branch is absent, dispatch reports
+`agent_launch.launch_failed_before_start.v1` at the
+`pre_worker_worktree_provisioning` / `base_ref_resolution` stage. The result
+preserves the substrate's `agent_launch.worktree_substrate.git_failed.v1`, Git
+exit and stderr when Git ran, the required selected ref (or null for a missing
+selection), the actual repository path selected by the provisioner, the
+requested repository alias when present, and `work_record.base_branch`
+selection provenance. Authored readiness is unchanged: no worker, tests, or
+proof execution began.
+
+A missing selection publishes guidance, not a correction. The launcher
+declares a `guidance` recovery (the editor's record-level `base_branch` field
+lookup through `workspace_tools_describe`); the public route checks it against
+the serving registrar's schema and registered set, reads the canonical root
+once, and returns `recovery.state: "guidance"` (`responsible_actor:
+"operator"`, `blocker_unchanged: true`), `next_action: null`, and
+`refusal.carried.base_selection` with the repository alias, root WK and fresh
+`root_source_digest`. The operator chooses the branch; a caller whose session
+registers `workspace_work_record_edit` may perform the edit, otherwise
+`edit_actor` names an authorized operator session. Then the original dispatch
+is resubmitted and reassessed in full. A read failure, root or repository
+mismatch, malformed producer evidence, or an unregistered or schema-less
+describe route returns `no_supported_route` with
+`carried.base_selection_unavailable` naming what is missing and its owner.
+
+If the root was selected concurrently, the route never overwrites it. When the
+refusal proves a worker-role, pre-start, compensated, unallocated failure with
+null public handles, the complete dispatch runs once more with fresh readiness,
+plan and run/monitor/retry identities, and the response carries
+`base_selection_reassessment`. A second concurrent move returns
+`no_supported_route`; there is no further retry.
+
+A missing selected ref has no automatic recovery route. Before allocation, the
+operator must make the selected local branch resolve to the intended commit, or
+correct `base_branch`, then retry dispatch. Retry alone does not create, rename, or
+repair a ref. The launcher never falls back to `main`, `master`, current `HEAD`,
+or branch inventory and never creates an alias. A failed exact-branch probe,
+repository corruption, and unrelated Git,
+configuration, allocation, or worktree failures keep the existing
+`managed_worktree_provisioning_unavailable` path rather than being called a
+missing base ref.
+
+Optional `workspace_validate_dispatch` reports the same missing selection
+prospectively without deciding it. Its `worker_scope_preflight` is
+`not_evaluated` with `reason.code: scope_existence_base_selection_missing`, and
+`reason.message` names the root WK, the record-level `base_branch` field, the
+ordinary editor and its root field guidance, the fresh root-record CAS, and the
+launch refusal the missing selection produces. When no higher-priority refusal,
+recovery or canonical `next_calls` applies, the free/local and paid
+presentations both project that message as `next_action` in place of a dispatch
+recommendation; `dispatchable` and `decision_code` keep their structural
+values. The preflight writes nothing, is not a required call or a launch token,
+and the launcher remains the refusal owner.
+
+The first allocation resolves the selected branch once, captures its commit,
+and creates the WK worktree from that captured SHA rather than re-reading the
+moving branch. The identity binding and launcher-owned fixed-fork ref preserve
+the pair. Adoption and retry recover that authenticated pair from existing
+bindings; a later record value that disagrees refuses instead of rebasing.
+Every slice still starts from the authenticated current WK tip. Forge handoff
+targets the same captured per-WK base branch, not the repository default.
 
 This gate decides **Git topology only**. Whether a prior managed attempt may be
 replaced by a new worker is a process-identity question with a single authority —
@@ -429,8 +507,11 @@ see below.
 
 ### Declared unit dependencies are authenticated conjunctively
 
-A declared `depends_on` population is the normalized record-level plus selected-
-slice population resolved by wiki-core's canonical dependency-evidence owner.
+A declared `depends_on` population is selected by wiki-core's canonical
+dependency-evidence owner. A selected slice uses exactly its own explicit
+population; the parent record is not combined or inherited, and an explicit
+empty list means no dependencies. Unsliced work uses the record population.
+The orchestrator assigns every applicable prerequisite to the executable slice.
 For local targets, literal identity, lifecycle status, initiative, provenance,
 and `target_work_kind` come from server-read canonical WK JSON. Caller-supplied
 status, work kind, initiative, identity, provenance, marker, or reason remains
@@ -604,11 +685,15 @@ work record composes retained owners; it does not replace them:
 - work record owns corrective-history receipt authentication.
 - work record owns findings-route classification and authenticated confinement/MCP
   transport.
-- work record alone produces `forge-confirmed-landed-publication-identity.v1`.
+- The landed-publication owner alone produces `forge-confirmed-landed-publication-identity.v1`
+  and `git-landed-publication-identity.v1`.
 - CCE alone returns policy decisions and recovery.
 
 A completed cross-WK implementation dependency is admitted only with the exact
-frozen carrier returned by work record's forge observer. Status, closure prose,
+frozen carrier returned by the read-only landing observer: hosted forge-confirmed
+or local/Git base-history landing. That observer never publishes, merges,
+reconstructs or materializes a candidate, or reconciles the canonical record, and
+an observation that is not `landed` admits nothing. Status, closure prose,
 messages, stale WK refs, and reconstructed publication fields grant nothing.
 Manual ref repair and publication replay are not recovery actions.
 
@@ -706,25 +791,38 @@ beside the shared semantic subset. The subset keeps the readiness decision and
 its exact counts; `definition_readiness` is the first-response presentation of
 the same owner facts.
 
-It names how many proof DEFINITIONS are complete, which obligations remain
-unresolved (`unresolved_obligation_ids`, with their count), each authored gap's
-`gap_kind` and the author's reason, the affected obligations behind the
-terminal-gap total, and the one supported correction: the existing coverage
-query followed by `..._obligation_coverage_upsert`, answered with
-caller-authored data. Inline lists are capped and report what they omitted;
-counts stay exact.
+It names how many authored obligation definitions are complete, which obligations remain
+unresolved (`unresolved_obligations`, with their count), and for each one the
+authored inputs it lacks (`authored_input_diagnostic_codes`, the authored-input
+stage's own codes, which never include an execution prerequisite). It also names
+the affected obligations behind the terminal-gap total and the one supported
+correction: the existing coverage query followed by
+`..._obligation_coverage_upsert`, answered with caller-authored data. Inline
+lists are capped and report what they omitted; counts stay exact.
 
 The compact `workspace_validate_dispatch` response carries that projection on
 `controlled_acceptance_state`. A required contract's whole readiness rarely fits
 the compact complete-frame class, and the byte budget is unchanged, so when the
 controlled-acceptance member cannot be inlined the selected summary publishes
 the same owner facts in bounded form under `selected_detail.definition_readiness`:
-the complete and incomplete definition counts, the open obligations, each
-authored gap's `gap_kind` and -- while the frame allows -- the author's reason,
-the execution facts, and the correction. Each population reports its exact total
-with an explicit omitted count, and the summary offers the source-bound detail
-call that reads the owner's whole projection losslessly. Nothing in the summary
-is recomputed or reclassified.
+the complete and incomplete definition counts, the open obligations and their
+missing-input codes, the execution facts, and the correction. The open
+obligations report their exact total with an explicit omitted count. Their
+identities are listed before their codes, so the summary also reports
+`explanations_listed` and `content_complete` separately: every row named is not
+every explanation carried. Whenever an identity or explanation is omitted, the
+summary offers a recommended source-bound detail call that reads the owner's
+whole projection losslessly, even when an earlier member is the first omitted
+one. Nothing in the summary is recomputed or reclassified.
+
+The bounded correction states `selected_unit_source`: `absent` when the selected
+unit has no saved coverage source, `present` when a populated source is still
+incomplete. The two causes take the same correction; only the source's presence
+is carried, never the owner's observed digest. While the owner's executable
+`next_calls` are inline, the detail call for the first omitted member is offered
+with `recommended:false`: reading it would restate a correction the caller can
+already execute, so it stays optional lossless detail. Detail calls for reasons,
+owner calls or definition facts the summary could not list remain recommended.
 
 The correction's `expected_content_digest` comes from the response of the
 coverage query the correction itself names
@@ -747,6 +845,23 @@ Incomplete authored inputs report `controlled_acceptance_authored_inputs_incompl
 rather than the aggregate `obligation_coverage_resolution_required`, which
 describes a different cause.
 
+The shared semantic subset also carries the deciding semantic cause summary:
+exact cause and affected-obligation totals, bounded groups and identities, and a
+source-bound `workspace_validate_proof` detail call. Diagnostic provenance names
+the incumbent owner that observed a fact; it is not repair authority. Repair
+authority exists only for an authenticated semantic transition. Missing fields,
+competing values, and identities omitted from a bounded preview remain available
+through validation's existing paginated diagnostic-group collection and selector.
+All six consumers read these same facts rather than reconstructing a local cause.
+
+`workspace_work_record_ready_slice` consumes `admission.recovery_capability`.
+It reports `actor_recovery: agent` only for an available authored correction (or
+a source refresh), distinguishes an inspection call from that correction, and
+reports classifier or owner exceptions as `system_owner_failure` with no agent
+repair claim. A refusal before the core mutation begins always reports
+`contract_persisted:false`, `written:false`, and `no_op:true`, while preserving
+the original exception code and details.
+
 ### The selected unit owns its proof obligations
 
 Proof obligations and their proof selections belong to the unit of work. For
@@ -760,6 +875,28 @@ projection and its shared semantic subset name that unit in `selected_unit`
 the assessment source carry the same selection, and the workbench reports
 subject, assessment-source and coverage-owner agreement on it as one
 `cross_owner_consistency` identity.
+
+A blocked `workspace_agent_dispatch` implementation request publishes the
+ordinary obligation-coverage query only when that registered route's request
+schema is available to authenticate the continuation. Its `unit` is the exact
+requested unit, including the slice suffix; it never substitutes the parent or
+a sibling. `workspace_validate_dispatch` and that blocked dispatch carry the
+same bounded recovery contract: selected unit, deciding cause, agent or system
+actor, `operator_action`, query/upsert pair, and the fresh-CAS source. Their
+visible `next_action` is derived from that carrier. It therefore cannot direct a
+slice refusal to the parent, turn an agent correction into operator-only work,
+or treat route/workbench observations as admission decisions. When selected
+detail retains the carrier, the compact instruction stays visible and the
+source-bound detail read returns the same contract losslessly.
+
+A complete-but-stale population retains
+`controlled_acceptance_source_not_current` and the canonical
+`source_refresh_required` recovery across `workspace_validate_dispatch`, managed
+preflight, and managed provisioning. The launcher diagnostic remains distinct
+as
+`agent_launch.worktree_provisioning_dispatch.controlled_acceptance_source_not_current.v1`;
+neither launcher surface relabels currentness as ordinary incompleteness or
+offers proof upsert as the refresh.
 
 A parent's or a sibling's population is therefore a different unit's fact and can
 never complete a selected slice. A slice with no saved coverage source reports
@@ -778,6 +915,13 @@ ownership still follows the declaring unit: shared case visibility grants no
 authority, and a slice that declares no executable target cannot complete a case
 that needs one. Nothing here copies parent obligations into a slice or gives a
 slice a parent fallback.
+
+Inspection-only and executable-map observations remain available with their
+original provenance and detail calls, but their recovery status is scoped to
+the observer that produced it. `inspection_only` on such an observation does
+not override an admission-provided agent correction. Conversely, a genuine
+classifier or semantic-owner failure remains `system_owner_failure`, and stale
+source recovery remains source refresh rather than proof authoring.
 
 Two things remain scoped to the record rather than to a slice. The
 controlled-acceptance disposition on `proof_posture` is a record-level fact, and
@@ -866,7 +1010,8 @@ provenance requirement. Nonempty implementation admission continues to use the
 existing persistent WK allocation, generation persistence, confinement, and
 compare-and-swap path unchanged.
 
-Reviewer and redteam prompts are text-first. They ask for the actual advisory
+Reviewer and redteam prompts are text-first and inline the package-owned
+reviewer guide once. They ask for the actual advisory
 analysis and state that it remains usable whether or not optional structured
 metadata conforms. Worker-only outcomes are not offered. Schema-constrained
 output is reserved for an explicitly selected formal-attestation use; ordinary

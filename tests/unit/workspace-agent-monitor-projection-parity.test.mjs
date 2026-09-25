@@ -113,9 +113,6 @@ test("post-integration cleanup failure stays an immutable finalized delivery", a
         },
         validation_worktree_path: "/tmp/wk-2310-parity"
       }),
-      resolveDeclaredTerminalReviewUnit: () => {
-        throw new Error("non-final delivery must not resolve a terminal review unit");
-      },
       prepareTerminalCandidate: () => {
         throw new Error("non-final delivery must not prepare a terminal candidate");
       }

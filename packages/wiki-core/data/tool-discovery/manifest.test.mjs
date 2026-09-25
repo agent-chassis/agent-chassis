@@ -31,13 +31,13 @@ const EXPECTED_FRAGMENTS = [
   ['code-index-tools.json', 3],
   ['code-index-query-tools.json', 4],
   ['code-index-navigation-tools.json', 8],
-  ['launcher-tools.json', 8],
+  ['launcher-tools.json', 9],
   ['cli-commands.json', 11],
   ['integration-tools.json', 1],
   ['wrapper-commands.json', 0],
 ];
 
-const EXPECTED_TOOL_COUNT = 111;
+const EXPECTED_TOOL_COUNT = 112;
 
 const RETIRED_WORK_RECORD_ROUTES = Object.freeze([
 
@@ -218,7 +218,7 @@ test('the manifest assembles into the full corpus through the loader', async () 
 
   const mcpToolCount = descriptor.tools.filter(({ kind }) => kind === 'mcp_tool').length;
   const cliCommandCount = descriptor.tools.filter(({ kind }) => kind === 'cli_command').length;
-  assert.equal(mcpToolCount, 81);
+  assert.equal(mcpToolCount, 82);
   assert.equal(cliCommandCount, 30);
   assert.equal(mcpToolCount + cliCommandCount, EXPECTED_TOOL_COUNT);
 

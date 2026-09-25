@@ -42,7 +42,8 @@ const TEST_PROOF_EVIDENCE_FAILURES = Object.freeze({
   test_proof_caller_executor_forbidden:
     "repair_the_server_owned_verify_proof_execution_input_then_retry",
   test_proof_candidate_execution_error: null,
-  test_proof_candidate_inventory_missing: "repair_the_node_test_reporter_protocol_then_retry",
+
+  test_proof_candidate_inventory_missing: "resolve_the_selected_test_observation_failure_then_retry",
   test_proof_evidence_identity_invalid: "repair_the_receipt_provider_binding_then_retry",
   test_proof_falsifier_execution_error: null,
   test_proof_falsifier_provider_missing: "repair_the_canonical_proof_binding_then_retry",
@@ -151,8 +152,38 @@ export const VERIFY_PROOF_OPERATION_FAILURES = Object.freeze({
   "verify_proof.runtime_binding_controlled_generation_moved.v1": {
     recovery_action: "restart_after_the_canonical_controlled_contract_generation_stabilizes",
     owning_boundary: RUNTIME_BINDING_BOUNDARY
+  },
+  "verify_proof.environment_incompatible.v1": {
+    recovery_action: "name_a_prepared_environment_applicable_to_every_selected_proof_or_omit_environment",
+    owning_boundary: "wiki-mcp.workspace-verify-proof-environment-selection"
   }
 });
+const ENVIRONMENT_REASONS = new Set(["ecosystem_mismatch", "runner_not_proved",
+  "target_outside_environment", "provider_unknown",
+  "environment_unavailable"]);
+const boundedText = (value) => typeof value === "string" && value.length > 0 && value.length <= 512 &&
+  !/[\u0000-\u001f\u007f]/u.test(value);
+
+function projectedEnvironmentSelectionDetail(details) {
+  const ids = (values) => Array.isArray(values) && values.every(boundedText);
+  if (!boundedText(details.requested_environment) || !ids(details.valid_choices) ||
+      !ids(details.prepared_environments) || !Array.isArray(details.incompatible) ||
+      details.incompatible.length === 0) return null;
+  const incompatible = [];
+  for (const entry of details.incompatible) {
+    if (!boundedText(entry?.test_proof_id) || !boundedText(entry?.target) || !ids(entry?.obligation_ids) ||
+        !ENVIRONMENT_REASONS.has(entry?.reason) ||
+        (entry.code !== null && (typeof entry.code !== "string" || !STABLE_CODE_RE.test(entry.code)))) {
+      return null;
+    }
+    incompatible.push({ test_proof_id: entry.test_proof_id, obligation_ids: [...entry.obligation_ids],
+      target: entry.target,
+      family_id: entry.family_id ?? null, reason: entry.reason, code: entry.code,
+      ...(entry.runner === undefined ? {} : { runner: entry.runner }) });
+  }
+  return { requested_environment: details.requested_environment, incompatible,
+    valid_choices: [...details.valid_choices], prepared_environments: [...details.prepared_environments] };
+}
 const SOURCE_BINDING_BOUNDARY =
   "wiki-core.controlled-contract.verify-proof-source-binding";
 const SUBJECT_AMBIGUOUS_CODE = "verify_proof.subject_ambiguous.v1";
@@ -180,7 +211,7 @@ const SOURCE_ACCEPTED_FORM = Object.freeze({
   focus: "omit for the root source, or one canonical lowercase focus slug of at most 128 UTF-8 bytes"
 });
 const SOURCE_INVALID_FIELDS = new Set(["source", "source.unit", "source.focus"]);
-const PERMITTED_RETRY_OPTIONS = Object.freeze(["repo", "timeout", "git_sha"]);
+const PERMITTED_RETRY_OPTIONS = Object.freeze(["repo", "timeout", "git_sha", "environment"]);
 
 function canonicalSubject(value) {
   return typeof value === "string" && value.length > 0 && value.length <= 512 &&
@@ -363,6 +394,26 @@ export function projectedExecutionDetail(error, subject) {
   return projected;
 }
 
+const REJECTED_RECORD_TEXT_KEYS = Object.freeze(["provider_id", "provider_version",
+  "selected_node_id", "observed_node_id", "record_kind", "observed_outcome", "selected_outcome",
+  "writer"]);
+const REJECTED_RECORD_COUNT_KEYS = Object.freeze(["sequence", "record_index", "record_count",
+  "exit_code"]);
+
+function projectRejectedRecordContext(detail) {
+  if (detail === null || typeof detail !== "object" || Array.isArray(detail) ||
+      typeof detail.selected_node_id !== "string") return null;
+  const context = {};
+  for (const key of REJECTED_RECORD_TEXT_KEYS) {
+    if (typeof detail[key] === "string" && detail[key].length <= 4096 &&
+        !/[\u0000-\u001f\u007f]/u.test(detail[key])) context[key] = detail[key];
+  }
+  for (const key of REJECTED_RECORD_COUNT_KEYS) {
+    if (Number.isSafeInteger(detail[key])) context[key] = detail[key];
+  }
+  return context;
+}
+
 function projectedRunFacts(run) {
   if (run === null || typeof run !== "object" || Array.isArray(run)) return null;
   const facts = {};
@@ -409,6 +460,11 @@ function projectedRunFacts(run) {
     }
     facts.structured_observation_code = observationCode;
 
+    if (LAUNCHER_ATTRIBUTION_OBSERVATION_CODES.has(observationCode)) {
+      const rejected = projectRejectedRecordContext(run.test_proof_observation.detail);
+      if (rejected !== null) facts.structured_observation_detail = rejected;
+    }
+
     if (observationCode === TEST_PROOF_FORCED_INVOCATION_IDENTITY_FAILURE.code) {
       const identityFailure = projectTestProofForcedInvocationIdentityFailure(
         run.test_proof_observation.detail);
@@ -430,9 +486,34 @@ function projectedRunFacts(run) {
 }
 
 const NATIVE_SOURCE_OBSERVATION_CODES = new Set([
+  "test_proof_native_dependency_population_unsupported",
   "test_proof_native_instrumentation_unsupported",
-  "test_proof_native_selection_unsupported"
+  "test_proof_native_selection_unsupported",
+  "test_proof_python_fault_unsupported"
 ]);
+const NATIVE_RUNTIME_SETUP_CODES = new Set([
+  "test_proof_native_interpreter_unavailable",
+  "test_proof_native_runtime_inputs_stale",
+  "test_proof_native_runtime_unavailable"
+]);
+
+const LAUNCHER_PREREQUISITE_OBSERVATION_CODES = new Set([
+  "test_proof_native_import_policy_unenforced"
+]);
+
+function runtimeSetupCode(code) {
+  return typeof code === "string" &&
+    (code.startsWith("test_runtime_") || NATIVE_RUNTIME_SETUP_CODES.has(code));
+}
+
+const LAUNCHER_ATTRIBUTION_OBSERVATION_CODES = new Set([
+  "test_proof_structured_events_exit_status_mismatch",
+  "test_proof_structured_events_lifecycle_invalid",
+  "test_proof_structured_events_unselected_execution",
+  "test_proof_structured_test_identity_duplicate"
+]);
+const LAUNCHER_OBSERVATION_DEFECT_ACTION = "report_the_launcher_selected_test_observation_defect";
+const LAUNCHER_OBSERVATION_CORRECTION_OWNER = "launcher_test_proof_provider";
 
 function evidenceExecutionRecovery(details) {
 
@@ -440,14 +521,22 @@ function evidenceExecutionRecovery(details) {
     return "repair_the_canonical_proof_binding_then_retry";
   }
 
+  if (runtimeSetupCode(details.structured_observation_code) ||
+      runtimeSetupCode(details.blocker_code)) {
+    return "run_local_test_runtime_setup_then_retry";
+  }
+
   if (NATIVE_SOURCE_OBSERVATION_CODES.has(details.structured_observation_code)) {
     return "repair_the_declared_native_proof_source_then_retry";
   }
-  if (details.structured_observation_code !== undefined) {
-    return "repair_the_node_test_reporter_protocol_then_retry";
+  if (LAUNCHER_PREREQUISITE_OBSERVATION_CODES.has(details.structured_observation_code)) {
+    return "repair_the_launcher_execution_prerequisite_then_retry";
   }
-  if (typeof details.blocker_code === "string" && details.blocker_code.startsWith("test_runtime_")) {
-    return "run_local_test_runtime_setup_then_retry";
+  if (LAUNCHER_ATTRIBUTION_OBSERVATION_CODES.has(details.structured_observation_code)) {
+    return LAUNCHER_OBSERVATION_DEFECT_ACTION;
+  }
+  if (details.structured_observation_code !== undefined) {
+    return "resolve_the_selected_test_observation_failure_then_retry";
   }
   if (details.timed_out === true) {
     return "repair_the_launcher_runtime_timeout_prerequisite_then_retry";
@@ -668,6 +757,12 @@ export function projectedEvidenceFailure(error, executionContext) {
     if (!SAFE_EXECUTION_STAGES.includes(detail.execution_stage)) return null;
     projected.execution_stage = detail.execution_stage;
   }
+  if (detail?.provider !== undefined) {
+    if (!SAFE_IDENTITY_RE.test(detail.provider?.provider_id) ||
+        !SAFE_IDENTITY_RE.test(detail.provider?.provider_version)) return null;
+    projected.provider_id = detail.provider.provider_id;
+    projected.provider_version = detail.provider.provider_version;
+  }
   const executionFailure = TEST_PROOF_EVIDENCE_FAILURES[error.code] === null;
   if (executionFailure || error.code === "test_proof_selected_identity_not_observed") {
     if (!SAFE_EXECUTION_STAGES.includes(projected.execution_stage)) return null;
@@ -681,11 +776,17 @@ export function projectedEvidenceFailure(error, executionContext) {
     error.code === "test_proof_evidence_identity_invalid"
     ? "receipt" : null;
   if (stage !== null) projected.execution_stage = stage;
+  const recoveryAction = executionFailure
+    ? evidenceExecutionRecovery(projected)
+    : TEST_PROOF_EVIDENCE_FAILURES[error.code];
   return {
     details: projected,
-    recovery_action: executionFailure
-      ? evidenceExecutionRecovery(projected)
-      : TEST_PROOF_EVIDENCE_FAILURES[error.code]
+    recovery_action: recoveryAction,
+    ...(recoveryAction === LAUNCHER_OBSERVATION_DEFECT_ACTION ? {
+      retry: false,
+      correction_owner: LAUNCHER_OBSERVATION_CORRECTION_OWNER,
+      condition: projected.structured_observation_code
+    } : {})
   };
 }
 
@@ -743,6 +844,9 @@ export function projectedOperationDetail(error) {
   if (details === null || typeof details !== "object" || Array.isArray(details)) return null;
   if (error.code === "verify_proof.controlled_contract_invalid.v1") {
     return projectedContractInvalidDetail(details);
+  }
+  if (error.code === "verify_proof.environment_incompatible.v1") {
+    return projectedEnvironmentSelectionDetail(details);
   }
   if (error.code === "verify_proof.subject_ambiguous.v1") {
     if (Object.hasOwn(details, "match_count")) {
@@ -823,6 +927,11 @@ export const LOCAL_ATTEMPT_CAUSE_CODES = new Set([
   "test_proof_receipt_projection_invalid"
 ]);
 
+function localExecutionStatus(details) {
+  if (details?.ran !== true) return "not_started";
+  return details.timed_out === true ? "interrupted" : "completed";
+}
+
 export function proofLocalContinuationFacts(chain) {
   const execution = chain.find((entry) => entry.code === "agent_launch.verify_proof.attempt_execution_failed.v1" ||
     entry.code === "agent_launch.verify_proof.receipt_incomplete.v1");
@@ -831,5 +940,6 @@ export function proofLocalContinuationFacts(chain) {
       causes.some((code) => !LOCAL_ATTEMPT_CAUSE_CODES.has(code))) return null;
   const { verification_id: verificationId, declared_target: target } = execution.details ?? {};
   return typeof verificationId === "string" && typeof target === "string"
-    ? Object.freeze({ verification_id: verificationId, target }) : null;
+    ? Object.freeze({ verification_id: verificationId, target,
+      execution_status: localExecutionStatus(chain.at(-1)?.details) }) : null;
 }

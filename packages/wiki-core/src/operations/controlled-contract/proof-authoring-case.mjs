@@ -1,6 +1,7 @@
-import { CASE_VERIFICATION_ASSOCIATION_FIELD, CASE_VERIFICATION_ASSOCIATION_FIELD_PATH,
-  CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS, ControlledContractToolError,
-  controlledContractContentDigest } from '../../lib/controlled-contract-tools.mjs';
+import { CASE_COMPONENT_FIELD, CASE_COMPONENT_FIELD_PATH, CASE_VERIFICATION_ASSOCIATION_FIELD,
+  CASE_VERIFICATION_ASSOCIATION_FIELD_PATH, CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS,
+  ControlledContractToolError, controlledContractContentDigest } from '../../lib/controlled-contract-tools.mjs';
+import { assertPackageValidContract } from './package-runtime.mjs';
 import { projectWorkRecordTestProofValidation, amendWorkRecordTestProofTarget, removeWorkRecordTestProofTarget,
   rebindWorkRecordTestProofVerificationIds } from '../../lib/work-record-test-proof-bindings.mjs';
 import { projectSavedProofCase } from './saved-proof-source.mjs';
@@ -19,6 +20,9 @@ const rebindingGuidance = () => [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOC
 const retirementGuidance = () => [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS.requirement_retirement];
 const verificationGuidance = () => [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS.mandatory_verification];
 const caseAssociationGuidance = () => [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS.case_verification_association];
+const additionalVerificationGuidance = () =>
+  [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS.case_additional_verification];
+const componentGuidance = () => [...CONTROLLED_CONTRACT_REQUIREMENT_GUIDANCE_LOCATIONS.case_component];
 
 const CASE_ASSOCIATION_CODES = new Set([
   'obligation_coverage_case_selector_invalid',
@@ -34,9 +38,57 @@ const caseAssociationRouting = initial => ({
 const UNLINKED_VERIFICATION_FIELD = 'requirements[].verification';
 const UNLINKED_VERIFICATION_CODES = new Set(['obligation_coverage_case_verification_unlinked']);
 const RETIREMENT_CONFLICT_LIMIT = 32;
-const queryCall = initial => ({ tool: 'workspace_controlled_contract_obligation_coverage_query', arguments: {
+const unitArguments = initial => ({
   unit: initial.selectedUnit === null ? initial.wkId : `${initial.wkId}#${initial.selectedUnit}`,
-  ...(initial.focus ? { focus: initial.focus } : {}) } });
+  ...(initial.focus ? { focus: initial.focus } : {}) });
+const queryCall = initial => ({ tool: 'workspace_controlled_contract_obligation_coverage_query',
+  arguments: unitArguments(initial) });
+
+function verificationConflictRecovery(initial, { verificationId, caseIds, initialVerifications, content,
+  changes }) {
+  const savedCaseIds = caseIds.filter(caseId => initialVerifications.get(caseId) === verificationId);
+  const requestedCaseIds = caseIds.filter(caseId => !savedCaseIds.includes(caseId));
+  return { condition: 'verification_owned_by_another_case', field: CASE_VERIFICATION_ASSOCIATION_FIELD,
+    field_path: CASE_VERIFICATION_ASSOCIATION_FIELD_PATH, saved_case_ids: savedCaseIds,
+    requested_case_ids: requestedCaseIds,
+    obligation_ids: changes.map(item => content.obligations.find(row => row.obligation_id === item.obligation_id))
+      .filter(row => requestedCaseIds.includes(row?.case_id)).map(row => row.obligation_id).sort(),
+    requirement_claim_ids: (initial.contract?.content.relations ?? []).filter(relation =>
+      relation.role === 'verifies' && relation.source_claim_id === verificationId)
+      .map(relation => relation.target_claim_id).sort(),
+    guidance_path: additionalVerificationGuidance(),
+    next_calls: requestedCaseIds.length === 0 ? [] : [{ tool: 'workspace_controlled_contract_obligation_coverage_upsert',
+      fixed_arguments: { ...unitArguments(initial),
+        ...(typeof initial.revision === 'string' ? { expected_content_digest: initial.revision } : {}) },
+      required_authored_fields: ['contract_requirements.requirements'] }] };
+}
+
+function assertCaseComponentIdentities(pkg, contract, preparedChanges) {
+  const conflicts = new Map();
+  for (const { item, definition, caseInput } of preparedChanges) {
+    if (caseInput.component?.identity === undefined) continue;
+    const binding = contract.test_proofs.find(proof =>
+      proof.verification_claim_id === pkg.authoredCaseVerificationId(definition));
+    const referenceId = binding?.system_under_test_boundary?.subject_reference_ids?.[0];
+    const requested = contract.references.find(reference => reference.reference_id === referenceId);
+    const existing = requested === undefined ? [] : contract.references.filter(reference =>
+      reference.reference_id !== referenceId && same(reference.identity, requested.identity));
+    if (existing.length === 0) continue;
+    const conflict = conflicts.get(definition.case_id) ?? { case_id: definition.case_id, obligation_ids: [],
+      requested: structuredClone(requested), existing: structuredClone(existing) };
+    conflict.obligation_ids = [...new Set([...conflict.obligation_ids, item.obligation_id])].sort();
+    conflicts.set(definition.case_id, conflict);
+  }
+  if (conflicts.size === 0) return;
+  try {
+    assertPackageValidContract(pkg.validateNativeTestProofAuthoringContract(contract));
+  } catch (error) {
+    error.details = { ...error.details, field: CASE_COMPONENT_FIELD, field_path: CASE_COMPONENT_FIELD_PATH,
+      guidance_path: componentGuidance(),
+      component_reference_conflicts: [...conflicts.values()].sort((a, b) => a.case_id.localeCompare(b.case_id)) };
+    throw error;
+  }
+}
 function leaves(value, prefix = '') {
   return Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).flatMap(([key, child]) =>
     child && typeof child === 'object' && !Array.isArray(child)
@@ -343,8 +395,10 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
         error.details?.verification_id).map(definition => definition.case_id);
       const selection = rebinding?.selections.find(entry => entry.case_ids?.some(id => caseIds.includes(id)));
       error.details = { ...error.details, changed: false, phase: 'admission', limb: 'mechanical_failure',
-        case_ids: caseIds, ...(selection === undefined ? {} : { field: selection.field,
-          requirement_index: selection.requirement_index, guidance_path: rebindingGuidance() }) };
+        case_ids: caseIds, ...(selection === undefined ? verificationConflictRecovery(initial, {
+          verificationId: error.details?.verification_id, caseIds, initialVerifications, content, changes })
+          : { field: selection.field, requirement_index: selection.requirement_index,
+            guidance_path: rebindingGuidance() }) };
     } else if (CASE_ASSOCIATION_CODES.has(error?.code) && error.details?.condition !== undefined) {
 
       error.details = { ...error.details, changed: false, phase: 'admission', limb: 'mechanical_failure',
@@ -356,6 +410,7 @@ export function compileProofAuthoringCases({ pkg, initial, content: authored, ob
     }
     throw error;
   }
+  assertCaseComponentIdentities(pkg, contract, preparedChanges);
 
   if (rebinding !== null) assertReplacementRuntimeMeaning(pkg, initial, rebinding, cases, contract);
   const record = structuredClone(initial.record);

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 
 const BOUNDED_STATE_STABILITY_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.lifecycle.bounded-state-stability/3.0.0/profile.json",
+  "../../profiles/proof.lifecycle.bounded-state-stability/4.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 const INPUT_TEMPLATE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.lifecycle.bounded-state-stability/3.0.0/evaluation-input.template.json",
+  "../../profiles/proof.lifecycle.bounded-state-stability/4.0.0/evaluation-input.template.json",
   import.meta.url
 ), "utf8"));
 

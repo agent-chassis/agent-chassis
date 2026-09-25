@@ -63,12 +63,5 @@ the profile pattern list being tested. Deleting a guarantee-critical profile
 field therefore does not delete its attack construction. Repository tests also
 exercise fully re-digested semantic weakenings.
 
-Run the release gate with:
-
-```sh
-node packages/controlled-contract/bin/check-proof-pack.mjs \
-  --pack packages/controlled-contract/profiles/proof.authorization.refusal-before-effects/1.0.0
-```
-
-The result is a local non-authoritative adequacy fact. It is not delivered
+The release-gate result is a local non-authoritative adequacy fact. It is not delivered
 evidence, authorization, policy, or a CCE judgment.

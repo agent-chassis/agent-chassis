@@ -1,4 +1,5 @@
 import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
+import { releaseOwnedTestRuntimeMountpointsAfterChild } from "./launch-isolation-test-runtime-projection.mjs";
 import { isRuntimeBlockerCode } from
   "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
@@ -8,7 +9,9 @@ import { attachStdioMcpConduitLaunchOutcome } from "./stdio-mcp-conduit-contract
 import {
   buildConduitSpawnFailureRefusal,
   buildLaunchPathFailureRefusal,
+  buildWorkerTestRuntimePreparationRefusal,
   classifyLaunchPathFailure,
+  classifyWorkerTestRuntimePreparationFailure,
   cleanupConduitForRefusal
 } from "./launch-failure-cause.mjs";
 import {
@@ -363,6 +366,13 @@ export async function launchCodexWorkspaceAgentInProcess({
         buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure)
       );
     }
+    const preparation = classifyWorkerTestRuntimePreparationFailure(err);
+    if (preparation !== null) {
+      return compensateCodexPreSpawnRefusal(
+        cleanupController,
+        buildWorkerTestRuntimePreparationRefusal(makeRefusal, preparation)
+      );
+    }
     const pathFailure = classifyLaunchPathFailure(err);
     if (pathFailure !== null) {
       return compensateCodexPreSpawnRefusal(
@@ -490,6 +500,8 @@ export async function launchCodexWorkspaceAgentInProcess({
       null
     ));
   }
+
+  releaseOwnedTestRuntimeMountpointsAfterChild(artifacts.bwrapPlan, child);
 
   const finalPath = typeof plan.finalPath === "string" && plan.finalPath.length > 0
     ? plan.finalPath

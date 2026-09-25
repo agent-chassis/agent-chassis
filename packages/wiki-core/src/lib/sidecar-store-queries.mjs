@@ -576,10 +576,15 @@ export function selectStoreOccurrencesByDocument(db, documentPaths) {
     binaryCompare(left.symbol_id, right.symbol_id));
 }
 
-function symbolEdgeRow(providerId, documentPath, edge) {
+export function assertStoreSymbolEdge(providerId, edge) {
   if (!plainObject(edge) || typeof edge.edge_id !== "string" || typeof edge.kind !== "string") {
     throw selectedDataError(`symbol edge of provider ${providerId} is invalid`);
   }
+  return edge;
+}
+
+function symbolEdgeRow(providerId, documentPath, edge) {
+  assertStoreSymbolEdge(providerId, edge);
   return {
     provider_id: providerId,
     edge_id: edge.edge_id,

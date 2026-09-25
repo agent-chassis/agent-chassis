@@ -1,65 +1,17 @@
 
 
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { WORK_RECORD_STATUS_VALUES } from "./work-record-schema-constants.mjs";
-
-const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
+import {
+  CANONICAL_NEXT_CALL_TOOL_NAMES,
+  isCanonicalNextCallTool,
+  isCanonicalReadOnlyTool
+} from "./next-calls-canonical-tools.mjs";
+import { argumentValidatorFor } from "./next-calls-schema-compiler.mjs";
 
 export const NEXT_CALLS_DESCRIPTOR_VERSION = "next-calls-descriptor.v1";
 
-const TOOL_DISCOVERY_DIR = path.join(THIS_DIR, "../../data/tool-discovery");
-const TOOL_DISCOVERY_MANIFEST = path.join(TOOL_DISCOVERY_DIR, "manifest.json");
-
-const CANONICAL_NEXT_CALL_TOOL_KIND = "mcp_tool";
-
-function loadCanonicalNextCallToolNames() {
-  const manifest = JSON.parse(readFileSync(TOOL_DISCOVERY_MANIFEST, "utf8"));
-  if (!Array.isArray(manifest.fragments) || manifest.fragments.length === 0) {
-    throw new Error(
-      "next-calls canonical corpus: tool-discovery manifest declares no fragments"
-    );
-  }
-  const names = new Set();
-  const seen = new Set();
-  for (const fragment of manifest.fragments) {
-    const file = fragment?.file;
-    if (typeof file !== "string" || file.length === 0) {
-      throw new Error("next-calls canonical corpus: fragment entry declares no file");
-    }
-    const parsed = JSON.parse(readFileSync(path.join(TOOL_DISCOVERY_DIR, file), "utf8"));
-    if (!Array.isArray(parsed.tools)) {
-      throw new Error(`next-calls canonical corpus: fragment ${file} declares no tools array`);
-    }
-    for (const entry of parsed.tools) {
-      const toolName = entry?.tool_name;
-      if (typeof toolName !== "string" || toolName.length === 0) {
-        throw new Error(`next-calls canonical corpus: fragment ${file} declares a nameless tool`);
-      }
-
-      if (seen.has(toolName)) {
-        throw new Error(
-          `next-calls canonical corpus: duplicate tool_name ${toolName} in fragment ${file}`
-        );
-      }
-      seen.add(toolName);
-      if (entry.kind === CANONICAL_NEXT_CALL_TOOL_KIND) names.add(toolName);
-    }
-  }
-  if (names.size === 0) {
-    throw new Error("next-calls canonical corpus: assembled corpus names no MCP tools");
-  }
-  return Object.freeze(names);
-}
-
-export const CANONICAL_NEXT_CALL_TOOL_NAMES = loadCanonicalNextCallToolNames();
-
-export function isCanonicalNextCallTool(tool) {
-  return typeof tool === "string" && CANONICAL_NEXT_CALL_TOOL_NAMES.has(tool);
-}
+export { CANONICAL_NEXT_CALL_TOOL_NAMES, isCanonicalNextCallTool };
 
 export const CONTINUATION_CONTRACT_VERSION = "callable-continuation.v1";
 
@@ -288,25 +240,6 @@ function sameCallRecoveryErrors(
   return [];
 }
 
-const requireFromModule = createRequire(import.meta.url);
-
-let ajvInstance = null;
-const compiledBySchema = new WeakMap();
-
-function argumentValidatorFor(schema) {
-  const cached = compiledBySchema.get(schema);
-  if (cached) return cached;
-  if (ajvInstance === null) {
-    const loaded = requireFromModule("ajv");
-    const Ajv = loaded.default ?? loaded;
-
-    ajvInstance = new Ajv({ strict: false, allErrors: true });
-  }
-  const compiled = ajvInstance.compile(schema);
-  compiledBySchema.set(schema, compiled);
-  return compiled;
-}
-
 export function isAuthoritativeRequestSchema(schema) {
   if (!isPlainObjectValue(schema)) return false;
   if (schema.type !== "object" || !isPlainObjectValue(schema.properties)) return false;
@@ -420,6 +353,10 @@ export function buildNextCall(spec = {}) {
   }
   if (recommended === true) entry.recommended = true;
   if (disallowed === true) entry.disallowed = true;
+  if (Object.hasOwn(entry, "kind")) {
+    const kindErrors = entryKindErrors(entry, "buildNextCall entry");
+    if (kindErrors.length > 0) throw new TypeError(kindErrors.join("; "));
+  }
   return entry;
 }
 
@@ -464,6 +401,153 @@ export function buildContinuationCall(spec = {}, { requestSchema = null } = {}) 
   return entry;
 }
 
+export const NEXT_CALL_KIND_GUIDANCE = "guidance";
+
+export const GUIDANCE_INFORMATION_MAX_LENGTH = 512;
+
+const GUIDANCE_ENTRY_KEYS = new Set(["kind", "tool", "arguments", "recommended", "information"]);
+
+export function isGuidanceNextCall(entry) {
+  return isPlainObjectValue(entry) && entry.kind === NEXT_CALL_KIND_GUIDANCE;
+}
+
+function guidanceEntryErrors(entry, where) {
+  const errors = [];
+  for (const key of ["success_predicate", "prerequisite_predicate"]) {
+    if (Object.hasOwn(entry, key)) {
+      errors.push(`${where}.${key} is corrective; a guidance entry states no predicate`);
+    }
+  }
+  if (Object.hasOwn(entry, "disallowed")) {
+    errors.push(`${where} is guidance and cannot be disallowed`);
+  }
+  for (const key of Object.keys(entry)) {
+    if (!GUIDANCE_ENTRY_KEYS.has(key) && !["success_predicate", "prerequisite_predicate",
+      "disallowed"].includes(key)) {
+      errors.push(`${where} declares ${key}, which a guidance entry does not carry`);
+    }
+  }
+  if (typeof entry.tool === "string" && isCanonicalNextCallTool(entry.tool) &&
+      !isCanonicalReadOnlyTool(entry.tool)) {
+    errors.push(
+      `${where} names ${entry.tool}, whose canonical side_effects are not exactly read_only; guidance is a read`
+    );
+  }
+  if (!isPlainObjectValue(entry.arguments)) {
+    errors.push(`${where}.arguments must be the complete argument object of the read`);
+  }
+  const information = entry.information;
+  if (typeof information !== "string" || information.trim() === "" ||
+      information.trim() !== information || information.length > GUIDANCE_INFORMATION_MAX_LENGTH) {
+    errors.push(
+      `${where}.information must state the question the read answers in 1..${GUIDANCE_INFORMATION_MAX_LENGTH} trimmed characters`
+    );
+  }
+  return errors;
+}
+
+function entryKindErrors(entry, where) {
+  if (!Object.hasOwn(entry, "kind")) return [];
+  if (entry.kind !== NEXT_CALL_KIND_GUIDANCE) {
+    return [`${where}.kind ${JSON.stringify(entry.kind)} is unknown; the only entry kind is "guidance"`];
+  }
+  return guidanceEntryErrors(entry, where);
+}
+
+function registeredToolPredicate(registeredTools) {
+  if (registeredTools === null || registeredTools === undefined) return null;
+  return toolNarrowingPredicate(registeredTools, "registeredTools");
+}
+
+function guidanceAdmissionErrors(entry, where, { requestSchema, isRegistered }) {
+  const errors = [];
+  if (isRegistered === null) {
+    errors.push(
+      `${where} cannot be admitted without the active server's registered tool set`
+    );
+  } else if (!isRegistered(entry.tool)) {
+    errors.push(`${where} names ${entry.tool}, which the active server does not register`);
+  }
+  for (const error of requestContractErrors(entry.tool, entry.arguments, requestSchema)) {
+    errors.push(`${where}.arguments ${error}`);
+  }
+  return errors;
+}
+
+export function buildGuidanceCall(spec = {}, { requestSchema = null, registeredTools = null } = {}) {
+  if (!isPlainObjectValue(spec)) {
+    throw new TypeError("buildGuidanceCall requires an entry spec object");
+  }
+  if (Object.hasOwn(spec, "kind") && spec.kind !== NEXT_CALL_KIND_GUIDANCE) {
+    throw new TypeError(`buildGuidanceCall cannot build kind ${JSON.stringify(spec.kind)}`);
+  }
+  const entry = buildNextCall({ ...spec, kind: NEXT_CALL_KIND_GUIDANCE });
+  const errors = guidanceAdmissionErrors(entry, "buildGuidanceCall entry", {
+    requestSchema,
+    isRegistered: registeredToolPredicate(registeredTools)
+  });
+  if (errors.length > 0) throw new TypeError(errors.join("; "));
+  return entry;
+}
+
+export function validateGuidanceCalls(
+  list,
+  { requestSchemas = null, registeredTools = null, knownTools = null } = {}
+) {
+  if (!Array.isArray(list) || list.length === 0) {
+    return { valid: false, errors: ["a guidance limb must offer at least one guidance entry"] };
+  }
+  const errors = [];
+  const lookUpRequestSchema = requestSchemaLookup(requestSchemas);
+  if (lookUpRequestSchema === null) {
+    errors.push("guidance requires each named tool's registrar-scoped request schema; none was supplied");
+  }
+  const isRegistered = registeredToolPredicate(registeredTools);
+  const narrowsTo = toolNarrowingPredicate(knownTools);
+  const seenTools = new Set();
+  list.forEach((entry, index) => {
+    const where = `entry[${index}]`;
+    if (!isPlainObjectValue(entry)) {
+      errors.push(`${where} must be an object`);
+      return;
+    }
+    if (!isGuidanceNextCall(entry)) {
+      errors.push(
+        Object.hasOwn(entry, "kind")
+          ? entryKindErrors(entry, where)[0]
+          : `${where} is not guidance; a guidance limb cannot mix corrective or router entries`
+      );
+      return;
+    }
+    if (typeof entry.tool !== "string" || !isCanonicalNextCallTool(entry.tool)) {
+      errors.push(`${where} references tool ${JSON.stringify(entry.tool)} that is not in the canonical tool-discovery corpus`);
+      return;
+    }
+    if (narrowsTo && !narrowsTo(entry.tool)) {
+      errors.push(`${where} references unregistered tool "${entry.tool}"`);
+    }
+    if (seenTools.has(entry.tool)) errors.push(`${where} duplicates tool "${entry.tool}"`);
+    seenTools.add(entry.tool);
+    if (entry.recommended !== undefined && typeof entry.recommended !== "boolean") {
+      errors.push(`${where}.recommended must be a boolean when present`);
+    }
+    errors.push(...guidanceEntryErrors(entry, where));
+    if (isPlainObjectValue(entry.arguments)) {
+      const unresolved = unresolvedArgumentNames(entry.arguments);
+      if (unresolved.length > 0) {
+        errors.push(`${where}.arguments leaves ${unresolved.join(", ")} unresolved; guidance carries complete arguments`);
+      }
+    }
+    if (lookUpRequestSchema !== null) {
+      errors.push(...guidanceAdmissionErrors(entry, where, {
+        requestSchema: lookUpRequestSchema(entry.tool),
+        isRegistered
+      }));
+    }
+  });
+  return { valid: errors.length === 0, errors };
+}
+
 export function renderNextCall(entry) {
   if (!entry || typeof entry !== "object") {
     return null;
@@ -483,7 +567,7 @@ export function renderNextCall(entry) {
   return entry.tool;
 }
 
-function toolNarrowingPredicate(knownTools) {
+function toolNarrowingPredicate(knownTools, label = "knownTools") {
   if (knownTools === null || knownTools === undefined) {
     return null;
   }
@@ -497,7 +581,7 @@ function toolNarrowingPredicate(knownTools) {
     const set = new Set(knownTools);
     return (tool) => set.has(tool);
   }
-  throw new TypeError("validateNextCalls knownTools must be an array, Set, or predicate");
+  throw new TypeError(`validateNextCalls ${label} must be an array, Set, or predicate`);
 }
 
 function validateEntryContinuation(entry, where, { observedFacts, requireContinuationContract, errors }) {
@@ -571,7 +655,8 @@ export function validateNextCalls(
   if (requireContinuationContract) {
 
     const callable = list.filter(
-      (entry) => isPlainObjectValue(entry) && entry.disallowed !== true
+      (entry) => isPlainObjectValue(entry) && entry.disallowed !== true &&
+        !Object.hasOwn(entry, "kind")
     );
     if (callable.length === 0) {
       errors.push(
@@ -625,12 +710,23 @@ export function validateNextCalls(
         );
       }
     }
-    validateEntryContinuation(entry, where, {
-      observedFacts,
-      requireContinuationContract,
-      errors
-    });
-    if (requireContinuationContract && entry.disallowed !== true) {
+    if (Object.hasOwn(entry, "kind")) {
+
+      errors.push(...entryKindErrors(entry, where));
+      if (requireContinuationContract && isGuidanceNextCall(entry)) {
+        errors.push(
+          `${where} is informational guidance; it is not a corrective continuation`
+        );
+      }
+    } else {
+      validateEntryContinuation(entry, where, {
+        observedFacts,
+        requireContinuationContract,
+        errors
+      });
+    }
+    if (requireContinuationContract && entry.disallowed !== true &&
+        !Object.hasOwn(entry, "kind")) {
       errors.push(...sameCallRecoveryErrors(entry, where, {
         originatingTool,
         decidingFacts,
@@ -641,6 +737,7 @@ export function validateNextCalls(
     if (
       requireContinuationContract &&
       entry.disallowed !== true &&
+      !Object.hasOwn(entry, "kind") &&
       lookUpRequestSchema !== null &&
       isCanonicalNextCallTool(entry.tool)
     ) {
@@ -674,5 +771,7 @@ export function pickDoThisNext(list) {
 
 export function projectNextActionScalar(list) {
   const doThisNext = pickDoThisNext(list);
-  return doThisNext ? renderNextCall(doThisNext) : null;
+
+  if (!doThisNext || isGuidanceNextCall(doThisNext)) return null;
+  return renderNextCall(doThisNext);
 }

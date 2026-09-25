@@ -42,26 +42,34 @@ registerHooks({
 
 const isTestFunction = (name) => name.startsWith("test") || name.startsWith("benchmark");
 
-function observedBody(fn) {
+function observedBody(fn, state) {
   const test = [selectedModule, selectedFunction];
   return async function launcherObservedTestBody(tc) {
-    channel.emit("test_start", { file, test });
-    let error = null;
+    if (!state.started) {
+      state.started = true;
+      channel.emit("test_start", { file, test });
+    }
+    state.error = null;
     try {
       return await fn(tc);
     } catch (caught) {
-      error = caught;
+      state.error = caught;
       throw caught;
-    } finally {
-      channel.emit("window_end", { file, test });
-      const skipped = error?.constructor?.name === "SkipError";
-      const assertion = error?.constructor?.name === "TestError";
-      channel.emit("test_result", { file, test,
-        outcome: error === null ? "passed" : skipped ? "skipped" : "failed",
-        assertion_failure: error !== null && !skipped && assertion,
-        error: error === null || skipped ? null : errorFacts(error, assertion) });
     }
   };
+}
+
+function reportSelected(state) {
+  if (!state.started) return;
+  const test = [selectedModule, selectedFunction];
+  const { error } = state;
+  channel.emit("window_end", { file, test });
+  const skipped = error?.constructor?.name === "SkipError";
+  const assertion = error?.constructor?.name === "TestError";
+  channel.emit("test_result", { file, test,
+    outcome: error === null ? "passed" : skipped ? "skipped" : "failed",
+    assertion_failure: error !== null && !skipped && assertion,
+    error: error === null || skipped ? null : errorFacts(error, assertion) });
 }
 
 function observedRunTests(runTests) {
@@ -81,11 +89,13 @@ function observedRunTests(runTests) {
       }
     }
     const selected = tests?.[selectedModule]?.[selectedFunction];
+    const state = { started: false, error: null };
     const filtered = typeof selected === "function"
-      ? { [selectedModule]: { [selectedFunction]: observedBody(selected) } } : {};
+      ? { [selectedModule]: { [selectedFunction]: observedBody(selected, state) } } : {};
     try {
       return await runTests(filtered);
     } finally {
+      reportSelected(state);
       channel.emit("session_end");
     }
   };

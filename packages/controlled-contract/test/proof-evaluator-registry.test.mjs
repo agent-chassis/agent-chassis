@@ -13,7 +13,7 @@ async function loadExecutionPack() {
   const { loadExactAdmittedProofPack } = await import("../lib/admitted-proof-packs.mjs");
   return loadExactAdmittedProofPack({
     profileId: "proof.verification.test-validity",
-    profileVersion: "8.0.0"
+    profileVersion: "11.0.0"
   });
 }
 
@@ -38,10 +38,10 @@ test("resolves only the exact profile ID and version", async () => {
     expectedImplementationId:
       "proof.verification.test-validity.execution-evaluator",
     expectedImplementationDigest:
-      "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f"
+      "sha256:1ab1b1817b591583293a6d093e1a93b53e71b146e8c7b30f89df4eb479f6ef7a"
   });
   assert.equal(execution.status, "resolved");
-  assert.equal(execution.implementation_version, "8.0.0");
+  assert.equal(execution.implementation_version, "9.0.0");
 
   const unavailable = await resolveExactProofEvaluator({
     proofPack: { profile: {
@@ -76,7 +76,7 @@ async function copiedRegistry({ evaluatorSource, registryTransform = (source) =>
   const registrySource = await readFile(new URL(
     "../lib/proof-evaluator-registry.mjs", import.meta.url), "utf8");
   const evaluatorPath = path.join(temporary,
-    "profiles/proof.verification.test-validity/8.0.0/evaluator.mjs");
+    "profiles/proof.verification.test-validity/11.0.0/evaluator.mjs");
   await mkdir(path.dirname(evaluatorPath), { recursive: true });
   await mkdir(path.join(temporary, "lib"));
   if (writeEvaluator) await writeFile(evaluatorPath, evaluatorSource);
@@ -89,13 +89,13 @@ async function copiedRegistry({ evaluatorSource, registryTransform = (source) =>
 
 const proofPack = { profile: {
   profile_id: "proof.verification.test-validity",
-  profile_version: "8.0.0"
+  profile_version: "11.0.0"
 } };
 
 test("exact evaluator resolution rejects comment-only and semantic byte drift", async (t) => {
   const { resolveExactProofEvaluator } = await loadRegistry();
   const evaluatorSource = await readFile(new URL(
-    "../profiles/proof.verification.test-validity/8.0.0/evaluator.mjs",
+    "../profiles/proof.verification.test-validity/11.0.0/evaluator.mjs",
     import.meta.url), "utf8");
 
   const loadCopied = async (options) => {

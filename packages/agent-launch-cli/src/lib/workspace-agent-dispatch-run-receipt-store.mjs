@@ -241,7 +241,8 @@ export function createExactSliceReviewReceiptStore({
     if (ensured?.ok !== true) {
 
       const failure = new Error(
-        ensured?.reason ?? "launcher runtime state unavailable for exact review receipts"
+        ensured?.reason ?? "launcher runtime state unavailable for exact review receipts",
+        { cause: ensured }
       );
       if (typeof ensured?.code === "string" && ensured.code.length > 0) {
         failure.code = ensured.code;

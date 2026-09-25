@@ -31,7 +31,10 @@ function unsupportedKindDiagnostic(kind, targetPath = "record_kind") {
 }
 
 async function loadKindAuthority() {
-  const manifest = await loadManifest();
+  return kindAuthorityFromManifest(await loadManifest());
+}
+
+function kindAuthorityFromManifest(manifest) {
   const types = manifest?.types ?? {};
   const byKind = new Map();
   const byPrefix = new Map();
@@ -93,7 +96,10 @@ function unresolvedIdentityResult(id, diagnostic) {
 }
 
 export async function resolveKindRecordIdentity(id) {
-  const authority = await loadKindAuthority();
+  return resolveKindRecordIdentityWithAuthority(await loadKindAuthority(), id);
+}
+
+function resolveKindRecordIdentityWithAuthority(authority, id) {
   const prefix = idPrefix(id);
   const resolved = authority.byPrefix.get(prefix);
   if (!resolved) {
@@ -115,6 +121,17 @@ export async function resolveKindRecordIdentity(id) {
     projection_path: projectionPathFor(resolved, id),
     diagnostics: []
   };
+}
+
+export function canonicalKindRecordPathForProjection(manifest, projectionPath) {
+  if (typeof projectionPath !== "string") return null;
+  const identity = resolveKindRecordIdentityWithAuthority(
+    kindAuthorityFromManifest(manifest),
+    path.posix.basename(projectionPath, ".md")
+  );
+  return identity.recognized && identity.projection_path === projectionPath
+    ? identity.canonical_record_path
+    : null;
 }
 
 export async function getKindRecordPath(kind, id) {
@@ -473,17 +490,38 @@ async function writeFileToTemp(filePath, contents) {
   return { tempDir, tempPath };
 }
 
-async function readOnDiskDigest(absoluteJsonPath) {
+async function observeOnDiskDigest(absoluteJsonPath, relativeJsonPath) {
+
+  const withCause = (diagnostic, error, operation) => ({
+    ...diagnostic,
+    operation,
+    cause_name: typeof error?.name === "string" ? error.name : null,
+    cause_message: error instanceof Error ? error.message : String(error)
+  });
   let text;
   try {
     text = await readFile(absoluteJsonPath, "utf8");
-  } catch {
-    return null;
+  } catch (error) {
+    if (error?.code === "ENOENT") return { status: "absent", digest: null };
+    return { status: "unobservable", diagnostic: withCause(
+      unreadableRecordDiagnostic(relativeJsonPath, error), error, "read") };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    return { status: "unobservable", diagnostic: withCause({
+      code: "invalid_json",
+      severity: "error",
+      message: `Could not parse canonical kind record JSON: ${relativeJsonPath}`,
+      path: relativeJsonPath
+    }, error, "parse") };
   }
   try {
-    return computeWorkRecordSourceDigest(JSON.parse(text));
-  } catch {
-    return null;
+    return { status: "observed", digest: computeWorkRecordSourceDigest(parsed) };
+  } catch (error) {
+    return { status: "unobservable", diagnostic: withCause(
+      unreadableRecordDiagnostic(relativeJsonPath, error), error, "digest") };
   }
 }
 
@@ -575,7 +613,11 @@ export async function writeValidatedKindRecord({
     markdownTemp = await writeFileToTemp(absoluteMarkdownPath, projection.markdown);
 
     const writeResult = await withKindRecordWriteLock(targetRoot, async () => {
-      const currentDigest = await readOnDiskDigest(absoluteJsonPath);
+      const observation = await observeOnDiskDigest(absoluteJsonPath, relativeJsonPath);
+      if (observation.status === "unobservable") {
+        return { status: "observation_failed", diagnostic: observation.diagnostic };
+      }
+      const currentDigest = observation.digest;
 
       const guardDigest =
         expectedSourceDigest !== null && expectedSourceDigest !== undefined
@@ -592,6 +634,10 @@ export async function writeValidatedKindRecord({
       }
       return { status: "written" };
     });
+
+    if (writeResult.status === "observation_failed") {
+      return refusal([writeResult.diagnostic], sourceDigest);
+    }
 
     if (writeResult.status === "stale") {
       return {

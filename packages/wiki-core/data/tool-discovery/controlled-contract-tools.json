@@ -39,9 +39,9 @@
         "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs",
         "packages/wiki-mcp/src/lib/proof-discovery-tools.mjs"
       ],
-      "notes": "Return the complete admitted proof catalogue in one response with identity, exact assertion and exclusions, applicability and shared facts needed to choose. A query ranks matches first but hides no proof; provider terms stay context, not relevance. Catalogue selection has no limit, cursor or content-reference follow-up. Snapshot selectors provide optional exact detail and wide-field continuation. Query maximum: 1024 UTF-8 bytes. Read-only; does not select or execute proofs.",
+      "notes": "Find proof candidates by the property to establish: a query returns bounded ranked pages of compact rows (identity, intent ids, match kind, query-relevant limitation, verification capability, detail_action) and adds no unmatched proof; no query browses the catalogue compactly. Source-bound continuation reaches every match. Selected detail returns a candidate's complete assertion, exclusions and comparisons, with field/range continuation. Provider terms stay context, not relevance. Query maximum: 1024 UTF-8 bytes. Read-only; does not select or execute proofs.",
       "use_when": [
-        "Read the complete proof catalogue, rank it for an obligation, or understand the scope of a known proof name."
+        "Find ranked proof candidates for an obligation's property, browse the catalogue compactly, or read the complete scope of a known proof name."
       ],
       "do_not_use_when": [
         "Select or map proofs, supply instance inputs, construct or execute a proof."
@@ -53,7 +53,7 @@
         "routing_intents": [
           "controlled_contract_proof_selection"
         ],
-        "operation": "read the complete catalogue, optionally rank it by a property; use proof_name for known exact detail",
+        "operation": "query by the property to establish, then read the selected candidate's detail; use proof_name for known exact detail",
         "arguments": {
           "query": "$proof_query_if_known"
         },
@@ -76,12 +76,13 @@
         "Read the selected test observation and mutation evidence separately: mutation contributes additional falsification evidence for the same proof, while unavailable mutation leaves the observed test result visible and unchanged.",
         "A test-proof or obligation ID is saved in more than one source: the bare call refuses and lists every authorized source choice; retry one listed choice, which adds source {unit, focus?} to select exactly that WK or slice source (omitted focus selects the root source) without searching any other source.",
         "An eligible launcher-managed worker or reviewer must execute every exact server-resolved declared test proof selected by one canonical subject.",
-        "A proof definition (declarative test selector, boundary, observable, falsifiers, traversal) has been authored and the candidate implementation must now be executed against it; a selected test that does not exist yet is an execution outcome of this call, never an authoring prerequisite."
+        "A proof definition (declarative test selector, boundary, observable, falsifiers, traversal) has been authored and the candidate implementation must now be executed against it; a selected test that does not exist yet is an execution outcome of this call, never an authoring prerequisite.",
+        "Each selected test runs in the setup-prepared environment its saved runner binding and owning installation root select (the target suffix is recorded as a hint), so one call may verify several languages; pass optional environment <ecosystem>@<installation root> (for example npm@. or go_modules@services/api, as setup's readiness lists them) to name one prepared environment, which must serve every selected proof or the call refuses before executing and lists each incompatible target with the valid choices."
       ],
       "do_not_use_when": [
         "A managed worker or reviewer wants to supply git_sha or escape its launcher-bound candidate.",
         "The subject is a WK ID or slice address and a source is also supplied; a population subject already names its source, and source never grants execution or declaration authority.",
-        "The task needs a caller-selected path, command, target, environment, provider, evaluator, receipt, policy, authority, arbitrary test execution, replay authority, or lifecycle authority."
+        "The task needs a caller-selected path, command, target, environment variables, executable, root or mount, provider, evaluator, receipt, policy, authority, arbitrary test execution, replay authority, or lifecycle authority; environment names only a setup-published prepared environment."
       ],
       "authoritative_for": [
         "advisory satisfied, unsatisfied, not_executable, or typed-refusal verification of one deterministic, completely preflighted proof population, including separate selected-test observations and additional mutation falsification evidence, with canonical relationship projection, authenticated selected-worktree facts, confined execution, receipt, proof-pack, and evaluator identities"
@@ -95,6 +96,7 @@
           "subject": "$proof_subject_if_known",
           "source": "$source_choice_from_a_select_source_refusal_if_needed",
           "repo": "$configured_workspace_alias_if_needed",
+          "environment": "$optional_prepared_environment_id",
           "git_sha": "$optional_exact_full_commit_for_orchestrator"
         },
         "omit_null_arguments": true
@@ -356,7 +358,7 @@
       ],
       "use_when": [
         "Explicitly check saved proof inputs against the exact selected route and distinguish blocking, nonblocking and unresolved author-input, canonical-source or system-capability diagnostics without execution or mutation.",
-        "Inspect selected-route stages, zero-credit execution status, dispatch-not-assessed status, and supported or explicitly unavailable recovery.",
+        "Inspect the authored-semantic verdict separately from selected-route executable-map stages, zero-credit execution status, dispatch-not-assessed status, and supported or explicitly unavailable recovery.",
         "Retrieve every original occurrence for a returned diagnostic_group_id through the same source-bound validation route."
       ],
       "do_not_use_when": [
@@ -375,7 +377,7 @@
           "controlled_contract_proof_validation"
         ]
       },
-      "notes": "Explicit design validation of saved obligations, exact pins and pack-owned parameters/construction/dependencies. Default results derive row status and counts from one selected-route assessment, retain nonblocking context, explain blockers and recovery, and contain exact occurrence/group/affected-obligation accounting. diagnostic_group_id selects lossless identity-bound detail. Row status and counts report the AUTHORED meaning; the selected route's executable map -- exact definition, authored case, native binding and declared target -- is reported per row in selected_proof_assessment and is execution-owned. No execution, dispatch assessment, authored mutation or readiness authority."
+      "notes": "Explicit design validation of saved obligations, exact pins and pack-owned parameters/construction/dependencies. Root status, input_status and valid/invalid obligation counts report existing authored meaning and currentness; rows without a selected route remain in that denominator. The strict executable-map verdict, exact route stages and route-effect counts stay under selected_route_assessment. diagnostic_group_id selects lossless identity-bound detail. Every resolved-unit response offers workspace_validate_dispatch as an independent assessment regardless of executable-map validity; validation does not invoke it, grant dispatch, execute proofs, mutate authored state or grant readiness authority."
     }
   ]
 }

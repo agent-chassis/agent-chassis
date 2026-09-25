@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateWorkRecordDispatch } from "../../packages/wiki-core/src/index.mjs";
+import { validateWorkRecordDispatch } from "../../packages/wiki-core/src/operations/validate-dispatch.mjs";
 import {
   NODE_ENGINE_ADMISSIBILITY_UNDETERMINED_DECISION_CODE,
   NODE_ENGINE_ADMISSIBILITY_NEEDS_REVIEW_DECISION_CODE,

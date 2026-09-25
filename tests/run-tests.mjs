@@ -1,20 +1,26 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import {
-  chmodSync,
   existsSync,
-  lstatSync,
-  mkdtempSync,
   mkdirSync,
   readdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-  writeSync
+  readFileSync
 } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { cleanupRunnerOwnedRoots, createRunnerOwnedTempRoot, recoverInactiveRunnerRoots } from "./helpers/test-runner-roots.mjs";
+import { spawnManagedTestProcess } from "./helpers/managed-test-process.mjs";
+import { createTestResourceScope } from "./helpers/test-resource-scope.mjs";
+import { parseTestRunnerOptions, TestRunnerOptionError } from "./helpers/test-runner-options.mjs";
+import { createRunnerOutput } from "./helpers/test-runner-output.mjs";
+import { beginTestRunRecording } from "./helpers/test-run-recording.mjs";
+import { renderSlowest } from "./helpers/test-timing-summary.mjs";
+import { TEST_TIMING_CODES, timingFailure, timingNextAction } from "./helpers/test-timing-diagnostics.mjs";
+import { TEST_RUNNER_OBSERVER_URL } from "./helpers/test-runner-observer.mjs";
+import {
+  createObserverFrameReader, createTestRunnerWatchdog,
+  TEST_RUNNER_WATCHDOG_CODES, TestRunnerWatchdogError
+} from "./helpers/test-runner-watchdog.mjs";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -26,26 +32,9 @@ import {
 
 const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TESTS_DIR, "..");
-const TEST_TEMP_PARENT = "/tmp";
-const RUNNER_ROOT_MARKER = ".agent-chassis-runner-owned.json";
-const RUNNER_ROOT_MARKER_SCHEMA = "agent-chassis-test-runner-root.v1";
-const RUNNER_ROOT_REPOSITORY = "agent-chassis/agent-chassis";
-const RUNNER_ROOT_SPECS = Object.freeze({
-  home: Object.freeze({
-    prefix: "agent-chassis-hermetic-home-",
-    purpose: "hermetic-home"
-  }),
-  temp: Object.freeze({
-    prefix: "agent-chassis-test-tmp-",
-    purpose: "test-tmp"
-  })
-});
-
 const INTEGRATION_MODES = new Set(["integration", "all"]);
 
-const CATCHABLE_TERMINATION_SIGNALS = Object.freeze(["SIGINT", "SIGTERM"]);
-const SIGNAL_GRACE_MS = 5000;
-const PROC_BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id";
+const CATCHABLE_TERMINATION_SIGNALS = Object.freeze(["SIGINT", "SIGTERM", "SIGHUP"]);
 
 const DEFAULT_TEST_TIMEOUT_MS = 30000;
 
@@ -70,335 +59,17 @@ const AGENT_IDENTITY_ENV_KEYS = [
   "AGENT_SUBJECT"
 ];
 
+const NODE_TEST_CONTEXT_ENV_KEYS = ["NODE_TEST_CONTEXT", "NODE_TEST_WORKER_ID"];
+
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-function writeStderr(message) {
-  writeSync(process.stderr.fd, message);
-}
-
-function runnerRootSpecForName(name) {
-  for (const [kind, spec] of Object.entries(RUNNER_ROOT_SPECS)) {
-    if (!name.startsWith(spec.prefix)) continue;
-    const suffix = name.slice(spec.prefix.length);
-    if (/^[A-Za-z0-9]{6}$/u.test(suffix)) return { kind, ...spec };
-  }
-  return null;
-}
-
-function boundedRunnerRootPath(rootPath) {
-  const resolved = path.resolve(rootPath);
-  if (path.dirname(resolved) !== path.resolve(TEST_TEMP_PARENT)) return null;
-  const spec = runnerRootSpecForName(path.basename(resolved));
-  return spec ? { path: resolved, ...spec } : null;
-}
-
-function readLinuxBootId() {
-  if (process.platform !== "linux" || !existsSync(PROC_BOOT_ID_PATH)) return null;
-  const bootId = readFileSync(PROC_BOOT_ID_PATH, "utf8").trim();
-  return bootId.length > 0 ? bootId : null;
-}
-
-function parseLinuxProcessStartTicks(statText, pid) {
-  const closeParen = statText.lastIndexOf(") ");
-  if (closeParen < 0) throw new Error(`malformed /proc/${pid}/stat: missing command terminator`);
-  const fieldsFromState = statText.slice(closeParen + 2).trim().split(/\s+/u);
-  const startTicks = fieldsFromState[19];
-  if (!/^\d+$/u.test(startTicks ?? "")) {
-    throw new Error(`malformed /proc/${pid}/stat: missing process start time`);
-  }
-  return startTicks;
-}
-
-function inspectLinuxProcess(pid) {
-  if (process.platform !== "linux") return { state: "unknown", reason: "non-linux host" };
-  const statPath = `/proc/${pid}/stat`;
-  try {
-    const statText = readFileSync(statPath, "utf8");
-    return { state: "present", startTicks: parseLinuxProcessStartTicks(statText, pid) };
-  } catch (error) {
-    if (error && error.code === "ENOENT") return { state: "absent" };
-    return { state: "unknown", reason: errorMessage(error) };
-  }
-}
-
-function currentRunnerOwnerIdentity() {
-  const uid = typeof process.getuid === "function" ? process.getuid() : null;
-  const bootId = readLinuxBootId();
-  const processIdentity = inspectLinuxProcess(process.pid);
-  return Object.freeze({
-    pid: process.pid,
-    uid,
-    boot_id: bootId,
-    process_start_ticks: processIdentity.state === "present"
-      ? processIdentity.startTicks
-      : null
-  });
-}
-
-function cleanupFailure(rootPath, error) {
-  return Object.freeze({
-    root: rootPath,
-    code: error && typeof error.code === "string" ? error.code : "runner_temp_cleanup_failed",
-    message: errorMessage(error)
-  });
-}
-
-function makeRunnerRootRemovable(rootPath, rootStat) {
-  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
-  if (currentUid === null || rootStat.uid !== currentUid) {
-    const error = new Error(`runner temp root is not owned by the runner uid: ${rootPath}`);
-    error.code = "runner_temp_cleanup_owner_refused";
-    throw error;
-  }
-  const visit = (directory) => {
-    const directoryStat = lstatSync(directory);
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
-      const error = new Error(`runner temp cleanup encountered a substituted directory: ${directory}`);
-      error.code = "runner_temp_cleanup_substitution_refused";
-      throw error;
-    }
-    if (directoryStat.uid !== currentUid || directoryStat.dev !== rootStat.dev) {
-      const error = new Error(`runner temp cleanup crossed an ownership or mount boundary: ${directory}`);
-      error.code = "runner_temp_cleanup_boundary_refused";
-      throw error;
-    }
-    chmodSync(directory, 0o700);
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
-      const child = path.join(directory, entry.name);
-      let childStat;
-      try {
-        childStat = lstatSync(child);
-      } catch (error) {
-        if (error && error.code === "ENOENT") continue;
-        throw error;
-      }
-      if (childStat.isSymbolicLink()) continue;
-      if (childStat.isDirectory()) visit(child);
-    }
-  };
-  visit(rootPath);
-}
-
-function removeBoundedRunnerRoot(rootPath, expectedIdentity = null) {
-  const bounded = boundedRunnerRootPath(rootPath);
-  if (!bounded) {
-    const error = new Error(`refusing cleanup outside an exact runner temp root: ${rootPath}`);
-    error.code = "runner_temp_cleanup_path_refused";
-    throw error;
-  }
-  let rootStat;
-  try {
-    rootStat = lstatSync(bounded.path);
-  } catch (error) {
-    if (error && error.code === "ENOENT") return;
-    throw error;
-  }
-  if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || realpathSync(bounded.path) !== bounded.path) {
-    const error = new Error(`runner temp root was substituted before cleanup: ${bounded.path}`);
-    error.code = "runner_temp_cleanup_substitution_refused";
-    throw error;
-  }
-  if (
-    expectedIdentity &&
-    (rootStat.dev !== expectedIdentity.dev || rootStat.ino !== expectedIdentity.ino)
-  ) {
-    const error = new Error(`runner temp root identity changed before cleanup: ${bounded.path}`);
-    error.code = "runner_temp_cleanup_identity_refused";
-    throw error;
-  }
-  makeRunnerRootRemovable(bounded.path, rootStat);
-  rmSync(bounded.path, { recursive: true, force: true });
-  if (existsSync(bounded.path)) {
-    const error = new Error(`runner temp root still exists after cleanup: ${bounded.path}`);
-    error.code = "runner_temp_cleanup_incomplete";
-    throw error;
-  }
-}
-
-export function cleanupRunnerOwnedRoots(roots) {
-  const failures = [];
-  for (const root of [...roots].reverse()) {
-    try {
-      removeBoundedRunnerRoot(root.path, root.rootIdentity);
-    } catch (error) {
-      failures.push(cleanupFailure(root.path, error));
-    }
-  }
-  return Object.freeze(failures);
-}
-
-export function createRunnerOwnedTempRoot(kind) {
-  const spec = RUNNER_ROOT_SPECS[kind];
-  if (!spec) throw new Error(`unknown runner temp-root kind: ${kind}`);
-  const rootPath = mkdtempSync(path.join(TEST_TEMP_PARENT, spec.prefix));
-  try {
-    chmodSync(rootPath, 0o700);
-    const marker = Object.freeze({
-      schema_version: RUNNER_ROOT_MARKER_SCHEMA,
-      repository: RUNNER_ROOT_REPOSITORY,
-      purpose: spec.purpose,
-      root_basename: path.basename(rootPath),
-      owner: currentRunnerOwnerIdentity()
-    });
-    writeFileSync(
-      path.join(rootPath, RUNNER_ROOT_MARKER),
-      `${JSON.stringify(marker)}\n`,
-      { encoding: "utf8", flag: "wx", mode: 0o600 }
-    );
-    const rootStat = lstatSync(rootPath);
-    return Object.freeze({
-      kind,
-      path: rootPath,
-      rootIdentity: Object.freeze({ dev: rootStat.dev, ino: rootStat.ino })
-    });
-  } catch (error) {
-    const failures = cleanupRunnerOwnedRoots([{ kind, path: rootPath }]);
-    if (failures.length > 0) {
-      const setupError = new Error(
-        `runner temp-root setup failed (${errorMessage(error)}); ` +
-        `partial cleanup also failed (${failures.map((failure) => failure.message).join("; ")})`,
-        { cause: error }
-      );
-      setupError.code = "runner_temp_setup_and_cleanup_failed";
-      setupError.cleanupFailures = failures;
-      throw setupError;
-    }
-    throw error;
-  }
-}
-
-function inspectRunnerRootOwnership(rootPath) {
-  const bounded = boundedRunnerRootPath(rootPath);
-  if (!bounded) return { state: "unproven", reason: "path is not an exact runner root" };
-
-  let rootStat;
-  let markerStat;
-  let rootRealPath;
-  let markerText;
-  try {
-    rootStat = lstatSync(bounded.path);
-    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
-      return { state: "unproven", reason: "root is not a plain directory" };
-    }
-    rootRealPath = realpathSync(bounded.path);
-    if (rootRealPath !== bounded.path) {
-      return { state: "unproven", reason: "root does not resolve to its exact /tmp path" };
-    }
-    const markerPath = path.join(bounded.path, RUNNER_ROOT_MARKER);
-    markerStat = lstatSync(markerPath);
-    if (!markerStat.isFile() || markerStat.isSymbolicLink() || markerStat.nlink !== 1) {
-      return { state: "unproven", reason: "ownership marker is not a single-link plain file" };
-    }
-    markerText = readFileSync(markerPath, "utf8");
-  } catch (error) {
-    return { state: "unproven", reason: errorMessage(error) };
-  }
-
-  const currentUid = typeof process.getuid === "function" ? process.getuid() : null;
-  if (currentUid === null || rootStat.uid !== currentUid || markerStat.uid !== currentUid) {
-    return { state: "unproven", reason: "root and marker are not owned by the runner uid" };
-  }
-  if ((rootStat.mode & 0o777) !== 0o700 || (markerStat.mode & 0o777) !== 0o600) {
-    return { state: "unproven", reason: "root or marker permissions do not match runner ownership" };
-  }
-
-  let marker;
-  try {
-    marker = JSON.parse(markerText);
-  } catch (error) {
-    return { state: "unproven", reason: `invalid ownership marker: ${errorMessage(error)}` };
-  }
-  if (
-    marker?.schema_version !== RUNNER_ROOT_MARKER_SCHEMA ||
-    marker?.repository !== RUNNER_ROOT_REPOSITORY ||
-    marker?.purpose !== bounded.purpose ||
-    marker?.root_basename !== path.basename(bounded.path) ||
-    marker?.owner?.uid !== currentUid ||
-    !Number.isSafeInteger(marker?.owner?.pid) ||
-    marker.owner.pid <= 0 ||
-    typeof marker.owner.boot_id !== "string" ||
-    marker.owner.boot_id.length === 0 ||
-    typeof marker.owner.process_start_ticks !== "string" ||
-    !/^\d+$/u.test(marker.owner.process_start_ticks)
-  ) {
-    return { state: "unproven", reason: "ownership marker fields do not match the root" };
-  }
-  return {
-    state: "proven",
-    bounded,
-    marker,
-    markerText,
-    rootIdentity: Object.freeze({ dev: rootStat.dev, ino: rootStat.ino })
-  };
-}
-
-function inspectRunnerRootLiveness(proof, currentBootId) {
-  if (proof.marker.owner.boot_id !== currentBootId) {
-    return { state: "inactive", reason: "owner boot no longer active" };
-  }
-  const processIdentity = inspectLinuxProcess(proof.marker.owner.pid);
-  if (processIdentity.state === "absent") {
-    return { state: "inactive", reason: "owner process no longer exists" };
-  }
-  if (processIdentity.state !== "present") {
-    return { state: "unknown", reason: processIdentity.reason };
-  }
-  if (processIdentity.startTicks !== proof.marker.owner.process_start_ticks) {
-    return { state: "inactive", reason: "owner pid has been reused" };
-  }
-  return { state: "active" };
-}
-
-function sameRunnerRootProof(first, second) {
-  return second.state === "proven" &&
-    second.markerText === first.markerText &&
-    second.rootIdentity.dev === first.rootIdentity.dev &&
-    second.rootIdentity.ino === first.rootIdentity.ino;
-}
-
-export function recoverInactiveRunnerRoots() {
-  const currentBootId = readLinuxBootId();
-  if (currentBootId === null) {
-    return Object.freeze({ removed: Object.freeze([]), failures: Object.freeze([]) });
-  }
-  const removed = [];
-  const failures = [];
-  const entries = readdirSync(TEST_TEMP_PARENT, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !runnerRootSpecForName(entry.name)) continue;
-    const rootPath = path.join(TEST_TEMP_PARENT, entry.name);
-    const firstProof = inspectRunnerRootOwnership(rootPath);
-    if (firstProof.state !== "proven") continue;
-    if (inspectRunnerRootLiveness(firstProof, currentBootId).state !== "inactive") continue;
-
-    const secondProof = inspectRunnerRootOwnership(rootPath);
-    if (!sameRunnerRootProof(firstProof, secondProof)) continue;
-    if (inspectRunnerRootLiveness(secondProof, currentBootId).state !== "inactive") continue;
-    try {
-      removeBoundedRunnerRoot(rootPath, secondProof.rootIdentity);
-      removed.push(rootPath);
-    } catch (error) {
-      failures.push(cleanupFailure(rootPath, error));
-    }
-  }
-  return Object.freeze({
-    removed: Object.freeze(removed),
-    failures: Object.freeze(failures)
-  });
-}
-
-function reportCleanupFailures(failures, outcomeDescription) {
+function reportCleanupFailures(emit, failures, outcomeDescription) {
   if (failures.length === 0) return;
-  writeStderr(
-    `[run-tests] temporary-root cleanup failed; ${outcomeDescription}\n`
-  );
+  emit(`[run-tests] temporary-root cleanup failed; ${outcomeDescription}\n`);
   for (const failure of failures) {
-    writeStderr(
-      `[run-tests] cleanup root=${failure.root} code=${failure.code}: ${failure.message}\n`
-    );
+    emit(`[run-tests] cleanup root=${failure.root} code=${failure.code}: ${failure.message}\n`);
   }
 }
 
@@ -411,7 +82,7 @@ function classify() {
   });
 }
 
-function buildClampedEnv(scratchHome, scratchTemp) {
+function buildClampedEnv(scratchHome, scratchTemp, runContextEnv) {
   const env = { ...process.env };
 
   env.HOME = scratchHome;
@@ -430,228 +101,385 @@ function buildClampedEnv(scratchHome, scratchTemp) {
   ]) {
     mkdirSync(dir, { recursive: true });
   }
-  for (const key of [...CREDENTIAL_ENV_KEYS, ...AGENT_IDENTITY_ENV_KEYS]) {
+  for (const key of [...CREDENTIAL_ENV_KEYS, ...AGENT_IDENTITY_ENV_KEYS, ...NODE_TEST_CONTEXT_ENV_KEYS]) {
     delete env[key];
   }
 
   env.PORTFOLIO_WIKI_TOOLS_HERMETIC_TESTS = "1";
+
+  Object.assign(env, runContextEnv);
   return env;
 }
 
-function main() {
+function shellQuote(value) {
+  return `'${value.replaceAll("'", `'\"'\"'`)}'`;
+}
 
-  process.stdout.on("error", (err) => {
-    if (err && err.code === "EPIPE") {
-      process.exit(0);
-      return;
-    }
-    writeStderr(`[run-tests] stdout failed: ${errorMessage(err)}\n`);
-    process.exit(1);
-  });
+function describeWatchdogFailure(emit, error, fileTimeoutMs, phaseTimeoutMs) {
+  const detail = error.detail ?? {};
+  emit(`[run-tests] ${error.code}: ${error.message}\n`);
+  if (error.code === TEST_RUNNER_WATCHDOG_CODES.FILE_TIMEOUT) {
+    emit(`[run-tests] elapsed=${detail.elapsedMs}ms budget=${detail.budgetMs}ms; ` +
+      `reporter output may be incomplete. Operator: inspect the file with ` +
+      `node tests/run-tests.mjs integration --test-file-timeout=${fileTimeoutMs} ` +
+      `${shellQuote(detail.file)}; increase --test-file-timeout deliberately if needed.\n`);
+  } else if (error.code === TEST_RUNNER_WATCHDOG_CODES.PHASE_TIMEOUT ||
+             error.code === TEST_RUNNER_WATCHDOG_CODES.STARTUP_TIMEOUT) {
+    emit(`[run-tests] phase=${detail.phase} elapsed=${detail.elapsedMs}ms ` +
+      `budget=${detail.budgetMs}ms. Operator: inspect global setup/reporter teardown; ` +
+      `increase --test-runner-phase-timeout=${phaseTimeoutMs} deliberately if needed.\n`);
+  } else {
+    emit("[run-tests] runner maintainer: inspect the observer protocol and retained " +
+      "Node diagnostic; a partial reporter artifact is not a pass.\n");
+  }
+}
 
+function runStatus({ requestedSignal, outputLost, watchdogFailure, operationalError, result }) {
+  if (requestedSignal) return "operator_signal";
+  if (outputLost) return "output_lost";
+  if (watchdogFailure) return "watchdog_expired";
+  if (operationalError || result === null) return "setup_failed";
+  if (result.error) return "spawn_failed";
+  return result.code === 0 && result.signal === null ? "tests_passed" : "tests_failed";
+}
+
+function listCorpus(unit, integration) {
+  process.stdout.write(`unit (${unit.length}) [${UNIT_DIR_REL}/]:\n`);
+  for (const file of unit) process.stdout.write(`  ${file}\n`);
+  process.stdout.write(`\nintegration (${integration.length}) [${INTEGRATION_DIR_REL}/]:\n`);
+  for (const file of integration) process.stdout.write(`  ${file}\n`);
+}
+
+async function main(output) {
+  const emit = (text) => output.message(text);
+
+  const callerTempDir = os.tmpdir();
   const argv = process.argv.slice(2);
   const mode = argv[0] && !argv[0].startsWith("-") && !argv[0].includes(path.sep)
-    ? argv[0]
-    : "unit";
+    ? argv[0] : "unit";
   const passthrough = mode === argv[0] ? argv.slice(1) : argv;
-
   let unit;
   let integration;
   try {
     ({ unit, integration } = classify());
-  } catch (err) {
-    if (!(err instanceof TestSuiteClassificationError)) throw err;
-    writeStderr(`[run-tests] ${err.code}\n${err.message}\n`);
-    process.exit(3);
+  } catch (error) {
+    if (!(error instanceof TestSuiteClassificationError)) throw error;
+    emit(`[run-tests] ${error.code}\n${error.message}\n`);
+    return { exitCode: 3 };
   }
-
-  if (mode === "list") {
-    process.stdout.write(`unit (${unit.length}) [${UNIT_DIR_REL}/]:\n`);
-    for (const f of unit) process.stdout.write(`  ${f}\n`);
-    process.stdout.write(`\nintegration (${integration.length}) [${INTEGRATION_DIR_REL}/]:\n`);
-    for (const f of integration) process.stdout.write(`  ${f}\n`);
-    return;
-  }
-
+  if (mode === "list") return { list: () => listCorpus(unit, integration) };
   let files;
   if (mode === "unit") files = unit;
   else if (mode === "integration") files = integration;
   else if (mode === "all") files = [...unit, ...integration].sort();
   else {
-    writeStderr(
-      `unknown mode "${mode}"; expected unit | integration | all | list\n`
-    );
-    process.exit(2);
+    emit(`unknown mode ${JSON.stringify(mode)}; expected unit | integration | all | list\n`);
+    return { exitCode: 2 };
   }
 
-  const explicitFiles = passthrough.filter(
-    (a) => !a.startsWith("-") && a.endsWith(".test.mjs")
-  );
-  const flags = passthrough.filter((a) => a.startsWith("-"));
-  const targetFiles = explicitFiles.length > 0 ? explicitFiles : files;
-
-  const hasTimeoutFlag = flags.some((f) => f.startsWith("--test-timeout"));
-
-  const hasConcurrencyFlag = flags.some((f) => f.startsWith("--test-concurrency"));
+  let options;
+  try {
+    options = parseTestRunnerOptions(passthrough, { repoRoot: REPO_ROOT, selectedFiles: files });
+  } catch (error) {
+    if (!(error instanceof TestRunnerOptionError)) throw error;
+    emit(`[run-tests] ${error.code}: ${error.message}\n`);
+    return { exitCode: 2 };
+  }
   const serializeFiles = INTEGRATION_MODES.has(mode);
-
-  const timeoutMs = mode === "unit"
-    ? DEFAULT_TEST_TIMEOUT_MS
-    : INTEGRATION_TEST_TIMEOUT_MS;
-  const nodeArgs = [
-    "--test",
-    ...(hasTimeoutFlag ? [] : [`--test-timeout=${timeoutMs}`]),
-    ...(serializeFiles && !hasConcurrencyFlag ? ["--test-concurrency=1"] : []),
-    ...flags,
-    ...targetFiles
-  ];
+  const timeoutMs = mode === "unit" ? DEFAULT_TEST_TIMEOUT_MS : INTEGRATION_TEST_TIMEOUT_MS;
+  const reporterOptions = [...options.native];
+  if (options.reporterCount === 0) {
+    reporterOptions.push("--test-reporter=spec", "--test-reporter-destination=stdout");
+  } else if (options.reporterCount === 1 && options.destinationCount === 0) {
+    reporterOptions.push("--test-reporter-destination=stdout");
+  }
+  reporterOptions.push(`--test-reporter=${TEST_RUNNER_OBSERVER_URL}`,
+    "--test-reporter-destination=stdout");
+  const nodeArgs = ["--test",
+    ...(options.hasTimeout ? [] : [`--test-timeout=${timeoutMs}`]),
+    ...(serializeFiles && !options.hasConcurrency ? ["--test-concurrency=1"] : []),
+    ...reporterOptions, ...options.files];
 
   let recovery;
   try {
     recovery = recoverInactiveRunnerRoots();
   } catch (error) {
-    writeStderr(
-      `[run-tests] stale temporary-root recovery failed before child start: ${errorMessage(error)}\n`
-    );
-    process.exit(1);
+    emit(`[run-tests] stale temporary-root recovery failed: ${errorMessage(error)}\n`);
+    return { exitCode: 1 };
   }
   for (const recovered of recovery.removed) {
-    writeStderr(`[run-tests] recovered inactive temporary root ${recovered}\n`);
+    emit(`[run-tests] recovered inactive temporary root ${recovered}\n`);
   }
   if (recovery.failures.length > 0) {
-    reportCleanupFailures(recovery.failures, "child outcome=not-started (stale-root recovery)");
-    process.exit(1);
+    reportCleanupFailures(emit, recovery.failures, "child outcome=not-started (stale-root recovery)");
+    return { exitCode: 1 };
   }
 
   const roots = [];
-  let scratchHomeRoot;
-  let scratchTempRoot;
-  let child = null;
-  let finished = false;
+  const resources = createTestResourceScope();
+  let recording = null;
+  let managed;
+  let watchdog;
+  let pipeEnded = false;
+  let earlyEofTimer = null;
+  let result = null;
+  let operationalError = null;
+  let settlementError = null;
+  let resourceError = null;
   let requestedSignal = null;
-  let signalGraceTimer = null;
-  const signalHandlers = new Map();
+  let outputLost = null;
+  let settling = false;
+  let artifactCreateFailed = false;
+  let watchdogSecondary = false;
+  const pendingRecordingFailures = [];
+  const recordFailure = (failure) => {
+    if (recording) recording.recordFailure(failure);
+    else pendingRecordingFailures.push(failure);
+  };
 
+  const settle = () => {
+    if (settling) return;
+    settling = true;
+    output.settle();
+    watchdog?.dispose();
+    stopSuite();
+  };
+  const stopSuite = () => {
+    if (managed) void managed.stop().catch((error) => { settlementError ??= error; });
+  };
+  output.onFailureObserved((failure, { soft }) => {
+    recordFailure(timingFailure(TEST_TIMING_CODES.ARTIFACT_WRITE_FAILED,
+      `${failure.sink} ${soft ? "overflowed" : "failed"}: ${failure.code} ${failure.message}`,
+      { sink: failure.sink }));
+    if (!soft && (failure.sink === "stdout" || failure.sink === "stderr")) {
+      outputLost ??= failure;
+      settle();
+    }
+  });
+  const signalHandlers = new Map();
   const removeSignalHandlers = () => {
     for (const [signal, handler] of signalHandlers) process.off(signal, handler);
   };
-
-  const emergencyCleanup = () => {
-    if (finished) return;
-    finished = true;
-    removeSignalHandlers();
-    const failures = cleanupRunnerOwnedRoots(roots);
-    writeStderr("[run-tests] runner exited before the child produced a terminal outcome\n");
-    reportCleanupFailures(failures, "child outcome=unsettled (runner failure)");
-    process.exitCode = 1;
-  };
-  process.once("exit", emergencyCleanup);
-
-  const finish = (outcome) => {
-    if (finished) return;
-    finished = true;
-    if (signalGraceTimer !== null) clearTimeout(signalGraceTimer);
-    removeSignalHandlers();
-    process.off("exit", emergencyCleanup);
-
-    const failures = cleanupRunnerOwnedRoots(roots);
-    let outcomeDescription;
-    if (outcome.error) {
-      outcomeDescription = `child outcome=spawn-error (${errorMessage(outcome.error)})`;
-    } else if (outcome.signal) {
-      outcomeDescription = `child outcome=signal ${outcome.signal}`;
-    } else {
-      outcomeDescription = `child outcome=exit code=${outcome.code === null ? "null" : outcome.code}`;
-    }
-    reportCleanupFailures(failures, outcomeDescription);
-
-    if (outcome.error) {
-      writeStderr(`[run-tests] failed to spawn node --test: ${errorMessage(outcome.error)}\n`);
-    }
-
-    const terminalSignal = requestedSignal ?? outcome.signal;
-    if (terminalSignal) {
-      try {
-        process.kill(process.pid, terminalSignal);
-      } catch (error) {
-        writeStderr(
-          `[run-tests] failed to preserve child signal ${terminalSignal}: ${errorMessage(error)}\n`
-        );
-        process.exit(1);
-      }
-      return;
-    }
-
-    let exitCode = outcome.error ? 1 : (outcome.code ?? 1);
-    if (failures.length > 0 && exitCode === 0) exitCode = 1;
-    process.exit(exitCode);
-  };
-
-  const forward = (signal) => {
-    if (requestedSignal === null) requestedSignal = signal;
-    if (child === null) {
-      finish({ code: null, signal, error: null });
-      return;
-    }
-    try {
-      child.kill(signal);
-    } catch (error) {
-      writeStderr(
-        `[run-tests] failed to forward ${signal} to child: ${errorMessage(error)}\n`
-      );
-    }
-    if (signalGraceTimer === null) {
-      signalGraceTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch (error) {
-          writeStderr(
-            `[run-tests] failed to stop child after ${SIGNAL_GRACE_MS}ms signal grace: ` +
-            `${errorMessage(error)}\n`
-          );
-        }
-      }, SIGNAL_GRACE_MS);
-    }
-  };
-  for (const signal of CATCHABLE_TERMINATION_SIGNALS) {
-    const handler = () => forward(signal);
-    signalHandlers.set(signal, handler);
-    process.on(signal, handler);
-  }
-
   try {
-    scratchHomeRoot = createRunnerOwnedTempRoot("home");
-    roots.push(scratchHomeRoot);
-    scratchTempRoot = createRunnerOwnedTempRoot("temp");
-    roots.push(scratchTempRoot);
-    child = spawn(process.execPath, nodeArgs, {
-      cwd: REPO_ROOT,
-      env: buildClampedEnv(scratchHomeRoot.path, scratchTempRoot.path),
-      stdio: "inherit"
+    const home = createRunnerOwnedTempRoot("home");
+    roots.push(home);
+    const temp = createRunnerOwnedTempRoot("temp");
+    roots.push(temp);
+    try {
+      recording = await beginTestRunRecording({ repoRoot: REPO_ROOT, mode, options,
+        selectedFiles: options.files, callerTempDir, currentRoots: roots.map((root) => root.path),
+        output });
+    } catch (error) {
+      const code = error?.code ?? TEST_TIMING_CODES.ARTIFACT_CREATE_FAILED;
+      emit(`[run-tests] ${code}: ${errorMessage(error)}\n[run-tests] ${timingNextAction(code) ??
+        timingNextAction(TEST_TIMING_CODES.ARTIFACT_CREATE_FAILED)}\n`);
+      operationalError = error;
+      artifactCreateFailed = true;
+      throw error;
+    }
+    for (const failure of pendingRecordingFailures.splice(0)) recording.recordFailure(failure);
+    emit(`[run-tests] artifacts=${recording.runDir} run=${recording.runId}\n`);
+    const env = buildClampedEnv(home.path, temp.path, recording.contextEnv);
+    watchdog = createTestRunnerWatchdog({
+      files: options.files, fileTimeoutMs: options.fileTimeoutMs,
+      phaseTimeoutMs: options.phaseTimeoutMs,
+      allowUnscheduledFiles: options.hasShard,
+      onProgress: (event) => {
+        if (event.type === "START") {
+          emit(`[run-tests] START ${event.file} budget=${event.budgetMs}ms\n`);
+        } else {
+          emit(`[run-tests] FINISH ${event.file} elapsed=${event.elapsedMs}ms ` +
+            `outcome=${event.outcome}\n`);
+        }
+      },
+      onRecordingFailure: (status) => {
+        recordFailure(timingFailure(TEST_TIMING_CODES.TIMING_INCOMPLETE,
+          `native timing sink failed (${status.code}): ${status.message}`, { producer: "observer" }));
+        emit(`[run-tests] ${status.code}: native timing recording stopped: ${status.message}\n`);
+      },
+
+      onFailure: () => {
+        if (settling) watchdogSecondary = true;
+        settle();
+      }
     });
-    child.once("exit", (code, signal) => finish({ code, signal, error: null }));
-    child.once("error", (error) => finish({ code: null, signal: null, error }));
+    resources.add("watchdog timers", () => watchdog.dispose());
+    managed = spawnManagedTestProcess({ command: process.execPath, args: nodeArgs,
+      spawnOptions: { cwd: REPO_ROOT, env, stdio: ["inherit", "pipe", "pipe", "pipe"] }
+    }, { displayLabel: "node --test suite", naturalExitTimeoutMs: 0,
+      sigtermTimeoutMs: 5000, sigkillTimeoutMs: 5000,
+      stdoutTailBytes: 0, stderrTailBytes: 0 });
+    resources.add("suite process group", () => managed.stop());
+
+    for (const stream of ["stdout", "stderr"]) {
+      managed.child[stream].on("data", (chunk) => {
+        if (!output.forward(stream, chunk)) managed.child[stream].pause();
+      });
+    }
+    output.onRelief(() => {
+      for (const stream of ["stdout", "stderr"]) {
+        if (managed.child[stream].isPaused()) managed.child[stream].resume();
+      }
+    });
+    const control = managed.child.stdio[3];
+    resources.add("observer control pipe", () => control.destroy());
+    resources.add("observer early-EOF timer", () => {
+      if (earlyEofTimer !== null) clearTimeout(earlyEofTimer);
+    });
+    const reader = createObserverFrameReader({
+      onFrame: (frame) => watchdog.accept(frame),
+      onFailure: (error) => watchdog.fail(error)
+    });
+    control.on("data", (chunk) => reader.push(chunk));
+    control.once("end", () => {
+      pipeEnded = true;
+      reader.end();
+      if (!watchdog.streamEnd && !watchdog.failure) {
+        if (watchdog.hello) {
+          watchdog.fail(new TestRunnerWatchdogError(TEST_RUNNER_WATCHDOG_CODES.LOST,
+            "observer pipe closed before stream completion"));
+        } else {
+
+          earlyEofTimer = setTimeout(() => {
+            if (managed.child.exitCode === null && managed.child.signalCode === null &&
+                !watchdog.failure) {
+              watchdog.fail(new TestRunnerWatchdogError(TEST_RUNNER_WATCHDOG_CODES.LOST,
+                "observer pipe closed before HELLO while the suite process was live"));
+            }
+          }, 100);
+        }
+      }
+    });
+    control.once("error", (error) => watchdog.fail(new TestRunnerWatchdogError(
+      TEST_RUNNER_WATCHDOG_CODES.LOST, `observer pipe failed: ${errorMessage(error)}`)));
+    for (const signal of CATCHABLE_TERMINATION_SIGNALS) {
+      const handler = () => {
+        if (requestedSignal === null) requestedSignal = signal;
+        settle();
+      };
+      signalHandlers.set(signal, handler);
+      process.on(signal, handler);
+    }
+    emit(`[run-tests] mode=${mode} files=${options.files.length} ` +
+      `HOME=${home.path} TMPDIR=${temp.path} timeout=${timeoutMs}ms ` +
+      `file_timeout=${options.fileTimeoutMs}ms phase_timeout=${options.phaseTimeoutMs}ms` +
+      `${serializeFiles && !options.hasConcurrency ? " concurrency=1" : ""}\n`);
+
+    if (settling) stopSuite();
+    try {
+      result = await managed.waitForExit();
+    } catch (error) {
+      settlementError = error;
+    }
+    if (result !== null && requestedSignal === null && outputLost === null) {
+      watchdog.finalize(result, { pipeEnded });
+    }
   } catch (error) {
-    finished = true;
+    operationalError ??= error;
+    if (managed) {
+      output.settle();
+      try { result = await managed.stop(); } catch (stopError) { settlementError = stopError; }
+    }
+  } finally {
     removeSignalHandlers();
-    process.off("exit", emergencyCleanup);
-    const setupCleanupFailures = error && Array.isArray(error.cleanupFailures)
-      ? error.cleanupFailures
-      : [];
-    const failures = [...setupCleanupFailures, ...cleanupRunnerOwnedRoots(roots)];
-    writeStderr(`[run-tests] runner setup failed: ${errorMessage(error)}\n`);
-    reportCleanupFailures(failures, "child outcome=not-started (runner setup failure)");
+    watchdog?.dispose();
+
+    try { await resources.dispose(); } catch (error) { resourceError = error; }
+  }
+  return finish();
+
+  async function finish() {
+    const watchdogFailure = watchdogSecondary ? null : watchdog?.failure ?? null;
+    const disposeLogs = () => recording?.closeLogs();
+    if (managed && (settlementError !== null || result === null)) {
+      emit(`[run-tests] ${TEST_RUNNER_WATCHDOG_CODES.TERMINATION_FAILED}: ` +
+        `${errorMessage(settlementError)}; suite group settlement unconfirmed. ` +
+        `Runner-owned roots retained: ${roots.map((root) => root.path).join(", ")}. ` +
+        "Operator: inspect the group and roots before recovery.\n");
+      recording?.writeFinal({ status: "settlement_unconfirmed", native: null,
+        summary: { recording: { status: "incomplete" } } });
+      return { exitCode: 1, drain: options.phaseTimeoutMs, disposeLogs, recording };
+    }
+    const cleanupFailures = cleanupRunnerOwnedRoots(roots);
+    reportCleanupFailures(emit, cleanupFailures,
+      result === null ? "child outcome=not-started" : `child outcome=exit code=${result.code}`);
+    if (operationalError && !artifactCreateFailed) {
+      emit(`[run-tests] runner setup failed: ${errorMessage(operationalError)}\n`);
+    }
+    if (resourceError) {
+      emit(`[run-tests] runner resource cleanup failed: ${errorMessage(resourceError)}\n`);
+    }
+    if (watchdogFailure) {
+      emit("[run-tests] owned suite group settlement confirmed; runner-owned " +
+        `roots removed=${cleanupFailures.length === 0}; detached process groups are outside ` +
+        "this runner's ownership. Reporter output may be incomplete.\n");
+      describeWatchdogFailure(emit, watchdog.failure, options.fileTimeoutMs, options.phaseTimeoutMs);
+    }
+    if (outputLost !== null) {
+      emit(`[run-tests] output destination ${outputLost.sink} failed (${outputLost.code}); ` +
+        "the suite was stopped through owned settlement and the run is not a pass.\n");
+    }
+    if (result?.error) {
+      emit(`[run-tests] failed to spawn node --test: ${errorMessage(result.error)}\n`);
+    }
+    const status = runStatus({ requestedSignal, outputLost, watchdogFailure,
+      operationalError, result });
+    let recordingComplete = recording === null;
+    if (recording !== null) {
+      const summary = recording.finalize({ status, native: result === null ? null : {
+        exit_code: result.code, signal: result.signal,
+        watchdog: watchdog?.failure ? { code: watchdog.failure.code, message: watchdog.failure.message,
+          primary: !watchdogSecondary } : null,
+        requested_signal: requestedSignal } });
+      recordingComplete = summary.recording.status === "complete";
+      emit(renderSlowest(summary));
+      emit(`[run-tests] run status=${status} recording=${summary.recording.status} ` +
+        `artifacts=${recording.runDir}\n`);
+      if (!recordingComplete) {
+        const first = summary.recording.failures[0];
+        emit(`[run-tests] ${first?.code ?? TEST_TIMING_CODES.TIMING_INCOMPLETE}: timing capture is ` +
+          `incomplete (${first?.message ?? "unfinished or unreadable records"}); see ` +
+          `${path.join(recording.runDir, "summary.json")}. ` +
+          `${timingNextAction(first?.code ?? TEST_TIMING_CODES.TIMING_INCOMPLETE)}\n`);
+      }
+    }
+    const base = { drain: options.phaseTimeoutMs, disposeLogs, recording };
+    if (requestedSignal) return { ...base, signal: requestedSignal };
+    if (!watchdogFailure && outputLost === null && result?.signal) {
+      return { ...base, signal: result.signal };
+    }
+    const failed = cleanupFailures.length > 0 || watchdogFailure || result?.error ||
+      operationalError || resourceError || outputLost !== null || !recordingComplete;
+    return { ...base, exitCode: failed ? 1 : (result?.code ?? 1) };
+  }
+}
+
+async function run() {
+  const output = createRunnerOutput();
+  let outcome;
+  try {
+    outcome = await main(output);
+  } catch (error) {
+    output.message(`[run-tests] runner failed: ${errorMessage(error)}\n`);
+    outcome = { exitCode: 1, drain: 30_000 };
+  }
+  if (outcome.list) {
+    outcome.list();
+    return;
+  }
+  const drained = await output.drain(outcome.drain ?? 30_000);
+  outcome.disposeLogs?.();
+  if (!drained) {
+    outcome.recording?.markOutputDrainExhausted(outcome.drain ?? 30_000);
     process.exit(1);
   }
-
-  writeStderr(
-    `[run-tests] mode=${mode} files=${targetFiles.length} ` +
-      `HOME=${scratchHomeRoot.path} TMPDIR=${scratchTempRoot.path} ` +
-      `timeout=${timeoutMs}ms` +
-      `${serializeFiles && !hasConcurrencyFlag ? " concurrency=1" : ""}\n`
-  );
+  if (outcome.signal) {
+    process.kill(process.pid, outcome.signal);
+    return;
+  }
+  process.exitCode = outcome.exitCode;
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
 const isDirectRun = invokedPath === fileURLToPath(import.meta.url);
-if (isDirectRun) main();
+if (isDirectRun) void run();

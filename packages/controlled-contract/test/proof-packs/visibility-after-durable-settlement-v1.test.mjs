@@ -27,27 +27,25 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
-const packDirectory = path.join(
-  packageRoot,
-  "test/certification/profiles/proof.ordering.visibility-after-durable-settlement/3.0.0"
-);
-const readJson = async (name) => JSON.parse(await readFile(
-  path.join(packDirectory, name), "utf8"
-));
+const identity = { profile_id: "proof.ordering.visibility-after-durable-settlement", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 test("visibility-after-durable-settlement profile is current, pre-dispatch, and digest bound", async () => {
   const adequacy = await readJson("adequacy.json");
   assert.equal(validateProfileSchemaV1(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE), true,
     JSON.stringify(validateProfileSchemaV1.errors));
   assert.deepEqual(validateProfileSemanticsV1(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE), []);
-  assert.deepEqual(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE.evaluation_stages, ["pre_dispatch"]);
+
+  assert.equal(Object.hasOwn(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 132);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 149);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 128);
   assert.deepEqual(adequacy.explicit_exclusions, [
     "dishonest-grounding-or-self-authored-evidence",
     "eventual-visibility-liveness",

@@ -8,7 +8,8 @@ import {
 } from "./dispatch-tool-helpers.mjs";
 import {
   createMcpContentReferenceReadInputSchema,
-  MCP_CONTENT_REFERENCE_READ_TOOL
+  MCP_CONTENT_REFERENCE_READ_TOOL,
+  mcpContentReferenceReconstruction
 } from "./mcp-content-reference-tools.mjs";
 import { SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION } from "./selected-response-snapshot.mjs";
 import { z as zodOwner } from "zod";
@@ -26,6 +27,20 @@ export function authoredDocumentDigest(text) {
 
 export function isObjectRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function serializeRetainedObject(value) {
+  try {
+    const text = JSON.stringify(value);
+    return typeof text === "string" ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+export function objectCarrierStep(carrierMember, obtains) {
+  return `JSON.parse the verified bytes as UTF-8, then JSON.parse ` +
+    `carrier.${carrierMember} to obtain ${obtains}`;
 }
 
 function retainedSourceRead(locator) {
@@ -77,13 +92,7 @@ export function buildRetainedDocumentRetrieval(retention, { carrierStep }) {
       observation_identity: retention.observation_identity
     },
     carrier_members: retention.members,
-
-    reconstruction: [
-      "read from offset 0 and follow the reader's own next_offset until it is null",
-      "base64-decode each page's data_base64 separately",
-      "concatenate the decoded bytes in page order, then verify sha256 over them",
-      carrierStep
-    ],
+    reconstruction: mcpContentReferenceReconstruction(carrierStep),
     retained_source_read: read
   };
 }

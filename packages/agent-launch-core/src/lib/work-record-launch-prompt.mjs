@@ -1,3 +1,4 @@
+import { readAgentRoleGuide } from "./agent-role-guides.mjs";
 import { DEFAULT_AGENT_ROLE_RESULT_LIMITS } from "./agent-role-result.mjs";
 
 function isObject(value) {
@@ -258,13 +259,13 @@ function resolveSelectedUnitContext(canonicalSummary) {
       validation_commands: canonicalSummary.validation_commands
     };
   }
-
-  const sliceDocs = stringArray(selectedUnit.docs);
-  const sliceRepoPaths = stringArray(selectedUnit.repo_paths);
+  const scope = isObject(canonicalSummary.scope_presentation)
+    ? canonicalSummary.scope_presentation
+    : null;
   return {
-    docs: sliceDocs.length > 0 ? sliceDocs : canonicalSummary.docs,
-    repo_paths: sliceRepoPaths.length > 0 ? sliceRepoPaths : canonicalSummary.repo_paths,
-    write_scope: stringArray(selectedUnit.write_scope),
+    docs: scope ? stringArray(scope.readable) : stringArray(selectedUnit.docs),
+    repo_paths: [],
+    write_scope: scope ? stringArray(scope.writable) : stringArray(selectedUnit.write_scope),
     acceptance_criteria: Array.isArray(selectedUnit.acceptance?.criteria)
       ? selectedUnit.acceptance.criteria
       : [],
@@ -328,6 +329,9 @@ export function buildLaunchPrompt({
     IMPLEMENTATION_WORKER_INSTRUCTION,
     "",
     "Use the canonical JSON record and generated agent brief below. Do not rely on hidden coordinator chat context.",
+    "",
+
+    readAgentRoleGuide("managed-worker"),
     "",
     "## Canonical Record",
     "",

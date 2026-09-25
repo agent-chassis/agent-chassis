@@ -64,9 +64,9 @@ async function amendRow(content, rowIndex, obligationId, changes, owners) {
     content.obligations.push(row);
     rowIndex.set(obligationId, row);
   }
-  for (const key of ['statement', 'controlled_contract_node_ids', 'mechanism', 'gap']) {
+  for (const key of ['statement', 'controlled_contract_node_ids', 'mechanism']) {
     if (!Object.hasOwn(changes, key)) continue;
-    if (['mechanism', 'gap'].includes(key) && changes[key] === null) delete row[key];
+    if (key === 'mechanism' && changes[key] === null) delete row[key];
     else row[key] = structuredClone(changes[key]);
   }
   if (changes.refresh_proof_version === true && !(changes.proof_name ?? row.selection?.proof_name)) {

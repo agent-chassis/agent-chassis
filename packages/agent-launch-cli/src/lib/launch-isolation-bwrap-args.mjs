@@ -29,6 +29,8 @@ export function buildBubblewrapArgs({
   provisionedGitIsolation,
   gitNamespaceDirectories = [],
   decisionsReadOnly = [],
+  testRuntimeSkeletonDirs = [],
+  testRuntimeDependencyBinds = [],
   policedEnv,
   cwdNormalized,
   resolvedCommand,
@@ -59,6 +61,10 @@ export function buildBubblewrapArgs({
       bwrapArgs.push("--dir", dir);
     }
     for (const dir of maskTmpfsDirsResolved) {
+      bwrapArgs.push("--dir", dir);
+    }
+
+    for (const dir of testRuntimeSkeletonDirs) {
       bwrapArgs.push("--dir", dir);
     }
     for (const entry of sparseWorkerNamespace.readable) {
@@ -119,6 +125,10 @@ export function buildBubblewrapArgs({
     if (sparseWorkerNamespace === null || !(dst === repoReal || dst.startsWith(`${repoReal}/`))) {
       bwrapArgs.push("--ro-bind", src, dst);
     }
+  }
+
+  for (const { src, dst } of testRuntimeDependencyBinds) {
+    bwrapArgs.push("--ro-bind", src, dst);
   }
 
   for (const { src, dst } of inRepoSecretFileMasks) {

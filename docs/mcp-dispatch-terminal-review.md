@@ -16,7 +16,7 @@ Sibling pages: [launch and admission](mcp-dispatch-launch-and-admission.md),
 [slice integration](mcp-dispatch-slice-integration.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
 
-## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+## Common fixed-fork squash candidate, independent review and exact forge lifecycle
 
 Every forge publication publishes the same thing, whichever delivery workflow the
 repository selected.
@@ -27,20 +27,31 @@ repository selected.
   publishes `C` unchanged. The current base tip is not a construction input.
   There is no direct-`W` alternative, no second constructor and no additional
   candidate store or ref family.
-- **Terminal review is conditional; candidate authentication is not.** Terminal
-  review belongs to the repository's selected workflow, not to construction. A
-  workflow that selects it hands publication a reviewer materialization, and that
-  checkout is authenticated. A workflow that does not select it hands publication
-  no materialization: no terminal-review unit is invented, no review evidence is
-  fabricated and no reviewer checkout is required. The candidate object binding,
-  its tree and sole-parent topology, its version selection and the controlled
-  generation authority are authenticated on every publication alike, and the
-  published result names which workflow it ran under.
-- **A selected candidate is publishable on its own terms.** When no terminal
-  review target exists, publication state is recovered from the candidate already
-  selected on its durable current ref: its base, tree and sole parent come from
-  the candidate object itself, and the WK ref is named by the canonical record
-  that candidate carries. Recovery consults no current landing state.
+- **The candidate is publication material; review is an independent consumer.**
+  Every fresh final integration constructs `C` and materializes its squashed
+  candidate worktree, whether or not the canonical record designates a terminal
+  review unit. No review unit, review contract, review evidence or retained
+  reviewer context is an input to construction, reconstruction, recovery,
+  materialization or publication, and the candidate bytes carry no review field.
+  Publication requires the squashed candidate worktree bound to exactly `C`; its
+  presence says nothing about whether a review ran. The candidate object binding,
+  its tree and sole-parent topology, the worktree, the selected version and the
+  controlled generation are authenticated on every publication, and the result
+  carries no review-selection fact. A terminal review, when one is dispatched,
+  consumes this same exact candidate.
+- **A selected candidate is resolved from durable state on every call.** Forge
+  publication resolves `C` from the fixed current-selection ref through the
+  terminal-candidate coordinator: it authenticates the exact-`W` generation,
+  re-derives and verifies `C`, converges its selected version and materializes
+  the worktree. Process memory does not participate, so a fresh process and a
+  warm one resolve the same state. When the current ref is absent but the durable
+  fork and WK refs survive, the same candidate is reconstructed byte for byte; when
+  either durable ref is absent the stable
+  `terminal_candidate_recovery_current_ref_absent` verdict is genuine absence. A
+  failed read, an invalid candidate or an authentication failure is never absence:
+  it keeps its authenticated cause, stops that attempt before any forge effect,
+  and the registered `workspace_wk_forge_handoff` route reports it with
+  `stage: "candidate_resolution"`. Recovery consults no current landing state.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
   the existing exclusion before the branch or the proposal is touched. A moved or
@@ -49,17 +60,77 @@ repository selected.
   enacted; the absence of a configured decision is not a local denial.
 - **Publication is create-or-observe and nothing more.** The result reports the
   exact candidate and proposal identity and the truthful effects. Repeating a
-  handoff recovers the same proposal rather than opening a duplicate, a branch
+  handoff recovers the same proposal and the already-published closeout chain
+  rather than opening a duplicate or appending closeout commits again, a branch
   already present at different bytes refuses rather than being republished, and
-  publication neither merges nor completes the WK.
-- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
-  exactly two WK-only commits carrying the actual applicable closure evidence and
-  then the parent review-to-done transition; a workflow without terminal review
-  has no terminal-review record fabricated for it. Merge takes the exact
-  authenticated pull-request head only on confirmed mergeability, and an
-  unmerged, unknown, moved or foreign state leaves the canonical parent in
-  review. The confirmed merged base record is canonical, and a reconciliation
+  publication neither merges nor completes the WK on the base branch.
+- **Closeout preserves the published bytes.** Before initial publication, both
+  workflows keep `C` beneath exactly two WK-only commits carrying the actual
+  applicable closure evidence and then the parent review-to-done transition, so
+  the initially published pull request already carries parent status `done`;
+  that status is branch-local until a confirmed merge. A workflow without
+  terminal review has no terminal-review record fabricated for it. Merge takes
+  the exact authenticated pull-request head only on confirmed mergeability and
+  adds no commits, and an unmerged, unknown, moved or foreign state leaves the
+  canonical parent in review. The confirmed merged base record is canonical, and a reconciliation
   failure is a typed partial success.
+
+## Handoff destinations and landing observation
+
+Handoff hands off the same authenticated candidate and closeout chain whatever
+the destination; only the transport and its evidence differ. The destination is
+resolved from the launcher-frozen main repository's Git configuration before
+any effect, never from caller input.
+
+- **Selection.** `agent-launch.handoffDestination` is the explicit selector:
+  `local`, `git:<remote>` for plain Git delivery to that remote whatever its name
+  or URL (including a local bare repository), or `hosted:<remote>` for hosted
+  branch-and-proposal publication over that remote's canonical HTTPS identity.
+  Without a selector, a repository with no remotes hands off locally, a
+  repository with an `origin` remote publishes hosted through it, and any other
+  remote set refuses `handoff_destination_unselected`: an absent `origin` is not
+  the absence of remotes, and no destination is guessed. A multi-valued or
+  malformed selector refuses. No origin, credential, GitHub URL or pull request is
+  ever fabricated.
+- **One failure, one cause.** A failed observation or delivery on the selected
+  destination refuses with its original Git failure as evidence (`remote_invalid`
+  for selection and remote identity, `git_failed` for local and Git transport)
+  and never selects another destination; a failed hosted publication is never
+  turned into a local success.
+- **Local and Git material.** Local and Git handoff record the authenticated
+  closeout head `D` in the product-owned ref
+  `refs/agent-launch/wk-handoffs/<initiative>/<WK>/<C>/local` or
+  `.../<C>/git/<remote>` in the main repository, created only when absent. The
+  ref name retains the destination the candidate was handed to: when the
+  current selection names a different destination, handoff and landing
+  observation refuse `handoff_destination_changed` with no effect (observation
+  reports `unavailable`) rather than re-reading or repeating the handoff under
+  the new selection. Git delivery first pushes `D` to
+  `refs/heads/handoff/wk/<initiative>/<WK>/<C>` at the selected remote's
+  validated URL, with a create-only lease, so no remote-tracking ref moves; the
+  handoff ref is written only once the destination branch is observed at `D`, so
+  a failed delivery leaves no ref. A retry or a fresh process authenticates the
+  same ref and appends no second chain. The result reports `transport`,
+  `destination`, `handoff_ref`, the exact head, the base branch and the actual
+  `effects`, and names the human landing action with `next_action`; it carries
+  no repository coordinate, pull request or proposal authority. Handoff never
+  moves a landing base, merges, or completes the WK, and forge merge refuses a
+  local or Git handoff because there is no proposal to merge.
+- **One read-only landing observer.** `workspace_wk_landing_status` and
+  dependency provisioning consume the same observer. It re-authenticates the
+  existing handoff through the handoff authority owner's read-only observer and
+  reports `awaiting_human_landing`, `landed`, `contradictory` or `unavailable`,
+  each with its original cause. Local and Git landing is read from the actual
+  base history — the main repository's base branch, or the destination's, whose
+  missing objects are fetched into the object store without moving any ref — and
+  is `landed` only when the exact handed-off head is an ancestor of the observed
+  base tip; the carrier is `git-landed-publication-identity.v1`. Hosted landing
+  is the merged exact proposal and its bound ancestry, as the
+  `forge-confirmed-landed-publication-identity.v1` carrier. A Git destination
+  branch that disappeared or moved without landing is contradictory. The observer
+  never publishes, creates or merges a proposal, reconstructs or materializes a
+  candidate, executes proofs, or reconciles the canonical record; explicit
+  closure remains its own operation.
 
 ## Terminal candidates select material, not review execution
 
@@ -71,11 +142,11 @@ settlement, receipt, recovery, or replay path. The review action remains
 read-only and action-local, and its output creates no lifecycle authority.
 
 The managed post-worker lifecycle constructs and publishes the candidate after the
-final implementation slice integrates, and only when the canonical record
+final implementation slice integrates, whether or not the canonical record
 designates a `terminal_whole_wk` unit. It never dispatches the terminal reviewer:
 terminal review runs only when a coordinator explicitly dispatches that unit. A
-record that designates no such unit gets no candidate from the lifecycle and
-reaches the workflow-not-selected state below.
+record that designates no such unit still gets the publication candidate, with
+no terminal review unit or review result attached.
 
 The advertised terminal reviewer call is subject-addressed:
 `{role: "reviewer", subject}` for the canonical slice whose `review_purpose` is
@@ -176,8 +247,18 @@ mutation, closeout, and merge require one launcher-authenticated selected versio
 decision and its immutable version ref and current-selection observation. Review
 receipts, results, and findings are not forge prerequisites. A historical state without that version
 decision remains readable through observation surfaces only and cannot authorize a
-forge effect. Merge consumes the exact authenticated handoff result and never
-re-resolves a candidate when that result is absent.
+forge effect. Merge consumes an authenticated handoff result minted only by the
+handoff authority owner: the result a handoff in the same process returned, or a
+fresh read-only observation of the already-published identity
+(`observeAuthenticatedWkForgeHandoff`, bound in production by
+`createProductionForgeMergeDependencies`). The observation re-authenticates the
+exact selected candidate, its version and its squashed worktree from durable
+authority, the same repository/base/branch identity the publisher binds, and the
+observed branch and single proposal head. It never republishes, creates a
+proposal, reconstructs or advances a candidate, or moves a ref, and a serialized
+prior response or caller-supplied identity is never adopted. Merge forwards its
+own live exclusion context; the observer validates it and does not reacquire the
+lock.
 
 When forge cold recovery crosses into the terminal-candidate coordinator, the
 exclusion owner passes an opaque callback-scoped context bound to that exact
@@ -202,7 +283,35 @@ unavailable annotation. The text remains usable in either case. There is no
 second review-evidence/provenance/attestation append, settlement replay,
 historical monitor reauthentication, or post-restart repair.
 
-Forge closeout authenticates candidate and publication mechanics only. Review
+Forge closeout authenticates candidate and publication mechanics only. One
+closeout-chain owner (`authenticateWkCloseoutChain`, over the pure
+`authenticateWkCloseoutProjection`) authenticates the `C -> K -> D` chain that
+forge handoff prepares before publication and that handoff retry and forge merge
+recognize; it requires no terminal-review unit, review completion, or
+review-specific commit content. The closing implementation slice may carry the
+`integrated_delivery_sha` the integration record write added: the commit the
+integration installed on the WK ref, which after a replay is not the original
+delivery. The projection admits that value only when it equals the expectation
+its caller established for that slice from the integration authority's producer
+proof (see Producer-authenticated integrated-delivery evidence below), bound to
+`C`'s own record as the historical contract and to the proof's WK tip being the
+candidate's selected `W`. That authenticated integration transition (slice
+`done` with the installed commit) closes the slice on its own, so a new slice
+closure is optional; a bare `done` with neither a first canonical closure nor an
+authenticated delivery is not a closeout. The live field alone, a substituted
+delivery SHA, or any other change to the slice refuses. Handoff preparation keeps the stable outer
+`local_WK_not_authenticated_against_candidate` reason and carries the
+projection's own `reason` (`integrated_delivery_unauthenticated`,
+`unrelated_slice_drift`, ...) with its slice and expected/observed identities,
+plus the integration authority's failure reason when it could not establish the
+delivery, through the launcher refusal and the registered response under the
+cause-neutral eligibility identity `agent_launch.wk_forge_handoff.eligibility_refused.v1`,
+which has no supported route. Chain
+authentication on retry, existing-publication observation and forge merge
+re-establishes the same expectation from the candidate binding; without it the
+chain is not authenticated. The producer proof needs the retained slice delivery
+ref and the canonical record's recorded value; when either is gone the closeout
+refuses rather than accepting the field. Review
 text informs coordinator disposition but review schema, receipts, provenance,
 history, and formal-attestation availability grant no candidate or forge authority
 and cannot veto publication. Formal attestations retain their narrow admission
@@ -233,17 +342,13 @@ publication identity, work record retains recovery ownership, and forge remains 
 sole merge-readiness boundary. Findings remain advisory under decision and
 decision.
 
-Cold reconstruction binds the current designated terminal-review unit through one
-pure owner:
+The terminal-review contract binding has one pure owner:
 `packages/agent-launch-cli/src/lib/terminal-review-contract-binding.mjs`. It alone
 defines, validates, canonically serializes, digests, and compares
-`agent_launch.terminal_review_contract_binding.v1`. The coordinator supplies the
-facts from its single canonical-record projection. Forge does not reuse that object
-or trust candidate metadata as current state: it independently reads and projects
-the local canonical record, supplies those facts to the same owner, and compares the
-resulting identity. Subject, slice, initiative, or authored review-unit movement
-therefore changes or invalidates the binding before forge mutation. Forge's
-work-record closeout comparisons likewise use wiki-core's canonical source digest,
+`agent_launch.terminal_review_contract_binding.v1`, which identifies the designated
+terminal-review unit for the review consumer. It is not part of any candidate and
+no candidate construction, reconstruction, recovery or publication consumes it.
+Forge's work-record closeout comparisons use wiki-core's canonical source digest,
 whose projection excludes generated `derived_evidence` and `projections` but not
 authored contract changes.
 
@@ -341,32 +446,61 @@ Terminal-candidate status and advance continuations preserve repository
 selection without creating repository authority. When the public request
 explicitly supplies `repo`, `resolveWorkspaceRepo` accepts it and the route
 passes only that resolved alias to the runtime; the runtime appends it to every
-returned `next_call`, including `version_lifecycle.next_call`, and neither derives
-nor overrides it. A reviewer continuation is exactly
-`workspace_agent_dispatch {role: "reviewer", subject: <terminal review subject>}`,
-the same subject-addressed request the post-worker lifecycle advertises, and a
-stale or absent candidate advertises no reviewer dispatch. Status decides
-lifecycle differences through the backend's integration-evidence owner, so an
-authenticated integrated delivery reports the candidate healthy. When `repo` is
+returned `next_call`, including `version_lifecycle.next_call` and
+`review_consumer.next_call`, and neither derives nor overrides it. A reviewer
+continuation appears only in the advisory `review_consumer` projection and is
+exactly `workspace_agent_dispatch {role: "reviewer", subject: <terminal review
+subject>}`, the same subject-addressed request the post-worker lifecycle
+advertises; a stale or absent candidate advertises no reviewer dispatch. When `repo` is
 omitted, continuations omit it as well, so default-repository behavior is not
 pinned. Candidate/ref/CAS/authorization identity remains launcher-owned and is
 unchanged by this transport projection.
 
-### Workflow-not-selected status and direct-to-main review
+### Review-independent candidate status and advance
 
-`workspace_terminal_review_candidate_status` applies only to a launcher-built
-managed terminal candidate. When the canonical WK identity and parent acceptance
-are complete but the eligible `terminal_whole_wk` unit count is zero, the route
-returns the non-candidate state
-`terminal_review_workflow_not_selected` with code
-`agent_launch.terminal_candidate.status.workflow_not_selected.v1`,
-`candidate:null`, and `next_call:null`. Its bounded deciding facts report the
-valid canonical record, complete parent identity and acceptance, and eligible
-count zero. This decision occurs before controlled-generation authentication,
-backend state, candidate refs, metadata, or Git candidate identity are inspected.
-Plural eligible units remain `ambiguous_terminal_review_coordination`; malformed
-canonical contracts retain their precise projection cause; a real candidate that
-moved or fails identity checks remains `candidate_identity_invalid_or_moved`.
+`workspace_terminal_review_candidate_status` decides candidate state only from
+durable candidate facts: the canonical WK identity, the authenticated exact-W
+controlled generation, the durable candidate/fork/WK refs, the candidate's own
+metadata and record blob, and its durable version refs. Review designation,
+review-unit status, review results, review-contract identity, and retained
+reviewer context never select or veto a state. The states are
+`candidate_absent`, `candidate_identity_invalid_or_moved`, `candidate_stale_w`
+(the only state that advertises advance), and `candidate_healthy` with a
+`selected` `version_lifecycle`; an unselected durable version is
+`candidate_identity_invalid_or_moved` with cause `candidate_version_<state>`.
+Status is read-only. A healthy candidate at current `W` is authenticated through
+the same read-only existing-candidate owner cold recovery uses
+(`authenticateExistingTerminalCandidate`).
+
+The independent review consumer is reported only as the advisory
+`review_consumer` projection of a healthy candidate: `null` when no terminal
+review unit is designated, otherwise its subject, a `lifecycle` of `admissible`,
+`inadmissible` (for example `ambiguous_terminal_review_coordination`), or
+`authored_contract_divergent`, and the paged `divergence` that `continuation`
+addresses. That projection is computed after, and never feeds, candidate state.
+
+`workspace_terminal_review_candidate_advance` keeps its explicit, owner-
+authenticated snapshot under the per-WK exclusion, expected-old CAS on the exact
+observed candidate, generation rechecks, and immutable prior versions. A WK
+without any review unit observes a stale `W` and advances through the same
+owners.
+
+When the backend's advance exclusion refuses, the route returns
+`agent_launch.terminal_candidate.exclusion_refused.v1` with the backend's closed
+`reason`. The possible reasons are `invalid_arguments`, `candidate_not_stale_w`,
+`repository_root_unavailable`, and `candidate_not_stale_w_inside_exclusion`.
+For the two not-stale reasons, `recovery` is `observe_candidate_status` and
+`next_call` is the read-only `workspace_terminal_review_candidate_status` for the
+same WK, including `repo` when the request supplied one. For the other two
+reasons, `recovery` is `unavailable` and `next_call` is `null`. The reason and
+continuation come from the backend owner's private identity lookup
+(`projectTerminalCandidateExclusionRefusal`), not from the thrown value's `code`
+or `reason`. A copied, inherited, or proxied refusal therefore publishes only
+the four-field generic refusal. Advance is not a recovery route for absent,
+invalid, or stale-generation candidates, and the exclusion, stale-W checks,
+generation authentication, and candidate construction are unchanged.
+
+### Direct-to-main review
 
 An operator-authorized direct-to-main lifecycle does not use terminal-candidate
 status, terminal-candidate advance, forge handoff, external review, or shell

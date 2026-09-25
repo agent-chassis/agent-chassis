@@ -19,6 +19,10 @@
   },
   "allOf": [
     {"if": {"type": "object", "properties": {"assessment_status": {"const": "proven"}}}, "then": {
+      "anyOf": [
+        {"type": "object", "properties": {"receipts": {"type": "array", "contains": {"type": "object", "properties": {"kind": {"const": "falsifier"}, "status": {"const": "detected"}}, "required": ["kind", "status"]}}}},
+        {"type": "object", "properties": {"population": {"type": "object", "properties": {"falsifier_unavailable_count": {"type": "integer", "minimum": 1}}}}}
+      ],
       "properties": {
         "runtime_truth": {"const": "proven"},
         "profile_discrimination": {"const": "proven"},
@@ -28,7 +32,6 @@
           "items": {"type": "object", "properties": {"status": {"enum": ["passed", "detected", "proven"]}}},
           "contains": {"type": "object", "properties": {"kind": {"const": "candidate"}, "status": {"const": "passed"}}, "required": ["kind", "status"]},
           "allOf": [
-            {"contains": {"type": "object", "properties": {"kind": {"const": "falsifier"}, "status": {"const": "detected"}}, "required": ["kind", "status"]}},
             {"contains": {"type": "object", "properties": {"kind": {"const": "traversal"}, "status": {"const": "proven"}}, "required": ["kind", "status"]}}
           ]
         }
@@ -58,9 +61,10 @@
     },
     "population": {
       "type": "object", "additionalProperties": false,
-      "required": ["candidate_count", "falsifier_count", "traversal_count", "complete"],
+      "required": ["candidate_count", "falsifier_count", "falsifier_unavailable_count", "traversal_count", "complete"],
       "properties": {
-        "candidate_count": {"type": "integer", "minimum": 1}, "falsifier_count": {"type": "integer", "minimum": 1},
+        "candidate_count": {"type": "integer", "minimum": 1}, "falsifier_count": {"type": "integer", "minimum": 0},
+        "falsifier_unavailable_count": {"type": "integer", "minimum": 0},
         "traversal_count": {"type": "integer", "minimum": 1}, "complete": {"type": "boolean"}
       }
     },

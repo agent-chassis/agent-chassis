@@ -3,7 +3,9 @@
 import {
   BUBBLEWRAP_BACKEND_UNUSABLE_CODES,
   buildLaunchPathFailureRefusal,
-  classifyLaunchPathFailure
+  buildWorkerTestRuntimePreparationRefusal,
+  classifyLaunchPathFailure,
+  classifyWorkerTestRuntimePreparationFailure
 } from "./launch-failure-cause.mjs";
 import {
   BACKEND_REFUSAL_CODES
@@ -132,12 +134,16 @@ export function mapCodexArtifactsFailureToInProcessRefusal(failure) {
   const err = failure.error;
   const message = err?.message ?? (err ? String(err) : null);
   switch (failure.stage) {
-    case "plan_build_threw":
+    case "plan_build_threw": {
+
+      const preparation = classifyWorkerTestRuntimePreparationFailure(err);
+      if (preparation !== null) return buildWorkerTestRuntimePreparationRefusal(makeRefusal, preparation);
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "codex_role_plan_build_threw", {
         message,
         code: err?.code ?? null,
         detail: err?.detail ?? null
       });
+    }
     case "plan_missing":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "codex_role_plan_missing", null);
     case "plan_refused":

@@ -42,7 +42,7 @@ async function fixture(t) {
 
 async function witnessBearingInput() {
   const input = JSON.parse(await readFile(path.join(ROOT,
-    "packages/controlled-contract/profiles/proof.verification.test-validity/5.0.0/evaluation-input.template.json"),
+    "packages/controlled-contract/profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json"),
   "utf8"));
   input.reference_bindings = [
     { role: "component", reference_ids: ["ref-component"] },

@@ -6,6 +6,8 @@ import {
   classifyControlledContractGenerationRepositoryPath,
   validateControlledContractAttachmentGenerationDescriptors
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+import { parseControlledContractCarrierSetManifest } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-manifest.mjs";
 
 const RAW_DIFF_HEADER_PATTERN =
   /^:([0-7]{6}) ([0-7]{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-9a-f]{40}|[0-9a-f]{64}) ([A-Z][0-9]*)$/;
@@ -149,6 +151,99 @@ export function createControlledContractGenerationTreeOperations({
       });
     }
     return artifacts.sort((left, right) => left.path.localeCompare(right.path));
+  }
+
+  function resolveBoundRuntimePackageArtifacts(binding, manifestArtifacts = null) {
+    manifestArtifacts ??= resolveBoundManifestArtifacts(binding);
+    const manifestsByPath = new Map(manifestArtifacts.map((artifact) =>
+      [artifact.path, artifact]));
+    const descriptorsByBasename = new Map(binding.descriptors.map((descriptor) =>
+      [descriptor.basename, descriptor]));
+    const artifacts = [];
+    const selectedPaths = new Set();
+    for (const selected of binding.resolved_generation.manifest_selection ?? []) {
+      const visiblePath = canonicalManifestPath(binding.record_id, selected.focus ?? null);
+      const visible = manifestsByPath.get(visiblePath);
+      if (visible === undefined) {
+        fail(codes.SOURCE_CHANGED,
+          "selected controlled-contract manifest became unavailable", { path: visiblePath });
+      }
+      let manifest;
+      try {
+        manifest = parseControlledContractCarrierSetManifest(visible.bytes, {
+          wkId: binding.record_id,
+          focus: selected.focus ?? null,
+          generation: selected.generation
+        });
+      } catch (error) {
+        fail(codes.SOURCE_CHANGED,
+          "selected controlled-contract manifest became invalid after generation binding", {
+            path: visiblePath,
+            cause_code: error?.code ?? null
+          });
+      }
+      const generationPrefix = `wiki/contracts/${manifest.generation.path}`;
+      const embeddedPath = `${generationPrefix}/manifest.json`;
+      if (selectedPaths.has(embeddedPath)) {
+        fail(codes.SOURCE_CHANGED,
+          "selected controlled-contract runtime package contains a duplicate path", {
+            path: embeddedPath
+          });
+      }
+      selectedPaths.add(embeddedPath);
+      artifacts.push({ ...visible, path: embeddedPath });
+      for (const member of manifest.carrier_census) {
+        if (member.member_kind !== "carrier" && member.member_kind !== "evaluation_input") {
+          continue;
+        }
+        const descriptor = descriptorsByBasename.get(member.filename);
+        const runtimePath = `wiki/contracts/${member.path}`;
+        if (descriptor === undefined || descriptor.focus !== (selected.focus ?? null) ||
+            descriptor.content_digest !== member.content_digest ||
+            descriptor.byte_length !== member.byte_length ||
+            selectedPaths.has(runtimePath)) {
+          fail(codes.SOURCE_CHANGED,
+            "selected controlled-contract runtime package contradicts its bound generation", {
+              path: runtimePath,
+              basename: member.filename
+            });
+        }
+        const bytes = Buffer.from(descriptor.bytes_base64, "base64");
+        selectedPaths.add(runtimePath);
+        artifacts.push({
+          path: runtimePath,
+          content_digest: descriptor.content_digest,
+          bytes
+        });
+      }
+    }
+    return artifacts.sort((left, right) => left.path.localeCompare(right.path));
+  }
+
+  function runtimePackageMatchesTree({ runGit, binding, treeish, artifacts }) {
+    for (const artifact of artifacts) {
+      const resolved = runGit({
+        gitDir: binding.git_dir,
+        args: ["--no-replace-objects", "rev-parse", "--verify", "--quiet",
+          `${treeish}:${artifact.path}`]
+      });
+      if (resolved?.ok !== true) return false;
+      const oid = stdoutBytes(resolved).toString("utf8").trim();
+      if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(oid) || /^0+$/u.test(oid)) {
+        fail(codes.STORED_GENERATION_INVALID,
+          "stored controlled-contract runtime package blob identity is malformed", {
+            path: artifact.path
+          });
+      }
+      const blob = runGitOrFail(runGit, { gitDir: binding.git_dir },
+        ["--no-replace-objects", "cat-file", "blob", oid],
+        "stored controlled-contract runtime package blob could not be read");
+      const bytes = stdoutBytes(blob);
+      if (sha256(bytes) !== artifact.content_digest || !bytes.equals(artifact.bytes)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function resolveBoundRecordArtifact(binding) {
@@ -358,6 +453,8 @@ export function createControlledContractGenerationTreeOperations({
     parseStructuralDiff,
     recordObservationMatches,
     resolveBoundManifestArtifacts,
-    resolveBoundRecordArtifact
+    resolveBoundRecordArtifact,
+    resolveBoundRuntimePackageArtifacts,
+    runtimePackageMatchesTree
   });
 }

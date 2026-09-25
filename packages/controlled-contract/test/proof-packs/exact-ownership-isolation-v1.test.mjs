@@ -10,14 +10,12 @@ import { buildExactOwnershipIsolationFixture } from "./exact-ownership-isolation
 import { executeExactOwnershipScenario, exactOwnershipImplementationPassed } from
   "./exact-ownership-isolation-v1-harness.mjs";
 import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const packDirectory = path.join(
-  root, "certification/profiles/proof.ownership.exact-isolation/3.0.0"
-);
-async function readJson(relative) {
-  return JSON.parse(await readFile(path.join(packDirectory, relative), "utf8"));
-}
+const identity = { profile_id: "proof.ownership.exact-isolation", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
+const readJson = (name) => readDefinitionDocument(identity, name);
 function substantive(controls) {
   return controls.every((control) => {
     if (control.category === "positive") return control.implementation_outcome === "passed" &&
@@ -38,7 +36,7 @@ test("exact ownership isolation passes its exhaustive release corpus", async () 
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 222);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 146);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 108);
   const result = await runProofPackAdequacy(packDirectory, {
     variationMode: "full_census"
   });

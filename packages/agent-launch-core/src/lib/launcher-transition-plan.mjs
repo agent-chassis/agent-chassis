@@ -15,6 +15,11 @@ import { serializeWorkRecordDiagnosticValue } from
   "@agent-chassis/wiki-core/src/operations/work-record-persistence-diagnostics.mjs";
 import { assertControlledAcceptanceStateProjection } from
   "@agent-chassis/wiki-core/src/lib/work-record-proof-posture.mjs";
+import {
+  ACTOR_RECOVERY_VALUES,
+  isPlainObject,
+  selectDeclaredLauncherRecovery
+} from "./launcher-transition-recovery.mjs";
 
 export const LAUNCHER_TRANSITION_PLAN_SCHEMA_VERSION =
   "launcher-transition-plan.v1";
@@ -297,7 +302,7 @@ function ownerSettlementProjection(plan, {
   });
 }
 
-function validPublicationIdentity(value) {
+function validForgePublicationIdentity(value) {
   return value?.schema_version === "forge-confirmed-landed-publication-identity.v1" &&
     Object.isFrozen(value) && /^WK-\d{4}$/u.test(value.wk ?? "") &&
     typeof value.base_branch === "string" && value.base_branch.length > 0 &&
@@ -307,7 +312,28 @@ function validPublicationIdentity(value) {
     value.exact_head_landing?.merge_commit_sha === value.merge_commit_sha;
 }
 
+function validGitPublicationIdentity(value) {
+  return value?.schema_version === "git-landed-publication-identity.v1" &&
+    Object.isFrozen(value) && (value.transport === "local" || value.transport === "git") &&
+    value.destination?.transport === value.transport &&
+    /^WK-\d{4}$/u.test(value.wk ?? "") &&
+    typeof value.base_branch === "string" && value.base_branch.length > 0 &&
+    OID_RE.test(value.candidate ?? "") && OID_RE.test(value.completion ?? "") &&
+    OID_RE.test(value.landed_commit ?? "") &&
+    value.exact_head_landing?.relation === "exact-head-ancestor" &&
+    value.exact_head_landing?.head_sha === value.completion &&
+    value.exact_head_landing?.landed_commit === value.landed_commit;
+}
+
+function validPublicationIdentity(value) {
+  return validForgePublicationIdentity(value) || validGitPublicationIdentity(value);
+}
+
 export function isForgeConfirmedLandedPublicationIdentity(value) {
+  return validForgePublicationIdentity(value);
+}
+
+export function isLandedPublicationIdentity(value) {
   return validPublicationIdentity(value);
 }
 
@@ -657,12 +683,6 @@ export class LauncherTransitionRefusalSchemaError extends TypeError {
 const CLASSIFICATION_STATES = LAUNCHER_TRANSITION_CLASSIFICATION_STATES;
 
 const CAUSE_TYPES = new Set(["managed_wk_bootstrap_failure", "launcher_refusal"]);
-const RECOVERY_STATES = new Set(["callable", "no_supported_route"]);
-const ACTOR_RECOVERY_VALUES = new Set(["operator", "coordinator", "caller_retry", "launcher"]);
-const RECOVERY_ROLE_VALUES = new Set(["worker", "reviewer", "redteam"]);
-const RECOVERY_ROUTE_RE = /^[a-z][a-z0-9_]{0,63}$/u;
-const RECOVERY_SUBJECT_RE = /^(?:WK-\d{4})(?:#SLICE-\d{3})?$/u;
-const BOUNDED_TOKEN_RE = /^[a-z][a-z0-9_.-]{0,159}$/u;
 
 const BLOCKER_CODE_BY_REFUSAL_CODE = Object.freeze({
   [BACKEND_REFUSAL_CODES.BACKEND_UNAVAILABLE]: RUNTIME_BLOCKER_CODES.BACKEND_UNAVAILABLE,
@@ -727,10 +747,6 @@ function selectSpecificMechanicalTransition(causeCode, detail) {
   return recognized === null ? null : recognized.failure;
 }
 
-function isPlainObject(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function readDeclaredCauseCode(value, field) {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") {
@@ -777,101 +793,10 @@ function classifyKnownCause(causeCode) {
   };
 }
 
-const accept = (value) => ({ ok: true, value });
-const reject = { ok: false, value: null };
-
 function validateCauseType(value) {
-  return typeof value === "string" && CAUSE_TYPES.has(value) ? accept(value) : reject;
-}
-
-function validateRecoveryState(value) {
-  return typeof value === "string" && RECOVERY_STATES.has(value) ? accept(value) : reject;
-}
-
-function validateRecoveryRoute(value) {
-  if (value === null) return accept(null);
-  return typeof value === "string" && RECOVERY_ROUTE_RE.test(value) ? accept(value) : reject;
-}
-
-function validateRecoveryArgs(value) {
-  if (value === null || value === undefined) return accept(null);
-  if (!isPlainObject(value)) return reject;
-  const projected = {};
-  for (const key of Object.keys(value)) {
-    if (key === "role") {
-      if (value.role === null) { projected.role = null; continue; }
-      if (typeof value.role !== "string" || !RECOVERY_ROLE_VALUES.has(value.role)) return reject;
-      projected.role = value.role;
-      continue;
-    }
-    if (key === "subject") {
-      if (typeof value.subject !== "string" || !RECOVERY_SUBJECT_RE.test(value.subject)) return reject;
-      projected.subject = value.subject;
-      continue;
-    }
-    return reject;
-  }
-  return accept(Object.freeze(projected));
-}
-
-function validateActorRecovery(value) {
-  return typeof value === "string" && ACTOR_RECOVERY_VALUES.has(value) ? accept(value) : reject;
-}
-
-function validateNextAction(value) {
-  return typeof value === "string" && BOUNDED_TOKEN_RE.test(value) ? accept(value) : reject;
-}
-
-function validateSubjectField(value) {
-  return typeof value === "string" && RECOVERY_SUBJECT_RE.test(value) ? accept(value) : reject;
-}
-
-function validateRoleField(value) {
-  return typeof value === "string" && RECOVERY_ROLE_VALUES.has(value) ? accept(value) : reject;
-}
-
-function validateDeclaredRecovery(value, schemaRejected) {
-  if (value === undefined) return null;
-  if (!isPlainObject(value)) {
-    schemaRejected.push("detail.recovery");
-    return null;
-  }
-  const state = validateRecoveryState(value.state);
-  const route = validateRecoveryRoute(value.route);
-  const args = validateRecoveryArgs(value.args);
-  if (!state.ok) schemaRejected.push("detail.recovery.state");
-  if (!route.ok) schemaRejected.push("detail.recovery.route");
-  if (!args.ok) schemaRejected.push("detail.recovery.args");
-  if (!state.ok || !route.ok || !args.ok) return null;
-  if (state.value === "callable" && typeof route.value !== "string") {
-    schemaRejected.push("detail.recovery.route");
-    return null;
-  }
-  if (state.value === "no_supported_route" && route.value !== null) {
-    schemaRejected.push("detail.recovery.route");
-    return null;
-  }
-  return Object.freeze({ state: state.value, route: route.value, args: args.value });
-}
-
-function validateDeclaredNextActionArgs(value, schemaRejected) {
-  if (value === undefined) return null;
-  if (!isPlainObject(value)) {
-    schemaRejected.push("detail.next_action_args");
-    return null;
-  }
-  const keys = Object.keys(value);
-  if (keys.some((key) => key !== "role" && key !== "subject")) {
-    schemaRejected.push("detail.next_action_args");
-    return null;
-  }
-  const role = value.role === null ? accept(null) : validateRoleField(value.role);
-  const subject = validateSubjectField(value.subject);
-  if (!role.ok) schemaRejected.push("detail.next_action_args.role");
-  if (!subject.ok) schemaRejected.push("detail.next_action_args.subject");
-  return role.ok && subject.ok
-    ? Object.freeze({ role: role.value, subject: subject.value })
-    : null;
+  return typeof value === "string" && CAUSE_TYPES.has(value)
+    ? { ok: true, value }
+    : { ok: false, value: null };
 }
 
 function projectUndeclaredBackendRefusalIdentity(refusalCode, causeCode) {
@@ -938,19 +863,7 @@ export function classifyLauncherTransitionBackendRefusal(envelope) {
     );
   }
 
-  const declaredRecovery = validateDeclaredRecovery(detail.recovery, schemaRejected);
-  const nextAction = validateNextAction(detail.next_action);
-  if (detail.next_action !== undefined && !nextAction.ok) {
-    schemaRejected.push("detail.next_action");
-  }
-  const actorRecovery = validateActorRecovery(detail.actor_recovery);
-  if (detail.actor_recovery !== undefined && !actorRecovery.ok) {
-    schemaRejected.push("detail.actor_recovery");
-  }
-  const nextActionArgs = validateDeclaredNextActionArgs(
-    detail.next_action_args,
-    schemaRejected
-  );
+  const { recovery, actorRecovery } = selectDeclaredLauncherRecovery(detail, schemaRejected);
 
   const baseKnown = classifyKnownCause(causeCode);
   const specificFailure = selectSpecificMechanicalTransition(causeCode, detail);
@@ -964,31 +877,6 @@ export function classifyLauncherTransitionBackendRefusal(envelope) {
   const state = known?.state ?? CLASSIFICATION_STATES.AUTHENTICATED_UNCLASSIFIED;
   const transitionFailure = known?.failure ??
     LAUNCHER_TRANSITION_FAILURES.LIFECYCLE_ALLOCATION_FAILED;
-
-  const declaredCallableArgs = nextAction.ok && nextAction.value === "workspace_agent_dispatch" &&
-      actorRecovery.ok && actorRecovery.value === "coordinator" &&
-      typeof nextActionArgs?.subject === "string"
-    ? nextActionArgs
-    : null;
-
-  const recovery = declaredRecovery !== null
-    ? (declaredRecovery.state === "callable" && typeof declaredRecovery.route === "string"
-        ? Object.freeze({
-            state: "callable",
-            route: declaredRecovery.route,
-            args: declaredRecovery.args ?? null
-          })
-        : Object.freeze({ state: "no_supported_route", route: null }))
-    : declaredCallableArgs !== null
-      ? Object.freeze({
-          state: "callable",
-          route: "workspace_agent_dispatch",
-          args: Object.freeze({
-            role: declaredCallableArgs.role ?? null,
-            subject: declaredCallableArgs.subject
-          })
-        })
-      : Object.freeze({ state: "no_supported_route", route: null });
 
   const causeTypeValidation = validateCauseType(detail.cause?.type);
   if (detail.cause?.type !== undefined && !causeTypeValidation.ok) {

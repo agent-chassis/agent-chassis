@@ -21,6 +21,8 @@ import {
   selectedTestExecutionInput
 } from "./test-execution/proof-providers/execution.mjs";
 import { installedProofProviderImplementation } from "./test-execution/proof-providers/index.mjs";
+import { resolveProofEnvironment } from "./test-execution/runtime-inputs.mjs";
+import { TEST_RUNTIME_READINESS_CODES, loadReadiness } from "./test-runtime-setup/readiness.mjs";
 
 export {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
@@ -156,16 +158,16 @@ export function authenticateUnsupportedTestProofFalsification(binding) {
 export async function prepareLauncherTestProofProviderRuntime(resolved, input = {}) {
   assertLauncherResolvedTestProofProvider(resolved, "candidate_execution");
   const implementation = implementationFor(resolved);
-  if (implementation.family_id === "node-test") return null;
   assertClosedInput(input, ["authority", "target", "authorizedTargets", "selectedTest",
-    "executionBudget"], "provider preparation refuses caller-supplied executable authority");
+    "executionBudget", "environment"], "provider preparation refuses caller-supplied executable authority");
   return implementation.prepare(resolved, input);
 }
 
 export async function executeLauncherTestProofProvider(resolved, input = {}) {
   assertLauncherResolvedTestProofProvider(resolved, resolved?.capability);
   assertClosedInput(input, ["authority", "target", "authorizedTargets", "selectedTest",
-    "executionBudget", "preparedRuntime"], "provider execution refuses caller-supplied executable authority");
+    "executionBudget", "preparedRuntime", "environment"],
+  "provider execution refuses caller-supplied executable authority");
   const selectedTest = selectedTestExecutionInput(input);
   const implementation = implementationFor(resolved);
   const selectorKind = catalogDescriptor(resolved.provider_id).selector_kind;
@@ -201,4 +203,38 @@ export function assertRegistryUnsupportedTraversalAttestation(value) {
     "unsupported traversal requires a launcher-registry attestation"
   );
   return value;
+}
+
+export function validateTestProofEnvironmentSelection({ repositoryRoot, checkoutRoot, environment,
+  proofs }) {
+  const incompatible = [];
+  const choices = [];
+  for (const proof of proofs) {
+    const selectorKind = catalogDescriptor(proof.binding?.candidate_execution_provider?.provider_id)
+      ?.selector_kind ?? null;
+    const family = selectorKind === null ? null : testProofProviderFamily(selectorKind);
+    const implementation = family === null ? null : installedProofProviderImplementation(family.family_id);
+    const base = { test_proof_id: proof.test_proof_id, obligation_ids: [...(proof.obligation_ids ?? [])],
+      target: proof.target, family_id: family?.family_id ?? null };
+    if (implementation === null) {
+      incompatible.push({ ...base, reason: "provider_unknown", code: null });
+      choices.push([]);
+      continue;
+    }
+    const routed = resolveProofEnvironment({ repositoryRoot, checkoutRoot, target: proof.target,
+      runner: family.runtime_runner, environment });
+    const valid = routed.ok ? routed.applicable : routed.failure?.detail?.valid_choices ?? [];
+    choices.push(valid);
+    if (!routed.ok) {
+      incompatible.push({ ...base, reason: routed.failure?.detail?.reason ?? "environment_unavailable",
+        code: routed.failure?.code ?? TEST_RUNTIME_READINESS_CODES.NOT_READY,
+        runner: family.runtime_runner.runner_id });
+    }
+  }
+  const loaded = loadReadiness(repositoryRoot);
+  const prepared = loaded.ok ? (loaded.record.environments ?? []).map(({ id }) => id) : [];
+  const serving = prepared.filter((id) => choices.every((valid) => valid.includes(id)));
+  return Object.freeze({ ok: incompatible.length === 0, requested: environment,
+    incompatible: Object.freeze(incompatible), valid_choices: Object.freeze(serving),
+    prepared_environments: Object.freeze(prepared) });
 }

@@ -17,23 +17,21 @@ export function classifyControlledContractRuntimeEligibility(contract,
       .map(({ obligation_id: obligationId }) => obligationId)
   );
   const population = (obligationCoverage?.rows ?? []).map((obligation) => {
-    const proofKind = obligation.gap ? 'explicit_gap' : obligation.selection ? 'saved_selection' : null;
-    const mappingClassification = proofKind === "explicit_gap"
-      ? "unresolved" : proofKind === "saved_selection" ? "mapped" : "invalid";
-    const mappingReasonCode = proofKind === "explicit_gap"
-      ? `obligation_${obligation.gap.gap_kind}` : null;
+    const proofKind = obligation.selection ? 'saved_selection' : null;
+    const mappingClassification = proofKind === "saved_selection" ? "mapped" : "invalid";
     const common = {
       obligation_id: obligation.obligation_id,
       mechanism_kind: obligation.mechanism?.kind ?? null,
       proof_kind: proofKind,
       mapping_classification: mappingClassification,
-      mapping_reason_code: mappingReasonCode,
-
-      ...(proofKind === "explicit_gap" ? { gap: frozen({
-        gap_kind: obligation.gap.gap_kind, reason: obligation.gap.reason
-      }) } : {})
+      mapping_reason_code: null
     };
-    if (!["saved_selection", "explicit_gap"].includes(proofKind)) return frozen({
+    if (obligation.design_status !== 'valid') return frozen({
+      ...common, verification_id: null, classification: 'unresolved',
+      reason_code: obligation.diagnostics?.[0]?.code ?? 'obligation_coverage_design_invalid',
+      verification_method: null
+    });
+    if (proofKind !== "saved_selection") return frozen({
       ...common,
       verification_id: null,
       classification: "non_runtime",
@@ -48,11 +46,6 @@ export function classifyControlledContractRuntimeEligibility(contract,
       reason_code: "controlled_contract_runtime_eligibility_mapping_not_current",
       verification_method: null
     });
-    if (obligation.design_status !== 'valid') return frozen({
-      ...common, verification_id: null, classification: 'unresolved',
-      reason_code: obligation.diagnostics?.[0]?.code ?? 'obligation_coverage_design_invalid',
-      verification_method: null
-    });
     const verificationIds = new Set(obligation.controlled_contract_node_ids ?? []);
     for (const relation of contract.relations ?? []) if (relation.role === 'verifies' &&
         verificationIds.has(relation.target_claim_id)) verificationIds.add(relation.source_claim_id);
@@ -62,13 +55,9 @@ export function classifyControlledContractRuntimeEligibility(contract,
     if (verificationClaims.length !== 1) return frozen({
       ...common,
       verification_id: verificationClaims[0]?.claim_id ?? null,
-      classification: verificationClaims.length === 0 && proofKind === "explicit_gap" &&
-        obligation.mechanism?.kind !== "test" ? "non_runtime" : "conflicting",
-      reason_code: verificationClaims.length === 0 && proofKind === "explicit_gap" &&
-        obligation.mechanism?.kind !== "test"
-        ? "controlled_contract_obligation_mechanism_non_runtime"
-        : verificationClaims.length === 0
-          ? "obligation_verification_claim_missing"
+      classification: "conflicting",
+      reason_code: verificationClaims.length === 0
+        ? "obligation_verification_claim_missing"
         : "obligation_verification_claim_ambiguous",
       verification_method: null
     });

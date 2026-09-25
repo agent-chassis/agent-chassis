@@ -9,8 +9,7 @@ import {
 
 const OBLIGATION_COVERAGE_SCHEMA_VERSION =
   "resolved-obligation-coverage.v1";
-const OBLIGATION_COVERAGE_GAP_KINDS = Object.freeze(
-  [...OBLIGATION_DRAFT_SCHEMA.$defs.gap.properties.gap_kind.enum]);
+const OBLIGATION_COVERAGE_GAP_KINDS = Object.freeze([]);
 const OBLIGATION_COVERAGE_MECHANISM_KINDS = Object.freeze(
   [...OBLIGATION_DRAFT_SCHEMA.$defs.mechanism.properties.kind.enum]);
 
@@ -29,14 +28,14 @@ const OBLIGATION_COVERAGE_MAX_ROWS = 4096;
 const OBLIGATION_COVERAGE_MAX_BYTES = 1048576;
 
 export const PROOF_AUTHORING_FIELDS = Object.freeze([
-  'statement', 'controlled_contract_node_ids', 'mechanism', 'gap', 'proof_name',
+  'statement', 'controlled_contract_node_ids', 'mechanism', 'proof_name',
   'parameters', 'clear_parameters', 'refresh_proof_version'
 ]);
 export const PROOF_AUTHORING_FIELD_SCHEMAS = deepFreeze({
-  ...Object.fromEntries(['statement', 'controlled_contract_node_ids', 'mechanism', 'gap'].map(key => {
+  ...Object.fromEntries(['statement', 'controlled_contract_node_ids', 'mechanism'].map(key => {
     const property = OBLIGATION_DRAFT_SCHEMA.$defs.obligation.properties[key];
     const schema = property.$ref ? OBLIGATION_DRAFT_SCHEMA.$defs[property.$ref.split('/').at(-1)] : property;
-    return [key, ['mechanism', 'gap'].includes(key) ? { anyOf: [schema, { type: 'null' }] } : schema];
+    return [key, key === 'mechanism' ? { anyOf: [schema, { type: 'null' }] } : schema];
   })),
   proof_name: { type: 'string', minLength: 1, description: 'Exact proof catalog entry name, not a ' +
     'title or case ID; see workspace_controlled_proof_intents_discover. Unknown names refuse.' },
@@ -218,6 +217,15 @@ function validateObligationCoverageDraft(carrier) {
     diagnostics.push({ code: "obligation_coverage_json_depth_invalid", pointer: "/" });
   }
   if (!jsonValid) diagnostics.push({ code: "obligation_coverage_json_invalid", pointer: "/" });
+  const retiredGapDiagnostics = jsonValid && Array.isArray(carrier?.obligations)
+    ? carrier.obligations.flatMap((row, index) => row !== null &&
+      typeof row === 'object' && Object.hasOwn(row, 'gap') ? [{
+      code: 'obligation_coverage_authored_gap_retired',
+      pointer: `/obligations/${index}/gap`,
+      obligation_id: row.obligation_id ?? null,
+      retired_gap: structuredClone(row.gap)
+    }] : []) : [];
+  diagnostics.push(...retiredGapDiagnostics);
   const schemaValid = jsonValid && validateDraftSchema(carrier);
   if (schemaValid) {
     const ids = new Set();

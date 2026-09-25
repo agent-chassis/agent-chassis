@@ -1356,6 +1356,7 @@ export {
 
 export {
   TEST_PROOF_PROVIDER_SCHEMA_VOCABULARY,
+  TEST_RUNTIME_ENVIRONMENT_ID_RE,
   TEST_RUNTIME_RUNNER_CATALOG,
   isTestProofSourcePath,
   resolveNativeTestSelector,

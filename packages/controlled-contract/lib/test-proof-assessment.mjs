@@ -16,6 +16,7 @@ import {
   validateStableTestProofContract
 } from "./test-proof-contract-v1.mjs";
 import { validateTestProofRuntimeEvidenceV2 } from "./test-proof-runtime-evidence-v2.mjs";
+import { classifyMutationOutcome } from "./test-proof-mutation-outcome.mjs";
 
 const MAX_TEST_PROOF_ASSESSMENT_INDEX_BYTES = 4096;
 const SEMANTIC_JUDGMENT = "not_performed_coordinator_owned";
@@ -361,9 +362,11 @@ function runtimeReceipt({
   };
 }
 
-function bindRuntimeFalsifiers(binding, evidence, diagnostics, root) {
+function bindRuntimeFalsifiers(binding, evidence, diagnostics, root, candidatePassed) {
   const declared = (binding.falsifiers ?? []).map(({ falsifier_id: id }) => id);
+  const declaredUnsupported = binding.falsification_provider?.mode === "registry_unsupported";
   const seen = new Set();
+  const outcomes = [];
   evidence.falsifier_executions.forEach((entry, index) => {
     const field = `${root}/falsifier_executions/${index}`;
     if (!declared.includes(entry.falsifier_id)) diagnostics.push(fieldDiagnostic(
@@ -374,21 +377,29 @@ function bindRuntimeFalsifiers(binding, evidence, diagnostics, root) {
       "test_proof_runtime_falsifier_duplicate", field,
       { actual_identity: entry.falsifier_id }));
     else seen.add(entry.falsifier_id);
-    if (entry.status !== "detected") diagnostics.push(fieldDiagnostic(
+    const outcome = classifyMutationOutcome({ ...entry, mutation_observed: entry.mutation.observed });
+    outcomes.push(outcome);
+    if (candidatePassed && outcome === "survived") diagnostics.push(fieldDiagnostic(
       "test_proof_runtime_falsifier_inert", `${field}/status`,
       { expected_identity: "detected", actual_identity: entry.status }));
-    if (entry.evidence_artifact_ids.length === 0) diagnostics.push(fieldDiagnostic(
-      "test_proof_runtime_receipt_evidence_missing", `${field}/evidence_artifact_ids`));
+    if (candidatePassed && outcome === "unevaluable") diagnostics.push(fieldDiagnostic(
+      "test_proof_runtime_falsifier_unevaluable", `${field}/status`,
+      { expected_identity: "detected", actual_identity: entry.status }));
+    if (outcome !== "unavailable" && entry.evidence_artifact_ids.length === 0) {
+      diagnostics.push(fieldDiagnostic(
+        "test_proof_runtime_receipt_evidence_missing", `${field}/evidence_artifact_ids`));
+    }
   });
   for (const falsifierId of [...declared].sort(compareCodeUnits)) if (!seen.has(
     falsifierId
   )) diagnostics.push(fieldDiagnostic("test_proof_runtime_falsifier_missing",
     `${root}/falsifier_executions`, { expected_identity: falsifierId }));
   return {
-    exact: declared.length > 0 && seen.size === declared.length &&
+    exact: (declared.length > 0 || declaredUnsupported) && seen.size === declared.length &&
       evidence.falsifier_executions.length === declared.length,
-    activated: evidence.falsifier_executions.length > 0 &&
-      evidence.falsifier_executions.every(({ status }) => status === "detected")
+    activated: outcomes.every((outcome) => outcome === "detected" || outcome === "unavailable"),
+    unavailable_count: evidence.capability_limitations.filter(
+      ({ check_kind: kind }) => kind === "falsifier").length
   };
 }
 
@@ -564,7 +575,8 @@ function assessRuntimeTestProofContract(contract, runtime) {
       verificationId,
       evidence,
       candidate,
-      falsifiers: bindRuntimeFalsifiers(binding, evidence, diagnostics, root),
+      falsifiers: bindRuntimeFalsifiers(binding, evidence, diagnostics, root,
+        evidence.execution_result.status === "passed"),
       traversals: bindRuntimeTraversals(binding, evidence, diagnostics, root)
     };
   });
@@ -596,7 +608,9 @@ function assessRuntimeTestProofContract(contract, runtime) {
       runtimeReceipt({ ...common, kind: "candidate", rowKey: "execution_result",
         status: "passed", provider: evidence.execution_result.provider,
         artifactIds: evidence.execution_result.evidence_artifact_ids }),
-      ...[...evidence.falsifier_executions].sort((left, right) =>
+
+      ...evidence.falsifier_executions.filter(({ status }) => status === "detected")
+        .sort((left, right) =>
         compareCodeUnits(left.falsifier_id, right.falsifier_id)).map((entry) =>
         runtimeReceipt({ ...common, kind: "falsifier", rowKey: entry.falsifier_id,
           status: "detected", provider: entry.provider,
@@ -629,6 +643,8 @@ function assessRuntimeTestProofContract(contract, runtime) {
       candidate_count: assessed.length,
       falsifier_count: assessed.reduce(
         (count, { evidence }) => count + evidence.falsifier_executions.length, 0),
+      falsifier_unavailable_count: assessed.reduce(
+        (count, { falsifiers }) => count + falsifiers.unavailable_count, 0),
       traversal_count: assessed.reduce(
         (count, { evidence }) => count + evidence.boundary_traversals.length, 0),
       complete: populationExact

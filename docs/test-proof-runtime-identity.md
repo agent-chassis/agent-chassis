@@ -132,13 +132,14 @@ missing input. A missing interpreter refuses separately with
 
 A target is readiness-configured when the repository's published local
 test-runtime readiness (see [Local test-runtime readiness](#local-test-runtime-readiness))
-selects the pytest runner for a project containing the target. A configured
-target uses exactly that record's prepared project interpreter and pytest
-population, the same population setup verified, instead
-of the launcher `PATH` lookup; its read-only binds come from the same record.
-The prepared runtime reports `runtime_source: "launcher_readiness"` and the
-record's `readiness_digest`, and execution re-checks that digest before each
-attempt. A missing, invalid or stale record for a configured target refuses
+has a Python environment that owns the target, or when the call names a
+prepared environment (see [Prepared environment routing](#prepared-environment-routing)).
+A configured target uses exactly the routed environment's detected interpreter
+and pytest population, the same population setup verified, instead of the
+launcher `PATH` lookup; its read-only binds come from the same record. The
+prepared runtime reports `runtime_source: "launcher_readiness"`, the record's
+`readiness_digest` and the routed `environment`, and execution re-checks both
+before each attempt. A missing, invalid or stale record for a configured target refuses
 preparation with the readiness code (`test_runtime_readiness_invalid`,
 `test_runtime_inputs_stale`, `test_runtime_dependencies_stale`,
 `test_runtime_toolchain_stale`); it never selects a different host interpreter
@@ -454,6 +455,33 @@ currentness. Movement invalidates the attempt population. Evidence binds the
 subject, contract and source digests, case revision, proof identity, candidate
 commit, source snapshot, provider, evaluator, and attempt.
 
+### Exact-commit runtime dependencies
+
+An orchestrator `git_sha` request executes a private immutable materialization of
+that commit. Before execution it verifies the package-owned compiled-validator
+cache in read-only mode, and it refuses when that verification or the cache bind
+plan fails. The verified cache is bound read-only at the materialization's
+`.cache/controlled-contract/validators` for every exact-commit attempt, whether
+or not an npm dependency projection is selected.
+
+The npm projection of the configured repository's root `node_modules` is
+selected, authenticated, and mounted as for findings review. When the root has
+no `node_modules` entry at all, the request still runs if the materialized
+commit declares no npm installation. This means the npm ecosystem owner finds no
+dependency manifest input beyond `package.json`, and `package.json` names no
+workspaces. Such an attempt mounts no projection and records
+`projection_selected: false` with the reason `dependency_root_unavailable`.
+
+The request refuses with
+`test_proof_exact_candidate_dependency_projection_unavailable` in these cases:
+
+- the commit declares dependencies and the root installation is absent;
+- the root `node_modules` exists as a symlink, a nondirectory, or an unreadable
+  entry;
+- the npm owner cannot read the commit's manifest, in which case the refusal
+  names `manifest_failure_code` and carries the original failure as its cause;
+- any other projection unavailability or integrity failure.
+
 ### Managed-worker run identities
 
 A managed worker has two distinct run identities.
@@ -488,7 +516,7 @@ each attempt.
 
 Once execution starts, the attempt engine runs the unchanged candidate and each
 declared falsifier, observes the selected traversal, and emits authenticated
-evidence. A selected assertion failure is an `unsatisfied` result when the
+evidence. A selected assertion failure is an `unproven` result when the
 structured observation population is complete. Spawn failure, timeout,
 candidate movement, missing observation, malformed receipt, or unavailable
 provider is `not_executable`.
@@ -496,19 +524,32 @@ provider is `not_executable`.
 The selected-test observation is the proof observation whether or not a
 mutation can run. Mutation does not create a different proof category: when it
 runs, it contributes additional falsification evidence for that same proof. The
-public compact result presents `selected_status` beside `mutation_evidence`;
-the full result also labels the same selected outcome as `test_observation`. A
-mutation is `detected` only when the runtime's authoritative falsifier outcome
-is `detected`; a failed selected-test event alone does not establish detection.
-An authoritative `not_detected` outcome is presented as `survived` only when
-the evidence also establishes a supported, isolated, observed mutation whose
-falsified execution passed. Other `not_detected` outcomes remain distinct, as
-do `execution_error`, `unavailable` capability limitations, and `not_run` when
-no mutation ran.
-Failed or incomplete test execution remains separately visible through
-`test_observation.execution_status`, the proof status, reason, and diagnostics.
-These presentation facts do not change evaluator satisfaction or supply credit
-for evidence that was not observed.
+public compact result presents the selected test's identity and
+`selected_status` beside `mutation_evidence`; the full result also labels the
+same selected outcome as `test_observation`. `selected_status` is the observed
+event status (`passed`, `failed`, `skipped`, or another reported status), and
+`not_observed` only when no selected-test event was recorded.
+
+Every mutation member is classified by one pure owner,
+`lib/test-proof-mutation-outcome.mjs`, which the semantic kernel, the runtime
+assessment and the public presentation share:
+
+- `detected` only when the runtime's authoritative falsifier outcome is
+  `detected`; a failed selected-test event alone does not establish detection;
+- `survived` only when a supported, isolated, actually observed mutation left
+  the falsified execution passing while the original candidate passed: this is
+  counterevidence for the selected proof;
+- `unavailable` when the provider could not apply the mutation: a capability
+  limitation, never a detection and never counterevidence;
+- `unevaluable` for any other supported member (unreached mutation,
+  non-isolated observation, unexpected failure reason, execution error, or a
+  candidate that did not pass).
+
+The row reports `not_run` when no mutation member exists, and otherwise the
+status beside every nonzero member count, so a mixed population is never read
+as one outcome. Failed or incomplete test execution remains separately visible
+through `test_observation.execution_status`, the proof status, reason, and
+diagnostics.
 
 ### Capability limitations
 
@@ -545,12 +586,37 @@ availability, and the public summary reports the distinct reason codes beside
 the selected test's `selected_status`.
 
 A limitation records an absent observation and never supplies the credit of the
-check it replaces. A proof whose falsification or traversal was limited stays
-unmet on that evaluator axis, so the aggregate result remains `unsatisfied`.
-That status does not retract the proof's selected-test observation: the same row
-reports the observed pass or failure and identifies mutation evidence as
-`unavailable`, rather than presenting the proof as unexecuted or worthless. A
-typed, attributable proof-local attempt failure
+check it replaces. For mutation, it also withholds nothing: a proof whose
+selected test passed, whose mutation was unavailable, and whose other required
+checks hold is `proven`, and its row reports mutation evidence as `unavailable`
+with the limitation codes. Mutation unavailability alone supplies no retry,
+waiver, installation or repair instruction. The limitation never excuses an
+actual survivor elsewhere in the same population: every available member is
+assessed individually, and one survivor makes the proof `unproven`. A failed
+selected test is `unproven` for its assertion, with its diagnostic, and gains no
+mutation counterevidence from falsifier rows that observed the same failure.
+
+For a passing candidate, a declared falsifier missing from the population, a
+provider-mode binding with no falsifier, or a supported member that is
+`unevaluable` leaves that relationship reason-coded `not_executable`
+(`verify_proof.falsifier_evidence_not_evaluable.v1`, with
+`verify_proof.falsifier_population_incomplete.v1` or
+`verify_proof.falsifier_outcome_unevaluable.v1` diagnostics carrying the
+recorded facts). The semantic kernel returns that result instead of reaching
+the exact evaluator, and the proof row still reports the observed selected
+test. Incomplete evidence is neither credit nor counterevidence. The exact
+evaluator refuses such facts rather than judging them.
+
+The runtime-evidence validator requires each unsupported falsifier row and its
+member of `capability_limitations` to agree on check identity, reason and detail
+(`runtime_falsifier_limitation_incoherent` otherwise), and the semantic kernel
+requires exactly one identity-less falsifier limitation for a
+`registry_unsupported` binding and none otherwise. Malformed, corrupted,
+mismatched, cross-bound or duplicate evidence keeps refusing through those
+authenticity checks; it is never read as a limitation or as incomplete evidence.
+
+Traversal limitations are unchanged: a proof whose traversal was limited stays
+unmet on that evaluator axis. A typed, attributable proof-local attempt failure
 may leave that row unavailable and permit a later sibling. Candidate/source or
 generation movement, receipt authentication or cross-binding failure,
 confinement/authority failure, and unknown or unprojectable causes are shared
@@ -569,9 +635,30 @@ unavailable value and a source-path issue.
 Candidate, falsifier, and traversal observations link to their existing
 authenticated structured-result artifacts. The compact verification summary
 does not inline diagnostic payloads. It does carry each retained proof's
-selected-test observation and any observed or unavailable mutation-evidence
-state. Its evidence reference identifies the complete persisted result,
+selected-test identity and observation, its mutation-evidence state, and the
+actual evaluator diagnostic codes of each unproven relationship. Its evidence reference identifies the complete persisted result,
 retrievable in ranges without rerunning the proof.
+
+A launcher candidate, falsifier or traversal execution failure carries two run
+records. `run` holds only the bounded public facts the refusal projection
+accepts (ran, disposition, exit code, signal, timed out, blocker code, output
+truncation, and a refused native record's compact context). A process that ran
+and whose proof observation was refused afterwards keeps those facts:
+`ran: true`, its exit status and output, and disposition `failed` with the
+observation code as its blocker. `not_run` means the process never executed.
+The failure also names the resolved provider of the failing stage. The proof
+result then reports `execution_status: completed` (or `interrupted` when the
+run's own timeout stopped it) with status `not_executable`; only a failure
+with no executed run reports `not_started`, and `execution_not_started`
+counts only those. A completed candidate says nothing about later falsifier
+or traversal stages; the failed stage stays in the facts. `captured_run` holds the complete captured run, including the
+attempt's stdout and stderr (head-and-tail bounded by the capture's own output
+bounds), normalized argv, timings, cleanup outcome and the observation envelope.
+The fd-3 reporter protocol is never part of either stream, so test output stays
+diagnostic-only and cannot select authenticated evidence. `captured_run` is never
+read by the public projection; it survives only inside the captured evidence
+below, including when the execution budget relabels the failure as an
+interruption.
 
 A modeled proof refusal captures the original thrown value before it classifies
 the cause chain. The first public diagnostic node carries that capture at
@@ -597,11 +684,26 @@ The reporter's fixed 2 MiB authenticated-envelope bound remains an explicit
 `test_proof_structured_events_oversized` nonexecution result; diagnostics are
 never clipped to fit it.
 
-The aggregate and each proof result use `satisfied`, `unsatisfied`, or
-reason-coded `not_executable`: any unsatisfied row wins, then any unavailable
-row, and only a nonempty entirely satisfied population is satisfied. Results
-are advisory and grant no lifecycle,
+The public aggregate, each proof row and each obligation relationship use
+`proven`, `unproven`, or reason-coded `not_executable`: any unproven row wins,
+then any not-executable row, and only a nonempty entirely proven population is
+proven. The exact evaluator's internal result keeps its `satisfied` /
+`unsatisfied` vocabulary; the public projection converts freshly produced
+results once, before summary, retention and delivery, and `counts` reports
+`proven` and `unproven`. These outcomes describe the requested proofs against
+the tested source only. Results are advisory and grant no lifecycle,
 dispatch, admission, integration, completion, or CCE authority.
+
+Recovery names only what the evaluation diagnosed. An unproven proof carries its
+evaluator diagnostic codes, subject, effect, responsible actor and the
+verification of a corrected source; a relationship whose evidence could not be
+evaluated names its reasons and the complete evidence with no retry of unchanged
+inputs; a producer-supplied correction (a definition repair, a larger timeout)
+is published as supplied. No projection adds a retry the producer did not name.
+
+Retained results are historical evidence: they keep their recorded statuses,
+evaluator identities and diagnostics, and are never relabelled, re-evaluated or
+recommended for rerun merely because a later definition exists.
 
 ## Restart and repeatability
 
@@ -686,18 +788,19 @@ same facts. Neither adds a provider, a language or execution support.
 One launcher lifecycle runs every non-Node, non-pytest family; a family
 contributes only its runner layout, its observer and its runner command.
 
-1. Preparation resolves the family's runtime runner from the published
-   [local test-runtime readiness](#local-test-runtime-readiness) for the project
-   that contains the selected test, and runs the runner's setup probe inside the
-   attempt confinement under the invocation's execution budget. A target with no
-   selected runner, or a missing, invalid or stale record, refuses before any
-   selected body runs, with the readiness code and
-   `recovery.operator_action` naming the runner. Attempts never install
+1. Preparation routes the selected test to one prepared environment of the
+   published [local test-runtime readiness](#local-test-runtime-readiness)
+   (see [Prepared environment routing](#prepared-environment-routing)) and runs
+   the runner's setup probe inside the attempt confinement under the
+   invocation's execution budget. A target no environment serves, a named
+   environment that cannot serve it, or a missing, invalid or stale record,
+   refuses before any selected body runs, with the readiness or routing code,
+   its route facts and `recovery.operator_action`. Attempts never install
    anything.
-2. Every attempt re-derives the runtime-inputs digest (readiness digest,
-   toolchain and dependency identities, and the digest of the launcher's
-   provider assets) and refuses with `test_proof_native_runtime_inputs_stale`
-   when it differs from preparation.
+2. Every attempt re-derives the runtime-inputs digest (readiness digest, routed
+   environment, toolchain and dependency identities, and the digest of the
+   launcher's provider assets) and refuses with
+   `test_proof_native_runtime_inputs_stale` when it differs from preparation.
 3. The launcher-owned attempt driver copies the prepared project into a working
    copy beneath a uniquely minted `/tmp/agent-chassis-proof-*` directory
    on the host's actual `/tmp`, omitting only the project root's
@@ -706,8 +809,10 @@ contributes only its runner layout, its observer and its runner command.
    are copied). The verifier removes only that owned directory after completion,
    failure or cancellation. Concurrent attempts therefore have disjoint working
    copies and caches, while tests can read and write ordinary pre-existing
-   system-`/tmp` paths without repository configuration. It links the read-only prepared
-   dependency population into it, and writes the launcher's instrumented
+   system-`/tmp` paths without repository configuration. It links the read-only
+   detected dependency installation into it (for an npm workspace, a private
+   `node_modules` whose member entries link to the members' copied sources and
+   whose other entries link to the installed packages), and writes the launcher's instrumented
    sources, observer configuration and observation channel. The checkout, every
    runtime input and the observer assets stay read-only; the network is denied
    and secrets are masked. The driver relays the channel on the launcher
@@ -724,6 +829,14 @@ contributes only its runner layout, its observer and its runner command.
    `selected_test_not_observable` or `source_unparsable`.
 5. The runner runs only the selected test. Every other test is deselected or
    skipped before its body runs, so a sibling that ends the process never runs.
+   The selected test keeps its runner's ordinary composition: helper
+   functions (including another top-level test function the selected test
+   calls directly or runs as a subtest), native descendants such as subtests
+   and steps, asynchronous work and final lifecycle callbacks all belong to the
+   selected test. They never become separately requested tests, never earn
+   proof credit of their own, and never refuse the observation. A separately
+   registered sibling test body that actually runs is a different fact: it is
+   an unselected execution.
 
 ### Observation protocol
 
@@ -743,7 +856,12 @@ with the selected outcome. Violations refuse with
 `test_proof_structured_events_exit_status_mismatch`,
 `test_proof_structured_events_oversized`,
 `test_proof_structured_events_reach_unauthenticated` or
-`test_proof_structured_events_invalid`. A selector that matches no observed
+`test_proof_structured_events_invalid`. A refused record keeps its concrete
+context in the observation detail: the provider and version, the selected
+node identity, and the refused record's kind, observed node identity (and
+outcome for a result), writer, sequence and position in the stream. An exit
+status mismatch names the selected outcome and the exit code. The complete
+channel population stays in the captured run. A selector that matches no observed
 test refuses with `test_proof_selected_identity_not_observed` and lists the
 observed identities. An observer can report only
 `test_proof_native_runner_unsupported`, `test_proof_native_runner_unavailable`
@@ -752,9 +870,26 @@ or `test_proof_native_selection_unsupported`.
 Process exit codes, runner output and printed text are never evidence.
 
 The selected window opens when the runner starts the selected test and closes
-with its result. For stestr it covers only the test method, excluding
-`setUp` and `tearDown`. For Deno and lib0/testing it covers only the test body.
-For Go and Cargo it covers the selected test function. Entry probes record every
+with its result. The selected outcome is the runner's final outcome for the
+selected test, including failures of its children and of its applicable
+lifecycle, not whether a body function returned. The window is the separate
+attribution seam for falsifier and traversal reach. For stestr it covers only
+the test method, excluding `setUp` and `tearDown`. For Deno it covers the test
+body and its steps; a failed step, which Deno reports without rejecting the
+body, fails the selected test. For lib0/testing it covers every body entry lib0
+makes for the selected test (lib0 re-enters a `testRepeat…` test until its
+repetition time elapses) and closes when lib0's run of that test returns, with
+the last entry's outcome. For Jest, Vitest and Mocha a failing hook of the
+started selected test fails it, including an `afterAll` (Mocha `after`) hook of
+an enclosing suite, which each runner reports after the test itself passed:
+Jest as a file-level error, Vitest on the suite, Mocha as a separate hook
+failure. The selected outcome is therefore reported once, when the runner's
+run of the selected file ends. For Go it
+covers the selected test's root lifecycle: its function, every subtest
+including parallel subtests that run after the function returns, and every
+later-registered cleanup; it closes in the observer's first-registered cleanup,
+which Go runs last, and the result is Go's own `Failed`/`Skipped` state or the
+recorded panic. For Cargo it covers the selected test function. Entry probes record every
 entry of an instrumented function of the declared module. Only entries inside
 the window count. A falsifier is detected only when the substituted function
 was entered inside the window and the selected test then failed on an
@@ -816,41 +951,146 @@ functions, and a tracer bound to the declared module's code objects.
   The declared module is a Python module; its transform happens at import,
   from the launcher directive line of the working-copy module.
 - go test: the selected test is a top-level `func TestX(t *testing.T)` in the
-  selected file. The declared module is a non-test source of any package in the
-  project. The run uses `GOPROXY=off` and a read-only module cache.
+  selected file. Only its declaration is hooked; every other test function of
+  the file is listed as declared inventory and stays ordinary Go. The hook
+  observes only the runner-started root `*testing.T` whose name is the selected
+  function's: a direct call with that same `T`, or a call of the selected
+  function under another runtime name, runs unchanged and observes nothing.
+  Panics are recorded and re-raised. The declared module is a non-test source
+  of any package in the project. The run uses `GOPROXY=off` and a read-only
+  module cache.
 - cargo test: only Cargo's default target layout is supported. The selected
   test is a plain `#[test]` function without parameters or a return type, in
-  `tests/<name>.rs` or a library module under `src/`. The declared module is a
-  library module under `src/`. The run uses the recorded toolchain's own
-  `cargo` with `--frozen` and one test thread.
+  `tests/<name>.rs` or a library module under `src/`. Only the selected test
+  carries the observer guard; other test functions stay ordinary Rust and may
+  be called as helpers, and a repeated entry of the selected function within
+  the run observes nothing. The declared module is a library module under
+  `src/`. The run uses the recorded toolchain's own `cargo` with `--frozen` and
+  one test thread.
+- A final native outcome an observer cannot attribute to the selected test
+  stays a refusal, never a success: for example a Deno failure outside the
+  body and its steps (a sanitizer failure of the test itself) refuses with
+  `test_proof_structured_events_exit_status_mismatch`.
 - Observers run inside the test process, and nothing isolates them from code
   in the selected test. See [Reach binding](#reach-binding) for what the
   evidence is bound to.
 
 ### Local test-runtime readiness
 
-Explicit local test-runtime setup (see
+Local test-runtime detection (see
 [Local test-runtime setup](local-test-runtime-setup.md)) is the only producer
-of the readiness record `.agent-launch/test-runtimes/readiness.v1.json`
-(`agent-launch-test-runtime-readiness.v1`). Ordinary `agent-chassis setup` runs
-it as its last step, resolving the repository's runner selection and toolchain
-locations and saving them in `agent-chassis-runtime.json`; `agent-chassis setup
---test-runtimes` reruns that same step for an already-configured repository.
+of the readiness record `.agent-launch/test-runtimes/readiness.json`
+(`agent-launch-test-runtime-readiness.v3`). Ordinary `agent-chassis setup` runs
+it as its last step, inventorying the repository's environments and saving the
+toolchain locations it resolved in `agent-chassis-runtime.json`;
+`agent-chassis setup --test-runtimes` reruns that same step.
 Neither entrypoint produces readiness by resolving or saving those choices: the
-launcher's `test-runtime-setup` module owns the record and publishes it only
-after its own validation, preparation and sandbox checks pass. Native proof
-preparation and attempts read it and nothing else. It holds the explicit runner
-selection, each toolchain's exact version, version source, origin (`configured`
-for an operator-supplied location, `host` for one discovered on setup's `PATH`,
-`installed` for one setup installed under its toolchain root), executables,
-measured population, content digest and metadata
-fingerprint, each project dependency preparation's input-file digest,
-read-only directory, content digest and fingerprint, the passed sandbox
+launcher's `test-runtime-setup` module owns the record. It is the repository's
+current detection state: `preparing` from the moment a valid request is
+accepted, then that attempt's `ready` (after its own detection, validation and
+sandbox checks pass) or `failed` (with the complete structured setup result),
+each carrying the attempt's `preparation` identity, its `environments` and the
+most recent earlier failure as `last_failure`. `loadReadiness` is the one
+classifier: only an intact ready record of this repository is usable; preparing
+and failed return `test_runtime_preparation_in_progress` and
+`test_runtime_preparation_failed` with the record; an absent record
+(`test_runtime_not_ready`) alone means never prepared. Native proof preparation
+and attempts read it and nothing else. A ready record holds every detected
+environment (`environments`: public ID, ecosystem, installation root, workspace
+members, proved runner IDs and toolchains), the proved runners as
+`selection` rows of runner ID and installation root, each toolchain's exact
+version, version source (`project_pin`, `operator_request` or `installed`),
+origin (`configured` for an operator-supplied location, `host` for one
+discovered on setup's `PATH`), executables, measured population, content digest
+and metadata fingerprint, each environment's detected dependency installation
+(its `source` such as `project_node_modules`, `selected_virtual_environment`,
+`module_cache`, `cargo_vendor` or `deno_dir`, input-file digest over the root
+and member manifests and the lock, workspace member links, the existing
+directory, measured population, content digest and fingerprint), the passed sandbox
 verification checks, and a `readiness_digest` over the whole record. A record
 that does not reproduce its digest is invalid. Before every attempt the
 launcher recomputes the input-file digest of the checkout under test and the
 fingerprints of the recorded populations; any difference refuses with the
-matching stale code. Attempts never download, install or rewrite lockfiles.
+matching stale code. Neither setup nor attempts ever download, install or
+rewrite lockfiles.
+
+The verifier and a managed coding worker select an installation root with the
+same pure selector. It takes a candidate root list and a normalized
+repository-relative path, and returns the longest candidate that is `.`, equals
+the path, or is a slash-bounded ancestor of it. Both filter the recorded
+environments by dependency ecosystem. Nothing outside the containing roots is
+ever selected.
+
+### Prepared environment routing
+
+`workspace_verify_proof` routes each selected test independently, so one call
+may verify tests in several languages and environments:
+
+1. The saved proof's runner binding (its candidate provider family) names the
+   runtime runner and so the dependency ecosystem. The target's suffix is
+   recorded as a language-family hint (`route.suffix_ecosystems`) and never
+   replaces the saved binding, test, provider, evaluator, falsifier or
+   obligation population.
+2. Without an `environment` argument, the recorded environment of that
+   ecosystem whose installation root owns the target serves it
+   (`route.basis: "saved_runner_binding_and_project_ownership"`). Two projects
+   of one language are two environments and each target reaches its own. If
+   the owning environment did not prove the runner, the test refuses with
+   `test_runtime_runner_not_prepared`, naming the environment, its runners and
+   the environments that would serve it; no sibling environment is borrowed.
+3. An installation root between the target and its routed environment that
+   declares its own complete dependency inputs but is not in the record refuses
+   with `test_runtime_inventory_stale` (`unrecorded_project`) until setup runs
+   again, instead of silently using the enclosing environment.
+4. With `environment: "<ecosystem>@<installation root>"`, that published
+   environment serves the test (`route.basis: "named_environment"`) only if it
+   is of the runner's ecosystem, proved the runner and contains the target.
+   Before anything is bound, prepared or executed, the verifier checks the
+   named environment against every selected proof. If any proof cannot run
+   there, the whole call refuses with `verify_proof.environment_incompatible.v1`.
+   The refusal's `recovery.facts` list `requested_environment`, each
+   `incompatible` proof (test proof ID, obligation IDs, target, family,
+   `reason`: `ecosystem_mismatch`, `runner_not_proved`,
+   `target_outside_environment`, `provider_unknown` or
+   `environment_unavailable`, and code), the `valid_choices` that would serve
+   the whole population, and the `prepared_environments`. Nothing is filtered
+   or partially executed. An unknown name is `environment_unavailable` with
+   `test_runtime_environment_unknown`.
+5. node:test proofs route the same way through the npm environment that owns
+   the target and proved node-test. A routed node:test attempt keeps its
+   selection, reporter, module-fault falsifier and V8 traversal, but runs the
+   environment's recorded Node with the detected `node_modules` bound read-only
+   at the project's own `node_modules` in the checkout under test, so workspace
+   member links resolve to that checkout's sources. Only a missing mountpoint
+   leaf is created and removed. Preparation binds the runtime-inputs digest and
+   every run re-proves it. A repository that publishes no readiness owning the
+   target, with no environment named, keeps the launcher's own Node
+   (`runtime_source: "launcher_node"`).
+6. The name is an identity only: it grants no visibility, cannot retarget the
+   candidate source, and never supplies an executable, path, variable, root or
+   mount. Currentness, source authentication and the stale checks above apply
+   unchanged.
+
+Each proof result reports the `runtime_environment` that actually ran it: the
+`requested_environment`, the routed `environment`, `runtime_source`, the
+`route` (`basis`, `runner`, `suffix_ecosystems`), the `readiness_digest`, the
+toolchain and dependency identities (versions, sources and content digests; no
+host paths) and the `runtime_inputs_digest`, for every family (pytest included).
+An unrouted node:test proof reports `runtime_source: "launcher_node"` and no
+environment. The aggregate reports the
+call's `requested_environment`, the compact summary names each proof's
+`environment`, and both are retained with the invocation for execution-free
+reads.
+
+The worker composes one frozen runtime identity at launch from the same record
+and the same per-project currentness checks (see
+[Prepared test runtimes in the coding worker](agent-launch-confinement-mcp-conduit.md#prepared-test-runtimes-in-the-coding-worker)).
+Its ordinary commands are evidence of execution with that frozen runtime and
+grant no proof credit. Verification remains explicit, re-checks currentness
+itself, and alone produces proof evidence. Both the verifier and the worker run
+Cargo with the caller's own arguments against the detected source: a vendored
+directory declared by the project's or `CARGO_HOME`'s configuration, or the
+`CARGO_HOME` registry, offline.
 
 ## Public boundary
 

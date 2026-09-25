@@ -138,7 +138,11 @@ function assignDefinitionName(used, hint, index) {
   }
 }
 
-export function projectZodRequestContract(schema, { nameHints = new Map() } = {}) {
+export function projectZodRequestContract(schema, {
+  nameHints = new Map(),
+
+  shareIdenticalProjections: shareIdentical = false
+} = {}) {
   if (schema?._def === undefined) return null;
   const definitions = {};
   const usedNames = new Set();
@@ -302,7 +306,86 @@ export function projectZodRequestContract(schema, { nameHints = new Map() } = {}
     delete definitions[name];
     if (Object.keys(definitions).length === 0) delete result.$defs;
   }
+  if (shareIdentical) {
+    shareIdenticalProjections({ result, definitions, usedNames, occurrences, reachableObjects,
+      minimumBytes: MINIMUM_HOISTED_BYTES, nextIndex: () => definitionIndex++ });
+  }
   return result;
+}
+
+const DEFINITION_REFERENCE = /^#\/\$defs\/([A-Za-z_][A-Za-z0-9_]*)$/u;
+
+function referencedName(value) {
+  if (value === null || typeof value !== "object" || Object.keys(value).length !== 1) return null;
+  return DEFINITION_REFERENCE.exec(value.$ref ?? "")?.[1] ?? null;
+}
+
+function shareIdenticalProjections({ result, definitions, usedNames, occurrences, reachableObjects,
+  minimumBytes, nextIndex }) {
+  const resolve = (value) => {
+    const name = referencedName(value);
+    return name === null ? value : definitions[name];
+  };
+  const referencedNames = () => {
+    const names = new Set();
+    const visit = (value) => {
+      if (value === null || typeof value !== "object") return;
+      const name = referencedName(value);
+      if (name !== null) names.add(name);
+      for (const child of Object.values(value)) visit(child);
+    };
+    visit(result.contract);
+    for (const body of Object.values(definitions)) visit(body);
+    return names;
+  };
+  const pruneDefinitions = () => {
+    for (let changed = true; changed;) {
+      changed = false;
+      const live = referencedNames();
+      for (const name of Object.keys(definitions)) {
+        if (!live.has(name)) { delete definitions[name]; changed = true; }
+      }
+    }
+    if (Object.keys(definitions).length === 0) delete result.$defs;
+  };
+  const rejected = new Set();
+  for (;;) {
+    const reachable = reachableObjects();
+    const groups = new Map();
+    for (const occurrence of occurrences) {
+      if (!occurrence.complete || !reachable.has(occurrence.get())) continue;
+      const body = resolve(occurrence.get());
+      if (body === undefined) continue;
+      const key = JSON.stringify(body);
+      if (rejected.has(key) || Buffer.byteLength(key, "utf8") < minimumBytes) continue;
+      let group = groups.get(key);
+      if (group === undefined) { group = { key, body, sites: [], depth: occurrence.depth }; groups.set(key, group); }
+      group.sites.push(occurrence);
+      group.depth = Math.min(group.depth, occurrence.depth);
+    }
+
+    const candidate = [...groups.values()]
+      .filter((group) => new Set(group.sites.map((site) => referencedName(site.get()) ?? site)).size > 1)
+      .sort((left, right) => left.depth - right.depth || right.key.length - left.key.length)[0];
+    if (candidate === undefined) return;
+    const existing = candidate.sites.map((site) => referencedName(site.get())).find((name) => name !== null);
+    const name = existing ?? assignDefinitionName(usedNames, candidate.sites[0].keyHint, nextIndex());
+    const inlineBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+    const originals = candidate.sites.map((site) => site.get());
+    const savedDefinitions = { ...definitions };
+    definitions[name] = candidate.body;
+    result.$defs = definitions;
+    for (const site of candidate.sites) site.set({ $ref: `#/$defs/${name}` });
+    pruneDefinitions();
+    if (Buffer.byteLength(JSON.stringify(result), "utf8") < inlineBytes) continue;
+    candidate.sites.forEach((site, index) => site.set(originals[index]));
+    for (const key of Object.keys(definitions)) delete definitions[key];
+    Object.assign(definitions, savedDefinitions);
+    if (existing === undefined) usedNames.delete(name);
+    if (Object.keys(definitions).length > 0) result.$defs = definitions;
+    else delete result.$defs;
+    rejected.add(candidate.key);
+  }
 }
 
 export function zodDiscriminatedUnionDiscriminatorValues(union) {

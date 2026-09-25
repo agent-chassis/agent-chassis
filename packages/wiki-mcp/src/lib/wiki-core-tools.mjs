@@ -57,6 +57,7 @@ import {
   workRecordDetailSelectorSchemaShape
 } from "./work-record-compact-read-gate.mjs";
 import { isWorkRecordNavigationResult, toolVisibleToSession } from "./work-record-read-navigation.mjs";
+import { canonicalProjectionReadRecoveryCall } from "./work-record-canonical-read-recovery.mjs";
 
 import {
   createToolInputValidationError,
@@ -233,10 +234,10 @@ export function registerWikiCoreTools({
   const readPageDigestSelectors = Object.keys(ordinaryReadPageShape)
     .filter((field) => selectorDeclaresSourceDigest(ordinaryReadPageShape[field]));
 
-  const projectReadPageInputFailure = ({ args, validationError, tool }) => {
+  const projectReadPageInputFailure = async ({ args, validationError, tool }) => {
     const misplaced = validationError.issues.some((issue) => issue.code === "unrecognized_keys" &&
       issue.path.length === 0 && issue.keys.includes("expected_source_digest"));
-    if (!misplaced) return null;
+    if (!misplaced) return projectCanonicalProjectionReadFailure({ args, validationError, tool });
     const selectedRead = readPageDigestSelectors.find((field) => args[field] !== undefined) ?? null;
     const { expected_source_digest: _misplaced, ...withoutDigest } = args;
     const retry = workspaceReadPageInputSchema.safeParse(withoutDigest).success
@@ -264,6 +265,22 @@ export function registerWikiCoreTools({
         nextCalls: retry
       }))
     };
+  };
+
+  const projectCanonicalProjectionReadFailure = async ({ args, validationError, tool }) => {
+    const projection = validationError.issues.length === 1
+      ? validationError.issues[0].params?.[MCP_CALLABLE_OWNER_PROJECTION_PARAM]
+      : undefined;
+    if (projection === undefined) return null;
+    let workspace;
+    try {
+      workspace = resolveWorkspaceReadPageRepo(args);
+    } catch {
+      return null;
+    }
+    const call = await canonicalProjectionReadRecoveryCall({ toolFamily: tool, workspaceRepo: workspace.repo,
+      workspaceDir: workspace.dir, args, diagnostics: projection.envelope?.diagnostics });
+    return call === null ? null : { projection, next_calls: [call] };
   };
 
   const workspaceGetRecordInputSchema = strictReadSchema({

@@ -36,9 +36,6 @@ import {
   unitPartitionDigest
 } from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs";
 import {
-  ATTEMPT_RETIREMENT_DIRECTORY
-} from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-selector-journal.mjs";
-import {
   createExactSliceReviewReceipt,
   createExactSliceReviewReceiptStore,
   digestTrustedExactReviewEvidence,
@@ -435,24 +432,6 @@ function baselineReviewReceipt({ label, generationHex = "1", contractVersion = "
   });
 }
 
-function baselineLineageDecision(prior, replacement) {
-  return Object.freeze({
-    schema_version: "workspace-agent-reviewer-generation-correction-decision.v1",
-    decision: "eligible",
-    owner: "reviewerLineageBinder",
-    authority: "launcher_authenticated_lifecycle_facts",
-    prior_identity_digest: identityDigest(prior),
-    replacement_identity_digest: identityDigest(replacement),
-    lifecycle_facts: Object.freeze({
-      launch_state: "not_started",
-      reviewer_child_created: false,
-      terminal_child_fact: false,
-      settled_result: false,
-      downstream_authority_granted: false
-    })
-  });
-}
-
 export function buildDurableStoreBaselineCorpus() {
   return Object.freeze([
     Object.freeze({
@@ -490,25 +469,14 @@ export function buildDurableStoreBaselineCorpus() {
       compatibility: DURABLE_STORE_COMPATIBILITY.PAYLOAD_PRESERVED,
       authority: "immutable_partition_events_with_derived_replaceable_index",
       legacy_lock_shape: null,
-      production_writer:
-        "createExactSliceReviewReceiptStore: persist, retireAndElectReplacement, persistTerminalRunResult, persistTerminalSettlementConflict",
+      production_writer: "createExactSliceReviewReceiptStore: persist, persistTerminalRunResult",
       async produce({ workspaceDir, durableRoot }) {
         const store = createExactSliceReviewReceiptStore({ workspaceDir });
         const prior = baselineReviewReceipt({ label: "prior" });
-        const successor = baselineReviewReceipt({
-          label: "successor",
-          generationHex: "2",
-          contractVersion: "2"
-        });
 
         await store.persist(prior);
 
-        const elected = (await store.retireAndElectReplacement({
-          prior_receipt: prior,
-          replacement_receipt: successor,
-          lineage_decision: baselineLineageDecision(prior, successor)
-        })).receipt;
-
+        const elected = prior;
         const terminal = reviseExactSliceReviewReceipt(elected, {
           terminal_run_status: "succeeded",
           structured_outcome: BASELINE_STRUCTURED_OUTCOME,
@@ -524,21 +492,16 @@ export function buildDurableStoreBaselineCorpus() {
             structured_role_result: { findings: [] }
           }
         });
-        await store.persistTerminalSettlementConflict({
-          receipt: terminal,
-          conflict: { conflict_class: "applicability_moved", conflict_detail: null }
-        });
 
         const dir = path.join(durableRoot, RECEIPT_DIRECTORY);
-        const priorIdentity = identityDigest(prior);
         const electedIdentity = identityDigest(elected);
         const partitionDir = path.join(dir, PARTITION_DIRECTORY, unitPartitionDigest(BASELINE_SUBJECT));
         const eventNames = readdirSync(partitionDir).sort();
-        assert.equal(eventNames.length, 2, "election and retirement each publish one immutable event");
+        assert.equal(eventNames.length, 1, "election publishes one immutable event");
         assert.deepEqual(
           eventNames.map((name) => name.slice(0, 22)),
-          ["event-0000000000000001", "event-0000000000000002"],
-          "partition events carry a zero-padded monotonic generation and publish in order"
+          ["event-0000000000000001"],
+          "partition events carry a zero-padded monotonic generation"
         );
         for (const name of eventNames) {
           assert.match(name, EVENT_FILE_RE, "every event filename matches the production event grammar");
@@ -568,7 +531,7 @@ export function buildDurableStoreBaselineCorpus() {
           Object.freeze({ schema_version: JSON.parse(readFileSync(layoutPath, "utf8")).schema_version })
         );
         const loadedAll = await store.loadAll({ unit_address: BASELINE_SUBJECT });
-        assert.equal(loadedAll.length, 2, "the stale and corrected lineages are both durable");
+        assert.equal(loadedAll.length, 1, "the elected lineage is durable");
         for (const name of eventNames) {
           record(
             `partition-event:${name.slice(6, 22)}`,
@@ -594,7 +557,7 @@ export function buildDurableStoreBaselineCorpus() {
           0,
           "the index is a whole number of fixed-width entries; a torn tail is unreadable by construction"
         );
-        const publishedIdentities = new Set([priorIdentity, electedIdentity]);
+        const publishedIdentities = new Set([electedIdentity]);
         for (const [selector, identity] of parsedIndex) {
           assert.match(selector, /^[0-9a-f]{64}$/u);
           assert.ok(
@@ -602,15 +565,6 @@ export function buildDurableStoreBaselineCorpus() {
             "every selector resolves to an identity that the partitions actually published"
           );
         }
-
-        const retirement = await store.loadAttemptRetirement({ receipt: prior });
-        assert.notEqual(retirement, null, "the retired attempt's evidence is durable");
-        record(
-          "reviewer-attempt-retirement",
-          path.join(dir, ATTEMPT_RETIREMENT_DIRECTORY, `${priorIdentity}.json`),
-          "immutable_terminal_evidence",
-          Object.freeze({ reader: "loadAttemptRetirement", prior_identity_digest: priorIdentity })
-        );
 
         const terminalResult = await store.loadTerminalRunResult({
           receipt: terminal,
@@ -625,23 +579,6 @@ export function buildDurableStoreBaselineCorpus() {
             reader: "loadTerminalRunResult",
             terminal_run_status: terminalResult.terminal_run_status
           })
-        );
-
-        const conflict = await store.loadTerminalSettlementConflict({ receipt: terminal });
-        assert.equal(conflict.observation_generation, 1);
-        record(
-          "terminal-settlement-conflict",
-          path.join(
-            dir,
-            "terminal-settlement-conflicts",
-            `${electedIdentity}-event-${String(conflict.observation_generation).padStart(16, "0")}.json`
-          ),
-          "append_once_immutable_observation",
-          Object.freeze({
-            reader: "loadTerminalSettlementConflict",
-            conflict_class: conflict.conflict_class
-          }),
-          conflict.observation_generation
         );
 
         const covered = new Set(artifacts.map((entry) => entry.relative_path));
@@ -663,7 +600,7 @@ export function buildDurableStoreBaselineCorpus() {
         return {
           relative_path: relative(workspaceDir, dir),
           filename_derivation:
-            "RECEIPT_DIRECTORY under the durable root; events at PARTITION_DIRECTORY/unitPartitionDigest(unit_address)/event-<gen16>-<identity>-<receipt>.json; terminal and retirement evidence keyed by identity digest",
+            "RECEIPT_DIRECTORY under the durable root; events at PARTITION_DIRECTORY/unitPartitionDigest(unit_address)/event-<gen16>-<identity>-<receipt>.json; terminal evidence keyed by identity digest",
           mode: primary.mode,
           serialized_bytes: primary.serialized_bytes,
           append_ordering: "monotonic partition-event generation; index derived from the partitions",
@@ -1442,9 +1379,15 @@ export const WK_2358_DURABLE_STORE_IDS = Object.freeze([
   "launcher-supervisor-termination"
 ]);
 
+export const WK_2670_DURABLE_STORE_IDS = Object.freeze([
+  "test-runtime-preparation-lock",
+  "test-runtime-preparation-state"
+]);
+
 export const CENSUS_DURABLE_STORE_IDS = Object.freeze([
   ...IN_SCOPE_DURABLE_STORE_IDS,
-  ...WK_2358_DURABLE_STORE_IDS
+  ...WK_2358_DURABLE_STORE_IDS,
+  ...WK_2670_DURABLE_STORE_IDS
 ]);
 
 export async function captureDurableStoreBaseline({ workspaceDir }) {
@@ -1560,11 +1503,8 @@ test("the pre-migration durable-store differential baseline is executable end to
       [
         "layout-marker",
         "partition-event:0000000000000001",
-        "partition-event:0000000000000002",
-        "reviewer-attempt-retirement",
         "selector-index",
-        "terminal-run-result",
-        "terminal-settlement-conflict"
+        "terminal-run-result"
       ],
       "every authoritative receipt-journal artifact is frozen, not just the selector index"
     );
@@ -1688,7 +1628,12 @@ export const EXPECTED_CENSUS_WRITER_IDENTITIES = Object.freeze([
 
   `${A}/managed-run-attempt-supervisor.mjs#publishSupervisorTermination`,
   `${A}/managed-run-process-identity-store.mjs#publishAttemptJournalEvents`,
-  `${A}/managed-run-process-identity-store.mjs#withAttemptPartitionLock`
+  `${A}/managed-run-process-identity-store.mjs#withAttemptPartitionLock`,
+
+  `${A}/test-runtime-setup/readiness.mjs#beginPreparation`,
+  `${A}/test-runtime-setup/readiness.mjs#publishRecord`,
+  `${A}/test-runtime-setup/readiness.mjs#releasePreparationLock`,
+  `${A}/test-runtime-setup/readiness.mjs#retireDeadPreparationOwner`
 ]);
 
 export function censusWriterIdentityViolations(census) {

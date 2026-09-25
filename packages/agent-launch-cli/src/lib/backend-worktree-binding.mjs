@@ -222,7 +222,10 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
         sourceDigest: frozenScopeAuthority.source_digest,
         entryMaterial: frozenScopeSnapshot.assignment_capture?.entry_material ?? null,
         supplementalInstructions: [],
-        terminalStructuredRoleResultMode: terminalResultMode
+        terminalStructuredRoleResultMode: terminalResultMode,
+        scopeMode: "managed_resolved",
+        resolvedScope: frozenScopeAuthority.resolved_scope,
+        scopeExclusions: frozenScopeAuthority.scope_exclusions ?? []
       });
       workerAssignment = mintManagedWorkerAssignment({
         presentation,

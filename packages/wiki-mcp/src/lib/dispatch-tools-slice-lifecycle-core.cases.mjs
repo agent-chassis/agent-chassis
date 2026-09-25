@@ -23,7 +23,7 @@ import {
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse,
+  readStructuredResult,
   RETIRED_POST_WORKER_REVIEW_SEAMS
 } from "./dispatch-tools-test-helpers.mjs";
 import {
@@ -160,10 +160,10 @@ test("terminal worker monitoring invokes the trusted post-worker slice lifecycle
     }
   });
 
-  const first = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const first = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-001"
   }));
-  const second = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const second = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-001",
     timeout_ms: 1000
   }));
@@ -178,9 +178,7 @@ test("terminal worker monitoring invokes the trusted post-worker slice lifecycle
 });
 
 test("a post-integration candidate preparation failure re-enters the same seam across immediate and bounded status without reintegration", async () => {
-  const harness = createResumableLifecycleHarness({
-    declaredTerminalReviewUnit: { record_id: "WK-1537", initiative: "IN-0021", subject: "WK-1537#SLICE-099" }
-  });
+  const harness = createResumableLifecycleHarness();
   let prepareCalls = 0;
   harness.deps.prepareTerminalCandidate = async () => {
     prepareCalls += 1;
@@ -194,7 +192,7 @@ test("a post-integration candidate preparation failure re-enters the same seam a
     }
   });
 
-  const failed = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const failed = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: harness.status.subject
   }));
   assert.equal(failed.terminal, false);
@@ -208,10 +206,10 @@ test("a post-integration candidate preparation failure re-enters the same seam a
 
   assert.equal(failed.slice_lifecycle.evidence.thrown.value.message,
     "injected terminal candidate preparation failure /secret/path");
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
   assert.equal(prepareCalls, 1);
 
-  const retried = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const retried = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: harness.status.subject
   }));
   assert.equal(retried.terminal, false);
@@ -219,7 +217,7 @@ test("a post-integration candidate preparation failure re-enters the same seam a
   assert.equal(retried.lifecycle_resolution.failure_attempts, 2);
   assert.equal(prepareCalls, 2);
 
-  const bounded = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const bounded = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: harness.status.subject,
     timeout_ms: 300
   }));
@@ -256,12 +254,12 @@ test("concurrent immediate and bounded status polling share one phased post-work
   assert.equal(harness.counts().integrationCalls, 1);
   releaseIntegration();
   const [statusResult, waitResult] = await Promise.all([statusPromise, waitPromise]);
-  const first = parseStructuredTextResponse(statusResult);
-  const second = parseStructuredTextResponse(waitResult);
+  const first = readStructuredResult(statusResult);
+  const second = readStructuredResult(waitResult);
   assert.equal(first.slice_lifecycle.phase, "finalized");
   assertNoReviewFields("concurrent", first.slice_lifecycle);
   assert.deepEqual(second.slice_lifecycle, first.slice_lifecycle);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
 });
 
 test("process-local checkpoint loss after a lost integration response recovers only from canonical review and the exact marker", async () => {
@@ -308,7 +306,7 @@ test("process-local checkpoint loss after a lost integration response recovers o
   assert.deepEqual(recovered.integration.review_target, harness.integrationResult.review_target);
   assert.equal(recovered.wk_transitioned_to_review, true);
   assertNoReviewFields("recovered", recovered);
-  assert.deepEqual(harness.counts(), { integrationCalls: 2, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 2, reviewSeamCalls: 0 });
 });
 
 test("WK-1603 restart recovery-only mode: an advanced slice without terminal authority refuses; a missing binding refuses", async () => {
@@ -320,7 +318,7 @@ test("WK-1603 restart recovery-only mode: an advanced slice without terminal aut
     deps: { ...preIntegration.deps, recoveryOnly: true }
   });
   assert.equal(skipped, null);
-  assert.deepEqual(preIntegration.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(preIntegration.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 
   const missing = createResumableLifecycleHarness();
   await assert.rejects(
@@ -336,7 +334,7 @@ test("WK-1603 restart recovery-only mode: an advanced slice without terminal aut
       return true;
     }
   );
-  assert.deepEqual(missing.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(missing.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 
   const integrated = createResumableLifecycleHarness();
   integrated.setCanonicalStatus("review");
@@ -361,7 +359,7 @@ test("WK-1603 restart recovery-only mode: an advanced slice without terminal aut
   assert.equal(recovered.wk_transitioned_to_review, true);
   assert.equal(recoveryAdapterCalls, 1);
   assertNoReviewFields("recovery-only", recovered);
-  assert.deepEqual(integrated.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(integrated.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 });
 
 test("monitor restart recovery is attempted only after normal unknown-handle lookup", async () => {
@@ -375,7 +373,7 @@ test("monitor restart recovery is attempted only after normal unknown-handle loo
       recoverManagedWorkerRun: async () => { recoveryCalls += 1; return null; }
     }
   });
-  const mismatch = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const mismatch = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-011",
     attempt_id: "wkdb_restart_selector"
   }));
@@ -392,7 +390,7 @@ test("monitor restart recovery is attempted only after normal unknown-handle loo
       recoverManagedWorkerRun: async () => { recoveryCalls += 1; return null; }
     }
   });
-  const unknown = parseStructuredTextResponse(await unknownTools.get("workspace_agent_run_status").handler({
+  const unknown = readStructuredResult(await unknownTools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-011",
     attempt_id: "wkdb_restart_selector"
   }));
@@ -420,7 +418,7 @@ test("run monitoring never invokes slice integration before confirmed worker ter
     }
   });
 
-  const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const result = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-001"
   }));
   assert.equal(result.terminal, false);

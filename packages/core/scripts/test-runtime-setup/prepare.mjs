@@ -9,17 +9,13 @@ import {
   writeRepositoryRuntimeConfig
 } from "./config.mjs";
 import {
-  chooseRuntimeSelection,
   collectRepositoryManifests,
-  discoverRuntimeProjects,
+  discoverRuntimeEnvironments,
+  environmentsForLanguage,
   repositoryManifestReader
 } from "./discovery.mjs";
 
 const SETUP_MODULE = "@agent-chassis/agent-launch-cli/src/lib/test-runtime-setup/index.mjs";
-
-function selector({ runner, project }) {
-  return project === "." ? runner : `${runner}@${project}`;
-}
 
 async function ask(input, output, question) {
   const rl = readline.createInterface({ input, output });
@@ -35,54 +31,47 @@ function unattended(output, lines) {
   return { ok: false, status: "unresolved" };
 }
 
-async function resolveAmbiguity({ candidates, input, output }) {
-  const listed = candidates.map((candidate) =>
-    `  ${selector(candidate)}  (${candidate.language}, from ${candidate.evidence.join(", ")})`);
-  if (input.isTTY !== true) {
-    return unattended(output, [
-      `This repository has ${candidates.length} plausible test runtime selections:`,
-      ...listed,
-      "Rerun setup with the one to prepare, for example:",
-      `  agent-chassis setup --runner ${selector(candidates[0])}`,
-      "Narrow by language instead with --language <name>."
-    ]);
-  }
-  output.write(`This repository has ${candidates.length} plausible test runtime selections:\n`);
-  candidates.forEach((candidate, index) => {
-    output.write(`  ${index + 1}. ${selector(candidate)} (${candidate.language}, from ${candidate.evidence.join(", ")})\n`);
-  });
-  const answer = await ask(input, output, "Select the test runtime to prepare [1]: ");
-  const index = answer === "" ? 0 : Number.parseInt(answer, 10) - 1;
-  if (!Number.isInteger(index) || index < 0 || index >= candidates.length) {
-    throw new Error(`Invalid selection: ${answer}`);
-  }
-  const chosen = candidates[index];
-  return { ok: true, selection: [{ runner: chosen.runner, project: chosen.project }],
-    source: "your selection" };
-}
-
-async function resolveMissingExecutable({ name, command, input, output }) {
+async function resolveMissingExecutable({ name, command, input, output, interactive, invocation }) {
   const option = `--executable ${name}=/absolute/path/to/${command}`;
-  if (input.isTTY !== true) {
+  if (!interactive) {
     return unattended(output, [
       `No ${command} was found on PATH, so the ${name} toolchain cannot be located.`,
       "Rerun setup with its location, for example:",
-      `  agent-chassis setup ${option}`
+      `  agent-chassis ${invocation} ${option}`
     ]);
   }
   output.write(`No ${command} was found on PATH for the ${name} toolchain.\n`);
   const answer = await ask(input, output, `Absolute path to ${command} (blank to abort): `);
   if (answer === "") {
-    return unattended(output, [`Set it later with: agent-chassis setup ${option}`]);
+    return unattended(output, [`Set it later with: agent-chassis ${invocation} ${option}`]);
   }
   return { ok: true, executable: answer, source: "your answer" };
 }
 
-function reportSelection({ output, selection, source, project }) {
-  if (project !== undefined) {
-    output.write(`Test project: ${project.project} (${project.language}, from ${project.evidence.join(", ")})\n`);
+function environmentLine({ id, language, members, runners, evidence }) {
+  const facts = [language,
+    members.length > 0 ? `members ${members.join(", ")}` : null,
+    `runners ${runners.length > 0 ? runners.join(", ") : "none declared"}`,
+    evidence === undefined ? null : `from ${evidence.join(", ")}`].filter(Boolean);
+  return `  ${id} (${facts.join("; ")})`;
+}
+
+function reportEnvironments({ output, environments, excluded, source }) {
+  output.write(`Test environments (from ${source}):\n`);
+  for (const environment of environments) output.write(`${environmentLine(environment)}\n`);
+  if (excluded.length > 0) {
+    output.write("Not detected:\n");
+    for (const { path: file, reason, environment } of excluded) {
+      output.write(`  ${file} (${reason.replaceAll("_", " ")}${environment ? ` ${environment}` : ""})\n`);
+    }
   }
-  output.write(`Runner selection: ${selection.map(selector).join(", ")} (from ${source})\n`);
+}
+
+function progressLine({ phase, toolchain, environment, check }) {
+  if (phase === "toolchain") return `  ... toolchain ${toolchain}: resolving`;
+  if (phase === "dependencies") return `  ... ${environment}: detecting installed dependencies`;
+  if (phase === "sandbox_plan") return `  ... ${environment}: planning sandbox checks`;
+  return `  ... ${environment}: sandbox check ${check}`;
 }
 
 function correctionFor(component, { configPath }) {
@@ -102,99 +91,143 @@ function correctionFor(component, { configPath }) {
   return null;
 }
 
+function explicitEnvironments(setup, runners, inventory) {
+  return setup.environmentsFromRunnerSelection(runners).map((environment) => {
+    const known = inventory.find((entry) => entry.ecosystem === environment.ecosystem &&
+      entry.project === environment.project);
+    return { ...environment, id: `${environment.ecosystem}@${environment.project}`,
+      language: known?.language ?? null, members: known?.members ?? [],
+      ...(known === undefined ? {} : { evidence: known.evidence }) };
+  });
+}
+
 export async function prepareRepositoryTestRuntimes({
   repositoryRoot,
   runners = [],
   language = null,
   executables = {},
+  toolchainVersions = {},
+  runtimeConfig = null,
+  locatePathToolchains = true,
+  command = { invocation: "setup" },
+  interactive = null,
   dryRun = false,
   input = process.stdin,
   output = process.stdout,
+  progressOutput = output,
   env = process.env
 } = {}) {
   const setup = await import(SETUP_MODULE);
+  const asking = interactive === null ? input.isTTY === true : interactive;
   const catalog = setup.testRuntimeRunners();
+  const ecosystems = setup.testRuntimeEcosystems();
   const commands = setup.testRuntimeToolchainCommands();
   if (language !== null && !catalog.some(({ languages }) => languages.includes(language))) {
     const available = [...new Set(catalog.flatMap(({ languages }) => languages))].sort();
     throw new Error(`Unsupported --language value: ${language} (known: ${available.join(", ")})`);
   }
+  const saved = runtimeConfig === null ? readRepositoryRuntimeConfig(repositoryRoot)
+    : { present: true, ...runtimeConfig };
+  const collected = collectRepositoryManifests(repositoryRoot);
+  const inventory = discoverRuntimeEnvironments({ manifests: collected.manifests, runners: catalog,
+    readFile: repositoryManifestReader(repositoryRoot) });
 
-  const saved = readRepositoryRuntimeConfig(repositoryRoot);
-  const savedRunners = saved.present && language === null ? saved.runners : null;
-  const discovered = runners.length > 0 || savedRunners !== null ? [] : discoverRuntimeProjects({
-    manifests: collectRepositoryManifests(repositoryRoot),
-    runners: catalog,
-    readFile: repositoryManifestReader(repositoryRoot)
-  });
-  const chosen = chooseRuntimeSelection({ explicit: runners, saved: savedRunners, discovered,
-    language, runners: catalog });
-
-  if (chosen.status === "none") {
-    output.write("No test project was found in this repository's own manifests " +
-      "(go.mod, Cargo.toml, package.json, deno.json, pyproject.toml, requirements*.txt).\n");
-    output.write("Add one and rerun setup, or name the runner directly with " +
-      "--runner <name>[@<project>].\n");
-    return { ok: true, status: "no_test_project" };
-  }
-  let selection = chosen.selection;
-  let selectionSource = chosen.source;
-  if (chosen.status === "ambiguous") {
-    const answered = await resolveAmbiguity({ candidates: chosen.candidates, input, output });
-    if (!answered.ok) return answered;
-    selection = answered.selection;
-    selectionSource = answered.source;
-  }
-  reportSelection({ output, selection, source: selectionSource, project: chosen.discovered });
-
-  const unknown = selection.filter(({ runner }) => !catalog.some(({ name }) => name === runner));
+  let environments;
+  let source;
+  let excluded = [];
+  const named = runners.length > 0 ? runners
+    : saved.present && saved.runners.length > 0 && language === null ? saved.runners : [];
+  const unknown = named.filter(({ runner }) => !catalog.some(({ name }) => name === runner));
   if (unknown.length > 0) {
     throw new Error(`Unknown runner: ${unknown.map(({ runner }) => runner).join(", ")} ` +
       `(known: ${catalog.map(({ name }) => name).join(", ")})`);
   }
+  if (runners.length > 0) {
+    environments = explicitEnvironments(setup, runners, inventory.environments);
+    source = "command line";
+  } else if (named.length > 0) {
+    environments = explicitEnvironments(setup, named, inventory.environments);
+    source = runtimeConfig === null ? "saved repository configuration" : "--runtime-config";
+  } else {
+    environments = environmentsForLanguage(inventory.environments, language, catalog);
+    source = `repository evidence${language === null ? "" : ` for ${language}`}`;
+    excluded = [...collected.excluded, ...inventory.excluded];
+  }
 
-  const required = [...new Set(selection.flatMap(({ runner }) =>
-    catalog.find(({ name }) => name === runner).toolchains))].sort();
+  if (environments.length === 0) {
+    output.write("No test environment was found in this repository's own manifests " +
+      "(go.mod, Cargo.toml, package.json, deno.json, pyproject.toml, requirements*.txt).\n");
+    if (excluded.length > 0) reportEnvironments({ output, environments, excluded, source });
+    output.write(`Add one and rerun \`agent-chassis ${command.invocation}\`, or name a runner ` +
+      "directly with --runner <name>[@<project>].\n");
+    return { ok: true, status: "no_test_project", environments: [], excluded };
+  }
+  reportEnvironments({ output, environments, excluded, source });
+
+  const required = [...new Set(environments.flatMap((environment) => [
+    ...ecosystems[environment.ecosystem].toolchains,
+    ...environment.runners.flatMap((runner) => catalog.find(({ name }) => name === runner).toolchains)
+  ]))].sort();
   const toolchains = {};
   for (const name of required) {
-    const command = commands[name];
+    const toolchainCommand = commands[name];
     let executable = executables[name] ?? null;
-    let source = "--executable";
+    let executableSource = "--executable";
     if (executable === null && saved.present && saved.toolchains[name]) {
       executable = saved.toolchains[name].executable;
-      source = REPOSITORY_RUNTIME_CONFIG_FILE;
+      executableSource = runtimeConfig === null ? REPOSITORY_RUNTIME_CONFIG_FILE : "--runtime-config";
     }
-    if (executable === null) {
-      const located = setup.findOnPath(command, env.PATH);
+    if (executable === null && locatePathToolchains) {
+      const located = setup.findOnPath(toolchainCommand, env.PATH);
       if (located !== null) {
         executable = located.real;
-        source = "PATH";
+        executableSource = "PATH";
       }
     }
+    if (executable === null && !locatePathToolchains) {
+
+      continue;
+    }
     if (executable === null) {
-      const answered = await resolveMissingExecutable({ name, command, input, output });
+      const answered = await resolveMissingExecutable({ name, command: toolchainCommand, input, output,
+        interactive: asking, invocation: command.invocation });
       if (!answered.ok) return answered;
       executable = answered.executable;
-      source = answered.source;
+      executableSource = answered.source;
     }
     toolchains[name] = { executable, version: saved.present
       ? saved.toolchains[name]?.version ?? null : null };
-    output.write(`Toolchain ${name}: ${executable} (${source})\n`);
+    output.write(`Toolchain ${name}: ${executable} (${executableSource})\n`);
   }
 
-  const result = await setup.runTestRuntimeSetup({ repositoryRoot, runners: selection, env,
+  for (const [name, entry] of Object.entries(runtimeConfig?.toolchains ?? {})) {
+    if (toolchains[name] === undefined) toolchains[name] = { ...entry };
+  }
+
+  const environmentSelections = saved.present ? saved.environments ?? {} : {};
+  const result = await setup.runTestRuntimeSetup({ repositoryRoot, env, environmentSelections,
+    environments: environments.map(({ ecosystem, project, members, runners: names }) =>
+      ({ ecosystem, project, members, runners: names })),
     toolchainExecutables: Object.fromEntries(Object.entries(toolchains)
       .map(([name, { executable }]) => [name, executable])),
-    toolchainVersions: Object.fromEntries(Object.entries(toolchains)
+
+    toolchainVersions: { ...Object.fromEntries(Object.entries(toolchains)
       .filter(([, { version }]) => version !== null).map(([name, { version }]) => [name, version])),
-    dryRun });
+    ...toolchainVersions },
+    dryRun,
+    progress: (event) => progressOutput.write(`${progressLine(event)}\n`) });
 
   const components = result.components ?? [];
   const located = components.filter(({ kind }) => kind === "toolchain")
     .every(({ status }) => status === "ready");
+  const savedRunners = runners.length > 0 ? runners
+    : saved.present && runtimeConfig === null ? saved.runners : [];
   let configPath = saved.path;
-  if (!dryRun && located) {
-    const written = writeRepositoryRuntimeConfig(repositoryRoot, { runners: selection, toolchains });
+  if (!dryRun && located && runtimeConfig === null &&
+      (savedRunners.length > 0 || Object.keys(toolchains).length > 0 ||
+        Object.keys(environmentSelections).length > 0)) {
+    const written = writeRepositoryRuntimeConfig(repositoryRoot, { runners: savedRunners, toolchains,
+      environments: environmentSelections });
     configPath = written.path;
     output.write(`${written.written ? "Saved" : "Unchanged"} runtime configuration: ` +
       `${REPOSITORY_RUNTIME_CONFIG_FILE}\n`);
@@ -203,16 +236,19 @@ export async function prepareRepositoryTestRuntimes({
 
   if (result.status === "ready") {
     const versions = components.filter(({ kind }) => kind === "toolchain")
-      .map(({ name, version }) => `${name} ${version} at ${toolchains[name].executable}`);
-    output.write(`Local test runtimes are ready for ${selection.map(selector).join(", ")} ` +
+      .map(({ name, version, source: toolchainSource }) => `${name} ${version} ` +
+        (toolchains[name] === undefined ? `(${toolchainSource})` : `at ${toolchains[name].executable}`));
+    output.write(`Local test runtimes are ready for ${result.environments.map(({ id }) => id).join(", ")} ` +
       `using ${versions.join(", ")}.\n`);
-  } else if (result.status === "planned") {
-    output.write("Dry run: nothing was installed, prepared, saved or published.\n");
+  } else if (result.status === "detected") {
+    output.write("Dry run: everything was detected and validated; nothing was proved in the sandbox, saved or published.\n");
   } else {
     const correction = correctionFor(
       components.find(({ status }) => status === "failed"), { configPath });
     if (correction !== null) output.write(`${correction}\n`);
-    output.write("Local test runtimes are NOT ready; no readiness was published.\n");
+    output.write("Local test runtimes are NOT ready; install or repair what failed above yourself and rerun " +
+      "setup. Nothing was installed and no usable runtime was published.\n");
   }
-  return { ok: result.ok, status: result.status, result, selection, toolchains, configPath };
+  return { ok: result.ok, status: result.status, result, environments, excluded, toolchains,
+    selection: result.selection, configPath };
 }

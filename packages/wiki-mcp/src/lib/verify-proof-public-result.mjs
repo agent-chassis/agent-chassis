@@ -271,10 +271,12 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     "observed_failures", "observed_failure_count", "ran", "exit_code", "signal",
     "filesystem_error_code", "structured_observation_code", "output_truncated", "output_elided_bytes",
     "execution_stage", "timed_out", "disposition", "blocker_code", "reason",
+    "provider_id", "provider_version", "structured_observation_detail",
     "selector", "cause_code", "expected_commit", "observed_commit", "expected_tree",
     "observed_tree", "diagnostic_count", "returned_diagnostic_count",
     "omitted_diagnostic_count", "match_count", "choice_count", "field",
-    "unsupported_keys", "accepted_form", "source_unit"]) {
+    "unsupported_keys", "accepted_form", "source_unit", "requested_environment", "incompatible",
+    "valid_choices", "prepared_environments"]) {
     if (detail[key] !== undefined) recoveryFacts[key] = structuredClone(detail[key]);
   }
   const result = {
@@ -283,8 +285,8 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     subject_binding: null,
     status: "not_executable",
     authority_limb: "mechanical_failure",
-    counts: Object.freeze({ proofs: 0, relationships: 0, satisfied: 0,
-      unsatisfied: 0, not_executable: 0, ready: 0, nonready: 0,
+    counts: Object.freeze({ proofs: 0, relationships: 0, proven: 0,
+      unproven: 0, not_executable: 0, ready: 0, nonready: 0,
       execution_not_started: 0 }),
     proof_results: Object.freeze([]),
     reason_code: deepest.code,
@@ -292,7 +294,11 @@ export function projectVerifyProofFailure(error, { subject = null, continuation 
     diagnostic_redactions: redactions,
     recovery: Object.freeze({
       action: deepestFailure.recovery_action,
-      retry_operation: VERIFY_PROOF_TOOL_NAME,
+
+      ...(deepestFailure.retry === false ? {
+        correction_owner: deepestFailure.correction_owner,
+        condition: deepestFailure.condition
+      } : { retry_operation: VERIFY_PROOF_TOOL_NAME }),
       ...(detail.recovery_call === undefined ? {} : {
         recovery_call: structuredClone(detail.recovery_call)
       }),

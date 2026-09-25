@@ -1,0 +1,92 @@
+#!/bin/sh
+# Launcher-owned test-runtime command entry for a confined coding worker.
+#
+# Every setup-selected toolchain command (node, python3, go, gofmt, cargo,
+# rustc, deno) on the worker's PATH is a link to this one file. It reads only
+# the launcher-minted, read-only table frozen at launch, selects the row for the
+# command it was invoked as and the canonical working directory, and execs the
+# exact recorded executable. It never rediscovers readiness, reads a manifest,
+# installs anything or accepts a caller profile.
+#
+# Table rows are tab-separated:
+#   <command> toolchain   -         <executable>  -        -     -
+#   <command> project     <dir>     <executable>  <env>    <args> <scratch>
+#   <command> unavailable <dir|->   -             <detail> -     -
+# A `project` command runs only from inside a prepared project that contains the
+# working directory (the longest containing project wins); its environment file
+# holds KEY=VALUE lines and its argument file holds leading global options, one
+# per line, rendered before the caller's own arguments. `exec` keeps the
+# caller's argv, streams, exit status and signals unchanged.
+
+TABLE=/agent-launch-test-runtime/table
+name=${0##*/}
+if ! cwd=$(pwd -P 2>/dev/null); then
+  echo "agent-launch test runtime: $name: the working directory cannot be resolved" >&2
+  exit 127
+fi
+if [ ! -r "$TABLE" ]; then
+  echo "agent-launch test runtime: $name: the launcher runtime table is unavailable at $TABLE" >&2
+  exit 127
+fi
+
+tab=$(printf '\t')
+best_kind=
+best_dir=
+best_len=-1
+toolchain=
+dependent=
+projects=
+while IFS="$tab" read -r cmd kind dir exe env args scratch; do
+  [ "$cmd" = "$name" ] || continue
+  case $kind in
+    toolchain) toolchain=$exe ;;
+    project|unavailable)
+      if [ "$dir" = "-" ]; then
+        match=0
+      else
+        dependent=1
+        projects="$projects
+  $dir"
+        case $cwd in
+          "$dir"|"$dir"/*) match=${#dir} ;;
+          *) match=-1 ;;
+        esac
+      fi
+      if [ "$match" -gt "$best_len" ]; then
+        best_len=$match best_kind=$kind best_dir=$dir best_exe=$exe best_env=$env best_args=$args best_scratch=$scratch
+      fi ;;
+  esac
+done < "$TABLE"
+
+if [ "$best_kind" = "unavailable" ]; then
+  cat "$best_env" >&2
+  exit 127
+fi
+if [ "$best_kind" = "project" ]; then
+  mkdir -p "$best_scratch" || exit 127
+  while IFS= read -r assignment; do
+    [ -n "$assignment" ] && export "$assignment"
+  done < "$best_env"
+  if [ "$best_args" != "-" ]; then
+    count=$#
+    while IFS= read -r option; do
+      set -- "$@" "$option"
+    done < "$best_args"
+    while [ "$count" -gt 0 ]; do
+      set -- "$@" "$1"
+      shift
+      count=$((count - 1))
+    done
+  fi
+  exec "$best_exe" "$@"
+fi
+if [ -n "$dependent" ]; then
+  echo "agent-launch test runtime: $name needs a prepared project environment, and $cwd is inside none." >&2
+  echo "Run it from inside one of these prepared projects:$projects" >&2
+  exit 127
+fi
+if [ -n "$toolchain" ]; then
+  exec "$toolchain" "$@"
+fi
+echo "agent-launch test runtime: $name has no launcher runtime row" >&2
+exit 127

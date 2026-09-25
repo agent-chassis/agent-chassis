@@ -71,7 +71,7 @@
     },
     {
       "file": "launcher-tools.json",
-      "tool_count": 8,
+      "tool_count": 9,
       "summary": "Dispatch, subject-addressed run status, committed-slice integration, coordination preflight, and runtime-blocker-taxonomy tools."
     },
     {
@@ -90,7 +90,7 @@
       "summary": "Historical role-wrapper commands removed from the package source."
     }
   ],
-  "expected_tool_count": 111,
+  "expected_tool_count": 112,
   "agent_tool_conformance_debt": {
     "owner": "tool-discovery manifest/test family",
     "target_wk": "WK-2194",

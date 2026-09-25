@@ -3,7 +3,7 @@
   "profile_id": "proof.design.implementation-readiness",
   "profile_version": "4.0.0",
   "profile_digest": "cf180ce70319fc4329a7f522cef85c08c98a69e743a71ef09c086287583e8fe7",
-  "admission_digest": "8e87761fddb1722f5dbd6e3ff63038443ae3a3428c3cafdda39921bb132dca5d",
+  "admission_digest": "7a52b9b1f43c444dff7ae59e0a1125c2a7b3c67a5cc7537908eaf02e2aed6343",
   "components": [
     {
       "selector": {

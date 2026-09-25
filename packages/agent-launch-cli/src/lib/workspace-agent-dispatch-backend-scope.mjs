@@ -617,7 +617,9 @@ export function createBackendScope(ctx) {
         readiness_allocation: readinessAllocation
       });
     } catch (error) {
-      return bootstrapRefusal(provisioningRefusal(error));
+      return bootstrapRefusal(provisioningRefusal(error, {
+        requestedRepositoryAlias: input.workspace_alias ?? null
+      }));
     }
   }
 
@@ -779,6 +781,7 @@ export function createBackendScope(ctx) {
       const assignmentCapture = await captureWorkerAssignmentMaterial({
         record,
         selectedUnitContract,
+        scopeAuthority: authority,
         repository: resolveWorkerMaterialRepository({
           managedCanonicalMainRepo: worktreeProvisioningConfig.mainRepo,
           dispatchWorkspaceBinding: {

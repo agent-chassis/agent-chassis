@@ -1,7 +1,31 @@
 
 
+import { withControlledContractAuthorityExclusion } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
+import {
+  assertAuthenticatedWkForgeHandoffResult,
+  buildGhForge,
+  defaultRunGit
+} from "./wk-forge-handoff.mjs";
+import {
+  HANDOFF_TRANSPORTS,
+  isAncestor,
+  observeLandingBaseTip,
+  observeRemoteRef
+} from "./wk-handoff-destination.mjs";
+
 export const FORGE_LANDED_PUBLICATION_SCHEMA_VERSION =
   "forge-confirmed-landed-publication-identity.v1";
+export const GIT_LANDED_PUBLICATION_SCHEMA_VERSION = "git-landed-publication-identity.v1";
+export const WK_LANDING_OBSERVATION_SCHEMA_VERSION = "wk-landing-observation.v1";
+
+export const WK_LANDING_STATES = Object.freeze({
+  AWAITING_HUMAN_LANDING: "awaiting_human_landing",
+  LANDED: "landed",
+  CONTRADICTORY: "contradictory",
+  UNAVAILABLE: "unavailable"
+});
 
 export const FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES = Object.freeze({
   REQUEST_INVALID: "request_invalid",
@@ -270,4 +294,188 @@ export async function observeForgeLandedPublication({
   }
 }
 
-export const observeWkForgeLandedPublication = observeForgeLandedPublication;
+async function observeGitLanding({ mainRepo, handoff, runGit }) {
+  const transport = handoff.transport;
+  const remote = handoff.destination?.remote ?? null;
+  const base = observeLandingBaseTip({
+    repo: mainRepo, transport, remote, baseBranch: handoff.base_branch, runGit
+  });
+  if (base.kind === "unobservable") {
+    return landingOutcome(WK_LANDING_STATES.UNAVAILABLE, {
+      cause: { stage: "landing_base", reason: "landing_base_unobservable", evidence: base.evidence }
+    });
+  }
+  if (base.kind === "absent") {
+    return landingOutcome(WK_LANDING_STATES.CONTRADICTORY, {
+      cause: { stage: "landing_base", reason: "landing_base_absent", ref: base.ref }
+    });
+  }
+  const observedBase = { ref: base.ref, sha: base.sha };
+  let landed;
+  try {
+    landed = isAncestor({ repo: mainRepo, ancestor: handoff.commit, descendant: base.sha, runGit });
+  } catch (error) {
+    return landingOutcome(WK_LANDING_STATES.UNAVAILABLE, {
+      observedBase,
+      cause: { stage: "ancestry", reason: "exact_head_ancestry_unobservable",
+        evidence: captureDiagnosticEvidence(error) }
+    });
+  }
+  if (landed) {
+    return landingOutcome(WK_LANDING_STATES.LANDED, {
+      observedBase,
+      landedPublication: deepFreeze({
+        schema_version: GIT_LANDED_PUBLICATION_SCHEMA_VERSION,
+        transport,
+        destination: { ...handoff.destination },
+        base_branch: handoff.base_branch,
+        wk: handoff.assigned_unit,
+        candidate: handoff.terminal_candidate,
+        completion: handoff.commit,
+        landed_commit: base.sha,
+        exact_head_landing: {
+          head_sha: handoff.commit,
+          landed_commit: base.sha,
+          relation: "exact-head-ancestor",
+          observed_base_ref: base.ref
+        }
+      })
+    });
+  }
+  if (transport === HANDOFF_TRANSPORTS.GIT) {
+    const ref = `refs/heads/${handoff.branch}`;
+    const branch = observeRemoteRef({ repo: mainRepo, remote, ref, runGit });
+    if (branch.kind === "unobservable") {
+      return landingOutcome(WK_LANDING_STATES.UNAVAILABLE, {
+        observedBase,
+        cause: { stage: "destination_branch", reason: "destination_branch_unobservable", evidence: branch.evidence }
+      });
+    }
+    if (branch.kind === "absent" || branch.sha !== handoff.commit) {
+      return landingOutcome(WK_LANDING_STATES.CONTRADICTORY, {
+        observedBase,
+        cause: {
+          stage: "destination_branch",
+          reason: branch.kind === "absent"
+            ? "destination_branch_absent_without_landing"
+            : "destination_branch_moved_without_landing",
+          expected: handoff.commit,
+          observed: branch.sha ?? null
+        }
+      });
+    }
+  }
+  return landingOutcome(WK_LANDING_STATES.AWAITING_HUMAN_LANDING, { observedBase });
+}
+
+async function observeHostedLanding({ mainRepo, handoff, deps }) {
+  if (handoff.pull_request_state !== "already_merged") {
+    return landingOutcome(WK_LANDING_STATES.AWAITING_HUMAN_LANDING, {});
+  }
+  const { host, owner, name } = handoff.repository;
+  const repository = { host, owner, name };
+  const forge = deps.forge ?? buildGhForge({
+    repository: { ...repository, https_url: `https://${host}/${owner}/${name}.git` },
+    mainRepo,
+    deps
+  });
+  const landed = await observeForgeLandedPublication({
+    forge,
+    repository,
+    base: handoff.base_branch,
+    wk: handoff.assigned_unit,
+    candidate: handoff.terminal_candidate,
+    completion: handoff.commit,
+    branch: handoff.branch,
+    pullRequestNumber: handoff.pull_request.number
+  });
+  if (landed.ok === true) {
+    return landingOutcome(WK_LANDING_STATES.LANDED, { landedPublication: landed.result });
+  }
+  return landingOutcome(
+    landed.category === FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.IDENTITY
+      ? WK_LANDING_STATES.CONTRADICTORY
+      : WK_LANDING_STATES.UNAVAILABLE,
+    { cause: { stage: "landed_publication", category: landed.category, ...landed.detail } }
+  );
+}
+
+function landingOutcome(state, { observedBase = null, landedPublication = null, cause = null }) {
+  return { state, observedBase, landedPublication, cause };
+}
+
+function projectHandoff(handoff) {
+  return {
+    terminal_candidate: handoff.terminal_candidate,
+    commit: handoff.commit,
+    base_branch: handoff.base_branch,
+    destination: handoff.destination,
+    ...(handoff.transport === HANDOFF_TRANSPORTS.HOSTED
+      ? { branch: handoff.branch, pull_request_number: handoff.pull_request?.number ?? null }
+      : { handoff_ref: handoff.handoff_ref, branch: handoff.branch })
+  };
+}
+
+function landingObservation(assignedUnit, { state, handoff = null, outcome = null, cause = null }) {
+  return deepFreeze({
+    schema_version: WK_LANDING_OBSERVATION_SCHEMA_VERSION,
+    assigned_unit: assignedUnit,
+    state,
+    transport: handoff?.transport ?? null,
+    landing_authority: handoff === null
+      ? null
+      : handoff.transport === HANDOFF_TRANSPORTS.HOSTED
+        ? "configured_forge_and_human_merge_actor"
+        : "human_git_actor",
+    handoff: handoff === null ? null : projectHandoff(handoff),
+    observed_base: outcome?.observedBase ?? null,
+    landed_publication: outcome?.landedPublication ?? null,
+    cause: outcome?.cause ?? cause
+  });
+}
+
+export async function observeWkHandoffLanding({ mainRepo, assignedUnit, deps = {} } = {}) {
+  if (typeof mainRepo !== "string" || mainRepo.length === 0 || !WK_RE.test(assignedUnit ?? "") ||
+      typeof deps.observeAuthenticatedHandoff !== "function") {
+    return refuse("invalid_request", FORGE_LANDED_PUBLICATION_FAILURE_CATEGORIES.REQUEST_INVALID);
+  }
+  const runGit = deps.runGit ?? defaultRunGit;
+  let observation;
+  try {
+    observation = await withControlledContractAuthorityExclusion({
+      repoRoot: mainRepo,
+      wkId: assignedUnit,
+      run: async (authorityContext) => {
+        const observed = await deps.observeAuthenticatedHandoff(assignedUnit, authorityContext);
+        if (observed?.ok !== true) {
+          return landingObservation(assignedUnit, {
+            state: observed?.category === "publication_disagreement"
+              ? WK_LANDING_STATES.CONTRADICTORY
+              : WK_LANDING_STATES.UNAVAILABLE,
+            cause: {
+              stage: "handoff",
+              category: observed?.category ?? null,
+              detail: observed?.detail ?? null
+            }
+          });
+        }
+        const handoff = observed.result;
+        assertAuthenticatedWkForgeHandoffResult(handoff);
+        const outcome = handoff.transport === HANDOFF_TRANSPORTS.HOSTED
+          ? await observeHostedLanding({ mainRepo, handoff, deps })
+          : await observeGitLanding({ mainRepo, handoff, runGit });
+        return landingObservation(assignedUnit, { state: outcome.state, handoff, outcome });
+      }
+    });
+  } catch (error) {
+    observation = landingObservation(assignedUnit, {
+      state: WK_LANDING_STATES.UNAVAILABLE,
+      cause: {
+        stage: "observation",
+        reason: "landing_observation_failed",
+        evidence: captureDiagnosticEvidence(error)
+      }
+    });
+  }
+  return { ok: true, result: observation };
+}

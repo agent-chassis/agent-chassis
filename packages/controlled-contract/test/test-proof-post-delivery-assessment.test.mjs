@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 
@@ -16,7 +15,7 @@ import {
 const DIGEST = (character) => `sha256:${character.repeat(64)}`;
 const executionPack = await loadExactAdmittedProofPack({
   profileId: "proof.verification.test-validity",
-  profileVersion: "10.0.0",
+  profileVersion: "11.0.0",
 
 });
 const SELECTED_TEST_ID = "test-component";
@@ -24,8 +23,9 @@ const validateResult = new Ajv2020({ strict: true, allErrors: true })
   .compile(RESULT_SCHEMA);
 
 import { canonicalDigest } from "./support/proof-pack-adequacy.mjs";
+import { readDefinitionDocument } from "./support/certification-artifact.mjs";
 
-import { facts, mutate } from "./support/test-validity-execution-controls.mjs";
+import { facts, mutate, notEvaluable, positive } from "./support/test-validity-execution-controls.mjs";
 
 function resolution(pack = executionPack) {
   return {
@@ -65,9 +65,9 @@ test("the exact evaluator alone distinguishes satisfied from valid-negative unsa
     implementation_version: executionPack.test_validity_evaluator.implementation_version
   }, {
     profile_id: "proof.verification.test-validity",
-    profile_version: "10.0.0",
+    profile_version: "11.0.0",
     implementation_id: "proof.verification.test-validity.execution-evaluator",
-    implementation_version: "8.0.0"
+    implementation_version: "9.0.0"
   });
   const positiveFacts = facts();
   const satisfied = executionPack.test_validity_evaluator.evaluate({
@@ -89,7 +89,7 @@ test("the exact evaluator alone distinguishes satisfied from valid-negative unsa
     "test_validity_execution_prohibited_shortcut");
 });
 
-test("10.0.0 profile judges only the one declaratively selected test", () => {
+test("11.0.0 profile judges only the one declaratively selected test", () => {
   const evaluate = (inventory) => executionPack.test_validity_evaluator.evaluate({
     semantic_facts: facts({ inventory: { ...facts().facts.inventory, ...inventory } })
   });
@@ -112,15 +112,12 @@ test("10.0.0 profile judges only the one declaratively selected test", () => {
   assert.deepEqual(siblings.diagnostics, []);
 });
 
-test("10.0.0 certification authenticates and executes its complete negative corpus", async () => {
-  const root = new URL(
-    "./certification/profiles/proof.verification.test-validity/10.0.0/",
-    import.meta.url
-  );
-  const readJson = async (name) => JSON.parse(await readFile(new URL(name, root), "utf8"));
+test("11.0.0 certification authenticates and executes its complete negative corpus", async () => {
+  const identity = { profile_id: "proof.verification.test-validity", profile_version: "11.0.0" };
+  const readJson = (name) => readDefinitionDocument(identity, name);
   const [profile, admission, corpus, adequacy, result] = await Promise.all([
     readJson("profile.json"), readJson("admission.json"), readJson("corpus.json"),
-    readJson("adequacy.json"), readJson("result.json")
+    readJson("adequacy.json"), readJson("certification-result.full-census.json")
   ]);
   assert.equal(profileDigest(profile), admission.profile_digest);
   assert.equal(createHash("sha256").update(admission.guarantee).digest("hex"),
@@ -130,17 +127,17 @@ test("10.0.0 certification authenticates and executes its complete negative corp
   assert.equal(canonicalDigest(adequacy),
     admission.certification.adequacy_declaration_digest);
   assert.equal(corpus.single_axis_weakenings.length, 9);
-  assert.equal(admission.certification.executable_control_count, 10);
+  assert.equal(admission.certification.executable_control_count, 14);
   assert.equal(admission.certification.negative_fixture_count, 9);
   assert.equal(admission.certification.coverage_witness_count, 9);
   assert.deepEqual(adequacy.certification_population,
-    { positive_case_count: 1, single_axis_weakening_count: 9 });
+    { positive_case_count: 3, single_axis_weakening_count: 9, not_evaluable_case_count: 2 });
 
   assert.deepEqual(Object.keys(mutate).sort(),
     corpus.single_axis_weakenings.map(({ case_id: id }) => id).sort());
   for (const caseId of corpus.positive_cases) {
     assert.equal(executionPack.test_validity_evaluator.evaluate({
-      semantic_facts: facts()
+      semantic_facts: positive[caseId]()
     }).satisfaction, "satisfied", caseId);
   }
   const passed = [];
@@ -151,11 +148,17 @@ test("10.0.0 certification authenticates and executes its complete negative corp
       semantic_facts: semanticFacts
     });
     assert.equal(evaluation.satisfaction, "unsatisfied", control.case_id);
-    assert.equal(evaluation.diagnostics.some(({ code }) => code === control.expected_code),
-      true, control.case_id);
+    assert.deepEqual(evaluation.diagnostics.map(({ code }) => code), [control.expected_code],
+      control.case_id);
     passed.push(control.case_id);
   }
   assert.deepEqual(passed, result.passed_single_axis_weakenings);
+  for (const control of corpus.not_evaluable_cases) {
+    const semanticFacts = facts();
+    notEvaluable[control.case_id](semanticFacts.facts);
+    assert.throws(() => executionPack.test_validity_evaluator.evaluate({
+      semantic_facts: semanticFacts }), { code: control.expected_code }, control.case_id);
+  }
 });
 
 test("complete deterministic results bind every proof-instance identity", () => {
@@ -167,12 +170,12 @@ test("complete deterministic results bind every proof-instance identity", () => 
     resolution: resolution(), semanticFacts, evaluation
   });
   assert.equal(result.status, "satisfied");
-  assert.equal(result.proof_instance.profile.profile_version, "10.0.0");
+  assert.equal(result.proof_instance.profile.profile_version, "11.0.0");
   assert.equal(result.proof_instance.evaluator.implementation_id,
     "proof.verification.test-validity.execution-evaluator");
-  assert.equal(result.proof_instance.evaluator.implementation_version, "8.0.0");
+  assert.equal(result.proof_instance.evaluator.implementation_version, "9.0.0");
   assert.equal(result.proof_instance.evaluator.implementation_digest,
-    "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f");
+    "sha256:1ab1b1817b591583293a6d093e1a93b53e71b146e8c7b30f89df4eb479f6ef7a");
 
   assert.deepEqual(result.proof_instance.selected_definition, resolution().selected_definition);
   assert.equal(validateResult(result), true, JSON.stringify(validateResult.errors));

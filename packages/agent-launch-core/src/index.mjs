@@ -56,6 +56,7 @@ export {
   WORKER_ASSIGNMENT_PROJECTION_INVALID_CODE,
   buildWorkerAssignmentBrief,
   buildWorkerAssignmentCanonicalSummary,
+  buildWorkerAssignmentScopePresentation,
   prepareWorkerAssignmentPresentation
 } from "./lib/worker-assignment-preparation.mjs";
 export {

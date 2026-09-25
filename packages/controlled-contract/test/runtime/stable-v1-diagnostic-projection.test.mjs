@@ -283,7 +283,7 @@ test("reason populations report exact nested omission without losing the cause",
 
 test("production authentication refusal retains target_condition_differs", async () => {
   const profile = JSON.parse(await readFile(new URL(
-    "../../profiles/proof.authentication.direct-source-provenance/3.0.0/profile.json",
+    "../../profiles/proof.authentication.direct-source-provenance/4.0.0/profile.json",
     import.meta.url
   )));
   const weakened = structuredClone(profile);

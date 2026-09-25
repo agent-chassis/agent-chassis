@@ -385,25 +385,39 @@ review-attestation authority.
 
 ### Operator forge merge
 
-After final review, an operator may run `agent-launch forge-merge WK-####`.
-The CLI launcher mints the workspace binding from its operator-resolved working
-directory before composing the operation. The command accepts only the WK id. Its trusted composition recovers the exact
-terminal candidate publication state retained or cold-recovered by the launcher
-and uses the canonical work-record validator; candidate, repository, branch, review,
-proposed change head, configured base branch, and merge authority are never
-caller-supplied.
+An operator may run `agent-launch forge-merge WK-####` once the WK's canonical
+closeout is recorded. Review is an independent consumer and is not a
+prerequisite. The CLI launcher mints the workspace binding from its
+operator-resolved working directory before composing the operation. The command
+accepts only the WK id. Its trusted composition binds the forge-handoff authority
+owner's read-only existing-publication observer and the canonical work-record
+validator; candidate, repository, branch, review, proposed change head,
+configured base branch, and merge authority are never caller-supplied.
 
-Forge handoff publishes the reviewed terminal candidate `C` byte-for-byte as
-the proposed change head on the forge handoff branch. The forge-merge operation
-then authenticates terminal provenance against the trusted receipt before
-appending the two WK-only commits there (decision's terminal review state and the
-completion state), and merges that exact pull-request head into the configured
-base branch. A remote conflict is a
+Before initial publication, forge handoff appends the two WK-only commits
+(decision's closeout record `K` and the completion state `D`) to the unchanged
+terminal candidate `C` and publishes `D` as the proposed change head on the forge
+handoff branch, so the initially published pull request already carries the
+owning WK at parent status `done`. That `done` is branch-local: the canonical
+parent on the base branch stays in `review` until a confirmed merge. The chain is
+prepared only while the handoff branch is absent; a repeated handoff recovers the
+published chain and appends nothing. Merge authenticates that existing
+publication afresh in its own process: the handoff owner re-observes the exact
+selected candidate, its version and its required squashed worktree from durable
+authority, resolves the same repository/base/branch identity the publisher binds,
+and authenticates the observed branch and single proposal head (the complete
+authenticated closeout chain above `C`). It publishes nothing, creates no proposal,
+reconstructs or advances no candidate, and moves no ref; a missing, ambiguous,
+moved, foreign or tampered fact refuses with its owning cause before any merge
+effect. The forge-merge operation then merges that exact pull-request head into
+the configured base branch without adding commits. A remote conflict is a
 refusal: the helper does not rebase, squash, force-update, resolve with a broad
 theirs strategy, or create a post-merge main commit. After confirmed merge it
 reconciles the local WK record. If merge succeeds but local reconciliation does
 not, the result is typed partial success and a retry is safe: retry authenticates
 the exact merged head before attempting only the remaining local reconciliation.
+Before merging, the local review record must equal the published closeout record;
+a disagreement returns the typed reconciliation failure without merging.
 
 This authentication does not transfer ownership. work record owns candidate and
 forge authority, work record owns landed-publication identity, work record owns recovery,
@@ -416,26 +430,29 @@ candidate construction and forge handoff before resolving candidate publication
 state. While holding that exclusion, it authenticates the complete current
 manifest-selected generation directly from exact W through the controlled-generation
 owner and compares that owner-minted identity exactly with the generation bound to
-the terminal candidate. The exclusion remains held continuously through handoff-
-branch publication or update and pull-request merge. A missing, malformed, stale,
-or mismatched generation identity refuses before either remote mutation; W equality,
-resolver metadata, caller values, digests, and manifest-identity projections are
-not generation authority. External publication or merge failure releases the
-exclusion, and a later invocation reauthenticates the current generation before
+the terminal candidate. The exclusion remains held continuously through the
+pull-request merge. A missing, malformed, stale, or mismatched generation
+identity refuses before the remote merge; W equality, resolver metadata, caller
+values, digests, and manifest-identity projections are not generation authority.
+External merge failure releases the exclusion, and a later invocation reauthenticates the current generation before
 performing supported retry or recovery.
 
-Before either closeout commit is created, forge-merge authenticates the exact
-terminal closeout projection from `C` to the live canonical WK. The parent may
-be `active`, `todo`, or `review` in `C`, but must be `review` live; the single
-terminal review slice may move to `review`; and exactly one implementation slice
-declared by that terminal review may move from `todo` or `review` to `done` with
-its first canonical `sections.closure` and coupled `updated` value. The first
+Before either closeout commit is created, forge handoff authenticates the exact
+closeout projection from `C` to the live canonical WK through the one closeout
+owner (`authenticateWkCloseoutProjection`) that forge merge also uses.
+The parent may hold any non-`done` status in `C` but must be `review` live; its
+canonical `sections.closure` may be recorded; `updated` may move between
+well-formed dates only together with a real closeout change; and at most one
+implementation slice may move to `done` with its first canonical
+`sections.closure`. No terminal-review unit, review completion, or review receipt
+is required or fabricated: a review slice already in `C` may change status only,
+and one canonical findings-only review slice may be added after `W`. The first
 WK-only commit contains that authenticated live projection byte-for-byte, and
 the completion commit changes only the parent status from `review` to `done`.
 Agent notes, scope, acceptance, dependency declarations, unrelated slices,
-additional closeouts, closure replacement/removal/mutation, undeclared or
-cross-WK dependencies, and non-implementation dependencies remain refusing
-drift; forge observations and caller/environment input do not authorize it.
+additional closeouts, closure replacement or mutation, review-slice rewrites
+beyond status, and non-implementation closeouts remain refusing drift; forge
+observations and caller/environment input do not authorize it.
 
 Current shared query/search covers:
 

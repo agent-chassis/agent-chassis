@@ -11,23 +11,25 @@ import { DOMAINS, MUTATIONS, executeBoundedIntervalNonmutation, boundedIntervalN
   from "./bounded-interval-nonmutation-v1-harness.mjs";
 import { validateProfileSchemaV1, validateProfileSemanticsV1 }
   from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
-const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.state.bounded-interval-nonmutation/3.0.0");
-const readJson = async (name) => JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
+const identity = { profile_id: "proof.state.bounded-interval-nonmutation", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 test("bounded-interval-nonmutation profile is valid, pre-dispatch, digest-bound, and explicitly bounded", async () => {
   const adequacy = await readJson("adequacy.json");
   assert.equal(validateProfileSchemaV1(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE), true,
     JSON.stringify(validateProfileSchemaV1.errors));
   assert.deepEqual(validateProfileSemanticsV1(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE), []);
-  assert.deepEqual(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE.evaluation_stages, ["pre_dispatch"]);
+
+  assert.equal(Object.hasOwn(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 58);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 58);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 49);
   assert.deepEqual(adequacy.explicit_exclusions, [...EXCLUSIONS].sort());
 });
 

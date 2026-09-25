@@ -6,11 +6,16 @@ import assert from "node:assert/strict";
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
+import {
+  createLifecycleCheckpoint,
+  recordLifecycleFailure
+} from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
 import {
   LIFECYCLE_FAILURE_HISTORY_LIMIT,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
+  projectLifecycleResolution,
   MONITOR_CALL_DEFAULT_TIMEOUT_MS,
   RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION,
   RUN_STATUS_CALL_BUDGET_MS,
@@ -85,9 +90,10 @@ function createFailingIntegrationHarness({
     }
   });
 
-  const call = async (tool, extraArgs = {}) => parseStructuredTextResponse(
+  const call = async (tool, extraArgs = {}) => readStructuredResult(
     await tools.get(tool).handler({
       subject: SUBJECT,
+      include_final_result: true,
       ...extraArgs
     })
   );
@@ -111,7 +117,8 @@ test("WK-1690: a child-succeeded run whose lifecycle failed is NOT terminal and 
   assert.equal(first.status, "succeeded", "the CHILD's own vocabulary is unchanged");
   assert.equal(first.child_terminal, true);
   assert.equal(first.terminal, false, "a failing lifecycle is not a finished managed run");
-  assert.equal(first.next_action, "retry_wait_or_check_status");
+
+  assert.equal(first.next_action, "escalate_missing_retry_capability");
 
   const resolution = first.lifecycle_resolution;
   assert.equal(resolution.schema_version, RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION);
@@ -122,7 +129,8 @@ test("WK-1690: a child-succeeded run whose lifecycle failed is NOT terminal and 
   assert.equal(resolution.failure_history_truncated, false);
 
   assert.deepEqual(resolution.latest_failure, closedFailureEntry("pre-integration"));
-  assert.equal(resolution.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE);
+  assert.equal(resolution.next_action,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.ESCALATE_MISSING_RETRY_CAPABILITY);
   assert.deepEqual(first.slice_lifecycle, {
     invoked: true,
     phase: "pre-integration",
@@ -138,29 +146,37 @@ test("WK-1690: a child-succeeded run whose lifecycle failed is NOT terminal and 
   assertNoReviewFields("first status poll", first);
 
   assert.deepEqual(fixture.harness.counts(),
-    { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+    { integrationCalls: 1, reviewSeamCalls: 0 });
 });
 
-test("WK-1690: the next poll retries the refused integration from pre-integration and finalizes", async () => {
+test("WK-2655: the next poll withholds a refusal no owner can establish as corrected", async () => {
+
   const fixture = createFailingIntegrationHarness({ integrationFailures: 1 });
 
-  await fixture.status();
+  const first = await fixture.status();
   const second = await fixture.status();
 
   assert.equal(second.child_terminal, true);
-  assert.equal(second.terminal, true, "the retried integration finalized the managed run");
-  assert.equal(second.next_action, undefined);
-  assert.equal(second.slice_lifecycle.phase, "finalized");
-  assert.equal(second.slice_lifecycle.integrated, true);
-  assert.equal(second.slice_lifecycle.wk_transitioned_to_review, true);
-  assert.deepEqual(second.slice_lifecycle.integration, fixture.harness.integrationResult);
+  assert.equal(second.terminal, false);
+  assert.equal(second.next_action, "escalate_missing_retry_capability");
+  assert.deepEqual(second.lifecycle_resolution.latest_failure, first.lifecycle_resolution.latest_failure);
+  assert.equal(second.lifecycle_resolution.failure_attempts, 1, "no duplicate failure record");
+  assert.deepEqual(
+    [second.lifecycle_resolution.retry_assessment.decision,
+      second.lifecycle_resolution.retry_assessment.attempt_withheld],
+    ["correction_condition_unavailable", true]
+  );
+  assertInjectedFailureEvidence("withheld second poll", second);
   assertNoReviewFields("second status poll", second);
   assert.deepEqual(fixture.harness.counts(),
-    { integrationCalls: 2, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+    { integrationCalls: 1, reviewSeamCalls: 0 });
 });
 
-test("WK-1690: no unresolved lifecycle state requires an external action", () => {
+test("WK-2655: the next-action vocabulary names every withheld retry outcome", () => {
   assert.deepEqual(Object.values(LIFECYCLE_RESOLUTION_NEXT_ACTIONS).sort(), [
+    "delivery_requires_new_generation_work",
+    "escalate_missing_retry_capability",
+    "repair_retry_assessment_then_check_status",
     "resolve_lifecycle_failure_then_retry_run_status",
     "retry_run_status_after_exact_slice_commit",
     "retry_wait_or_check_status"
@@ -177,7 +193,7 @@ test("WK-1690: status and wait agree on a child-succeeded/lifecycle-unresolved r
   assert.equal(viaWait.terminal, false);
   assert.equal(viaStatus.terminal, false);
 
-  assert.equal(viaWait.next_action, "retry_wait_or_check_status");
+  assert.equal(viaWait.next_action, "escalate_missing_retry_capability");
   assert.equal(viaWait.next_action, viaStatus.next_action);
   assert.equal(viaWait.status, viaStatus.status);
   assert.equal(viaWait.updated_at, viaStatus.updated_at);
@@ -186,14 +202,14 @@ test("WK-1690: status and wait agree on a child-succeeded/lifecycle-unresolved r
   assert.deepEqual(viaWait.lifecycle_resolution.latest_failure, viaStatus.lifecycle_resolution.latest_failure);
   assert.deepEqual(viaWait.slice_lifecycle, viaStatus.slice_lifecycle);
 
-  assert.equal(viaWait.lifecycle_resolution.failure_attempts, fixture.integrationCalls());
-  assert.ok(viaWait.lifecycle_resolution.failure_attempts > viaStatus.lifecycle_resolution.failure_attempts);
+  assert.equal(fixture.integrationCalls(), 1);
+  assert.equal(viaWait.lifecycle_resolution.failure_attempts, 1);
+  assert.equal(viaStatus.lifecycle_resolution.failure_attempts, 1);
 });
 
 test("WK-1690: once finalized, both routes replay a byte-stable terminal projection", async () => {
-  const fixture = createFailingIntegrationHarness({ integrationFailures: 1 });
+  const fixture = createFailingIntegrationHarness({ integrationFailures: 0 });
 
-  await fixture.status();
   const finalizedStatus = await fixture.status();
 
   assert.equal(finalizedStatus.terminal, true, "the complete managed run is finalized");
@@ -224,22 +240,19 @@ test("WK-1690: once finalized, both routes replay a byte-stable terminal project
   assert.equal(replayWait.terminal, true);
   assert.equal(replayStatus.terminal, true);
 
-  assert.equal(fixture.integrationCalls(), 2);
+  assert.equal(fixture.integrationCalls(), 1);
 });
 
-test("WK-1690: driving more failures than the history bound keeps storage fixed-size and retains the LATEST failure", async () => {
+test("WK-1690: recording more failures than the history bound keeps storage fixed-size and retains the LATEST failure", async () => {
+
+  const fixture = createFailingIntegrationHarness({ integrationFailures: 1 });
+  const published = (await fixture.status()).slice_lifecycle;
   const overBound = LIFECYCLE_FAILURE_HISTORY_LIMIT + 3;
-  const fixture = createFailingIntegrationHarness({ integrationFailures: overBound });
-
-  let last = null;
-  for (let poll = 0; poll < overBound; poll += 1) {
-    last = await fixture.status();
-    assert.equal(last.terminal, false, `poll ${poll + 1} must stay nonterminal`);
-    assert.equal(last.child_terminal, true);
-    assert.equal(last.next_action, "retry_wait_or_check_status");
+  const checkpoint = createLifecycleCheckpoint();
+  for (let attempt = 0; attempt < overBound; attempt += 1) {
+    recordLifecycleFailure(checkpoint, published);
   }
-
-  const resolution = last.lifecycle_resolution;
+  const resolution = projectLifecycleResolution({ lifecycle: published, checkpoint });
 
   assert.equal(resolution.retained_failures.length, LIFECYCLE_FAILURE_HISTORY_LIMIT);
   assert.equal(resolution.failure_attempts, overBound);
@@ -255,10 +268,7 @@ test("WK-1690: driving more failures than the history bound keeps storage fixed-
   for (const [index, entry] of resolution.retained_failures.entries()) {
     assert.deepEqual(entry, closedEntry, `retained entry ${index}`);
   }
-  assertInjectedFailureEvidence("over-bound polling", last);
-
-  assert.equal(fixture.integrationCalls(), overBound);
-  assert.equal(last.slice_lifecycle.integrated, false);
+  assert.equal(fixture.integrationCalls(), 1);
 });
 
 test("WK-1690: polling MUTATES lifecycle state — these routes are not read-only", async () => {
@@ -299,7 +309,7 @@ test("WK-1690: a run with no managed post-worker lifecycle keeps child terminali
   });
 
   for (const [label, extra] of [["immediate", {}], ["bounded", { timeout_ms: 1000 }]]) {
-    const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    const result = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
       subject: "WK-1537#SLICE-003",
       ...extra
     }));
@@ -374,27 +384,23 @@ test("WK-2655: a bounded request makes ONE attempt and its failure ends that req
   assert.equal(bounded.settled, false, "the bounded request did not resolve the run");
   assert.equal(bounded.terminal, false);
   assert.equal(bounded.child_terminal, true);
-  assert.equal(bounded.next_action, "retry_wait_or_check_status");
+  assert.equal(bounded.next_action, "escalate_missing_retry_capability");
   assert.equal(bounded.lifecycle_resolution.failure_attempts, 1);
   assert.deepEqual(
     [bounded.lifecycle_resolution.retry_assessment.failure_class,
       bounded.lifecycle_resolution.retry_assessment.automatic_retry],
-    ["unknown", "stopped_within_this_request"]
+    ["no_producer_correction_condition", "stopped_within_this_request"]
   );
 
   const second = await fixture.status();
-  assert.equal(fixture.integrationCalls(), 2);
-  assert.equal(second.terminal, false);
-  const settled = await fixture.status();
-  assert.equal(fixture.integrationCalls(), 3);
-  assert.equal(settled.terminal, true);
-  assert.equal(settled.next_action, undefined);
-  assert.deepEqual(settled.lifecycle_resolution, {
-    schema_version: RUN_LIFECYCLE_RESOLUTION_SCHEMA_VERSION,
-    resolved: true,
-    phase: "finalized"
-  });
-  assert.equal(settled.slice_lifecycle.integrated, true);
+  const third = await fixture.wait({ timeout_ms: 20000 });
+  assert.equal(fixture.integrationCalls(), 1);
+  for (const later of [second, third]) {
+    assert.equal(later.terminal, false);
+    assert.equal(later.lifecycle_resolution.failure_attempts, 1);
+    assert.equal(later.lifecycle_resolution.retry_assessment.attempt_withheld, true);
+  }
+  assert.equal(third.settled, false);
 });
 
 test("WK-2655: a lifecycle that keeps failing reports honestly on the same handle without spinning", async () => {
@@ -409,10 +415,9 @@ test("WK-2655: a lifecycle that keeps failing reports honestly on the same handl
 
   assert.equal(timedOut.child_terminal, true);
   assert.equal(timedOut.monitor_handle, MONITOR_HANDLE, "same monitor handle to retry with");
-  assert.equal(timedOut.next_action, "retry_wait_or_check_status",
-    "a progress-capable lifecycle is genuinely worth retrying");
-  assert.equal(timedOut.lifecycle_resolution.next_action,
-    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RESOLVE_FAILURE);
+
+  assert.equal(timedOut.next_action, "escalate_missing_retry_capability");
+  assert.equal(timedOut.lifecycle_resolution.next_action, timedOut.next_action);
 
   assert.equal(fixture.integrationCalls(), 1,
     `bounded retries, not a spin: ${fixture.integrationCalls()} attempts in ${elapsedMs}ms`);
@@ -440,7 +445,7 @@ test("WK-1690 (review M-2): a finalized lifecycle still returns terminal normall
   assert.ok(elapsedMs < 5000, `a resolvable run must not wait, took ${elapsedMs}ms`);
 });
 
-test("WK-1690 (review M-1): a later DISTINCT failing invocation still increments to attempt 2", async () => {
+test("WK-1690 (review M-1): distinct attempts are distinct records, and later polls add none", async () => {
 
   const fixture = createFailingIntegrationHarness({ integrationFailures: 2, integrationDelayMs: 40 });
 
@@ -453,17 +458,20 @@ test("WK-1690 (review M-1): a later DISTINCT failing invocation still increments
   assert.deepEqual(firstWait.lifecycle_resolution, firstStatus.lifecycle_resolution);
 
   const secondStatus = await fixture.status();
-  assert.equal(fixture.integrationCalls(), 2, "round 2 is a genuinely separate invocation");
+  assert.equal(fixture.integrationCalls(), 1, "a later poll starts no unestablished attempt");
+  assert.equal(secondStatus.lifecycle_resolution.failure_attempts, 1);
+  assert.equal(secondStatus.lifecycle_resolution.retained_failures.length, 1);
+  assertInjectedFailureEvidence("later poll", secondStatus);
 
-  const resolution = secondStatus.lifecycle_resolution;
-  assert.equal(resolution.failure_attempts, 2, "distinct retries increment separately");
+  const checkpoint = createLifecycleCheckpoint();
+  recordLifecycleFailure(checkpoint, firstStatus.slice_lifecycle);
+  recordLifecycleFailure(checkpoint, secondStatus.slice_lifecycle);
+  const resolution = projectLifecycleResolution({ lifecycle: secondStatus.slice_lifecycle, checkpoint });
+  assert.equal(resolution.failure_attempts, 2, "distinct attempts increment separately");
   assert.equal(resolution.retained_failures.length, 2, "and append separately");
-
   const closedEntry = closedFailureEntry("pre-integration");
   assert.deepEqual(resolution.retained_failures[0], closedEntry);
   assert.deepEqual(resolution.latest_failure, closedEntry);
-  assertInjectedFailureEvidence("distinct second invocation", secondStatus);
-  assert.equal(secondStatus.terminal, false);
 });
 
 test("WK-1690 (review L-3): run_wait derives child_terminal from the backend result, never hardcodes it", async () => {
@@ -489,7 +497,7 @@ test("WK-1690 (review L-3): run_wait derives child_terminal from the backend res
       }
     }
   });
-  const call = async (extra = {}) => parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const call = async (extra = {}) => readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: SUBJECT,
     ...extra
   }));
@@ -541,7 +549,7 @@ test("WK-1690: status and wait agree on terminality for a RECOVERED projection",
       }
     }
   });
-  const call = async (extra = {}) => parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const call = async (extra = {}) => readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: SUBJECT,
     ...extra
   }));
@@ -559,8 +567,15 @@ test("WK-1690: status and wait agree on terminality for a RECOVERED projection",
       resolved: true,
       phase: "finalized"
     }, `${label}: the finalized projection is the shared constant`);
-    assert.deepEqual(result.slice_lifecycle, recoveredLifecycle);
+
+    const { view, complete, omitted_members: omitted, ...facts } = result.slice_lifecycle;
+    assert.equal(view, "workspace-agent-run-status-compact-lifecycle.v1", label);
+    assert.deepEqual(omitted, [], label);
+    assert.deepEqual(complete.complete_mode, { include_final_result: true }, label);
+    assert.deepEqual(facts, recoveredLifecycle, `${label}: the view carries every recovered fact`);
   }
+  assert.deepEqual((await call({ include_final_result: true })).slice_lifecycle, recoveredLifecycle,
+    "the complete result carries the recovered envelope unchanged");
   assert.equal(viaWait.settled, true);
   assert.equal(viaStatus.terminal, viaWait.terminal);
 });
@@ -598,7 +613,7 @@ function createWindowObservingRegistry() {
 test("WK-2201: omitted timeout performs one immediate status observation", async () => {
   const { observed, tools } = createWindowObservingRegistry();
 
-  const waited = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const waited = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: NON_MANAGED_TERMINAL_RUN.subject
   }));
 
@@ -628,7 +643,7 @@ test("WK-2201: the published timeout_ms range is the range the route enforces", 
   const { observed, tools } = createWindowObservingRegistry();
   const { min, max } = RUN_WAIT_TIMEOUT_MS_BOUNDS;
   const wait = async (timeoutMs) =>
-    parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+    readStructuredResult(await tools.get("workspace_agent_run_status").handler({
       subject: NON_MANAGED_TERMINAL_RUN.subject,
       timeout_ms: timeoutMs
     }));

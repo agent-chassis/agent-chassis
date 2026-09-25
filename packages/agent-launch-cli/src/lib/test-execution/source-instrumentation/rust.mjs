@@ -180,7 +180,7 @@ export async function instrumentRustTestFile({ source, selected, file }) {
     unsupported(tests.some(({ path }) => path.join("::") === selectedPath)
       ? "selected_test_shape_unsupported" : "selected_test_not_observable", { test: selectedPath });
   }
-  const edits = eligible.map(({ node, path }) => ({
+  const edits = eligible.filter(({ path }) => path.join("::") === selectedPath).map(({ node, path }) => ({
     index: node.childForFieldName("body").startIndex + 1,
     insert: ` let _launcher_test_proof_guard = crate::${RUST_OBSERVER_MODULE}::enter(` +
       `${rustString(file)}, ${rustString(path.join("::"))});`
@@ -253,9 +253,15 @@ pub mod ${RUST_OBSERVER_MODULE} {
     pub struct Guard {
         file: &'static str,
         path: &'static str,
+        active: bool,
     }
 
+    static ENTERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
     pub fn enter(file: &'static str, path: &'static str) -> Guard {
+        if ENTERED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+            return Guard { file, path, active: false };
+        }
         static HOOK: std::sync::Once = std::sync::Once::new();
         HOOK.call_once(|| {
             let previous = std::panic::take_hook();
@@ -274,11 +280,14 @@ pub mod ${RUST_OBSERVER_MODULE} {
         });
         PANIC.with(|cell| *cell.borrow_mut() = None);
         emit(format!("\\"kind\\":\\"test_start\\",\\"file\\":{},\\"test\\":{}", quote(file), test_path(path)));
-        Guard { file, path }
+        Guard { file, path, active: true }
     }
 
     impl Drop for Guard {
         fn drop(&mut self) {
+            if !self.active {
+                return;
+            }
             let failed = std::thread::panicking();
             let (assertion, message) = PANIC.with(|cell| cell.borrow().clone())
                 .unwrap_or((false, String::new()));

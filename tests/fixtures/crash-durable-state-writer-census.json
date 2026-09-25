@@ -114,6 +114,14 @@
     {
       "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#receiptStoreRoot",
       "root": ".agent-launch/durable-state/v1/exact-slice-review-receipts"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#readinessPath",
+      "root": ".agent-launch/test-runtimes/readiness.json"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#preparationLockPath",
+      "root": ".agent-launch/test-runtimes/preparation.lock"
     }
   ],
   "writers": [
@@ -644,6 +652,58 @@
         "delegated_publish"
       ],
       "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#publishRecord",
+      "classification": "durable_authoritative",
+      "store_id": "test-runtime-preparation-state",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/test-runtimes/readiness.json",
+      "operations": [
+        "delegated_publish"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#beginPreparation",
+      "classification": "durable_authoritative",
+      "store_id": "test-runtime-preparation-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": ".agent-launch/test-runtimes/preparation.lock",
+      "operations": [
+        "delegated_lock_acquire"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#releasePreparationLock",
+      "classification": "durable_authoritative",
+      "store_id": "test-runtime-preparation-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": ".agent-launch/test-runtimes/preparation.lock",
+      "operations": [
+        "delegated_retirement_claim",
+        "delegated_tombstone_cleanup",
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#retireDeadPreparationOwner",
+      "classification": "durable_authoritative",
+      "store_id": "test-runtime-preparation-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": ".agent-launch/test-runtimes/preparation.lock",
+      "operations": [
+        "delegated_retirement_claim",
+        "delegated_tombstone_cleanup",
+        "rm"
+      ],
+      "unresolved_blocker": null
     }
   ],
   "examined_and_excluded": [
@@ -840,6 +900,22 @@
     "packages/agent-launch-cli/src/lib/managed-run-attempt-supervisor.mjs#publishSupervisorTermination": {
       "routes_through": "crash_durable_publication_helper",
       "evidence": "publishes the closed launcher-supervisor-termination.v1 record through planReplacement + runCrashDurablePlanSync from the attempt-scoped supervisor process"
+    },
+    "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#publishRecord": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "publishes the complete preparing, failed or ready preparation record through planReplacement + runCrashDurablePlanSync; it chooses bytes and path only, and a non-published run is returned as an explicit publication failure"
+    },
+    "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#beginPreparation": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "acquires the per-repository preparation lock through planLockAcquisition with the owner's non-reusable process identity; a contender receives an explicit in-progress result and publishes nothing"
+    },
+    "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#releasePreparationLock": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "exact-token release: decideRelease, then planRetirementClaim and planTombstoneCleanup on the holder's own token-bound tombstone"
+    },
+    "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#retireDeadPreparationOwner": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "retires a token-owned preparation lock only when worktree-lease confirmedDead positively confirms its persisted owner identity, through decideRetirement, planRetirementClaim and planTombstoneCleanup"
     }
   },
   "abandonment_judgments": {
@@ -850,7 +926,8 @@
       "packages/agent-launch-cli/src/lib/managed-run-process-identity-assessment.mjs#assessManagedRunProcessIdentityRecord",
       "packages/agent-launch-cli/src/lib/managed-run-process-identity-retirement.mjs#retireManagedRunProcessIdentity",
       "packages/wiki-core/src/operations/work-record-write-lock.mjs#retireDeadWorkRecordWriteLockHolder",
-      "packages/wiki-core/src/operations/work-record-write-lock.mjs#transferCrashedWorkRecordWriteLockClaim"
+      "packages/wiki-core/src/operations/work-record-write-lock.mjs#transferCrashedWorkRecordWriteLockClaim",
+      "packages/agent-launch-cli/src/lib/test-runtime-setup/readiness.mjs#retireDeadPreparationOwner"
     ],
     "never_reclaims": [
       {

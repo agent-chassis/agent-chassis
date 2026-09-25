@@ -25,6 +25,7 @@ import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
 } from "./terminal-review-materialization.mjs";
+import { inspectDependencyMountpoint } from "./dependency-mountpoint-occupant.mjs";
 import { defaultTerminalCandidateRunGit } from "./terminal-wk-candidate.mjs";
 import {
   assertBubblewrapAvailable,
@@ -322,25 +323,14 @@ function quarantineInvalidProjection(root) {
 
 function assertReviewerDependencyMountpointAvailable(checkoutPath) {
   const destination = path.join(checkoutPath, "node_modules");
-  let stat;
-  try {
-    stat = lstatSync(destination);
-  } catch (error) {
 
-    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return null;
-    throw error;
-  }
-  if (stat.isSymbolicLink() || !stat.isDirectory()) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_MOUNTPOINT_OCCUPIED,
-      "reviewed checkout supplies its own node_modules path; no launcher dependency projection is mounted",
-      { mountpoint: destination, kind: stat.isSymbolicLink() ? "symlink" : "file" });
-  }
-  if (readdirSync(destination).length !== 0) {
-    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_MOUNTPOINT_OCCUPIED,
-      "reviewed checkout supplies its own node_modules tree; no launcher dependency projection is mounted",
-      { mountpoint: destination, kind: "directory" });
-  }
-  return null;
+  const occupant = inspectDependencyMountpoint(destination);
+  if (occupant.state !== "occupied") return null;
+  fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_MOUNTPOINT_OCCUPIED,
+    occupant.kind === "directory"
+      ? "reviewed checkout supplies its own node_modules tree; no launcher dependency projection is mounted"
+      : "reviewed checkout supplies its own node_modules path; no launcher dependency projection is mounted",
+    { mountpoint: destination, kind: occupant.kind });
 }
 
 export function prepareReviewerDependencyProjection({

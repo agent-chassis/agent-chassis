@@ -82,6 +82,7 @@ export async function renderWorkRecordAgentBriefById({
   generatedAt = null,
   outputPath = null,
   sliceId = null,
+  scopePresentation = null,
 
   repository = null
 } = {}) {
@@ -122,7 +123,8 @@ export async function renderWorkRecordAgentBriefById({
     generatedAt: generatedAt || undefined,
     outputPath: outputPath || undefined,
     sliceId,
-    entryMaterial
+    entryMaterial,
+    scopePresentation
   });
 
   return {

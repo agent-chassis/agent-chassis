@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { computeWorkRecordSourceDigest } from '@agent-chassis/wiki-core';
+import { computeWorkRecordSourceDigest } from '../../packages/wiki-core/src/lib/work-record-schema.mjs';
 import {
   createTrustedAdvisoryReviewPresentation,
   createTrustedFrozenStandaloneFindingsContract,

@@ -31,9 +31,14 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs";
 import {
   advanceTerminalReviewCandidate,
+  appendAcceptedRepository,
   evaluateTerminalReviewCandidateStatus,
   TERMINAL_CANDIDATE_RUNTIME_CODES
 } from "./dispatch-terminal-candidate-runtime.mjs";
+import {
+  projectTerminalCandidateExclusionRefusal,
+  TERMINAL_CANDIDATE_EXCLUSION_REFUSED_CODE
+} from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-terminal-candidate-coordination.mjs";
 import {
   TERMINAL_WK_CANDIDATE_CODES
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
@@ -320,7 +325,7 @@ export function registerDiagnosticRoutes(ctx) {
     TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
     TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
     TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
-    "agent_launch.terminal_candidate.exclusion_refused.v1"
+    TERMINAL_CANDIDATE_EXCLUSION_REFUSED_CODE
   ]);
   const terminalCandidateRouteError = (error) => {
     const code = terminalCandidateRouteCodes.has(error?.code)
@@ -331,6 +336,25 @@ export function registerDiagnosticRoutes(ctx) {
       ok: false,
       code,
       message: "terminal candidate route refused"
+    });
+  };
+
+  const terminalCandidateAdvanceRouteError = (error, wkId, acceptedRepository) => {
+    const exclusion = projectTerminalCandidateExclusionRefusal(error);
+    if (exclusion === null) return terminalCandidateRouteError(error);
+    return jsonContent({
+      schema_version: "agent_launch.terminal_candidate_route_refusal.v1",
+      ok: false,
+      code: TERMINAL_CANDIDATE_EXCLUSION_REFUSED_CODE,
+      message: "terminal candidate route refused",
+      reason: exclusion.reason,
+      recovery: exclusion.status_observation ? "observe_candidate_status" : "unavailable",
+      next_call: exclusion.status_observation
+        ? appendAcceptedRepository(Object.freeze({
+          tool: "workspace_terminal_review_candidate_status",
+          arguments: Object.freeze({ wk_id: wkId })
+        }), acceptedRepository)
+        : null
     });
   };
 
@@ -373,9 +397,10 @@ export function registerDiagnosticRoutes(ctx) {
       }).strict()
     },
     async (args) => {
+      let acceptedRepository;
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args?.repo);
-        const acceptedRepository = Object.hasOwn(args, "repo") ? workspace.repo : undefined;
+        acceptedRepository = Object.hasOwn(args, "repo") ? workspace.repo : undefined;
         return jsonContent(await advanceCandidate({
           mainRepo: workspace.dir,
           wkId: args.wk_id,
@@ -383,7 +408,7 @@ export function registerDiagnosticRoutes(ctx) {
           acceptedRepository
         }));
       } catch (error) {
-        return terminalCandidateRouteError(error);
+        return terminalCandidateAdvanceRouteError(error, args.wk_id, acceptedRepository);
       }
     }
   );

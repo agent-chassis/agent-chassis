@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   canonicalDigest,
@@ -14,11 +11,12 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "./stable-v1-proof-pack-runtime.mjs";
+import {
+  certificationMember,
+  readCertificationArchive,
+  readRuntimeDocument
+} from "./certification-artifact.mjs";
 
-const repositoryRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../.."
-);
 
 function removeExpressionPatterns(expression, removed) {
   if (expression.pattern) return removed.has(expression.pattern) ? null : expression;
@@ -284,15 +282,15 @@ function inferFixtureMutation(profile, fixture, relationMutation) {
 }
 
 async function readFixedCorpus(packDirectory) {
-  const [profile, adequacy] = await Promise.all([
-    readFile(path.join(packDirectory, "profile.json"), "utf8").then(JSON.parse),
-    readFile(path.join(packDirectory, "adequacy.json"), "utf8").then(JSON.parse)
-  ]);
-  const fixtures = await Promise.all(adequacy.negative_contract_fixtures.map(
-    ({ path: fixturePath }) => readFile(
-      path.resolve(repositoryRoot, fixturePath), "utf8"
-    ).then(JSON.parse)
-  ));
+  const archive = await readCertificationArchive(packDirectory);
+  const adequacy = certificationMember(archive, "adequacy.json").value;
+  const profile = await readRuntimeDocument(adequacy, "profile.json");
+  const prefix = "packages/controlled-contract/test/certification/profiles/" +
+    `${adequacy.profile_id}/${adequacy.profile_version}/`;
+  const fixtures = adequacy.negative_contract_fixtures.map(({ path: fixturePath }) => {
+    assert.ok(fixturePath.startsWith(prefix), fixturePath);
+    return certificationMember(archive, fixturePath.slice(prefix.length)).value;
+  });
   return { profile, adequacy, fixtures };
 }
 

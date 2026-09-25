@@ -123,6 +123,14 @@ refuses orchestrator launch attempts from any role kind other than
 `human_operator` with the refusal code
 `agent_dispatch_identity.orchestrator_not_operator.v1`.
 
+Startup prompts deliver the package-owned role guides in
+`@agent-chassis/agent-launch-core` under `data/role-guides/`. The orchestrator
+prompt names the package-resolved `orchestrator.md` path. Managed worker and
+reviewer/redteam prompts inline `managed-worker.md` or `reviewer.md` once,
+because a confined session cannot read package files outside its scope.
+Direct-worker prompts are prepared by hand, so the preparer names the actual
+`direct-worker.md` path.
+
 Reviewer review uses `workspace_agent_dispatch --role reviewer`. If that route
 is unavailable in the current session, an implementation WK or slice covered by
 the bootstrap exception records findings-only review evidence there and reports its bootstrap
@@ -311,9 +319,16 @@ when their production composition is installed. That installed composition
 provides the repository read boundary, managed worktree provisioning,
 closed-input commit, slice-to-WK integration, and frozen whole-WK context
 review. Automatic main promotion remains unavailable. Managed lifecycle
-refusals use `managed_lifecycle_required`; provisioning refusals use
+refusals use `managed_lifecycle_required`; general provisioning refusals use
 `managed_worktree_provisioning_unavailable`. Recovery rechecks the server-owned
-facts through `workspace_coordination_preflight`. Free/local and paid/CCE
+capability facts through `workspace_coordination_preflight`. One pre-worker
+provisioning condition is more specific: when the trusted provisioner proves
+that its selected repository lacks the WK's selected local base branch, or that the
+record selects none, dispatch reports
+`agent_launch.launch_failed_before_start.v1`, preserves the repository, alias,
+ref-selection provenance and Git diagnostic, and states that an operator must
+reconcile the binding and branch topology before retry. There is no automatic
+repair route, and retry alone does not create the ref. Free/local and paid/CCE
 responses keep the same plane meanings and differ only in their enforcement
 metadata.
 
@@ -504,8 +519,9 @@ Read-only readiness still fails closed for canonical record problems such as
 missing JSON, missing slice, invalid record shape, mechanical dependency fact-
 resolution failure, required missing graph-impact evidence, or required
 missing/stale preparation-audit evidence. Dependency lifecycle status does not
-refuse readiness: wiki-core resolves the record-level plus selected-slice
-population from canonical WK JSON, keeps supplied dependency facts non-
+refuse readiness: wiki-core resolves exactly the selected slice's explicit
+population (or the record population for unsliced work) from canonical WK JSON,
+keeps supplied dependency facts non-
 authoritative, and surfaces missing or unknown canonical `target_work_kind` as
 the existing mechanical `blocked_dependency` evidence.
 
@@ -518,11 +534,43 @@ capability, select a slice, or create one automatically.
 When the implementation slice already exists, select its exact
 `WK-#####SLICE-###` address. When it does not exist, complete slice authoring
 through `workspace_work_record_ready_slice` with the required scope, acceptance,
-and proof inputs, then use the exact allocated address it returns. Run
-`workspace_validate_dispatch` for that address before
-`workspace_agent_dispatch`. Until the coordinator supplies the selection or
-complete authoring inputs, no complete callable continuation exists; retrying
-the unchanged bare WK repeats the refusal.
+and proof inputs, then use the exact allocated address it returns. Until the
+coordinator supplies the selection or complete authoring inputs, no complete
+callable continuation exists; retrying the unchanged bare WK repeats the
+refusal.
+
+Two prerequisites are commonly missed before a WK's first managed start:
+
+- **Root base selection.** A WK that has never been allocated must select its
+  base on the root record, not a slice: an operator-chosen existing canonical
+  short local branch in the record-level `base_branch`, authored through the
+  ordinary `workspace_work_record_edit` editor with the root record's fresh
+  `expected_source_digest`. Read the field's request shape from
+  `workspace_tools_describe` with
+  `input_contract: {kind: "field", field: "base_branch", scope: "record"}`.
+  Nothing infers the branch from the checkout, `HEAD`, `main`, `master` or
+  branch inventory. Without it, dispatch refuses before worker start with
+  `managed_worktree_base_selection_missing`; the refusal's `next_calls` is that
+  read-only field lookup (`kind: "guidance"`, `next_action: null`) and
+  `refusal.carried.base_selection` names the root and its fresh
+  `root_source_digest`. Edit, then resubmit the original dispatch. After the first allocation the
+  captured base is frozen; editing `base_branch` later is not a rebase. See
+  [work-record-schema.md](work-record-schema.md#record-shape) and
+  [mcp-dispatch-launch-and-admission.md](mcp-dispatch-launch-and-admission.md#orphaned-and-ahead-slice-tips-refuse-before-mutation).
+- **Exact-slice obligation bindings.** The selected slice owns its proof
+  obligations; a parent's population never completes it. A slice without its
+  own bindings reports `controlled_acceptance_incomplete` with a query/upsert
+  recovery naming that exact slice. Run the returned query, then bind the
+  parent's existing claim and verification identities on the same slice with
+  the query's fresh `content_digest`. See
+  [mcp-dispatch-launch-and-admission.md](mcp-dispatch-launch-and-admission.md#the-selected-unit-owns-its-proof-obligations).
+
+`workspace_validate_dispatch` is optional. `workspace_agent_dispatch` performs
+its own readiness and needs no prior validation call. When used, validation
+allocates nothing, and its structural `dispatchable` decision does not certify
+launch: a missing root base selection leaves `dispatchable:true` and reports
+`worker_scope_preflight.reason.code: scope_existence_base_selection_missing`,
+with `next_action` directing the root selection above.
 
 Canonical review and redteam dependencies need no ref or initiative-derived Git
 identity. Only canonical implementation
@@ -572,14 +620,14 @@ documented in
 ### Local test runtimes
 
 Launcher-owned native proof attempts (`workspace_verify_proof`) consume only
-the runtimes an operator prepared, recorded in
-`.agent-launch/test-runtimes/readiness.v1.json` of the repository that owns the
-worktrees. Ordinary `agent-chassis setup` prepares them as its last step,
-finding the test project and its toolchain and saving both in
-`agent-chassis-runtime.json`; `agent-chassis setup --test-runtimes [--runner
-<runner>[@<project>]]` reruns that step for an already-configured repository.
-Nothing is installed at dispatch or test time; a missing or stale record is
-reported as an environment failure naming that command. See
+the runtimes an operator installed and detection recorded in
+`.agent-launch/test-runtimes/readiness.json` of the repository that owns the
+worktrees. Ordinary `agent-chassis setup` detects them as its last step,
+inventorying every environment the repository declares and saving the
+toolchain locations it found in `agent-chassis-runtime.json`; `agent-chassis
+setup --test-runtimes` reruns that step. Nothing is installed at setup,
+dispatch or test time; a missing or stale record is reported as an environment failure
+naming that bare command, which inventories the repository again. See
 [local-test-runtime-setup.md](local-test-runtime-setup.md).
 
 ### Agent run provenance and inspection

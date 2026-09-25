@@ -5,11 +5,9 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  allocateId,
-  bootstrapRepo,
-  createWikiRecord
-} from "../../packages/wiki-core/src/index.mjs";
+import { allocateId } from "../../packages/wiki-core/src/operations/allocate-id.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
+import { createWikiRecord } from "../../packages/wiki-core/src/operations/create.mjs";
 import { workspaceInitiativeStatus } from "../../packages/wiki-core/src/operations/initiative-status.mjs";
 import { assignWorkRecordToInitiativeByUnit } from "../../packages/wiki-core/src/operations/work-record-contract-edit.mjs";
 import { renderRecordByKindMarkdown } from "../../packages/wiki-core/src/lib/work-record-kind-renderer.mjs";

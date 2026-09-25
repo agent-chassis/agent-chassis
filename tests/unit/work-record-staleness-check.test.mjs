@@ -257,13 +257,14 @@ test("a malformed request refuses instead of returning a partial success envelop
 
   const badId = await handler({ entries: [{ id: "DEC-0001", observed_source_digest: observed }] });
   assert.equal(badId.isError, true);
-  assert.match(badId.content[0].text, /WK-####/);
+  assert.deepEqual(badId.content, []);
+  assert.match(JSON.stringify(badId.structuredContent), /WK-####/);
 
   const tokenAsDigest = await handler({
     entries: [{ id: "WK-9101", observed_source_digest: "compact-read-token-abc" }]
   });
   assert.equal(tokenAsDigest.isError, true);
-  assert.match(tokenAsDigest.content[0].text, /compact_read_token/);
+  assert.match(JSON.stringify(tokenAsDigest.structuredContent), /compact_read_token/);
 
   const extraField = await handler({
     entries: [{ id: "WK-9101", observed_source_digest: observed, compact_read_token: "x" }]

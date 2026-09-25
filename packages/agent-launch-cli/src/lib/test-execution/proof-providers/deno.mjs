@@ -50,6 +50,38 @@ function definition(args) {
   if (typeof second === "function") return { ...first, name: first.name ?? second.name, fn: second };
   return { ...first };
 }
+// Every step of the selected test runs through its own Deno context; a step
+// that fails (by throwing, or as Deno reports it when it resolves false) is
+// recorded as the selected test's failure.
+function stepDefinition(args) {
+  const [first, second] = args;
+  if (typeof first === "string") return { name: first, fn: second };
+  if (typeof first === "function") return { name: first.name, fn: first };
+  return { ...first };
+}
+function observeSteps(context, failures) {
+  const step = context?.step;
+  if (typeof step !== "function") return context;
+  context.step = async function launcherObservedStep(...args) {
+    const def = stepDefinition(args);
+    const fn = def.fn;
+    let threw = false;
+    const observed = typeof fn !== "function" ? def : { ...def, fn: async function launcherObservedStepBody(child) {
+      try {
+        return await fn.call(this, observeSteps(child, failures));
+      } catch (caught) {
+        threw = true;
+        failures.push(caught);
+        throw caught;
+      }
+    } };
+    const passed = await step.call(context, observed);
+    // An ignored step also resolves false and does not fail its test.
+    if (passed === false && def.ignore !== true && !threw) failures.push(null);
+    return passed;
+  };
+  return context;
+}
 function observedTest(...args) {
   const def = definition(args);
   emit("collected", { file, test: [typeof def.name === "string" ? def.name : ""] });
@@ -62,18 +94,21 @@ function observedTest(...args) {
   const body = def.fn;
   return register({ ...def, fn: async function launcherObservedTestBody(t) {
     emit("test_start", { file, test: [selectedName] });
-    let error = null;
+    const failures = [];
+    let thrown = null;
     try {
-      return await body.call(this, t);
+      return await body.call(this, observeSteps(t, failures));
     } catch (caught) {
-      error = caught;
+      thrown = caught;
       throw caught;
     } finally {
       emit("window_end", { file, test: [selectedName] });
+      const failed = thrown !== null || failures.length > 0;
+      const error = thrown ?? failures.find((entry) => entry !== null) ?? null;
       const assertion = error?.name === "AssertionError";
-      emit("test_result", { file, test: [selectedName], outcome: error === null ? "passed" : "failed",
-        assertion_failure: error !== null && assertion,
-        error: error === null ? null : facts(error, assertion) });
+      emit("test_result", { file, test: [selectedName], outcome: failed ? "failed" : "passed",
+        assertion_failure: failed && assertion,
+        error: failed ? facts(error, assertion) : null });
     }
   } });
 }

@@ -111,7 +111,7 @@ function renderChildrenBrief(record) {
   ) => formatChildEntry(child));
 }
 
-function renderSlicesBrief(record, { sliceId = null } = {}) {
+function renderSlicesBrief(record, { sliceId = null, scopePresentation = null } = {}) {
   const slices = Array.isArray(record.slices) ? record.slices : [];
   if (sliceId) {
     const selected = slices.find((slice) => String(slice.id) === String(sliceId));
@@ -138,12 +138,14 @@ function renderSlicesBrief(record, { sliceId = null } = {}) {
         ["status", escapeInlineCode(selected.status)],
         ["dispatch unit", escapeInlineCode(`${record.id}#${selected.id}`)]
       ]),
-      "",
-      renderListSection("Slice Docs", mergeReadScopeRefs(selected), escapeInlineCode),
-      "",
-      renderListSection("Slice Repo Paths", stringList(selected.repo_paths), escapeInlineCode),
-      "",
-      renderListSection("Slice Write Scope", stringList(selected.write_scope), escapeInlineCode),
+      ...(scopePresentation ? [] : [
+        "",
+        renderListSection("Slice Docs", mergeReadScopeRefs(selected), escapeInlineCode),
+        "",
+        renderListSection("Slice Repo Paths", stringList(selected.repo_paths), escapeInlineCode),
+        "",
+        renderListSection("Slice Write Scope", stringList(selected.write_scope), escapeInlineCode)
+      ]),
       "",
       renderListSection("Slice Dependencies", stringList(selected.depends_on), escapeInlineCode),
       "",
@@ -281,12 +283,16 @@ export function createProjectionCompactionLists(record, kind, options = {}) {
       compactedFields: [
         "slices[selected]",
         "escalations[selected_slice]",
-        "docs[inherited_when_slice_empty]",
-        "repo_paths[inherited_when_slice_empty]",
-        "write_scope[inherited_when_slice_empty]",
-        "depends_on[inherited_when_slice_empty]",
-        "acceptance.criteria[inherited_when_slice_empty]",
-        "acceptance.validation[inherited_when_slice_empty]"
+        ...(options.scopePresentation
+          ? ["scope[presented_with_explicit_provenance]"]
+          : [
+              "read_scope[selected_slice]",
+              "repo_paths[selected_slice]",
+              "write_scope[selected_slice]"
+            ]),
+        "depends_on[selected_slice]",
+        "acceptance.criteria[selected_slice]",
+        "acceptance.validation[selected_slice]"
       ]
     };
   }
@@ -344,38 +350,22 @@ function renderSelectedSliceEscalations(record, sliceId) {
   return [renderSectionHeading("Escalations"), "", `- ${note}`].join("\n");
 }
 
-function renderInheritedParentContext(record, slice) {
-  const sections = [];
-  const inheritList = (sliceValue, parentValue, title, formatter = escapeInlineCode) => {
-    if (stringList(sliceValue).length === 0 && stringList(parentValue).length > 0) {
-      sections.push(
-        "",
-        renderListSection(`Inherited Parent ${title}`, stringList(parentValue), formatter)
-      );
-    }
-  };
-
-  inheritList(mergeReadScopeRefs(slice), mergeReadScopeRefs(record), "Canonical Docs");
-  inheritList(slice.repo_paths, record.repo_paths, "Repo Paths");
-  inheritList(slice.write_scope, record.write_scope, "Write Scope");
-  inheritList(slice.depends_on, record.depends_on, "Dependencies");
-  inheritList(
-    slice.acceptance?.criteria,
-    record.acceptance?.criteria,
-    "Acceptance Criteria",
-    (entry) => String(entry)
-  );
-  const sliceValidation = projectedValidation(slice);
-  const parentValidation = projectedValidation(record);
-  if (sliceValidation.length === 0 && parentValidation.length > 0) {
-    sections.push(
-      "",
-      renderListSection("Inherited Parent Validation", parentValidation,
-        renderWorkRecordValidationEntry)
-    );
-  }
-
-  return sections;
+function renderPresentedScope(scopePresentation) {
+  if (!scopePresentation) return [];
+  return [
+    "",
+    renderSectionHeading("Presented Scope"),
+    "",
+    renderKeyValueBulletList([
+      ["provenance", escapeInlineCode(scopePresentation.provenance)]
+    ]),
+    "",
+    renderListSection("Readable Paths", stringList(scopePresentation.readable), escapeInlineCode),
+    "",
+    renderListSection("Writable Paths", stringList(scopePresentation.writable), escapeInlineCode),
+    "",
+    renderListSection("Scope Exclusions", stringList(scopePresentation.exclusions), escapeInlineCode)
+  ];
 }
 
 function renderEntryMaterial(entryMaterial) {
@@ -387,7 +377,13 @@ function renderEntryMaterial(entryMaterial) {
   return lines;
 }
 
-function buildSelectedSliceBriefResult(record, metadata, slice, entryMaterial = null) {
+function buildSelectedSliceBriefResult(
+  record,
+  metadata,
+  slice,
+  entryMaterial = null,
+  scopePresentation = null
+) {
   const dispatchUnit = `${record.id}#${slice.id}`;
   const lines = [
     `# Agent Brief: ${record.title} — slice ${escapeInlineCode(slice.id)}`,
@@ -399,8 +395,8 @@ function buildSelectedSliceBriefResult(record, metadata, slice, entryMaterial = 
     "",
     renderRecordIdentity(record),
     "",
-    renderSlicesBrief(record, { sliceId: slice.id }),
-    ...renderInheritedParentContext(record, slice),
+    renderSlicesBrief(record, { sliceId: slice.id, scopePresentation }),
+    ...renderPresentedScope(scopePresentation),
     ...renderEntryMaterial(entryMaterial),
     "",
     renderSelectedSliceEscalations(record, slice.id),
@@ -425,7 +421,20 @@ export function buildBriefProjectionResult(record, metadata, options = {}) {
   const selectedSlice = findSelectedSlice(record, sliceId);
   if (sliceId && selectedSlice) {
     return buildSelectedSliceBriefResult(record, metadata, selectedSlice,
-      options.entryMaterial ?? null);
+      options.entryMaterial ?? null, options.scopePresentation ?? null);
+  }
+  if (sliceId) {
+    return {
+      valid: false,
+      diagnostics: [{
+        code: "selected_slice_not_found",
+        severity: "error",
+        path: "sliceId",
+        message: `selected slice ${sliceId} is absent from ${record.id}`
+      }],
+      projection: null,
+      brief: null
+    };
   }
 
   const lines = [

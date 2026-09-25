@@ -18,7 +18,7 @@ function forgeRefusal({ code, decidingFacts, observedFacts, carried = null }) {
     carried
   });
 }
-const description = "Publish the exact reviewed terminal candidate through the host forge. Server derives refs and PR; retries recover idempotently. Reviews are advisory; CCE owns policy. Cold recovery requires an authenticated current candidate. Orchestrator/operator only.";
+const description = "Hand off the exact terminal candidate to the configured destination: local, Git delivery, or hosted branch and PR. Server derives refs; retries recover idempotently; never merges. Reviews are advisory; CCE owns policy. Cold recovery requires an authenticated current candidate. Orchestrator/operator only.";
 export function registerForgeHandoffRoute(ctx) {
   const { registerTool, workspaceRepos, z, jsonContent, resolveWorkspaceRepo, invokeWkForgeHandoffAdapter } = ctx;
   registerTool(WK_FORGE_HANDOFF_TOOL_NAME, {

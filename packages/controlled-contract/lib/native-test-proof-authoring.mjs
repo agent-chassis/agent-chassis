@@ -84,6 +84,8 @@ const falsifierMechanisms = new Map(TEST_PROOF_PROVIDER_AUTHORING_FACTS.map(({ f
   [falsifier.mechanism, falsifier]));
 
 export const CASE_VERIFICATION_ASSOCIATION_FIELD = 'obligations[].case.verification_id';
+
+export const CASE_COMPONENT_FIELD = 'obligations[].case.component';
 export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
   schema_version: 'controlled-contract-native-case-authoring-guidance.v1',
   purpose: 'Author case.target and case.falsification for an obligation verified by test_execution: ' +
@@ -112,7 +114,34 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
       'which validation reports as the unfinished content of that case.',
     identities: 'The upsert guidance member required_object_shapes.requirement_rebinding.complete_case_population ' +
       'states which query output carries each requirement verification_claim_ids and each case verification_id. ' +
-      'Read the identities there; this member states only which combination of them is eligible.'
+      'Read the identities there; this member states only which combination of them is eligible.',
+
+    cardinality: 'One verification identity belongs to at most one case_id. Several obligations may use one ' +
+      'case by naming its case_id; a different case_id naming a verification another case already owns is ' +
+      'refused, and nothing is saved.',
+    additional_verification: 'A genuinely distinct test of the same requirement needs its own verification. ' +
+      'Resubmit that requirement in contract_requirements.requirements with unchanged nature, modality, subject ' +
+      'and behavior (query contract_inputs.requirements[].meaning, whose select referents are accepted as ' +
+      'input), a verification that differs in verifier, observes or fails_when, and no replace_claim_id. The ' +
+      'requirement keeps its claim_id; the existing verification, its case and its links are unchanged; ' +
+      'requirement_bindings[].verification_claim_id returns the added verification. Link that identity beside ' +
+      'the requirement claim and name it in the new case verification_id. Identical meaning resubmitted ' +
+      'returns the same identities. Reuse a saved case only when the use means that same case and test.'
+  },
+
+  component: {
+    field: CASE_COMPONENT_FIELD,
+    forms: '{reference_id} selects a saved reference; {type_term, identity} names one by value and reuses a ' +
+      'saved reference with that exact type_term and identity.',
+    role_constraint: "The selected proof's component parameter refines the accepted type_terms, identity kinds " +
+      'and cardinality. Read them with query {obligation_id, parameter_detail: true}: parameter_contract ' +
+      '.parameters[name=component].refinements. A mismatch is refused with ' +
+      'obligation_coverage_prospective_incompatible, whose cause names the role and actual_references.',
+    identity_uniqueness: 'One identity names one referent and has one type_term across the contract. A ' +
+      '{type_term, identity} whose identity is saved under another type_term is refused ' +
+      '(duplicate_reference_identity) with the saved and requested reference. Decide the single type of that ' +
+      'referent where it is authored; do not rename it through another identity kind or term to pass.',
+    identities: 'Query contract_inputs.references lists each saved reference_id, type_term and identity.'
   },
 
   support_states: {
@@ -128,7 +157,7 @@ export const NATIVE_TEST_CASE_AUTHORING_GUIDANCE = deepFreezeGuidance({
   target_shape_limits: 'A mechanism mutates only the shape its target_constraint states, and a listed family is no assurance that the code under test has that shape. Author the case for the behavior the obligation requires: when no accepted shape exists, author the case without a falsifier and keep the obligation required. Do not add, export or reshape a production function so that it fits the mutation.',
   falsification_support: {
     provider: 'the case declares a falsifier: author strategy and its mechanism fields',
-    registry_unsupported: 'the case declares no falsifier: author support alone, declare no falsifier, and expect workspace_verify_proof to run the selected test and report the absent falsification as a capability limitation. It is not a satisfied falsification and the obligation stays unmet on that axis'
+    registry_unsupported: 'the case declares no falsifier: author support alone, declare no falsifier, and expect workspace_verify_proof to run the selected test and report the absent falsification as a capability limitation. It is not a detection and not counterevidence: a passing selected test whose other required checks hold is proven with that limitation, and nothing is retried, waived or installed for it'
   },
   falsification: Object.fromEntries([...falsifierMechanisms].map(([mechanism, falsifier]) => [mechanism, {
     strategies: Object.fromEntries(falsifier.strategies.map(strategy =>

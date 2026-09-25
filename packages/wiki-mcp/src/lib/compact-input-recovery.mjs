@@ -1,5 +1,6 @@
 
 
+import { structuredToolResult } from "./mcp-response.mjs";
 import {
   resolveToolInputGuidancePath,
   TOOL_INPUT_GUIDANCE_CODES,
@@ -176,9 +177,5 @@ export function projectCompactInputRecovery({
       }
     }
   };
-  return {
-    ...result,
-    structuredContent: augmented,
-    content: [{ type: "text", text: JSON.stringify(augmented) }]
-  };
+  return { ...result, ...structuredToolResult(augmented, { isError: true }) };
 }

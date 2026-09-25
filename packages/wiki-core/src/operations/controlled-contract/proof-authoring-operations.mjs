@@ -21,6 +21,11 @@ import { attributeControlledContractRequirementDiagnostics } from
   './contract-requirement-authoring.mjs';
 import { coverageSelectorRecovery, coverageUnitArguments, proofCatalogDiscoveryRecovery } from './coverage-recovery-guidance.mjs';
 import { CONTROLLED_ACCEPTANCE_OPT_OUT_PROVENANCE } from '../../lib/work-record-proof-posture.mjs';
+import { inspectControlledContractDesignWorkbenchOperation } from
+  './design-workbench-operations.mjs';
+import { classifyControlledContractTerminalGaps,
+  projectControlledContractTerminalGapDetails } from
+  './terminal-gap-classification.mjs';
 
 const PAGE_SIZE = 25;
 const unitAddress = value => value.selectedUnit === null ? value.wkId : `${value.wkId}#${value.selectedUnit}`;
@@ -428,7 +433,7 @@ function inventoryStatement(statement) {
 
 function inventoryRow(row) {
   return { obligation_id: row.obligation_id, ...inventoryStatement(row.statement),
-    gap_kind: row.gap?.gap_kind ?? null, proof_name: row.selection?.proof_name ?? null,
+    proof_name: row.selection?.proof_name ?? null,
     case_count: (row.cases ?? []).length };
 }
 
@@ -436,7 +441,7 @@ function inventoryDetailRead(resolved) {
   return { tool: 'workspace_controlled_contract_obligation_coverage_query',
     incomplete_arguments: coverageUnitArguments(resolved),
     required_argument: 'obligation_id', accepted_values: 'page.items[].obligation_id',
-    returns: 'the complete saved obligation with its mechanism, gap reason, pinned selection and ' +
+    returns: 'the complete saved obligation with its mechanism, pinned selection and ' +
       'linked cases, plus the contract requirements and references associated with it',
     complete_population_read: 'Omit obligation_id and inventory to read every obligation and the ' +
       'complete requirement meaning in one response.',
@@ -466,13 +471,15 @@ function validationContractInputsSummary(resolved, contractInputs) {
 }
 function validationFacts(resolved, result, grouped) {
   const rows = result.rows ?? [];
-  const stageCount = (stage, status) => rows.filter(row =>
+  const assessedRows = rows.filter(row => row.selected_proof_assessment !== null &&
+    row.selected_proof_assessment !== undefined);
+  const stageCount = (stage, status) => assessedRows.filter(row =>
     row.selected_proof_assessment?.stages?.[stage]?.status === status).length;
-  const selectedRoutes = [...new Set(rows.map(row =>
-    row.selected_proof_assessment?.execution_family ?? 'unresolved'))].sort()
+  const selectedRoutes = [...new Set(assessedRows.map(row =>
+    row.selected_proof_assessment.execution_family))].sort()
     .map(route => {
-      const selected = rows.filter(row =>
-        (row.selected_proof_assessment?.execution_family ?? 'unresolved') === route);
+      const selected = assessedRows.filter(row =>
+        row.selected_proof_assessment.execution_family === route);
       const prerequisite = name => Object.fromEntries([...new Set(selected.map(row =>
         row.selected_proof_assessment?.[name]?.status ?? 'unresolved'))].sort().map(status =>
         [status, selected.filter(row =>
@@ -487,28 +494,63 @@ function validationFacts(resolved, result, grouped) {
         prevents_route_count: selected.filter(row =>
           row.selected_proof_assessment?.prevents_selected_route !== false).length };
     });
-  const dispatchCall = result.status === 'valid' ? {
+  const dispatchCall = {
     tool: 'workspace_validate_dispatch',
     arguments: { unit: unitAddress(resolved) }
-  } : null;
+  };
+  const authoredValid = rows.filter(row => row.status === 'valid').length;
+  const authoredCounts = { obligations: result.counts.obligations,
+    valid: authoredValid, invalid: rows.length - authoredValid,
+    explicit_gaps: result.counts.explicit_gaps,
+    unselected: result.counts.unselected };
+  const routeDiagnostics = assessedRows.flatMap(row => row.diagnostics).filter(diagnostic =>
+    diagnostic.problem?.route_assessment !== undefined);
+  const routeEffectCount = effect => routeDiagnostics.filter(diagnostic =>
+    diagnostic.problem.route_assessment.effect === effect).length;
+  const authoredBlockingRows = rows.filter(row => row.authoring_status !== 'complete');
   return {
-    status: result.status,
-    saved_source: { status: 'source_present', obligation_count: resolved.rows.length,
-      content_digest: resolved.source.content_digest },
-    counts: result.counts,
+    status: rows.length > 0 && authoredValid === rows.length ? 'valid' : 'invalid',
+    saved_source: resolved.source === null
+      ? { status: 'source_absent', obligation_count: 0, content_digest: null }
+      : { status: 'source_present', obligation_count: resolved.rows.length,
+        content_digest: resolved.source.content_digest },
+    counts: authoredCounts,
     diagnostic_counts: grouped.counts,
     diagnostic_categories: grouped.categories,
+    diagnostic_scope: 'combined_observations_not_validity_or_blocker_denominator',
+    blocker_counts: {
+      authored_meaning: {
+        obligation_count: authoredBlockingRows.length,
+        diagnostic_occurrence_count: authoredBlockingRows.reduce((total, row) =>
+          total + (row.authoring_diagnostic_codes?.length ?? 0), 0)
+      },
+      selected_routes: {
+        obligation_count: assessedRows.filter(row =>
+          row.selected_proof_assessment?.prevents_selected_route === true).length,
+        blocking_diagnostic_occurrence_count: routeEffectCount('blocking'),
+        nonblocking_diagnostic_occurrence_count: routeEffectCount('nonblocking'),
+        unresolved_diagnostic_occurrence_count: routeEffectCount('unresolved')
+      }
+    },
     source_digest: result.source_digest,
     context_digest: result.context_digest,
-    input_status: result.rows.every(row => row.input_status === 'valid') ? 'valid' : 'invalid',
-    construction_status: result.rows.every(row => row.construction_status === 'complete') ? 'complete' : 'unresolved',
-    construction_status_scope: 'generic_definition_metadata',
+    input_status: rows.every(row => row.authoring_status === 'complete') ? 'valid' : 'invalid',
     selected_route_assessment: {
       schema_version: 'proof-authoring-selected-route-summary.v1',
-      status: result.status === 'valid'
-        ? 'clear' : grouped.counts.unresolved_occurrences > 0 ? 'unresolved' : 'blocked',
-      prevents_route_count: rows.filter(row =>
-        row.selected_proof_assessment?.prevents_selected_route !== false).length,
+      status: assessedRows.length === 0 ? 'not_assessed' : assessedRows.every(row =>
+        row.selected_proof_assessment.prevents_selected_route === false)
+        ? 'clear' : routeEffectCount('unresolved') > 0 ? 'unresolved' : 'blocked',
+      assessed_route_count: assessedRows.length,
+      no_selected_route_count: rows.length - assessedRows.length,
+      prevents_route_count: assessedRows.filter(row =>
+        row.selected_proof_assessment.prevents_selected_route === true).length,
+      executable_map: {
+        status: result.status,
+        counts: result.counts,
+        construction_status: rows.length > 0 && rows.every(row => row.construction_status === 'complete')
+          ? 'complete' : 'unresolved',
+        construction_status_scope: 'generic_definition_metadata'
+      },
       routes: selectedRoutes,
       stages: {
         authored_inputs: { complete: stageCount('authored_inputs', 'complete'),
@@ -521,9 +563,10 @@ function validationFacts(resolved, result, grouped) {
           credit_granted: 0 }
       },
       diagnostic_effects: {
-        blocking: grouped.counts.blocking_occurrences,
-        nonblocking: grouped.counts.nonblocking_occurrences,
-        unresolved: grouped.counts.unresolved_occurrences
+        scope: 'selected_routes_only',
+        blocking: routeEffectCount('blocking'),
+        nonblocking: routeEffectCount('nonblocking'),
+        unresolved: routeEffectCount('unresolved')
       },
       execution_assessment: {
         status: 'not_started',
@@ -535,13 +578,100 @@ function validationFacts(resolved, result, grouped) {
         status: 'not_assessed',
         owner: 'workspace_validate_dispatch',
         grants: [],
-        reason: dispatchCall === null
-          ? 'Proof validation does not assess dispatch. Resolve the selected-route blockers before requesting the independent workspace_validate_dispatch structural assessment.'
-          : 'Proof validation does not assess or grant dispatch; workspace_validate_dispatch is the independent structural assessment and remains optional until dispatch is requested.',
+        reason: 'Proof validation does not assess or grant dispatch; workspace_validate_dispatch is the independent structural assessment and remains available regardless of executable-map readiness.',
         supported_next_call: dispatchCall
       }
     }
   };
+}
+
+const INDEPENDENT_OWNER_PASSTHROUGH_CODES = new Set([
+  'controlled_acceptance_source_not_current',
+  'controlled_acceptance_proof_posture_invalid',
+  'obligation_coverage_source_not_found'
+]);
+
+function independentOwnerRefusal(error) {
+  const code = error?.code;
+  return typeof code === 'string' && (
+    INDEPENDENT_OWNER_PASSTHROUGH_CODES.has(code) ||
+    code.startsWith('acceptance_coverage_canonical_source_') ||
+    code.startsWith('controlled_contract_carrier_') ||
+    code.startsWith('controlled_contract_generation_')
+  );
+}
+
+function independentOwnerFailure(error, responsibleOwner) {
+
+  if (independentOwnerRefusal(error)) return null;
+  const code = typeof error?.code === 'string'
+    ? error.code : 'independent_owner_failure';
+  const originalDetails = error?.details !== null &&
+      typeof error?.details === 'object'
+    ? structuredClone(error.details) : null;
+  return Object.freeze({
+    code,
+    ownership: 'system',
+    responsible_owner: responsibleOwner,
+    message: typeof error?.message === 'string'
+      ? error.message : 'An independent validation owner failed',
+    details: originalDetails === null ? null : Object.freeze(originalDetails),
+    cause: Object.freeze({
+      code,
+      class: typeof error?.name === 'string' ? error.name : null,
+      details: originalDetails === null ? null : Object.freeze(structuredClone(originalDetails))
+    })
+  });
+}
+
+function semanticValidationResult(resolved, semantic, context, failure) {
+  const sourceDigest = resolved.source.content_digest;
+  const contextDigest = controlledContractContentDigest({
+    contract_nodes: context.contract_nodes ?? [],
+    selected_unit: resolved.selectedUnit
+  });
+  const rows = semantic.rows.map((row) => {
+    const sourceRow = resolved.rows.find(({ obligation_id: id }) => id === row.obligation_id);
+    return {
+      obligation_id: row.obligation_id,
+      status: row.status === 'complete' ? 'valid' : 'invalid',
+      semantic_status: row.status === 'complete' ? 'valid' : 'invalid',
+      semantic_diagnostic_codes: row.diagnostics.map(({ code }) => code),
+      authoring_status: row.status,
+      authoring_diagnostic_codes: row.diagnostics.map(({ code }) => code),
+      disposition: sourceRow?.gap ? 'explicit_gap'
+        : sourceRow?.selection?.proof_name ? 'selected' : 'unselected',
+      input_status: row.status,
+      construction_status: 'unresolved',
+      definition: null,
+      resolved_identity: null,
+      selected_proof_assessment: null,
+      diagnostics: structuredClone(row.diagnostics)
+    };
+  });
+  return Object.freeze({
+    status: 'invalid',
+    semantic_status: semantic.status === 'complete' ? 'valid' : 'invalid',
+    source_digest: sourceDigest,
+    context_digest: contextDigest,
+    identity_digest: controlledContractContentDigest({ sourceDigest, contextDigest,
+      semantic, failure }),
+    definition_identities: [],
+    diagnostics: structuredClone(semantic.diagnostics),
+    rows,
+    dependencies: [],
+    mapping: null,
+    obligation_facts: [],
+    counts: {
+      obligations: rows.length,
+      resolved_selections: 0,
+      valid: 0,
+      invalid: rows.length,
+      explicit_gaps: rows.filter(({ disposition }) => disposition === 'explicit_gap').length,
+      unselected: rows.filter(({ disposition }) => disposition === 'unselected').length,
+      dependency_nodes: 0
+    }
+  });
 }
 export async function queryControlledContractObligationCoverageOperation(input) {
   return proofAuthoringOperation(async () => {
@@ -606,7 +736,7 @@ export async function queryControlledContractObligationCoverageOperation(input) 
         totals: { obligations: resolved.rows.length, explicit_gaps: resolved.rows.filter(row => row.gap).length } } });
   });
 }
-export async function validateProofOperation(input) {
+export async function validateProofOperation(input, deps = Object.freeze({})) {
   return proofAuthoringOperation(async () => {
     assertControlledContractOperationInput(input, ['repoRoot', 'wkId', 'focus', 'selectedUnit',
       'obligationId', 'diagnosticGroupId', 'cursor']);
@@ -642,6 +772,13 @@ export async function validateProofOperation(input) {
       });
       const identity = controlledContractContentDigest({ contract_inputs: contractInputs,
         diagnostics });
+      const selectedRouteAssessment = validationFacts(resolved, {
+        rows: [], status: 'invalid', source_digest: null, context_digest: identity,
+        counts: { obligations: 0, resolved_selections: 0, valid: 0, invalid: 0,
+          explicit_gaps: 0, unselected: 0, dependency_nodes: 0 }
+      }, { counts: { total: diagnostics.length },
+        categories: Object.freeze([...new Set(diagnostics.map(row => row.category))]) })
+        .selected_route_assessment;
       return pageResult({ resolved, selector: { contract_inputs: true },
         cursor: input.cursor, identity, items: diagnostics,
         tool: 'workspace_validate_proof', extra: {
@@ -652,6 +789,7 @@ export async function validateProofOperation(input) {
           source_digest: null, context_digest: identity,
           input_status: diagnostics.length === 0 ? 'valid' : 'invalid',
           construction_status: 'unresolved',
+          selected_route_assessment: selectedRouteAssessment,
           contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs)
         } });
     }
@@ -664,8 +802,22 @@ export async function validateProofOperation(input) {
     const obligationId = selector.obligation_id;
     if (obligationId) findObligation(resolved, obligationId);
     const context = await resolveProofAuthoringContext(resolved, { obligationId });
-    const { resolveProofAuthoring } = await import('@agent-chassis/controlled-contract/proof-authoring');
-    const result = await resolveProofAuthoring(resolved.source.content, context);
+    const { assessProofAuthoringSemantics } =
+      await import('@agent-chassis/controlled-contract/proof-contract');
+    const semanticAssessment = assessProofAuthoringSemantics(resolved.source.content, context);
+    let executableMapFailure = null;
+    let result;
+    try {
+      const { resolveProofAuthoring: defaultResolveProofAuthoring } =
+        await import('@agent-chassis/controlled-contract/proof-authoring');
+      const resolveProofAuthoring = deps.resolveProofAuthoring ?? defaultResolveProofAuthoring;
+      result = await resolveProofAuthoring(resolved.source.content, context);
+    } catch (error) {
+      executableMapFailure = independentOwnerFailure(error, 'proof-authoring-executable-map');
+      if (executableMapFailure === null) throw error;
+      result = semanticValidationResult(resolved, semanticAssessment, context,
+        executableMapFailure);
+    }
     const grouped = pkg.groupProofAuthoringDiagnostics(result);
     if (obligationId) {
       const diagnostics = [...result.diagnostics, ...result.rows.flatMap(row => row.diagnostics.map(
@@ -673,13 +825,12 @@ export async function validateProofOperation(input) {
       return pageResult({ resolved, selector, cursor: input.cursor, identity: result.identity_digest,
         items: diagnostics, tool: 'workspace_validate_proof', extra: {
           ...validationFacts(resolved, result, grouped),
+          independent_owner_failures: [executableMapFailure].filter(Boolean),
           definition_identities: result.definition_identities,
           rows: result.rows.map(({ diagnostics: ignored, ...row }) => row),
           contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs)
         } });
     }
-    const identity = controlledContractContentDigest({ result_identity: result.identity_digest,
-      projection_version: grouped.version });
     const diagnosticProjection = projectProofAuthoringDiagnosticGroups({
       grouped,
       resultIdentity: result.identity_digest,
@@ -687,25 +838,106 @@ export async function validateProofOperation(input) {
       focus: resolved.focus,
       selectedUnit: resolved.selectedUnit
     });
-    const groups = diagnosticProjection.groups;
     try {
+      const inspectDesignWorkbench = deps.inspectControlledContractDesignWorkbench ??
+        inspectControlledContractDesignWorkbenchOperation;
+      let workbenchFailure = null;
+      let workbench = null;
+      try {
+        workbench = await inspectDesignWorkbench({
+          repoRoot: input.repoRoot, wkId: input.wkId, focus: input.focus ?? null,
+          selectedUnit: input.selectedUnit ?? null
+        });
+      } catch (error) {
+        workbenchFailure = independentOwnerFailure(error,
+          'controlled-contract-design-workbench');
+        if (workbenchFailure === null) throw error;
+      }
+      const semanticSummary = workbench === null ? null :
+        classifyControlledContractTerminalGaps({ workbench });
+      const semanticDetails = workbench === null ? null :
+        projectControlledContractTerminalGapDetails({ workbench });
+      const semanticExtra = { semantic_causes: {
+        schema_version: semanticDetails?.schema_version ??
+          'controlled-contract-semantic-cause-detail.v1',
+        ...(workbenchFailure === null ? {} : { status: 'system_owner_failure' }),
+        total_occurrence_count: semanticDetails?.total_occurrence_count ?? 0,
+        observation_count: semanticDetails?.observation_count ?? 0,
+        group_count: semanticDetails?.group_count ?? 0,
+        logical_cause_count: semanticDetails?.logical_cause_count ?? 0,
+        recovery_status_counts: semanticDetails?.recovery_status_counts ?? {
+          authored_correction_available: 0,
+          system_owner_failure: workbenchFailure === null ? 0 : 1,
+          inspection_only: 0
+        },
+        preview_group_count: semanticSummary?.gap_groups.length ?? 0,
+        preview_groups_omitted: semanticSummary?.gap_groups_omitted ?? 0,
+        preview_groups: semanticSummary?.gap_groups ?? [],
+        detail_call: semanticSummary?.detail_call ?? null
+      } };
+      const semanticGroups = (semanticDetails?.groups ?? []).map(
+        ({ occurrences: _occurrences, ...group }) => group);
+      const groups = [...diagnosticProjection.groups, ...semanticGroups];
+      const independentOwnerFailures = [executableMapFailure, workbenchFailure].filter(Boolean);
+      const identity = controlledContractContentDigest({
+        result_identity: result.identity_digest,
+        projection_version: grouped.version,
+        semantic_source: semanticDetails?.source ?? null,
+        semantic_groups: semanticGroups.map(({ semantic_cause_id: id,
+          occurrence_count: count }) => ({ id, count })),
+        independent_owner_failures: independentOwnerFailures
+      });
       decodeObligationCoverageOperationCursor(input.cursor, identity);
       if (selector.diagnostic_group_id) {
-        const index = groups.findIndex(group => group.diagnostic_group_id === selector.diagnostic_group_id);
-        if (index === -1) throw new ControlledContractToolError(
-          'obligation_coverage_diagnostic_group_not_found',
-          'The diagnostic group is unknown or belongs to a different resolved snapshot', {
-            changed: false, diagnostic_group_id: selector.diagnostic_group_id,
-            next_calls: [validationCall(resolved)]
-          });
+        const proofIndex = diagnosticProjection.groups.findIndex(group =>
+          group.diagnostic_group_id === selector.diagnostic_group_id);
+        const semanticGroup = semanticDetails?.groups.find(({ semantic_cause_id: id }) =>
+          id === selector.diagnostic_group_id);
+        if (proofIndex === -1 && semanticGroup === undefined) {
+          if (workbenchFailure !== null) {
+            const authored = validationFacts(resolved, result, grouped);
+            throw new ControlledContractToolError(
+              'obligation_coverage_semantic_diagnostic_detail_unavailable',
+              'Semantic diagnostic detail is unavailable because its system owner failed', {
+                changed: false,
+                diagnostic_group_id: selector.diagnostic_group_id,
+                ownership: 'system',
+                responsible_owner: workbenchFailure.responsible_owner,
+                cause: workbenchFailure.cause,
+                independent_owner_failure: workbenchFailure,
+                authored_assessment: {
+                  status: authored.status,
+                  input_status: authored.input_status,
+                  counts: authored.counts,
+                  source_digest: authored.source_digest,
+                  context_digest: authored.context_digest
+                },
+                next_calls: [validationCall(resolved)]
+              });
+          }
+          throw new ControlledContractToolError(
+            'obligation_coverage_diagnostic_group_not_found',
+            'The diagnostic group is unknown or belongs to a different resolved snapshot', {
+              changed: false, diagnostic_group_id: selector.diagnostic_group_id,
+              next_calls: [validationCall(resolved)]
+            });
+        }
         return pageResult({ resolved, selector, cursor: input.cursor, identity,
-          items: grouped.groups[index].occurrences, tool: 'workspace_validate_proof',
-          extra: { ...validationFacts(resolved, result, grouped), group: groups[index],
+          items: proofIndex === -1 ? semanticGroup.occurrences
+            : grouped.groups[proofIndex].occurrences,
+          tool: 'workspace_validate_proof',
+          extra: { ...validationFacts(resolved, result, grouped), ...semanticExtra,
+            independent_owner_failures: independentOwnerFailures,
+            group: proofIndex === -1
+              ? semanticGroups.find(({ semantic_cause_id: id }) =>
+                id === selector.diagnostic_group_id)
+              : diagnosticProjection.groups[proofIndex],
             contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs) } });
       }
       return pageResult({ resolved, selector, cursor: input.cursor, identity,
         items: groups, tool: 'workspace_validate_proof',
-        extra: { ...validationFacts(resolved, result, grouped),
+        extra: { ...validationFacts(resolved, result, grouped), ...semanticExtra,
+          independent_owner_failures: independentOwnerFailures,
           contract_inputs_summary: validationContractInputsSummary(resolved, contractInputs) } });
     } catch (error) {
       if (error?.code === 'obligation_coverage_cursor_stale') error.details = {

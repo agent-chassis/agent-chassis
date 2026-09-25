@@ -2,9 +2,11 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, openSync, readFileSync, closeSync, fstatSync, readSync,
+import { mkdirSync, openSync, readFileSync, closeSync, fstatSync, readSync,
   symlinkSync, writeFileSync, writeSync } from "node:fs";
 import path from "node:path";
+
+import { copySelectedSource } from "./source-copy.mjs";
 
 const PLAN_SCHEMA_VERSION = "workspace-agent-runner-attempt-plan.v2";
 const STATUS_SCHEMA_VERSION = "workspace-agent-runner-attempt-status.v2";
@@ -59,10 +61,8 @@ try {
   }
   for (const copy of plan.copies ?? []) {
 
-    const excluded = new Set(copy.exclude ?? []);
-    cpSync(copy.from, privatePath(copy.to, "copy destination", privateRoot), { recursive: true,
-      verbatimSymlinks: true, errorOnExist: false,
-      filter: (source) => !excluded.has(path.relative(copy.from, source).split(path.sep).join("/")) });
+    copySelectedSource({ from: copy.from, to: privatePath(copy.to, "copy destination", privateRoot),
+      entries: copy.entries });
   }
   for (const link of plan.links ?? []) {
     symlinkSync(link.target, privatePath(link.path, "link", privateRoot));

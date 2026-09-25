@@ -17,6 +17,10 @@ import {
 } from "./launch-isolation-errors.mjs";
 import { resolveBasenameOnPath } from "./launch-isolation-executable.mjs";
 import {
+  prependPathEntry,
+  resolvePackageAssetExecutable
+} from "./launch-isolation-package-asset.mjs";
+import {
   CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
 
@@ -37,28 +41,14 @@ export const GIT_STATUS_WRAPPER_ASSET_DIR = fileURLToPath(
 const GIT_EXECUTABLE_NAME = "git";
 
 function assetExecutable() {
-  const executable = path.join(GIT_STATUS_WRAPPER_ASSET_DIR, GIT_EXECUTABLE_NAME);
-  let dirStat;
-  let fileStat;
-  try {
-    dirStat = statSync(GIT_STATUS_WRAPPER_ASSET_DIR);
-    fileStat = statSync(executable);
-    accessSync(executable, fsConstants.X_OK);
-  } catch (error) {
-    fail(
+  return resolvePackageAssetExecutable(GIT_STATUS_WRAPPER_ASSET_DIR, GIT_EXECUTABLE_NAME,
+    ({ asset, errno, reason }) => fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.GIT_STATUS_WRAPPER_ASSET_UNAVAILABLE,
-      `launcher Git status wrapper asset is unavailable: ${executable}`,
-      { asset: executable, errno: error?.code ?? null }
-    );
-  }
-  if (!dirStat.isDirectory() || !fileStat.isFile()) {
-    fail(
-      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.GIT_STATUS_WRAPPER_ASSET_UNAVAILABLE,
-      `launcher Git status wrapper asset is not a regular executable file: ${executable}`,
-      { asset: executable }
-    );
-  }
-  return executable;
+      reason === "unavailable"
+        ? `launcher Git status wrapper asset is unavailable: ${asset}`
+        : `launcher Git status wrapper asset is not a regular executable file: ${asset}`,
+      reason === "unavailable" ? { asset, errno } : { asset }
+    ));
 }
 
 function resolveRealGit(pathEnv, systemRoots) {
@@ -90,12 +80,6 @@ function resolveRealGit(pathEnv, systemRoots) {
   return real;
 }
 
-function wrapperPath(pathEnv) {
-  const entries = pathEnv.split(path.delimiter);
-  if (entries[0] === GIT_STATUS_WRAPPER_MOUNT_DIR) return pathEnv;
-  return [GIT_STATUS_WRAPPER_MOUNT_DIR, ...entries].join(path.delimiter);
-}
-
 export function prepareGitStatusWrapperProjection({
   requested = false,
   repoReal,
@@ -123,7 +107,7 @@ export function prepareGitStatusWrapperProjection({
   const asset = assetExecutable();
   const wrapperEnv = {
     ...env,
-    PATH: wrapperPath(env.PATH),
+    PATH: prependPathEntry(env.PATH, GIT_STATUS_WRAPPER_MOUNT_DIR),
     [GIT_STATUS_WRAPPER_REAL_GIT_ENV_KEY]: realGit,
     [GIT_STATUS_WRAPPER_REPO_ENV_KEY]: repoReal,
     [GIT_STATUS_WRAPPER_PATHSPEC_ENV_KEY]: GIT_STATUS_WRAPPER_PATHSPEC

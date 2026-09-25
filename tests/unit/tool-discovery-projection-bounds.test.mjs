@@ -156,7 +156,7 @@ test("large catalogs enforce count and byte bounds independently", () => {
   );
 });
 
-function measureTwoChannelResultBytes(envelope) {
+function measureDoubleChargedResultBytes(envelope) {
   const json = JSON.stringify(envelope);
   return Buffer.byteLength(
     JSON.stringify({ content: [{ type: "text", text: json }], structuredContent: envelope }),
@@ -179,7 +179,7 @@ test("the complete-result ceiling bounds the list independently of the structure
   const dualBounded = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
 
   for (const envelope of [structuredOnly, dualBounded]) {
@@ -188,11 +188,11 @@ test("the complete-result ceiling bounds the list independently of the structure
     );
   }
   assert.ok(
-    measureTwoChannelResultBytes(structuredOnly) > TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES,
+    measureDoubleChargedResultBytes(structuredOnly) > TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES,
     "the fixture must be large enough that the structured bound alone is insufficient"
   );
   assert.ok(
-    measureTwoChannelResultBytes(dualBounded) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES
+    measureDoubleChargedResultBytes(dualBounded) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES
   );
   assert.ok(dualBounded.returned_count > 0);
   assert.ok(dualBounded.returned_count < structuredOnly.returned_count);
@@ -211,10 +211,10 @@ test("the complete-result ceiling bounds the list independently of the structure
   const raised = listToolDiscoveryTools(
     tools,
     { limit: 1_000_000 },
-    { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(raised.returned_count, dualBounded.returned_count);
-  assert.ok(measureTwoChannelResultBytes(raised) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
+  assert.ok(measureDoubleChargedResultBytes(raised) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
 
   assert.equal(structuredOnly.result_byte_limit, undefined);
 });
@@ -229,14 +229,14 @@ test("a larger synthetic catalog stays bounded at every count limit", () => {
     const bounded = listToolDiscoveryTools(
       tools,
       { limit },
-      { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+      { measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
     );
     const label = `limit=${limit}`;
     assert.ok(
       Buffer.byteLength(JSON.stringify(bounded, null, 2), "utf8") <= TOOL_DISCOVERY_LIST_MAX_BYTES,
       label
     );
-    assert.ok(measureTwoChannelResultBytes(bounded) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES, label);
+    assert.ok(measureDoubleChargedResultBytes(bounded) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES, label);
     assert.equal(bounded.total_count, tools.length, label);
     assert.equal(bounded.returned_count, bounded.tools.length, label);
     assert.equal(bounded.truncated_count, tools.length - bounded.returned_count, label);
@@ -280,7 +280,7 @@ test("oversized carried-over diagnostics are shed rather than crowding out the c
       totalCount: tools.length,
       limit: 20,
       resultField: "tools",
-      measureResultBytes: measureTwoChannelResultBytes,
+      measureResultBytes: measureDoubleChargedResultBytes,
       createNextCalls: listNextCalls
     }
   );
@@ -288,7 +288,7 @@ test("oversized carried-over diagnostics are shed rather than crowding out the c
   assert.equal(degraded.diagnostics_omitted, diagnostics.length);
   assert.ok(degraded.returned_count > 0, "the catalog scan still returns selectable rows");
   assert.equal(degraded.total_count, tools.length);
-  assert.ok(measureTwoChannelResultBytes(degraded) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
+  assert.ok(measureDoubleChargedResultBytes(degraded) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
   assert.ok(
     Buffer.byteLength(JSON.stringify(degraded, null, 2), "utf8") <= TOOL_DISCOVERY_LIST_MAX_BYTES
   );
@@ -308,7 +308,7 @@ test("WK-2172: following next_offset enumerates the complete catalog exactly onc
     page = listToolDiscoveryTools(
       tools,
       { limit: 10_000 },
-      { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+      { offset, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
     );
     pages += 1;
     const label = `offset=${offset}`;
@@ -317,7 +317,7 @@ test("WK-2172: following next_offset enumerates the complete catalog exactly onc
       Buffer.byteLength(JSON.stringify(page, null, 2), "utf8") <= TOOL_DISCOVERY_LIST_MAX_BYTES,
       label
     );
-    assert.ok(measureTwoChannelResultBytes(page) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES, label);
+    assert.ok(measureDoubleChargedResultBytes(page) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES, label);
     assert.equal(page.offset, offset, label);
     assert.equal(page.total_count, tools.length, label);
     assert.equal(page.returned_count, page.tools.length, label);
@@ -351,7 +351,7 @@ test("WK-2172: a page bounded by bytes rather than count resumes at the first ro
   const first = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
 
   assert.equal(first.count_truncated, false);
@@ -364,11 +364,11 @@ test("WK-2172: a page bounded by bytes rather than count resumes at the first ro
   const second = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { offset: first.next_offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { offset: first.next_offset, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(second.offset, first.next_offset);
   assert.ok(second.returned_count > 0);
-  assert.ok(measureTwoChannelResultBytes(second) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
+  assert.ok(measureDoubleChargedResultBytes(second) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES);
   assert.ok(
     Buffer.byteLength(JSON.stringify(second, null, 2), "utf8") <= TOOL_DISCOVERY_LIST_MAX_BYTES
   );
@@ -395,12 +395,12 @@ test("WK-2172: neither a caller limit nor an offset can buy rows past the byte c
   const bounded = listToolDiscoveryTools(
     tools,
     { limit: 10_000 },
-    { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { offset, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
   const raised = listToolDiscoveryTools(
     tools,
     { limit: 1_000_000 },
-    { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { offset, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(raised.returned_count, bounded.returned_count);
 
@@ -409,7 +409,7 @@ test("WK-2172: neither a caller limit nor an offset can buy rows past the byte c
       Buffer.byteLength(JSON.stringify(page, null, 2), "utf8") <= TOOL_DISCOVERY_LIST_MAX_BYTES,
       label
     );
-    assert.ok(measureTwoChannelResultBytes(page) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES, label);
+    assert.ok(measureDoubleChargedResultBytes(page) <= TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES, label);
     assert.equal(page.offset, offset, label);
     assert.equal(page.byte_truncated, true, label);
     assert.equal(page.total_count, tools.length, label);
@@ -427,7 +427,7 @@ test("WK-2172: neither a caller limit nor an offset can buy rows past the byte c
   const past = listToolDiscoveryTools(
     tools,
     { limit: 20 },
-    { offset: tools.length + 10, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls }
+    { offset: tools.length + 10, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls }
   );
   assert.equal(past.returned_count, 0);
   assert.equal(past.has_more, false);
@@ -523,7 +523,7 @@ test("WK-2603 list delivery preserves exact bounds and rows", () => {
   const prettyBytes = (value) => Buffer.byteLength(JSON.stringify(value, null, 2), "utf8");
 
   assert.throws(
-    () => listToolDiscoveryTools(tools, { limit: 10_000 }, { measureResultBytes: measureTwoChannelResultBytes }),
+    () => listToolDiscoveryTools(tools, { limit: 10_000 }, { measureResultBytes: measureDoubleChargedResultBytes }),
     /requires a createNextCalls\(nextOffset\) continuation producer/u
   );
   assert.throws(() => createBoundedToolDiscoveryListEnvelope({}, tools, {}), TypeError);
@@ -533,14 +533,14 @@ test("WK-2603 list delivery preserves exact bounds and rows", () => {
   for (let pages = 1; ; pages += 1) {
     const label = `offset=${offset}`;
     const page = listToolDiscoveryTools(tools, { limit: 10_000 },
-      { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls });
+      { offset, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls });
     const raised = listToolDiscoveryTools(tools, { limit: 1_000_000 },
-      { offset, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls });
+      { offset, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls });
     assert.equal(raised.returned_count, page.returned_count, `${label}: a larger limit relaxes neither ceiling`);
     assert.equal(page.byte_limit, 3840, label);
     assert.equal(page.result_byte_limit, 4096, label);
     assert.ok(prettyBytes(page) <= 3840, label);
-    assert.ok(measureTwoChannelResultBytes(page) <= 4096, label);
+    assert.ok(measureDoubleChargedResultBytes(page) <= 4096, label);
     assert.equal(page.total_count, tools.length, label);
     assert.equal(page.returned_count, page.tools.length, label);
     assert.equal(page.truncated_count, tools.length - (offset + page.returned_count), label);
@@ -563,10 +563,10 @@ test("WK-2603 list delivery preserves exact bounds and rows", () => {
   const payloadOnly = listToolDiscoveryTools(tools, { limit: 10_000 }, { createNextCalls: listNextCalls });
   assert.equal(payloadOnly.result_byte_limit, undefined);
   assert.ok(prettyBytes(payloadOnly) <= 3840);
-  assert.ok(measureTwoChannelResultBytes(payloadOnly) > 4096);
+  assert.ok(measureDoubleChargedResultBytes(payloadOnly) > 4096);
   const tightResult = listToolDiscoveryTools(tools, { limit: 10_000 },
-    { resultByteLimit: 2048, measureResultBytes: measureTwoChannelResultBytes, createNextCalls: listNextCalls });
-  assert.ok(measureTwoChannelResultBytes(tightResult) <= 2048);
+    { resultByteLimit: 2048, measureResultBytes: measureDoubleChargedResultBytes, createNextCalls: listNextCalls });
+  assert.ok(measureDoubleChargedResultBytes(tightResult) <= 2048);
   assert.ok(prettyBytes(tightResult) <= 3840);
   const tightPayload = listToolDiscoveryTools(tools, { limit: 10_000 },
     { byteLimit: 1024, createNextCalls: listNextCalls });

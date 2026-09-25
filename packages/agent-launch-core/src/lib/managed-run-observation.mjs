@@ -151,9 +151,27 @@ function compactTestedSource(testedSource) {
   });
 }
 
+export const PROOF_VERIFICATION_RECORD_INVALID = "proof_verification_record_invalid";
+
+export function recordedProofVerificationOutcomeSummary(verification) {
+  if (verification?.evidence?.kind !== "aggregate") return Object.freeze({ ok: true });
+  const value = Object.hasOwn(verification, "outcome_summary") ? verification.outcome_summary : undefined;
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    return Object.freeze({ ok: true, outcome_summary: value });
+  }
+  return Object.freeze({
+    ok: false,
+    code: PROOF_VERIFICATION_RECORD_INVALID,
+    field: "verification.outcome_summary",
+    reason: value === undefined ? "missing" : "invalid_type"
+  });
+}
+
 function summarizeLastRecordedInvocation(item) {
   if (item === null) return null;
   const verification = item.verification ?? {};
+  const recorded = recordedProofVerificationOutcomeSummary(verification);
+  if (!recorded.ok) return recorded;
   return Object.freeze({
     invocation_id: item.invocation_id,
     sequence: item.sequence,
@@ -167,6 +185,8 @@ function summarizeLastRecordedInvocation(item) {
     selected_proof_count: Number.isInteger(verification.counts?.proofs)
       ? verification.counts.proofs : null,
     tested_source: compactTestedSource(verification.tested_source ?? null),
+    result_digest: verification.result_digest ?? null,
+    ...(Object.hasOwn(recorded, "outcome_summary") ? { outcome_summary: recorded.outcome_summary } : {}),
     coverage_scope: "requested_selection_only",
     grants_authority: false
   });
@@ -183,12 +203,18 @@ function summarizeProofVerifications(population) {
   }
   const lastRecordedInvocation = population.reduce((last, item) =>
     last === null || item.sequence > last.sequence ? item : last, null);
+  const last = summarizeLastRecordedInvocation(lastRecordedInvocation);
+  if (last !== null && last.ok === false) {
+    return Object.freeze({ ok: false, code: last.code, refusal: Object.freeze({
+      code: last.code, field: last.field, reason: last.reason,
+      invocation_id: lastRecordedInvocation.invocation_id }) });
+  }
   return Object.freeze({
     schema_version: MANAGED_ATTEMPT_PROOF_VERIFICATION_SUMMARY_SCHEMA_VERSION,
     recorded_count: population.length,
     outcome_counts: Object.freeze(outcomes),
     status_counts: Object.freeze(statuses),
-    last_recorded_invocation: summarizeLastRecordedInvocation(lastRecordedInvocation)
+    last_recorded_invocation: last
   });
 }
 
@@ -216,6 +242,8 @@ export function pageManagedAttemptDetail({
     const recorded = selection.selected?.proof_verifications ?? [];
     const item = recorded.find((entry) => entry.invocation_id === invocationId) ?? null;
     if (item === null) return { ok: false, code: "proof_verification_invocation_unknown" };
+    const summary = summarizeProofVerifications(recorded);
+    if (summary.ok === false) return summary;
     return Object.freeze({
       ok: true,
       kind,
@@ -224,7 +252,7 @@ export function pageManagedAttemptDetail({
       total_count: recorded.length,
       returned_count: 1,
       items: Object.freeze([item]),
-      summary: summarizeProofVerifications(recorded),
+      summary,
       snapshot: selection.prefix,
       cursor: null
     });
@@ -262,6 +290,8 @@ export function pageManagedAttemptDetail({
     : kind === "proof_verification"
       ? (selection.selected?.proof_verifications ?? [])
       : (selection.selected?.failures ?? []);
+  const summary = kind === "proof_verification" ? summarizeProofVerifications(population) : null;
+  if (summary?.ok === false) return summary;
   const items = Object.freeze(population.slice(offset, offset + limit));
   const nextOffset = offset + items.length;
   const hasMore = nextOffset < population.length;
@@ -274,7 +304,7 @@ export function pageManagedAttemptDetail({
     total_count: population.length,
     returned_count: items.length,
     items,
-    ...(kind === "proof_verification" ? { summary: summarizeProofVerifications(population) } : {}),
+    ...(summary === null ? {} : { summary }),
     snapshot: prefix,
     cursor: hasMore ? encodeCursor({
       repository,

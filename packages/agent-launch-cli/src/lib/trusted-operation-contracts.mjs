@@ -34,7 +34,7 @@ export const TERMINAL_REVIEW_EVIDENCE_WK_BINDING_FIELDS = Object.freeze([
   "worktree_path", "base_ref", "base_sha"
 ]);
 
-export const WK_FORGE_HANDOFF_RESULT_SCHEMA_VERSION = "wk-forge-handoff.v1";
+export const WK_FORGE_HANDOFF_RESULT_SCHEMA_VERSION = "wk-forge-handoff.v2";
 
 export const WK_FORGE_HANDOFF_FAILURE_CATEGORIES = Object.freeze({
   REQUEST_INVALID: "request_invalid",

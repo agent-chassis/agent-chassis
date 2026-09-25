@@ -3,9 +3,10 @@
 Backlink: [Tool Discovery v1](tool-discovery.md).
 
 This page is the canonical reference for the discovery entrypoints and the
-per-surface projection guidance they carry: the two MCP discovery routes and
-the CLI fallback, the CCE worker-admission recovery projection, omitted-`repo`
-behavior, and trusted work-record edit discovery. Prose on every surface follows
+per-surface projection guidance they carry: the MCP startup advertisement, the
+two MCP discovery routes and the CLI fallback, the CCE worker-admission recovery
+projection, omitted-`repo` behavior, and trusted work-record edit discovery.
+Prose on every surface follows
 the [Discovery Prose Boundary](tool-discovery-schema.md#discovery-prose-boundary).
 
 ## Discovery Surfaces
@@ -144,7 +145,10 @@ here unless the agent already knows it needs the deeper descriptor shape. A
 named compact tool's verbose description returns its complete structural input
 contract with an authoring-guidance locator, whose call selects the registered
 overview, rather than the guidance body. `input_contract` `kind:"guidance"`
-returns the complete selected guidance value in one call, without paging. It
+returns the complete selected guidance value in one call, without paging. An
+omitted path selects the overview, which names the members a caller can select
+one at a time, so neither the complete guidance root (`path: []`) nor the
+verbose contract is a prerequisite for reading one accepted-value member. It
 requires one exact `tool_name` and cannot combine with `task_id`, top-level
 `limit`, or `verbose:true`; the published selector states this, and a
 conflicting request is refused with the same selection as its recommended
@@ -228,15 +232,18 @@ transition into one validated canonical write; omitted, the same route records
 closure and changes no status. See
 [MCP Operation Reference](mcp-operation-reference.md#one-call-closeout-with-forge-owned-completion-and-truthful-check-results).
 
-Forge publication is workflow-independent. `workspace_wk_forge_handoff`
+Forge publication is review-independent. `workspace_wk_forge_handoff`
 publishes one squash candidate whose tree is the selected integrated WK tip's and
 whose sole parent is the fixed authenticated fork, and it publishes those bytes
-unchanged whether or not the repository's delivery workflow selects a terminal
-review. Discovery states that a workflow without terminal review needs no
-terminal-review unit, review evidence or reviewer checkout, that candidate,
-topology and generation authentication run either way, and that publication
-neither merges nor completes the WK. See
-[MCP Operation Reference](mcp-operation-reference.md#common-fixed-fork-squash-candidate-conditional-review-and-exact-forge-lifecycle).
+unchanged with no terminal-review unit, review evidence or reviewer context as an
+input. Discovery states that publication requires the squashed candidate worktree
+bound to that exact candidate, that candidate, topology, worktree and generation
+authentication always run, that a candidate-resolution failure keeps its own
+cause, and that publication neither merges nor completes the WK. The
+destination is local, plain Git delivery or hosted publication by repository
+configuration, and the read-only `workspace_wk_landing_status` reports the
+resulting human landing. See
+[MCP Operation Reference](mcp-operation-reference.md#common-fixed-fork-squash-candidate-independent-review-and-exact-forge-lifecycle).
 
 Managed run observation carries recorded explicit proof verification. For a
 managed worker slice, `workspace_agent_run_status` reports `proof_verification`:
@@ -366,6 +373,30 @@ discoverable for `workspace_get_record`, `workspace_read_page`, and
   handoff, or recovery authority, and must not present the designation as a
   refusal ground.
 
+### Startup Advertisement
+
+The wiki-mcp server also publishes one short notice through the standard MCP
+`initialize` result's `instructions` field. The text is owned once, as
+`WIKI_MCP_SERVER_INSTRUCTIONS` in `packages/wiki-mcp/src/server.mjs`, and is
+identical for every role and tier. Its first 512 characters carry the selection
+order: call a known registered operation directly; when the next operation is
+unclear and `workspace_tool_router_recommend` is exposed, call it with the task
+and known identifiers and follow its `next_calls`; use `workspace_tools_list`
+for compact capability discovery and `workspace_tools_describe` for one
+selected tool's detail. The remainder states that a full input schema is needed
+only for the operation being called, that the session's actual exposed names
+are the ones to use, and that app or plugin catalogs and MCP resource lists are
+not repository tool discovery.
+
+The notice names bare registered operations only. It adds no alias, prefix
+convention, catalog, or schema, and it does not register, expose, or authorize
+anything: tool visibility remains decided by role and tier registration, so a
+named entrypoint absent from a session's `tools/list` is that session's access
+limitation, not evidence about another deployment. Hosts own callable-name
+qualification, deferred schema loading, and whether and how the notice reaches
+the model. A client receives a changed notice only from a new `initialize`
+exchange, so an existing session must reconnect after a package update.
+
 ## Input Schema Identity And Lossless Projection
 
 The controlled-contract proof-authoring registrations derive their Zod request
@@ -381,10 +412,16 @@ remain directly readable inline.
 Verbose `workspace_tools_describe` projects every occurrence at its actual path
 and depth before considering reuse. A subtree with any unprojected constraint or
 depth omission stays inline, preserving both its node-local disclosure and every
-global path/reason entry. Complete occurrences may share a whole-node
-`#/$defs/<name>` reference only when they have the same schema identity and
-depth. Definitions retain wrapper semantics, constraints, descriptions,
-defaults, and declared refinements; reference objects have no sibling keywords.
+global path/reason entry. Complete occurrences share a whole-node
+`#/$defs/<name>` reference when they have the same schema identity and depth.
+In the served verbose contract, which always carries its `$defs`, distinct
+instances that project to byte-identical complete contracts also share one
+definition: identical projected JSON validates the same values, and a single
+differing byte, such as a bound or a description, keeps two occurrences
+separate. A projection published without its `$defs` never uses this sharing. Definitions
+retain wrapper semantics, constraints, descriptions, defaults, and declared
+refinements; reference objects have no sibling keywords, and a definition that
+no reference reaches is removed.
 
 Hoisting remains owned by the request-contract projector. It keeps the 96-byte
 minimum, existing deterministic naming and collision behavior, then compares the
@@ -410,6 +447,13 @@ route, and a field the live route requires must not exist only in prose. That
 publication belongs in the structured guidance fields (`use_when`,
 `requires_prior_state`, `authoritative_for`, `recommended_first_call.arguments`,
 `docs_refs`) rather than in `notes`, which is budgeted selection guidance.
+
+Each MCP tool's `side_effects` is also the canonical read-only authority for
+refusal guidance: a guidance next call may name only a tool whose entry
+declares exactly `["read_only"]`. The next-calls corpus loads membership and
+`side_effects` from the same fragments and fails the load on a missing,
+duplicated or contradictory declaration. See
+[MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md#guidance-information-not-correction).
 
 Discovery notes must describe omitted closed/parked slice details and omitted
 WK-level agent note bodies as intentional default response shaping, not missing

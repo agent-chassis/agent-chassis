@@ -76,8 +76,9 @@ test("a reclassified exception keeps its authentic thrown value as the refusal c
     "re-wrapping this boundary's refusal keeps the cause it preserved");
   const result = errorContent(refusal);
   assert.deepEqual(result.structuredContent, refusal.envelope);
-  assert.equal(result.content[0].text.includes("test_proof_fault"), false,
-    "the preserved cause is never projected into either channel");
+  assert.deepEqual(result.content, []);
+  assert.equal(JSON.stringify(result).includes("test_proof_fault"), false,
+    "the preserved cause is never projected into the result");
 });
 
 test("the diagnostic preserves embedded paths and carries no stack", () => {
@@ -148,7 +149,8 @@ test("the refusal still projects through both MCP channels verbatim", () => {
   assert.equal(result.isError, true);
   assert.deepEqual(result.structuredContent, refusal.envelope);
 
-  const text = JSON.parse(result.content[0].text);
-  assert.deepEqual(text, JSON.parse(JSON.stringify(refusal.envelope)));
-  assert.equal(text.warning.payload.details.internal_exception.exception_class, "ReferenceError");
+  assert.deepEqual(result.content, []);
+  const envelope = result.structuredContent;
+  assert.deepEqual(envelope, JSON.parse(JSON.stringify(refusal.envelope)));
+  assert.equal(envelope.warning.payload.details.internal_exception.exception_class, "ReferenceError");
 });

@@ -141,6 +141,9 @@ const TEST_RUNTIME_RUNNER_CATALOG = deepFreeze({
   }))
 });
 
+const TEST_RUNTIME_ENVIRONMENT_ID_RE =
+  /^[a-z][a-z0-9_]*@(?:\.|(?!\.\.?(?:\/|$))[^/\s\0]+(?:\/(?!\.\.?(?:\/|$))[^/\s\0]+)*)$/u;
+
 function testRuntimeRunner({ name = undefined, runnerId = undefined,
   selectorKind = undefined } = {}) {
   return TEST_RUNTIME_RUNNER_CATALOG.runners.find((runner) =>
@@ -518,6 +521,7 @@ export {
   TEST_PROOF_PROVIDER_REGISTRY_ID,
   TEST_PROOF_PROVIDER_REGISTRY_VERSION,
   TEST_PROOF_PROVIDER_SCHEMA_VOCABULARY,
+  TEST_RUNTIME_ENVIRONMENT_ID_RE,
   TEST_RUNTIME_RUNNER_CATALOG,
   TestProofProviderCatalogError,
   composeFamilies as composeTestProofProviderFamilies,

@@ -41,8 +41,56 @@ function selectedSliceContract(record, sliceId) {
   return record.slices.find((slice) => slice && slice.id === sliceId) || null;
 }
 
-export function buildWorkerAssignmentCanonicalSummary(record, readiness, unit) {
+export function buildWorkerAssignmentScopePresentation({
+  record,
+  unit,
+  mode = "declared",
+  resolvedScope = null,
+  exclusions = []
+} = {}) {
   const selectedSlice = selectedSliceContract(record, unit?.slice_id ?? null);
+  const declaredUnit = selectedSlice ?? record;
+  if (mode === "declared") {
+    const readScope = mergeReadScopeRefs(declaredUnit);
+    const repoPaths = stringList(declaredUnit?.repo_paths);
+    const writable = stringList(declaredUnit?.write_scope);
+    return Object.freeze({
+      provenance: "declared",
+      readable: Object.freeze([...new Set([...readScope, ...repoPaths, ...writable])]),
+      writable: Object.freeze([...new Set(writable)]),
+      exclusions: Object.freeze(stringList(exclusions))
+    });
+  }
+  if (mode !== "managed_resolved" || !isObject(resolvedScope) ||
+      !isObject(resolvedScope.readable) || !isObject(resolvedScope.writable)) {
+    throw new Error("managed worker assignment requires authenticated resolved scope membership");
+  }
+  const members = (scope) => [
+    ...stringList(scope.files),
+    ...stringList(scope.directories)
+  ];
+  const writable = members(resolvedScope.writable);
+  const readable = [...new Set([...members(resolvedScope.readable), ...writable])];
+  return Object.freeze({
+    provenance: "managed_resolved",
+    readable: Object.freeze(readable),
+    writable: Object.freeze([...new Set(writable)]),
+    exclusions: Object.freeze([...new Set(stringList(exclusions))])
+  });
+}
+
+export function buildWorkerAssignmentCanonicalSummary(
+  record,
+  readiness,
+  unit,
+  { scopePresentation = null } = {}
+) {
+  const selectedSlice = selectedSliceContract(record, unit?.slice_id ?? null);
+  const presentedScope = scopePresentation ?? buildWorkerAssignmentScopePresentation({
+    record,
+    unit,
+    mode: "declared"
+  });
 
   const selectedUnit = selectedSlice
     ? {
@@ -69,15 +117,10 @@ export function buildWorkerAssignmentCanonicalSummary(record, readiness, unit) {
     record_id: record.id,
     repo: record.repo,
     title: record.title,
-    docs: selectedUnit && selectedUnit.docs.length > 0
-      ? selectedUnit.docs
-      : mergeReadScopeRefs(record),
-    repo_paths: selectedUnit && selectedUnit.repo_paths.length > 0
-      ? selectedUnit.repo_paths
-      : Array.isArray(record.repo_paths)
-        ? record.repo_paths
-        : [],
-    write_scope: selectedUnit ? selectedUnit.write_scope : (Array.isArray(record.write_scope) ? record.write_scope : []),
+    docs: presentedScope.readable,
+    repo_paths: [],
+    write_scope: presentedScope.writable,
+    scope_presentation: presentedScope,
     acceptance_criteria: selectedUnit
       ? Array.isArray(selectedUnit.acceptance?.criteria)
         ? selectedUnit.acceptance.criteria
@@ -105,13 +148,15 @@ export function buildWorkerAssignmentBrief({
   sliceId = null,
   entryMaterial = null,
   generatedAt = undefined,
-  outputPath = undefined
+  outputPath = undefined,
+  scopePresentation = null
 } = {}) {
   return renderWorkRecordAgentBrief(record, {
     ...(generatedAt === undefined ? {} : { generatedAt }),
     ...(outputPath === undefined ? {} : { outputPath }),
     sliceId,
-    entryMaterial
+    entryMaterial,
+    scopePresentation
   });
 }
 
@@ -176,7 +221,10 @@ export function prepareWorkerAssignmentPresentation({
   supplementalInstructions = [],
   terminalStructuredRoleResultMode = undefined,
   generatedAt = undefined,
-  outputPath = undefined
+  outputPath = undefined,
+  scopeMode = "declared",
+  resolvedScope = null,
+  scopeExclusions = []
 } = {}) {
   const parsedUnit = parseWorkRecordUnitAddress(unitAddress);
   if (!parsedUnit.ok) {
@@ -221,13 +269,23 @@ export function prepareWorkerAssignmentPresentation({
   let canonicalSummary;
   let agentBrief;
   try {
-    canonicalSummary = buildWorkerAssignmentCanonicalSummary(record, presentedReadiness, unit);
+    const scopePresentation = buildWorkerAssignmentScopePresentation({
+      record,
+      unit,
+      mode: scopeMode,
+      resolvedScope,
+      exclusions: scopeExclusions
+    });
+    canonicalSummary = buildWorkerAssignmentCanonicalSummary(record, presentedReadiness, unit, {
+      scopePresentation
+    });
     agentBrief = buildWorkerAssignmentBrief({
       record,
       sliceId: unit.slice_id,
       entryMaterial,
       generatedAt,
-      outputPath
+      outputPath,
+      scopePresentation
     });
   } catch (error) {
     return Object.freeze({

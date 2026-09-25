@@ -19,6 +19,13 @@ import { stableRuntimeTestIdFromParts } from
   "../../packages/agent-launch-cli/src/lib/workspace-agent-test-proof-node-reporter.mjs";
 import { readCarrierSetFixture } from
   "../helpers/controlled-contract-carrier-set-fixtures.mjs";
+import { normalizeFalsifierFacts } from "../../packages/controlled-contract/lib/test-proof-evidence-semantic-kernel.mjs";
+
+const DETECTED_FALSIFIER_FACTS = normalizeFalsifierFacts({ declaredFalsifierIds: ["falsifier"],
+  executions: [{ falsifier_id: "falsifier", status: "detected", provider_support: "supported",
+    isolated: true, candidate_status: "passed", falsified_status: "failed",
+    failure_reason_code: "assertion_failed", mutation: { observed: true } }],
+  declaredUnsupported: false });
 
 const DIGEST = (character) => `sha256:${character.repeat(64)}`;
 const SIBLING_ID = (value) => `test-${createHash("sha256").update(value).digest("hex")}`;
@@ -125,10 +132,7 @@ function semanticFacts(obligationId, candidate, {
       declared_test_ids: ["test"], discovered_test_ids: ["test"],
       executed_test_ids: ["test"], skipped_test_ids: [], observed_test_count: 1
     },
-    falsifiers: {
-      expected_ids: ["falsifier"], observations: [{ falsifier_id: "falsifier",
-        status: "detected", detected: true }], complete: true, all_detected: true
-    },
+    falsifiers: DETECTED_FALSIFIER_FACTS,
     traversal: {
       observations: [{ boundary_id: "boundary", observable_id: "observable",
         provider_support: "supported", status: "proven", proven: true }],
@@ -215,7 +219,7 @@ async function execute({
 }
 
 test("singleton and multi-proof selections use one deterministic aggregate schema", async () => {
-  assert.equal(pack.profile.profile_version, "10.0.0");
+  assert.equal(pack.profile.profile_version, "11.0.0");
   const singleton = (await execute()).result;
   const proofs = [
     resolvedProof("one", [relationship("OBL-ONE-A"), relationship("OBL-ONE-B")]),

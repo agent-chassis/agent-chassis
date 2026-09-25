@@ -1,0 +1,24 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v3",
+  "parameter_contract_digest": "d20d36c2ad90007146ee6707d67934f151468c9e7a1eb05fa7d4100c9af17804",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "11.0.0",
+  "profile_digest": "00b85715c61e2463a78d872792a059c672db449e13ba745cb89de720a6c4af40",
+  "guarantee": "For one exact test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, and evaluator satisfies the guarantee only when the candidate passes, the one test the binding's declarative test selector names is discovered, executed, and not skipped, every declared falsifier is present, every falsifier the provider could apply is detected, every required traversal is present and proven, and no prohibited shortcut is observed. A falsifier the provider could not apply is an authenticated capability limitation: it earns no detection credit, is not counterevidence, and never excuses a surviving sibling. A supported, isolated, actually observed mutation that leaves the selected test passing falsifies the guarantee; for a passing candidate, an incomplete falsifier population or a supported falsifier that is neither detected nor such a survivor is not executable, and a failed candidate gains no mutation counterevidence from its falsifier rows. No authored baseline inventory participates, and sibling tests observed in the same run neither earn nor withhold credit. Complete valid negative inventory or execution facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, ambiguous, cross-bound, contradictory, or digest-mismatched evidence is refused.",
+  "guarantee_digest": "ae3bf430a1bd316fedcc2df05974ca9dead7db7154fd5524fb8d94e2e0d6054b",
+  "explicit_exclusions": [
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "durable-receipt-retention",
+    "lifecycle-admission",
+    "provider-support-invention"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "556fdad6bb6b0c6fc1a072b7110f273e499daf538b83e35e51883b4431b34aa7",
+    "adequacy_result_digest": "eee943efc2bb197802f9c2328239d82b04d353f4c360ecc70cf746f9bb738569",
+    "executable_control_count": 14,
+    "negative_fixture_count": 9,
+    "coverage_witness_count": 9
+  }
+}

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-export const SIDECAR_STORE_SCHEMA_VERSION = "repo-code-store.v5";
+export const SIDECAR_STORE_SCHEMA_VERSION = "repo-code-store.v6";
 export const SIDECAR_LIFECYCLE_SCHEMA_VERSION = "repo-code-lifecycle.v1";
 export const SIDECAR_STORE_GRAPH_FILE = "graph.sqlite";
 export const SIDECAR_STORE_LIFECYCLE_FILE = "lifecycle.sqlite";

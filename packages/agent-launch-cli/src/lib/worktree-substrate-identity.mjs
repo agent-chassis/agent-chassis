@@ -6,6 +6,8 @@ import {
   computeWorkRecordSourceDigest
 } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import { compileRepositoryScopePath } from "@agent-chassis/wiki-core/src/lib/work-record-repository-path.mjs";
+import { isCanonicalWorkRecordBaseBranch } from
+  "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
 
 import {
   deriveCanonicalReadableScope,
@@ -365,8 +367,11 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo, allowMissi
     : `wk/${unit.initiative}/${unit.wkId}`;
   const expectedBaseRef = unit.kind === "slice"
     ? `wk/${unit.initiative}/${unit.wkId}`
-    : "main";
-  if (binding.output_branch !== expectedBranch || binding.base_ref !== expectedBaseRef ||
+    : null;
+  const baseRefValid = unit.kind === "slice"
+    ? binding.base_ref === expectedBaseRef
+    : isCanonicalWorkRecordBaseBranch(binding.base_ref);
+  if (binding.output_branch !== expectedBranch || !baseRefValid ||
       typeof binding.base_sha !== "string" || !RECOVERY_COMMIT_ID_RE.test(binding.base_sha)) {
     recoveryBindingFailure(filePath, "branch or base identity is noncanonical", {
       expected_output_branch: expectedBranch,
@@ -476,6 +481,50 @@ function assertRecoveryBindingContract(binding, { filePath, mainRepo, allowMissi
 
   }
   return binding;
+}
+
+export function resolveCapturedWkBase({ mainRepo, unitAddress } = {}) {
+  const repo = assertAbsolutePath(mainRepo, "mainRepo");
+  const unit = parseUnitAddress(unitAddress);
+  if (unit.kind !== "wk") {
+    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_UNIT_ADDRESS,
+      "captured base recovery requires a WK unit_address");
+  }
+  const storeDir = worktreeIdentityStoreDir(repo);
+  let entries;
+  try {
+    entries = readdirSync(storeDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && RECOVERY_BINDING_FILE_RE.test(entry.name));
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
+      `identity binding store is not readable during WK-base recovery: ${storeDir}`,
+      { errno: error?.code ?? null });
+  }
+  const captured = [];
+  for (const entry of entries) {
+    const filePath = path.join(storeDir, entry.name);
+    let binding;
+    try {
+      binding = JSON.parse(readFileSync(filePath, "utf8"));
+    } catch (error) {
+      recoveryBindingFailure(filePath, "binding file cannot be classified during WK-base recovery",
+        { message: error?.message ?? String(error) });
+    }
+    if (!isPlainObject(binding) || binding.unit_address !== unit.unitAddress || binding.slice_id !== null) continue;
+    assertRecoveryBindingContract(binding, { filePath, mainRepo: repo });
+    captured.push({ base_ref: binding.base_ref, base_sha: binding.base_sha });
+  }
+  if (captured.length === 0) return null;
+  const first = captured[0];
+  const conflict = captured.find((candidate) =>
+    candidate.base_ref !== first.base_ref || candidate.base_sha !== first.base_sha);
+  if (conflict) {
+    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.VERIFIED_BINDING_UNIT_MISMATCH,
+      "authenticated WK bindings disagree about the captured independent base",
+      { unit_address: unit.unitAddress, expected: first, actual: conflict });
+  }
+  return Object.freeze({ ...first });
 }
 
 export function resolveUniqueManagedLifecycleBindingPairForRecovery({

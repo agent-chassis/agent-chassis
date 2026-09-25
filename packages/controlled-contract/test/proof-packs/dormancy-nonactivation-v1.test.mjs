@@ -14,12 +14,13 @@ import { buildDormancyNonactivationFixture }
   from "./dormancy-nonactivation-v1-fixture.mjs";
 import { buildProofPlanFixture } from "../proof-plan-fixture.mjs";
 import { buildStableTestProofPopulation } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory as certificationDirectoryOf, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const profileId = "proof.dormancy.nonactivation";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
-const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.dormancy.nonactivation/3.0.0");
+const identity = { profile_id: "proof.dormancy.nonactivation", profile_version: "4.0.0" };
+const certificationDirectory = certificationDirectoryOf(identity);
 
 async function subject() {
   const captureRoot = await mkdtemp(path.join(os.tmpdir(), "dormancy-exact-bound-"));
@@ -119,9 +120,8 @@ test("dormancy full-census admission binds every fixed negative and rebound witn
     ({ outcome }) => outcome === "survived"), true);
 
   const [stored, admission] = await Promise.all([
-    readFile(path.join(certificationDirectory, "certification-result.full-census.json"),
-      "utf8").then(JSON.parse),
-    readFile(path.join(certificationDirectory, "admission.json"), "utf8").then(JSON.parse)
+    readDefinitionDocument(identity, "certification-result.full-census.json"),
+    readDefinitionDocument(identity, "admission.json")
   ]);
   assert.deepEqual(fullCensus, stored);
   assert.equal(canonicalDigest(fullCensus), admission.certification.adequacy_result_digest);

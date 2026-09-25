@@ -20,6 +20,8 @@ import {
   projectLauncherNodeTestInventory
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-test-proof-node-observation.mjs";
 import { persistRunValidationInventoryReference } from "./mcp-response.mjs";
+import { mcpContentReferenceFirstCall, mcpContentReferenceReassembly } from
+  "./mcp-content-reference-tools.mjs";
 
 const NODE_TEST_STEP_TIMEOUT_MS = 30000;
 const NODE_TEST_OUTPUT_CAP_BYTES = 65536;
@@ -233,17 +235,10 @@ export function projectRunValidationInventoryResponse({ inventory, wkId, verific
   const retrieval = persisted.status === "persisted"
     ? {
       complete_retrieval: {
-        first_call: {
-          tool: persisted.reference.content_reference.read_tool,
-          arguments: {
-            ref_id: persisted.reference.content_reference.ref_id,
-            offset: persisted.reference.content_reference.range.offset,
-            length: persisted.reference.content_reference.range.length
-          }
-        },
-        reassembly: "repeat_with_offset_next_offset_until_eof_then_concatenate_data_base64_and_parse_utf8_json",
+        first_call: mcpContentReferenceFirstCall(persisted.reference.content_reference),
+        reassembly: mcpContentReferenceReassembly("decode the verified bytes as UTF-8 and parse JSON"),
         expected: {
-          byte_count: persisted.reference.byte_count,
+          byte_count: persisted.reference.content_reference.byte_count,
           sha256: persisted.reference.content_reference.sha256,
           schema_version: RUN_VALIDATION_TEST_INVENTORY_SCHEMA_VERSION,
           inventory_digest: inventoryDigest

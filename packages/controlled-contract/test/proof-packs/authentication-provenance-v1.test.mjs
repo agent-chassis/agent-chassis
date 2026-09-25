@@ -15,10 +15,11 @@ import {
   buildProfileWeakeningControls,
   rejectionFixtures
 } from "./authentication-provenance-v1-adequacy.mjs";
+import { certificationDirectory as certificationDirectoryOf, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.authentication.direct-source-provenance/3.0.0");
+const identity = { profile_id: "proof.authentication.direct-source-provenance", profile_version: "4.0.0" };
+const certificationDirectory = certificationDirectoryOf(identity);
 test("direct-source authentication/provenance pack passes indexed and full-census gates", async () => {
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(certificationDirectory, { variationMode });

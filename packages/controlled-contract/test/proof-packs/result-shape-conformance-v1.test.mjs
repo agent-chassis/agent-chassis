@@ -29,19 +29,16 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDeclaredCertificationDocument, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.result-shape.conformance/3.0.0"
-);
+const identity = { profile_id: "proof.result-shape.conformance", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(name) {
-  return JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 function applyReplacementPatches(document, patches) {
   const result = structuredClone(document);
@@ -77,7 +74,7 @@ test("result-shape 1.0 admits indexed and full-census proof corpora", async () =
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 140);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 130);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 109);
 
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
@@ -103,7 +100,7 @@ test("every result-shape coverage binding has a canonical kill and weakened-prof
     const fixtures = new Map(await Promise.all(
       adequacy.negative_contract_fixtures.map(async ({ fixture_id: fixtureId, path: fixturePath }) => [
         fixtureId,
-        JSON.parse(await readFile(path.join(repositoryRoot, fixturePath), "utf8"))
+        await readDeclaredCertificationDocument(fixturePath)
       ])
     ));
     const witnesses = new Map(witnessIndex.witnesses.map((witness) => [

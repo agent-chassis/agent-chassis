@@ -16,7 +16,7 @@ const example = JSON.parse(await readFile(new URL(
 )));
 const executionPack = await loadExactAdmittedProofPack({
   profileId: "proof.verification.test-validity",
-  profileVersion: "10.0.0",
+  profileVersion: "11.0.0",
 
 });
 const definition = {
@@ -39,7 +39,7 @@ test("retired test-validity profiles are not selectable", async () => {
     });
     assert.deepEqual(error.details.current, {
       profile_id: "proof.verification.test-validity",
-      profile_version: "10.0.0"
+      profile_version: "11.0.0"
     });
     return true;
   });
@@ -193,10 +193,10 @@ test("resolves the selected current application without a proof plan", () => {
   assert.equal(result.status, "executable");
   assert.equal(result.verification_id, "claim-suite-covers-component");
   assert.deepEqual(result.selected_definition, definition);
-  assert.equal(result.execution_pack.profile.profile_version, "10.0.0");
+  assert.equal(result.execution_pack.profile.profile_version, "11.0.0");
   assert.equal(result.execution_pack.test_validity_evaluator.implementation_id,
     "proof.verification.test-validity.execution-evaluator");
-  assert.equal(result.execution_pack.test_validity_evaluator.implementation_version, "8.0.0");
+  assert.equal(result.execution_pack.test_validity_evaluator.implementation_version, "9.0.0");
   assert.deepEqual(result.execution_source_binding, { binding_digest: DIGEST });
   assert.equal(Object.hasOwn(result, "planning_pack"), false);
   assert.equal(Object.hasOwn(result, "proof_plan_entry"), false);

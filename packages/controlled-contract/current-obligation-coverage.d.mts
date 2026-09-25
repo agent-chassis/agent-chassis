@@ -9,10 +9,7 @@ export type ObligationCoverageMechanismKind =
 export type ObligationGuaranteeSelectorKind =
   | "reference_binding" | "claim" | "relation" | "collection"
   | "resolver_fact" | "evidence";
-export type ObligationCoverageGapKind =
-  | "catalog_gap" | "implementation_not_delivered"
-  | "review_only" | "no_proof_required";
-export type ObligationCoverageOutcome = 'stale' | 'explicit_gap' | 'design_invalid' | 'selected';
+export type ObligationCoverageOutcome = 'stale' | 'design_invalid' | 'selected';
 export interface ObligationGuaranteeSelector {
   readonly kind: ObligationGuaranteeSelectorKind;
   readonly component_id: string;
@@ -24,11 +21,6 @@ export interface ObligationCoveragePackMapping {
   readonly profile_id: string;
   readonly profile_version: string;
   readonly selector: ObligationGuaranteeSelector;
-}
-export interface ObligationCoverageExplicitGap {
-  readonly kind: "explicit_gap";
-  readonly gap_kind: ObligationCoverageGapKind;
-  readonly reason: string;
 }
 export interface ObligationCoverageRow extends ProofAuthoringObligation {
   readonly selection: ProofAuthoringSelection;
@@ -56,7 +48,7 @@ export interface ObligationCoverageCarrierValidationResult {
 }
 export const OBLIGATION_COVERAGE_SCHEMA_VERSION: "resolved-obligation-coverage.v1";
 export const OBLIGATION_COVERAGE_SCHEMA: Readonly<Record<string, unknown>>;
-export const OBLIGATION_COVERAGE_GAP_KINDS: readonly ObligationCoverageGapKind[];
+export const OBLIGATION_COVERAGE_GAP_KINDS: readonly never[];
 export const OBLIGATION_COVERAGE_MECHANISM_KINDS: readonly ObligationCoverageMechanismKind[];
 export const OBLIGATION_COVERAGE_OUTCOMES: readonly ObligationCoverageOutcome[];
 export function validateObligationCoverageCarrier(
@@ -206,7 +198,6 @@ export interface ProofAuthoringObligation {
   readonly statement?: string;
   readonly controlled_contract_node_ids?: readonly string[];
   readonly mechanism?: Readonly<{ owner: string; kind: ObligationCoverageMechanismKind; selector: string }>;
-  readonly gap?: Readonly<{ gap_kind: ObligationCoverageGapKind; reason: string }>;
   readonly selection?: ProofAuthoringSelection;
 }
 export interface ObligationCoverageDraft {

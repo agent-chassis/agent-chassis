@@ -3,6 +3,7 @@ import {
   WORK_RECORD_EDIT_SPECIALIZED_FIELD_OWNERS
 } from "./work-record-contract-edit-operations.mjs";
 import { WORK_RECORD_CONTENT_MAX_PARTS } from "./work-record-entry-schema.mjs";
+import { isCanonicalWorkRecordBaseBranch } from "./work-record-base-branch.mjs";
 
 export const WORK_RECORD_EDIT_INPUT_GUIDANCE_SCHEMA_VERSION =
   "work-record-edit-input-guidance.v1";
@@ -131,8 +132,24 @@ function valueConstraints(entry, action) {
   );
 }
 
+const FORMAT_EXAMPLES = Object.freeze({
+  local_branch_name: Object.freeze({ value: "feature/example-base",
+    valid: isCanonicalWorkRecordBaseBranch })
+});
+
 function exampleString(schema, field) {
   if (Array.isArray(schema?.enum) && schema.enum.length > 0) return schema.enum[0];
+  if (typeof schema?.format === "string") {
+    const example = FORMAT_EXAMPLES[schema.format];
+    if (example === undefined || !example.valid(example.value)) {
+      failCoverage(
+        "unsupported_registry_value_format",
+        `guidance has no valid example for ${field} format ${schema.format}`,
+        { field, format: schema.format }
+      );
+    }
+    return example.value;
+  }
   if (field === "sections.agent_notes") return "Complete replacement notes text";
   return "Example value";
 }

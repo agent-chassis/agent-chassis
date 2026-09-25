@@ -81,13 +81,6 @@ by the independently authored profile digest and mandatory trusted-code review,
 not by a separate behavioral control. Updating that digest is an explicit
 release-code change.
 
-Run the generic release gate with:
-
-```sh
-node packages/controlled-contract/bin/check-proof-pack.mjs \
-  --pack packages/controlled-contract/profiles/proof.idempotency.effect-nonduplication/2.0.0
-```
-
 Adding a pattern is not sufficient evidence that the pack proves its name. Any
 future semantic change must update the frozen positive cases, required mutant
 kills, profile rejections, explicit exclusions, and cross-storage profile

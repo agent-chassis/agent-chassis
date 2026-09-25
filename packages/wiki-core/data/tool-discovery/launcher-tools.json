@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "launcher-tools.json",
   "summary": "Dispatch, run-status, committed-slice integration, coordination preflight, and runtime-blocker-taxonomy tools.",
-  "tool_count": 8,
+  "tool_count": 9,
   "tools": [
     {
       "tool_name": "workspace_agent_dispatch",
@@ -49,7 +49,7 @@
         "packages/wiki-mcp/src/lib/dispatch-tools/agent-dispatch-route.mjs",
         "packages/wiki-core/src/operations/validate-dispatch.mjs"
       ],
-      "notes": "Start a canonical unit, or dispatch a reviewer or redteam by canonical subject. Omitting role starts the unit as the agent its dispatch_intent.intended_agent_role declares, derived by the wiki-core dispatch owner; the system resolves task, scope, acceptance, validation, selected material and runtime from that canonical unit and authenticated launcher facts, so a caller-authored prompt, request, argv or env is refused rather than silently discarded. Readiness runs internally through its existing owner; workspace_validate_dispatch remains available for an explicit \"can this start?\" question and is not a required pre-call. Managed workers require an explicit existing canonical implementation slice, even for a one-slice WK; dispatch never creates or selects one. Reviews use empty write_scope and the same dispatcher; no external reviewer, shell, wrapper or alternate transport. backend_unavailable fails closed. Supply an already-known WK or slice plus diff_base_sha/reviewed_sha for exact review; no WK is inferred from a SHA. Implementation requires complete or opted-out proof posture; CCE policy remains separate. Reviews can precede authoring. Caller identity/policy carriers refuse.",
+      "notes": "Start a canonical unit, or dispatch a reviewer or redteam by canonical subject. Omitting role starts the unit as the agent its dispatch_intent.intended_agent_role declares, derived by the wiki-core dispatch owner; the system resolves task, scope, acceptance, validation, selected material and runtime from that canonical unit and authenticated launcher facts, so a caller-authored prompt, request, argv or env is refused rather than silently discarded. Readiness runs internally through its existing owner; workspace_validate_dispatch remains available for an explicit \"can this start?\" question and is not a required pre-call. Managed workers require an explicit existing canonical implementation slice, even for a one-slice WK; dispatch never creates or selects one. Its root WK must select base_branch before first allocation (frozen after); if missing, dispatch refuses before start with read-only field guidance, then the caller edits the root with fresh CAS and resubmits. Reviews use empty write_scope and the same dispatcher; no external reviewer, shell, wrapper or alternate transport. backend_unavailable fails closed. Supply an already-known WK or slice plus diff_base_sha/reviewed_sha for exact review; no WK is inferred from a SHA. Implementation requires complete or opted-out proof posture; CCE policy remains separate. Reviews can precede authoring. Caller identity/policy carriers refuse.",
       "use_when": [
         "Start a known canonical implementation slice: name the unit and omit role.",
         "The dispatch_role_call intent names a known subject and an advisory role (reviewer or redteam), which the caller chooses rather than the reviewed unit."
@@ -78,7 +78,7 @@
       },
       "tier_text": {
         "paid_cce": {
-          "notes": "Dispatch a worker, reviewer, or redteam by canonical subject such as WK-<id>#SLICE-<id>; a commit SHA is only a review locator, and no WK is inferred or searched from a SHA. The same registered workspace_agent_dispatch performs the review; no external reviewer, shell command, wrapper, alternate transport, terminal candidate, ref creation, attestation append, or provenance repair is needed. Reviewer accepts a WK or slice; redteam also accepts an IN. Reviewer and redteam never enter worker readiness; invalid review material refuses as agent_launch.advisory_review.material_invalid.v1. Reviewer mutation authority is empty, and locators grant no lifecycle authority. A worker needs an explicit existing implementation slice; a non-dispatchable worker refuses with work_record_readiness_failure. Role configuration selects app and model: an explicit model applies only where the role binding permits, app is an assertion, and a mismatch refuses without family fallback. Caller identity carriers refuse. A valid worker_admission.recovery.v1 object is advisory, resubmission-only guidance; invalid recovery fails closed, and reason facts without one report no supported route."
+          "notes": "Dispatch a worker, reviewer, or redteam by canonical subject such as WK-<id>#SLICE-<id>; a commit SHA is only a review locator (diff_base_sha/reviewed_sha), and no WK is inferred or searched from a SHA. The same registered workspace_agent_dispatch performs the review; no external reviewer, shell command, wrapper, alternate transport, terminal candidate, ref creation, attestation append, or provenance repair is needed. Reviewer accepts a WK or slice; redteam also accepts an IN. Reviewer and redteam never enter worker readiness; invalid review material refuses as agent_launch.advisory_review.material_invalid.v1. Reviewer mutation authority is empty, and locators grant no lifecycle authority. A worker needs an explicit existing implementation slice; a non-dispatchable worker refuses with work_record_readiness_failure. Role configuration selects app and model: an explicit model applies only where the role binding permits, app is an assertion, and a mismatch refuses without family fallback. Caller identity carriers refuse. A valid worker_admission.recovery.v1 object is advisory, resubmission-only guidance; invalid recovery fails closed, and reason facts without one report no supported route."
         }
       }
     },
@@ -373,13 +373,14 @@
       ],
       "source_files": [
         "packages/agent-launch-cli/src/lib/wk-forge-handoff.mjs",
+        "packages/agent-launch-cli/src/lib/wk-handoff-destination.mjs",
         "packages/agent-launch-cli/src/lib/trusted-operation-contracts.mjs",
         "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
         "packages/wiki-core/data/tool-discovery/manifest.json",
         "packages/wiki-core/data/tool-discovery/launcher-tools.json",
         "packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs"
       ],
-      "notes": "Orchestrator/operator continuation for byte-identical publication of the exact terminal candidate. Reviewer results and monitor guidance are advisory: clean output cannot authorize and findings cannot veto. CCE alone decides a configured policy gate; without one, the result reports non-audit posture. Caller input is closed to repo alias and WK assigned_unit; the server derives candidate, repository, remote, branch, and pull-request identity. Cold recovery accepts only an already-present, directly commit-valued, authenticated refs/agent-launch/terminal-current-v2/<WK> candidate; absence refuses with terminal_candidate_recovery_current_ref_absent. Later landing movement does not invalidate an unchanged candidate, and merge readiness remains with the forge and policy. A clean retained terminal review may recommend this route; changes_requested needs coordinator disposition. Publication is independent of terminal review: the same squash candidate, whose tree is the selected integrated WK tip's and whose sole parent is the fixed authenticated fork, is published byte-for-byte whether or not the repository's selected delivery workflow includes a terminal review. A workflow without one needs no terminal-review unit, review evidence or reviewer checkout, while candidate identity, tree and sole parent, version selection and controlled generation are authenticated either way, and the result names the workflow it ran under. Publication neither merges nor completes the WK.",
+      "notes": "Orchestrator/operator continuation that hands off the exact terminal candidate. The destination comes from the main repository's Git configuration, never caller input: a remote-free repository hands off locally, agent-launch.handoffDestination selects local, git:<remote> (plain Git delivery, including a local bare repository) or hosted:<remote>, and an origin remote alone means hosted branch-and-proposal publication. Remotes without origin or a selector refuse; a failed selected destination keeps its Git cause and never falls back. Cold recovery reads only refs/agent-launch/terminal-current-v2/<WK> with a directly commit-valued target and refuses terminal_candidate_recovery_current_ref_absent when it is absent; other resolution failures keep their cause at stage candidate_resolution before any effect. Review is not an input: the squash candidate is published unchanged beneath exactly two WK-only closeout commits, and a retry recovers the recorded chain without appending another. Handoff never merges, moves a landing base or completes the WK; landing is a human or forge action observed with workspace_wk_landing_status.",
       "use_when": [
         "A terminal candidate is frozen and quiescent and the orchestrator is ready to request its exact forge publication."
       ],
@@ -389,15 +390,76 @@
       ],
       "authoritative_for": [
         "wk_forge_handoff:squash_branch_and_pull_request",
-        "launcher-owned forge branch creation and pull-request create-or-observe"
+        "launcher-owned local, Git and hosted handoff of the exact terminal candidate"
       ],
       "requires_prior_state": [
         "A launcher-frozen exact terminal candidate with canonical initiative assignment and a quiescent lifecycle.",
-        "Launcher-configured landing branch and a forge credential available host-side to the trusted server."
+        "A remote-free repository, an explicit agent-launch.handoffDestination selector, or an origin remote with a host-side forge credential for hosted publication."
       ],
       "replacement_for_misuse": [],
       "recommended_first_call": {
         "operation": "publish one WK's reviewed terminal candidate",
+        "arguments": {
+          "assigned_unit": "$canonical_wk_id"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_wk_landing_status",
+      "display_name": "Workspace WK landing status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_wk_landing_status",
+      "task_ids": [
+        "worker-delivery"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 121,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "launcher_registry",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/lib/wk-forge-landed-publication.mjs",
+        "packages/agent-launch-cli/src/lib/wk-handoff-destination.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-tools/landing-status-route.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/launcher-tools.json"
+      ],
+      "notes": "Read-only observation of a WK's existing handoff after workspace_wk_forge_handoff. Reports awaiting_human_landing, landed with the authenticated landed-publication carrier, contradictory, or unavailable, each with its original cause. Local and Git landing is read from the actual base history against the exact handed-off head; hosted landing from the merged proposal. Provisioning consumes the same observer. It never publishes, merges, recovers a candidate or reconciles the WK.",
+      "use_when": [
+        "A WK was handed off and the coordinator needs to know whether a human has landed the exact handoff."
+      ],
+      "do_not_use_when": [
+        "The task asks to land, merge or complete the WK; landing is a human or forge action and closure is its own operation."
+      ],
+      "authoritative_for": [
+        "wk_landing_status:read_only_landing_observation"
+      ],
+      "requires_prior_state": [
+        "A canonical WK whose exact terminal candidate was handed off."
+      ],
+      "replacement_for_misuse": [],
+      "recommended_first_call": {
+        "operation": "read one WK's handoff landing status",
         "arguments": {
           "assigned_unit": "$canonical_wk_id"
         },

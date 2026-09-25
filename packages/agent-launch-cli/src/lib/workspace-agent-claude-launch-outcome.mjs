@@ -10,7 +10,9 @@ import {
 import {
   buildConduitSpawnFailureRefusal,
   buildLaunchPathFailureRefusal,
+  buildWorkerTestRuntimePreparationRefusal,
   classifyLaunchPathFailure,
+  classifyWorkerTestRuntimePreparationFailure,
   cleanupConduitForRefusal
 } from "./launch-failure-cause.mjs";
 import {
@@ -80,6 +82,9 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
     const conduitCleanupFailure = await cleanupConduitForRefusal(conduit);
     return buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure);
   }
+
+  const preparation = classifyWorkerTestRuntimePreparationFailure(err);
+  if (preparation !== null) return buildWorkerTestRuntimePreparationRefusal(makeRefusal, preparation);
   if (isClaudeCredentialsReadOnlyFileRefusal(err)) {
     return makeRefusal(
       BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,

@@ -1,5 +1,7 @@
 
 
+import { createHash } from "node:crypto";
+
 export const CONTROLLED_CONTRACT_TERMINAL_GAP_SCHEMA_VERSION =
   "controlled-contract-terminal-gap.v1";
 
@@ -116,35 +118,166 @@ const GAP_GROUP_LIMIT = 6;
 const GAP_GROUP_OBLIGATION_LIMIT = 4;
 const AFFECTED_OBLIGATION_LIMIT = 8;
 
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === "object") return Object.fromEntries(
+    Object.keys(value).sort().map((key) => [key, canonical(value[key])])
+  );
+  return value;
+}
+
+function digest(value) {
+  return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+}
+
+function unitAddress(subject) {
+  return subject?.selected_unit == null
+    ? subject?.wk_id : `${subject.wk_id}#${subject.selected_unit}`;
+}
+
+function semanticCauseSource(workbench) {
+  return Object.freeze({ ...structuredClone(workbench.subject ?? null),
+    evaluated_population: structuredClone(
+      workbench.evaluated_snapshot?.population ?? null) });
+}
+
+function diagnosticOwner(row) {
+  return row.diagnostic_provenance?.owner ?? null;
+}
+
+function causeDetailCall(subject, semanticCauseId) {
+  return Object.freeze({ tool: "workspace_validate_proof", arguments: Object.freeze({
+    unit: unitAddress(subject),
+    ...(subject?.focus == null ? {} : { focus: subject.focus }),
+    diagnostic_group_id: semanticCauseId
+  }) });
+}
+
+function causeCollectionCall(subject) {
+  return Object.freeze({ tool: "workspace_validate_proof", arguments: Object.freeze({
+    unit: unitAddress(subject),
+    ...(subject?.focus == null ? {} : { focus: subject.focus }),
+  }) });
+}
+
 function capped(values, limit) {
   return { listed: Object.freeze(values.slice(0, limit)),
     omitted: Math.max(0, values.length - limit) };
 }
 
-function gapGroups(rows) {
+function recoveryForGroup(group, subject) {
+  const authorities = [...new Map(group.occurrences.map(({ row }) =>
+    row.repair_authority).filter((authority) =>
+    authority?.status === "authenticated" &&
+      typeof authority.semantic_owner === "string").map((authority) =>
+    [authority.semantic_owner, authority])).values()];
+  const guidance = group.occurrences.map(({ row }) => row.recovery_guidance)
+    .find((entry) => entry && typeof entry === "object") ?? null;
+  const internal = group.gap_class === "tooling_or_internal_invariant";
+  const authored = authorities.length === 1 &&
+    typeof guidance?.write_tool === "string";
+  return Object.freeze({
+    status: internal ? "system_owner_failure"
+      : authored ? "authored_correction_available" : "inspection_only",
+    actor_recovery: internal ? "system_owner" : authored ? "agent" : "none",
+    explanation: internal
+      ? "The semantic classifier or its owner failed; changing authored proof inputs is not an established correction."
+      : authored
+        ? `The authenticated ${authorities[0].semantic_owner} transition accepts an authored correction after reading the current source revision.`
+        : "The cause can be inspected, but this assessment established no authenticated authored transition that repairs it.",
+    inspection_call: null,
+    correction: authored ? Object.freeze({
+      semantic_owner: authorities[0].semantic_owner,
+      read_tool: guidance.read_tool ?? null,
+      write_tool: guidance.write_tool,
+      validation_tool: guidance.validation_tool ?? null,
+      arguments: Object.freeze({ unit: unitAddress(subject),
+        ...(subject?.focus == null ? {} : { focus: subject.focus }) }),
+      requires_authored_values: true
+    }) : null
+  });
+}
+
+function logicalCauses(rows, subject) {
+  const causes = new Map();
+  for (const { row, gap_class: gapClass } of rows) {
+    const reasonCodes = [...(Array.isArray(row.reason_codes)
+      ? row.reason_codes : [])];
+    const obligationId = row.semantic_identity?.obligation_id ?? null;
+    const key = JSON.stringify({ gapClass, reasonCodes, obligationId });
+    const cause = causes.get(key) ?? {
+      gap_class: gapClass,
+      reason_codes: Object.freeze(reasonCodes),
+      obligation_id: obligationId,
+      occurrences: []
+    };
+    cause.occurrences.push({ row, gap_class: gapClass });
+    causes.set(key, cause);
+  }
+  const values = [...causes.values()];
+  const recoveryStatusCounts = Object.freeze(Object.fromEntries(
+    ['authored_correction_available', 'system_owner_failure', 'inspection_only']
+      .map(status => [status, values.filter(cause =>
+        recoveryForGroup(cause, subject).status === status).length])));
+  return Object.freeze({ count: values.length, recovery_status_counts: recoveryStatusCounts });
+}
+
+function gapGroups(rows, subject) {
   const grouped = new Map();
   for (const { row, gap_class: gapClass } of rows) {
     const reasonCodes = [...(Array.isArray(row.reason_codes) ? row.reason_codes : [])];
-    const owner = row.semantic_owner ?? null;
+    const owner = diagnosticOwner(row);
     const key = JSON.stringify({ gapClass, reasonCodes, owner });
     const current = grouped.get(key) ?? { gap_class: gapClass,
-      reason_codes: Object.freeze(reasonCodes), responsible_owner: owner,
-      occurrence_count: 0, obligations: new Set() };
+      reason_codes: Object.freeze(reasonCodes), diagnostic_owner: owner,
+      occurrence_count: 0, obligations: new Set(), occurrences: [] };
     current.occurrence_count += 1;
+    current.occurrences.push({ row, gap_class: gapClass });
     const obligationId = row.semantic_identity?.obligation_id;
     if (typeof obligationId === "string") current.obligations.add(obligationId);
     grouped.set(key, current);
   }
   const groups = [...grouped.values()].map((group) => {
     const ids = capped([...group.obligations].sort(), GAP_GROUP_OBLIGATION_LIMIT);
-    return Object.freeze({
+    const semanticCauseId = `diagnostic-group-${digest({
+      kind: "computed_semantic_cause",
+      source: subject ?? null,
       gap_class: group.gap_class,
       reason_codes: group.reason_codes,
-      responsible_owner: group.responsible_owner,
+      diagnostic_owner: group.diagnostic_owner
+    })}`;
+    const recovery = Object.freeze({ ...recoveryForGroup(group, subject),
+      inspection_call: causeDetailCall(subject, semanticCauseId) });
+    return Object.freeze({
+      semantic_cause_id: semanticCauseId,
+      diagnostic_group_id: semanticCauseId,
+      gap_class: group.gap_class,
+      reason_codes: group.reason_codes,
+      diagnostic_owner: group.diagnostic_owner,
+      responsible_owner: group.diagnostic_owner,
+      repair_authority: Object.freeze({
+        status: recovery.status === "authored_correction_available"
+          ? "authenticated" : "unavailable",
+        semantic_owner: recovery.correction?.semantic_owner ?? null
+      }),
+      recovery,
       occurrence_count: group.occurrence_count,
       affected_obligation_count: group.obligations.size,
       affected_obligation_ids: ids.listed,
-      affected_obligation_ids_omitted: ids.omitted
+      affected_obligation_ids_omitted: ids.omitted,
+      detail_call: causeDetailCall(subject, semanticCauseId),
+      occurrences: Object.freeze(group.occurrences.map(({ row, gap_class: gapClass }) =>
+        Object.freeze({
+          row_id: row.row_id,
+          gap_class: gapClass,
+          semantic_identity: structuredClone(row.semantic_identity ?? null),
+          reason_codes: Object.freeze([...(row.reason_codes ?? [])]),
+          non_actionable_reason: row.non_actionable_reason ?? null,
+          diagnostic_provenance: structuredClone(row.diagnostic_provenance ?? null),
+          repair_authority: structuredClone(row.repair_authority ?? null),
+          evidence: structuredClone(row.evidence ?? null),
+          recovery_guidance: structuredClone(row.recovery_guidance ?? null)
+        })))
     });
   }).sort((left, right) =>
     CONTROLLED_CONTRACT_TERMINAL_GAP_CLASSES.indexOf(left.gap_class) -
@@ -154,7 +287,9 @@ function gapGroups(rows) {
     [...group.obligations]))].sort();
   const inlineAffected = capped(affected, AFFECTED_OBLIGATION_LIMIT);
   const inlineGroups = capped(groups, GAP_GROUP_LIMIT);
-  return { groups: inlineGroups.listed,
+  return { groups: inlineGroups.listed.map(({ occurrences: _occurrences,
+    recovery: _recovery, ...group }) => Object.freeze(group)),
+    all_groups: Object.freeze(groups),
     group_count: groups.length,
     groups_omitted: inlineGroups.omitted,
     affected_obligation_ids: inlineAffected.listed,
@@ -177,7 +312,9 @@ export function classifyControlledContractTerminalGaps({ workbench,
     (gapClass) => counts[gapClass] > 0);
 
   const primary = present[0] ?? null;
-  const grouped = gapGroups(rows);
+  const source = semanticCauseSource(workbench);
+  const grouped = gapGroups(rows, source);
+  const logical = logicalCauses(rows, source);
   return Object.freeze({
     schema_version: CONTROLLED_CONTRACT_TERMINAL_GAP_SCHEMA_VERSION,
     acceptable: rows.length === 0,
@@ -185,13 +322,17 @@ export function classifyControlledContractTerminalGaps({ workbench,
     gap_class_counts: Object.freeze(counts),
     gap_classes_present: Object.freeze(present),
     total_gap_count: rows.length,
+    observation_count: rows.length,
 
     gap_groups: grouped.groups,
     gap_group_count: grouped.group_count,
+    logical_cause_count: logical.count,
+    recovery_status_counts: logical.recovery_status_counts,
     gap_groups_omitted: grouped.groups_omitted,
     affected_obligation_ids: grouped.affected_obligation_ids,
     affected_obligation_ids_omitted: grouped.affected_obligation_ids_omitted,
     affected_obligation_count: grouped.affected_obligation_count,
+    detail_call: causeCollectionCall(source),
     evidence: Object.freeze(rows.slice(0, evidenceLimit).map(
       ({ row, gap_class: gapClass }) => Object.freeze({
         row_id: row.row_id,
@@ -200,7 +341,9 @@ export function classifyControlledContractTerminalGaps({ workbench,
           ? row.reason_codes : [])]),
 
         obligation_id: row.semantic_identity?.obligation_id ?? null,
-        responsible_owner: row.semantic_owner ?? null
+        diagnostic_owner: diagnosticOwner(row),
+        responsible_owner: diagnosticOwner(row),
+        repair_authority: structuredClone(row.repair_authority ?? null)
       }))),
     evidence_omitted: Math.max(0, rows.length - evidenceLimit),
     repair_outcome: repairOutcome === null ? null : Object.freeze({
@@ -210,5 +353,27 @@ export function classifyControlledContractTerminalGaps({ workbench,
       reason_code: repairOutcome.reason_code ?? null,
       responsible_owner: repairOutcome.responsible_owner ?? null
     })
+  });
+}
+
+export function projectControlledContractTerminalGapDetails({ workbench } = {}) {
+  const rows = [
+    ...workbench.actionable_rows.map((row) =>
+      ({ row, gap_class: actionableGapClass(row) })),
+    ...workbench.non_actionable_rows.map((row) =>
+      ({ row, gap_class: classifyRow(row) }))
+  ];
+  const source = semanticCauseSource(workbench);
+  const grouped = gapGroups(rows, source);
+  const logical = logicalCauses(rows, source);
+  return Object.freeze({
+    schema_version: "controlled-contract-semantic-cause-detail.v1",
+    source,
+    total_occurrence_count: rows.length,
+    observation_count: rows.length,
+    group_count: grouped.group_count,
+    logical_cause_count: logical.count,
+    recovery_status_counts: logical.recovery_status_counts,
+    groups: grouped.all_groups
   });
 }

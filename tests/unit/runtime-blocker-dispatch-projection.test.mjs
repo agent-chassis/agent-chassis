@@ -674,3 +674,22 @@ test("WK-2655 the launch-path carrier invents no review-target continuation", ()
     assert.equal(JSON.stringify(carried).includes("review_target_range_valid"), false, reason);
   }
 });
+
+for (const [category, code] of [
+  ["remote_invalid", "agent_launch.wk_forge_handoff.remote_invalid.v1"],
+  ["eligibility", "agent_launch.wk_forge_handoff.eligibility_refused.v1"]
+]) {
+  test(`WK-2664 the forge ${category} identity is registered and crosses the mapper unchanged`, async () => {
+    const entry = loadRuntimeBlockerTaxonomy().codes.find((candidate) => candidate.code === code);
+    assert.ok(entry, `${code} must be registered`);
+    assert.equal(entry.actor_recovery, "none");
+    assert.equal(entry.blocking, true);
+    assert.equal(entry.recovery ?? null, null, "no callable recovery is registered");
+    assert.equal(isRuntimeBlockerCode(code), true);
+    const { mapBackendRefusalToDispatchCode } = await import(
+      "../../packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs");
+    assert.equal(mapBackendRefusalToDispatchCode(code), code);
+
+    assert.equal(isRuntimeBlockerCode(category), false);
+  });
+}

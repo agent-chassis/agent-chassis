@@ -747,7 +747,10 @@ containment in its cache root, the file type of every entry, and the sha256 of
 every byte it is about to execute. On the read path an invalid artifact is a loud
 typed refusal; a generation pass replaces one that is invalid for a content
 reason through private temporary output and atomic publication, and never
-self-heals a containment violation.
+self-heals a containment violation. Every directory the publisher creates -- the
+cache root, its missing ancestors, the toolchain directory, and each group
+artifact -- is owner-only (`0700`) regardless of the process umask; an existing
+directory keeps its mode, so unsafe pre-existing backing is never re-permissioned.
 
 Validators behave exactly as their `ajv.compile` equivalents, including the
 complete diagnostic surface: the boolean result and `errors` entries carrying
@@ -843,19 +846,20 @@ and vocabulary family; their current proof definition, input and result formats
 are v2. Selector indexes, proof resolutions, and assessment component-applicability
 projections also use v2. No old-format parser or alias is supplied. Exact loading validates the
 current closed definition schema and the exact profile/admission digests.
-Historical directories and their certificates retain their original bytes and
-identities; they are evidence, not a current executable compatibility surface.
+Retired definitions and their certifications are deleted, not kept as a
+compatibility surface; see
+[certification retirement and storage](../../docs/versioning.md#certification-retirement-and-storage).
 
 The complete current census is 38 identities across 37 profile IDs: all 37
-runtime/certification catalog entries, the intent catalog's 39 edges, and the
+runtime catalog entries, the intent catalog's 39 edges, and the
 verifier's independently pinned test-validity definition. Exact-consumer reads
 also cover the evaluator registry, authoring skeleton, and the behavioral and
 boundary-record consumers; their selections are already in the catalog
 population. `proof.scope.write-confinement` is deactivated as a selectable
 proof and has no catalog entry or controlled intent; the write-confinement
-evidence verifier names its historical 4.0.0 identity for reference only and
-loads no pack. Test-only execution of the superseded implementation-readiness
-2.0.0 pin is retired; its historical evidence is retained without recertification.
+evidence verifier names its retired 4.0.0 identity for reference only and
+loads no pack; that definition's files are deleted. Test-only execution of the
+superseded implementation-readiness 2.0.0 pin is retired and its files are deleted.
 
 | Definition | Previous version | Current version | Selection owner |
 | --- | --- | --- | --- |
@@ -903,7 +907,7 @@ The historical test-validity versions in this cutover table are not supported
 runtime selections. The sole current identity is 8.0.0, with the existing exact
 execution evaluator and certification population (one positive control and nine
 weakenings). Off-catalog evaluator registrations are refused during publication.
-Historical artifact bytes are retained without executable compatibility.
+Retired artifacts are deleted; there is no executable compatibility.
 
 `proof-obligation-runtime-resolver` consumes prepared native bindings and shared
 saved-application resolutions. Its v3 results carry the selected definition,
@@ -922,11 +926,22 @@ current certification. Changed profile, guarantee, adequacy, executable closure,
 negative-fixture and witness bindings are regenerated before admission. The
 result remains `experimental_local`, `authoritative: false`.
 
+Each current definition's certification documents (adequacy declaration, negative
+fixtures, witness index, corpus and full-census result) are stored in one
+deterministic `test/certification/profiles/<id>/<version>/certification.json.gz`
+archive beside an optional README. `test/support/certification-artifact.mjs` is
+the single bounded reader and writer. Member bytes are the certified document
+bytes, so fixture and witness digests are unchanged by storage. Runtime metadata
+is read only from `profiles/<id>/<version>/`. The certification tree, generator and
+test support are development-only and never enter the npm tarball. Storage bounds,
+refusal codes and recovery are defined in
+[Versioning](../../docs/versioning.md#certification-retirement-and-storage).
+
 The complete work record publication executes 1,633 controls and includes 2,195
 negative fixtures and 4,349 coverage witnesses across all 39 definitions.
-Publication authentication checks the exact runtime/certification profile,
-template and admission bytes, executable dependency closures, result digests,
-and component-applicability companions. Historical identities never enter this
+Publication authentication checks the exact runtime profile, template and
+admission bytes, the regenerated certification archives, executable dependency
+closures, result digests, and component-applicability companions. Historical identities never enter this
 current executable population.
 
 Stage-only surfaces, mutations and witnesses are removed from the new adequacy
@@ -934,7 +949,8 @@ and negative-corpus formats (experimental v0.2). All unaffected positive,
 mutant, profile-rejection, exclusion and coverage controls remain required.
 Definition versioning does not authorize changes to a substantive guarantee.
 The generator publishes into an empty destination only after all 38 exact
-certifications pass; runtime and certification copies are checked together.
+certifications pass. It refuses a certification directory holding anything besides
+its archive and README.
 Validator schema declarations load independently of admitted catalog snapshots,
 so a schema cutover can be certified before its admissions exist.
 

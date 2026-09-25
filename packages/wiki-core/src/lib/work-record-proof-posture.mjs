@@ -187,7 +187,18 @@ function gapProjection(workbench) {
   }
   const gaps = classifyControlledContractTerminalGaps({ workbench });
   return Object.freeze({ total: gaps.total_gap_count,
-    counts: gaps.gap_class_counts, classes_present: gaps.gap_classes_present });
+    observation_count: gaps.observation_count,
+    counts: gaps.gap_class_counts, classes_present: gaps.gap_classes_present,
+    primary_gap_class: gaps.primary_gap_class,
+    group_count: gaps.gap_group_count,
+    logical_cause_count: gaps.logical_cause_count,
+    recovery_status_counts: gaps.recovery_status_counts,
+    groups_omitted: gaps.gap_groups_omitted,
+    groups: gaps.gap_groups,
+    affected_obligation_count: gaps.affected_obligation_count,
+    affected_obligation_ids: gaps.affected_obligation_ids,
+    affected_obligation_ids_omitted: gaps.affected_obligation_ids_omitted,
+    detail_call: gaps.detail_call });
 }
 
 const ABSENT_REPAIR_QUALIFICATION = Object.freeze({
@@ -226,11 +237,14 @@ function definitionReadinessProjection(workbench) {
 
     terminal_gaps: gaps === null ? null : Object.freeze({
       total: gaps.total_gap_count,
+      observation_count: gaps.observation_count,
       primary_gap_class: gaps.primary_gap_class,
       affected_obligation_count: gaps.affected_obligation_count,
       affected_obligation_ids: gaps.affected_obligation_ids,
       affected_obligation_ids_omitted: gaps.affected_obligation_ids_omitted,
       group_count: gaps.gap_group_count,
+      logical_cause_count: gaps.logical_cause_count,
+      recovery_status_counts: gaps.recovery_status_counts,
       groups_omitted: gaps.gap_groups_omitted,
       groups: gaps.gap_groups
     }) });
@@ -255,6 +269,48 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
   const stale = state !== "opted_out" && currentness === "stale";
 
   const blocked = stale || ["absent", "incomplete"].includes(state);
+  const terminalGaps = gapProjection(workbench);
+  const definitionCorrection =
+    snapshot?.ordinary_authoring_readiness?.definition_readiness?.correction ?? null;
+  const internalFailure = (terminalGaps?.counts?.tooling_or_internal_invariant ?? 0) > 0;
+  const authoredCorrection = definitionCorrection ??
+    (state === "absent"
+      ? controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null);
+  const authoredCorrectionAvailable = !internalFailure && authoredCorrection !== null;
+  const supportedAuthoredCall = state === "absent" ? authoredCorrection : readinessRecovery;
+  const recoveryCapability = !blocked ? Object.freeze({ status: "not_required",
+    actor_recovery: "none", inspection_call: null, correction: null })
+    : stale ? Object.freeze({ status: "source_refresh_required",
+      actor_recovery: "agent", inspection_call: terminalGaps?.detail_call ?? null,
+      correction: null })
+      : internalFailure ? Object.freeze({ status: "system_owner_failure",
+        actor_recovery: "system_owner", inspection_call: terminalGaps?.detail_call ?? null,
+        correction: null })
+        : authoredCorrectionAvailable ? Object.freeze({
+          status: "authored_correction_available", actor_recovery: "agent",
+          inspection_call: terminalGaps?.detail_call ?? null,
+          correction: Object.freeze(structuredClone(authoredCorrection))
+        }) : Object.freeze({ status: "inspection_only", actor_recovery: "none",
+          inspection_call: terminalGaps?.detail_call ?? null, correction: null });
+  const causeRows = [...(workbench?.actionable_rows ?? []),
+    ...(workbench?.non_actionable_rows ?? [])];
+  const diagnosticOwners = [...new Set(causeRows
+    .map((row) => row.diagnostic_provenance?.owner).filter(Boolean))].sort();
+  const nonblockingCodes = new Set((snapshot?.proof_authoring_diagnostics?.groups ?? [])
+    .filter((group) => group.route_effect === "nonblocking")
+    .map((group) => group.code));
+  for (const declaration of snapshot?.ordinary_authoring_readiness?.declarations ?? []) {
+    if (declaration.status !== "complete") continue;
+    for (const code of [...(declaration.blocking_diagnostic_codes ?? []),
+      ...(declaration.nonblocking_diagnostic_codes ?? []),
+      ...(declaration.unresolved_diagnostic_codes ?? []),
+      ...(declaration.reported_execution_diagnostic_codes ?? [])]) {
+      nonblockingCodes.add(code);
+    }
+  }
+  const ownerCodes = [...new Set(causeRows
+    .flatMap((row) => row.reason_codes ?? []))]
+    .filter((code) => !nonblockingCodes.has(code)).sort();
   return Object.freeze({
     schema_version: "controlled-acceptance-semantic-subset.v1",
     wk_id: wkId,
@@ -280,7 +336,7 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
     incomplete_row_count: workbench?.incomplete_row_count ?? 0,
     actionable_row_count: workbench?.actionable_row_count ?? 0,
     non_actionable_row_count: workbench?.non_actionable_row_count ?? 0,
-    terminal_gaps: gapProjection(workbench),
+    terminal_gaps: terminalGaps,
 
     repair: Object.freeze({ ...(ordinaryComplete
       ? ORDINARY_COMPLETE_REPAIR_QUALIFICATION
@@ -313,20 +369,38 @@ function semanticSubset({ wkId, selectedUnit, state, posture, workbench, generat
           (ordinaryReadiness?.stage_counts?.authored_inputs?.incomplete > 0
             ? "authored_inputs" : "canonical_sources"),
       responsible_owner: !blocked ? null
-        : readinessRecovery?.responsible_owner ?? null,
+        : diagnosticOwners.length === 1 ? diagnosticOwners[0]
+          : diagnosticOwners.length > 1 ? "multiple_diagnostic_owners"
+            : readinessRecovery?.responsible_owner ?? null,
+      diagnostic_owners: Object.freeze(!blocked ? [] : diagnosticOwners),
       affected_obligation_count: !blocked ? 0
-        : readinessRecovery?.affected_obligation_count ?? 0,
+        : terminalGaps?.affected_obligation_count ??
+          readinessRecovery?.affected_obligation_count ?? 0,
+      affected_obligation_ids: Object.freeze(!blocked ? []
+        : structuredClone(terminalGaps?.affected_obligation_ids ?? [])),
+      affected_obligation_ids_omitted: !blocked ? 0
+        : terminalGaps?.affected_obligation_ids_omitted ?? 0,
       owner_codes: Object.freeze(!blocked
-        ? [] : structuredClone(readinessRecovery?.owner_codes ?? [])),
+        ? [] : ownerCodes.length > 0 ? ownerCodes
+          : structuredClone(readinessRecovery?.owner_codes ?? [])),
       unavailable_operations: Object.freeze(!blocked
         ? [] : structuredClone(readinessRecovery?.unavailable_operations ?? [])),
       recovery_explanation: !blocked ? null
-        : readinessRecovery?.explanation ?? null,
+        : recoveryCapability.status === "system_owner_failure"
+          ? "An internal semantic owner or classifier failed; authored proof changes are not an established repair."
+          : recoveryCapability.status === "authored_correction_available"
+            ? "The deciding authored-input causes are retrievable and the authoring owner exposes a revision-bound correction route."
+            : recoveryCapability.status === "inspection_only"
+              ? "The deciding semantic causes are retrievable, but no authenticated authored correction was established."
+              : readinessRecovery?.explanation ?? null,
       operator_action: !blocked ? null
         : readinessRecovery?.operator_action ?? null,
       supported_next_call: !blocked ? null
-        : readinessRecovery?.supported_next_call ??
-          (typeof readinessRecovery?.tool === "string" ? readinessRecovery : null) })
+        : recoveryCapability.status === "authored_correction_available" &&
+            typeof supportedAuthoredCall?.tool === "string" ? supportedAuthoredCall
+          : recoveryCapability.inspection_call,
+      recovery_capability: recoveryCapability,
+      cause_detail_call: !blocked ? null : terminalGaps?.detail_call ?? null })
   });
 }
 
@@ -356,6 +430,10 @@ export function deriveControlledAcceptanceStateProjection({ wkId,
   const state = resolveControlledAcceptanceState({ posture, workbench });
   const generation = workbench?.subject?.generation_id ?? null;
   const required = posture.present && posture.disposition === "required";
+  const semantic = semanticSubset({ wkId, selectedUnit, state, posture, workbench,
+    generation });
+  const sourceRefresh = semantic.admission.recovery_capability.status ===
+    "source_refresh_required" ? semantic.admission.recovery_capability : null;
   const projection = Object.freeze({
     schema_version: CONTROLLED_ACCEPTANCE_STATE_SCHEMA_VERSION,
     wk_id: wkId,
@@ -376,11 +454,10 @@ export function deriveControlledAcceptanceStateProjection({ wkId,
       rationale_provenance: null }) : null,
     population: required ? populationProjection(workbench) : null,
     definition_readiness: required ? definitionReadinessProjection(workbench) : null,
-    recovery: ["absent", "incomplete"].includes(state)
+    recovery: sourceRefresh ?? (["absent", "incomplete"].includes(state)
       ? workbench?.evaluated_snapshot?.obligation_design?.recovery ??
-        controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null,
-    semantic: semanticSubset({ wkId, selectedUnit, state, posture, workbench,
-      generation })
+        controlledAcceptancePrepareDesignCall(wkId, selectedUnit) : null),
+    semantic
   });
   return assertControlledAcceptanceStateProjection(projection, wkId, selectedUnit);
 }
@@ -423,10 +500,16 @@ export function assertControlledAcceptanceStateProjection(value, expectedWkId,
     expectedSelectedUnit);
   const selectedUnitValid = plainObject(value?.selected_unit) &&
     JSON.stringify(value.selected_unit) === JSON.stringify(expectedUnit);
-  const recoveryValid = ["absent", "incomplete"].includes(value?.state)
+  const expectedSourceRefresh = value?.semantic?.admission?.blocked_reason_code ===
+    "controlled_acceptance_source_not_current"
+    ? value.semantic.admission.recovery_capability : null;
+  const recoveryValid = expectedSourceRefresh !== null
     ? plainObject(value?.recovery) &&
-      JSON.stringify(value.recovery) === JSON.stringify(expectedRecovery)
-    : value?.recovery === null;
+      JSON.stringify(value.recovery) === JSON.stringify(expectedSourceRefresh)
+    : ["absent", "incomplete"].includes(value?.state)
+      ? plainObject(value?.recovery) &&
+        JSON.stringify(value.recovery) === JSON.stringify(expectedRecovery)
+      : value?.recovery === null;
   if (!plainObject(value) || !exactKeys(value, keys) ||
       value.schema_version !== CONTROLLED_ACCEPTANCE_STATE_SCHEMA_VERSION ||
       value.wk_id !== expectedWkId || !CONTROLLED_ACCEPTANCE_STATES.includes(value.state) ||

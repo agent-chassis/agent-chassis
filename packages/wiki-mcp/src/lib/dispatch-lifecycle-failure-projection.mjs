@@ -9,12 +9,12 @@ import {
   COMMITTED_SLICE_INTEGRATION_PUBLIC_BLOCKER_CODES,
   COMMITTED_SLICE_INTEGRATION_REFUSAL_DIAGNOSTIC_CODES,
   COMMITTED_SLICE_INTEGRATION_REFUSAL_DIAGNOSTIC_KINDS,
-  COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH,
-  projectCommittedSliceIntegrationRefusal,
-  projectCompletedIntegrationContinuationFailure
+  projectCommittedSliceIntegrationRefusal
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
 import { captureDiagnosticEvidence } from
   "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
+import { projectAuthenticatedTerminalCandidateFailure } from
+  "./dispatch-terminal-candidate-coordinator.mjs";
 
 export const CLOSED_LIFECYCLE_FAILURE_SCHEMA_VERSION =
   "agent_launch.closed_lifecycle_failure.v1";
@@ -42,7 +42,10 @@ export const CLOSED_LIFECYCLE_REFUSAL_REASONS = Object.freeze({
   WORKER_SUBJECT_BINDING_MISMATCH: "worker_subject_binding_mismatch",
   WK_BINDING_MISMATCH: "wk_binding_mismatch",
   GIT_COMMAND_FAILED: "git_command_failed",
-  GIT_OBJECT_UNRESOLVED: "git_object_unresolved"
+  GIT_OBJECT_UNRESOLVED: "git_object_unresolved",
+
+  RECORD_RECONCILIATION_PENDING: "canonical_record_reconciliation_pending",
+  RECORD_RECONCILIATION_BLOCKED: "canonical_record_reconciliation_blocked"
 });
 
 export const CLOSED_FAILURE_CAUSE_KEYS = Object.freeze([
@@ -170,7 +173,6 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.terminal_candidate_preparation_failed.v1",
     message: "post-worker terminal candidate preparation failed",
     carries_candidate_failure: true,
-    carries_continuation_failure: false,
     failure_causes: null
   }),
   [CLOSED_LIFECYCLE_FAILURE_SEAMS.COMMITTED_SLICE_INTEGRATION_CONTINUATION]: Object.freeze({
@@ -178,7 +180,6 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.committed_slice_integration_continuation_failed.v1",
     message: "post-worker committed slice integration continuation failed",
     carries_candidate_failure: false,
-    carries_continuation_failure: true,
     failure_causes: null
   }),
   [CLOSED_LIFECYCLE_FAILURE_SEAMS.MANAGED_WORKER_IDENTITY_RETIREMENT]: Object.freeze({
@@ -186,7 +187,6 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.managed_worker_identity_retirement_failed.v1",
     message: "post-worker managed worker identity retirement failed",
     carries_candidate_failure: false,
-    carries_continuation_failure: false,
     failure_causes: null
   }),
 
@@ -195,7 +195,6 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.lifecycle_binding_resolution_failed.v1",
     message: "post-worker lifecycle binding resolution failed",
     carries_candidate_failure: false,
-    carries_continuation_failure: false,
     failure_causes: seamFailureCauses({
       lifecycleRefusalReasons: [
         CLOSED_LIFECYCLE_REFUSAL_REASONS.PROVISIONING_BINDING_INCOMPLETE,
@@ -209,7 +208,6 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.slice_delivery_inspection_failed.v1",
     message: "post-worker slice delivery inspection failed",
     carries_candidate_failure: false,
-    carries_continuation_failure: false,
     failure_causes: seamFailureCauses({
       lifecycleRefusalReasons: [
         CLOSED_LIFECYCLE_REFUSAL_REASONS.GIT_COMMAND_FAILED,
@@ -222,7 +220,6 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.integrated_slice_reconciliation_failed.v1",
     message: "post-worker integrated slice reconciliation failed",
     carries_candidate_failure: false,
-    carries_continuation_failure: false,
     failure_causes: seamFailureCauses({})
   }),
   [CLOSED_LIFECYCLE_FAILURE_SEAMS.COMMITTED_SLICE_INTEGRATION]: Object.freeze({
@@ -230,8 +227,13 @@ const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
     code: "agent_launch.slice_lifecycle.committed_slice_integration_failed.v1",
     message: "post-worker committed slice integration failed",
     carries_candidate_failure: false,
-    carries_continuation_failure: false,
-    failure_causes: seamFailureCauses({ integrationRefusal: true })
+    failure_causes: seamFailureCauses({
+      lifecycleRefusalReasons: [
+        CLOSED_LIFECYCLE_REFUSAL_REASONS.RECORD_RECONCILIATION_PENDING,
+        CLOSED_LIFECYCLE_REFUSAL_REASONS.RECORD_RECONCILIATION_BLOCKED
+      ],
+      integrationRefusal: true
+    })
   })
 });
 
@@ -251,25 +253,9 @@ export const CLOSED_LIFECYCLE_FAILURE_KEYS = Object.freeze([
   "schema_version",
   "code",
   "candidate_failure",
-  "continuation_failure",
   "failure_cause",
   "evidence"
 ]);
-
-export const CLOSED_CONTINUATION_FAILURE_REASONS = Object.freeze({
-  COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH
-});
-
-const CLOSED_CONTINUATION_FAILURES = Object.freeze(new Map(
-  Object.values(CLOSED_CONTINUATION_FAILURE_REASONS)
-    .map((reason) => [reason, Object.freeze({ reason })])
-));
-
-export function closedContinuationFailure(value) {
-  return typeof value?.reason === "string"
-    ? CLOSED_CONTINUATION_FAILURES.get(value.reason) ?? null
-    : null;
-}
 
 export const CLOSED_CANDIDATE_FAILURE_KINDS = Object.freeze({
   TYPED: "typed_candidate_error",
@@ -318,10 +304,17 @@ function closedCandidateGitDetail(detail) {
   return Object.keys(projected).length === 0 ? null : Object.freeze(projected);
 }
 
+function ownerCandidateProjection(error) {
+
+  const authenticated = projectAuthenticatedTerminalCandidateFailure(error);
+  if (authenticated?.kind === CLOSED_CANDIDATE_FAILURE_KINDS.TYPED) return authenticated;
+  return projectTerminalWkCandidateFailure(error);
+}
+
 function closedCandidateFailure(error) {
   let projected;
   try {
-    projected = projectTerminalWkCandidateFailure(error);
+    projected = ownerCandidateProjection(error);
   } catch {
 
     return CLOSED_UNKNOWN_CANDIDATE_FAILURE;
@@ -344,14 +337,6 @@ const CARRIER_BRAND = new WeakSet();
 
 const CARRIER_CONSTRUCTION_TOKEN = Symbol("closed-lifecycle-failure-construction");
 
-function brandedContinuationFailure(error) {
-  try {
-    return closedContinuationFailure(projectCompletedIntegrationContinuationFailure(error));
-  } catch {
-    return null;
-  }
-}
-
 function deepFreeze(value) {
   if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
     Object.freeze(value);
@@ -370,7 +355,7 @@ function carrierStack(message, evidence) {
 }
 
 class ClosedLifecycleFailure extends Error {
-  constructor(token, code, candidateFailure, continuationFailure, failureCause, evidence) {
+  constructor(token, code, candidateFailure, failureCause, evidence) {
     if (token !== CARRIER_CONSTRUCTION_TOKEN) {
       throw new Error(
         "closed lifecycle failure carrier is constructible only by trusted lifecycle code"
@@ -397,14 +382,12 @@ class ClosedLifecycleFailure extends Error {
     pin("detail", Object.freeze({
       code,
       candidate_failure: candidateFailure,
-      continuation_failure: continuationFailure,
       failure_cause: failureCause,
       evidence
     }), false);
     pin("schema_version", CLOSED_LIFECYCLE_FAILURE_SCHEMA_VERSION, true);
     pin("code", code, true);
     pin("candidate_failure", candidateFailure, true);
-    pin("continuation_failure", continuationFailure, true);
     pin("failure_cause", failureCause, true);
     pin("evidence", evidence, true);
     Object.freeze(this);
@@ -421,12 +404,11 @@ function seamDescriptor(seam) {
   return CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS[seam];
 }
 
-function brandedCarrier(descriptor, candidateFailure, continuationFailure, failureCause, evidence) {
+function brandedCarrier(descriptor, candidateFailure, failureCause, evidence) {
   const carrier = new ClosedLifecycleFailure(
     CARRIER_CONSTRUCTION_TOKEN,
     descriptor.code,
     candidateFailure,
-    continuationFailure,
     failureCause,
     deepFreeze(evidence)
   );
@@ -441,7 +423,6 @@ export function closeLifecycleSeamFailure(seam, error) {
   return brandedCarrier(
     descriptor,
     descriptor.carries_candidate_failure ? closedCandidateFailure(error) : null,
-    descriptor.carries_continuation_failure ? brandedContinuationFailure(error) : null,
     descriptor.failure_causes === null ? null : seamFailureCause(descriptor.failure_causes, error),
     evidence
   );
@@ -458,7 +439,7 @@ export function closeLifecycleSeamRefusal(seam, reason, detail = null) {
     { code: reason, detail }
   );
   Error.captureStackTrace?.(origin, closeLifecycleSeamRefusal);
-  return brandedCarrier(descriptor, null, null, lifecycleRefusalCause(reason),
+  return brandedCarrier(descriptor, null, lifecycleRefusalCause(reason),
     captureLifecycleFailureEvidence(origin, { seam }));
 }
 
@@ -518,7 +499,6 @@ export function projectClosedLifecycleFailure(value) {
     code: value.code,
     message: CLOSED_LIFECYCLE_FAILURE_MESSAGES[value.code] ?? null,
     candidate_failure: value.candidate_failure,
-    continuation_failure: closedContinuationFailure(value.continuation_failure),
     failure_cause: closedFailureCause(value.failure_cause),
     evidence: value.evidence
   });

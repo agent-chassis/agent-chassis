@@ -35,16 +35,12 @@ export function integrationWorktreePath(worktreeRoot, initiative) {
 export function allocateIntegrationWorktree({
   mainRepo,
   initiative,
-  worktreeRoot,
-  base = "main"
+  worktreeRoot
 } = {}) {
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
   assertInitiativeId(initiative);
   const root = assertAbsolutePath(worktreeRoot, "worktreeRoot");
   assertWorktreeRootOutsideMainRepo(repo, root);
-  if (typeof base !== "string" || base.length === 0) {
-    fail(WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_ARG, "base must be a non-empty string");
-  }
   refuseRetiredIntegrationOperation("integration worktree allocation");
 }
 

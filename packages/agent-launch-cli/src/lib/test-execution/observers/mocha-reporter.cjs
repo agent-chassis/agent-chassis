@@ -28,6 +28,8 @@ function prune(suite) {
   for (const child of suite.suites) prune(child);
 }
 
+let selectedStarted = false;
+
 function observeBody(test) {
   const body = test.fn;
   if (typeof body !== "function") return;
@@ -39,6 +41,7 @@ function observeBody(test) {
     channel.emit("window_end", { file, test: titles });
   };
   test.fn = function launcherObservedTestBody(...args) {
+    selectedStarted = true;
     channel.emit("test_start", { file, test: titles });
     if (test.async && typeof args[0] === "function") {
       const done = args[0];
@@ -71,18 +74,28 @@ class LauncherTestProofReporter extends Mocha.reporters.Spec {
     runner.on(constants.EVENT_TEST_BEGIN, (test) => {
       if (isSelected(test)) observeBody(test);
     });
-    const result = (test, outcome, error = null) => {
-      if (!isSelected(test)) return;
-      channel.emit("test_result", { file, test: test.titlePath(), outcome,
-        assertion_failure: outcome === "failed" && isAssertion(error),
-        error: outcome === "failed" ? errorFacts(error, isAssertion(error)) : null });
+
+    let selected = null;
+    const record = (test, outcome, error = null) => {
+      if (!isSelected(test) || selected?.outcome === "failed") return;
+      selected = { titles: test.titlePath(), outcome, error };
     };
-    runner.on(constants.EVENT_TEST_PASS, (test) => result(test, "passed"));
+    runner.on(constants.EVENT_TEST_PASS, (test) => record(test, "passed"));
     runner.on(constants.EVENT_TEST_FAIL, (test, error) => {
-      if (test.type === "test") result(test, "failed", error);
+      if (test.type === "test") record(test, "failed", error);
+
+      else if (selectedStarted && test.ctx?.currentTest) record(test.ctx.currentTest, "failed", error);
     });
-    runner.on(constants.EVENT_TEST_PENDING, (test) => result(test, "skipped"));
-    runner.once(constants.EVENT_RUN_END, () => channel.emit("session_end"));
+    runner.on(constants.EVENT_TEST_PENDING, (test) => record(test, "skipped"));
+    runner.once(constants.EVENT_RUN_END, () => {
+      if (selected !== null) {
+        const { titles, outcome, error } = selected;
+        channel.emit("test_result", { file, test: titles, outcome,
+          assertion_failure: outcome === "failed" && isAssertion(error),
+          error: outcome === "failed" ? errorFacts(error, isAssertion(error)) : null });
+      }
+      channel.emit("session_end");
+    });
   }
 }
 

@@ -348,9 +348,9 @@
     },
     {
       "tool_name": "agent-chassis-setup-test-runtimes",
-      "display_name": "Set up local test runtimes",
+      "display_name": "Detect local test runtimes",
       "kind": "cli_command",
-      "entrypoint": "agent-chassis setup --test-runtimes --runner <runner>[@<project>]... [--dry-run] [--json]",
+      "entrypoint": "agent-chassis setup --test-runtimes [--runner <runner>[@<project>]]... [--dry-run] [--json]",
       "task_ids": [],
       "install_state": "installed",
       "runtime_posture": "supported",
@@ -380,7 +380,7 @@
         "packages/core/scripts/test-runtime-setup/cli.mjs",
         "packages/agent-launch-cli/src/lib/test-runtime-setup/index.mjs"
       ],
-      "notes": "Operator-run explicit local setup of the test runtimes that workspace_verify_proof native proofs need (runners node-test, jest, vitest, mocha, ava, deno, lib0-testing, pytest, stestr, go-test, cargo-test) in an existing repository. It installs missing selected Node, Python, Go, Rust/Cargo or Deno toolchains at supported pinned versions into an explicit toolchain root, prepares lockfile-pinned project test dependencies with the standard package manager into launcher-owned state, verifies every component inside the launcher sandbox and only then publishes .agent-launch/test-runtimes/readiness.v1.json. Omitting --runner repeats the published selection; a failed or partial run withdraws readiness. It does not rerun wiki bootstrap or touch root agent guidance, and proof attempts never download or install anything."
+      "notes": "Operator-run detection of the test environments workspace_verify_proof native proofs need. Without --runner it inventories every dependency environment the repository's own manifests declare (npm with workspace members, Python, Go, Cargo, Deno; ignored paths and test fixtures excluded) in every language; nothing is chosen from a list. Runners are those the toolchain provides (node-test, go-test, cargo-test, deno) or the environment declares (jest, vitest, mocha, ava, lib0-testing, pytest, stestr). It finds the toolchains and dependencies the operator installed (configured locations or PATH; node_modules, virtual environment, GOMODCACHE, Cargo vendor or registry, DENO_DIR), validates them against the repository's pins and manifests, verifies them in the launcher sandbox, then publishes .agent-launch/test-runtimes/readiness.json with one ID per environment (npm@., python@services/api) that workspace_verify_proof's optional environment names. It never downloads or installs anything; a missing component is reported for the operator to install. --runner detects only the named runners' environments. It never runs wiki bootstrap."
     }
   ]
 }

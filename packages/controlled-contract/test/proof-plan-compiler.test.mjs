@@ -43,12 +43,12 @@ const childEnvironment = () => {
 };
 const V1 = {
   profile_id: "proof.authorization.refusal-before-effects",
-  profile_version: "3.0.0"
+  profile_version: "4.0.0"
 };
 const V1_INTENT = "controlled-proof-intent.refusal-before-effects";
 const V2 = {
   profile_id: "proof.dormancy.nonactivation",
-  profile_version: "3.0.0"
+  profile_version: "4.0.0"
 };
 const V2_INTENT = "controlled-proof-intent.dormancy-nonactivation";
 
@@ -65,7 +65,7 @@ async function testValidityFixture() {
     readFile(new URL("../examples/minimal-controlled-acceptance-contract.v1.json",
       import.meta.url), "utf8").then(JSON.parse),
     readFile(new URL(
-      "../profiles/proof.verification.test-validity/5.0.0/evaluation-input.template.json",
+      "../profiles/proof.verification.test-validity/11.0.0/evaluation-input.template.json",
       import.meta.url), "utf8").then(JSON.parse)
   ]);
 
@@ -239,7 +239,7 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
       contract: fixture.contract,
       request: request(["controlled-proof-intent.test-verification-validity"], [{
         profile_id: "proof.verification.test-validity",
-        profile_version: "5.0.0",
+        profile_version: "11.0.0",
         evaluation_input_path: evaluationPath
       }]),
       evaluationInputs: { [evaluationPath]: fixture.input }
@@ -263,7 +263,7 @@ test("compiler builds a stable pre-dispatch test-validity plan without runtime s
       contract: partial,
       request: request(["controlled-proof-intent.test-verification-validity"], [{
         profile_id: "proof.verification.test-validity",
-        profile_version: "5.0.0",
+        profile_version: "11.0.0",
         evaluation_input_path: evaluationPath
       }]),
       evaluationInputs: { [evaluationPath]: fixture.input }
@@ -283,7 +283,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
       V1_INTENT, "controlled-proof-intent.retry-convergence"
     ], [{ ...V1, evaluation_input_path: refusalPath }, {
       profile_id: "proof.failure.retry-convergence",
-      profile_version: "3.0.0",
+      profile_version: "4.0.0",
       evaluation_input_path: retryPath
     }]),
     evaluationInputs: {
@@ -299,7 +299,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
     request: {
       selected_packs: [{
         evaluation_input_path: retryPath,
-        profile_version: "3.0.0",
+        profile_version: "4.0.0",
         profile_id: "proof.failure.retry-convergence"
       }, { evaluation_input_path: refusalPath, ...V1 }],
       requested_intents: [
@@ -355,14 +355,14 @@ test("omitted, uncovered, mismatched, and ambiguous intent assignments fail clos
   }), expectCode("proof_plan_request_schema_invalid"));
   await assert.rejects(() => buildProofPlan(compilerInput([V1_INTENT], [{
     profile_id: "proof.failure.retry-convergence",
-    profile_version: "3.0.0",
+    profile_version: "4.0.0",
     evaluation_input_path: inputPath
   }])), expectCode("proof_plan_request_selection_incomplete"));
   await assert.rejects(() => buildProofPlan(compilerInput([
     "controlled-proof-intent.protected-effect-nonmutation"
   ], [{ ...V1, evaluation_input_path: inputPath }, {
     profile_id: "proof.state.bounded-interval-nonmutation",
-    profile_version: "3.0.0",
+    profile_version: "4.0.0",
     evaluation_input_path: "bounded.json"
   }])), (error) => expectCode("proof_plan_request_selection_incomplete")(error) &&
     error.details.diagnostics[0].code === "proof_plan_request_intent_ambiguous");
@@ -376,7 +376,7 @@ test("swapped or invalid evaluation inputs fail before a plan is emitted", async
   const retryPath = "retry.json";
   const selected = [{ ...V1, evaluation_input_path: refusalPath }, {
     profile_id: "proof.failure.retry-convergence",
-    profile_version: "3.0.0",
+    profile_version: "4.0.0",
     evaluation_input_path: retryPath
   }];
   await assert.rejects(() => buildProofPlan({

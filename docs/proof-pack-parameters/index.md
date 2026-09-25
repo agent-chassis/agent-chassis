@@ -42,4 +42,4 @@
 | [proof.result-shape.cross-representation-parity@4.0.0](proof.result-shape.cross-representation-parity@4.0.0.md) | 18 | 15 | 2 |
 | [proof.single-use.replay-refusal@4.0.0](proof.single-use.replay-refusal@4.0.0.md) | 31 | 27 | 3 |
 | [proof.state.bounded-interval-nonmutation@4.0.0](proof.state.bounded-interval-nonmutation@4.0.0.md) | 8 | 7 | 0 |
-| [proof.verification.test-validity@10.0.0](proof.verification.test-validity@10.0.0.md) | 2 | 2 | 0 |
+| [proof.verification.test-validity@11.0.0](proof.verification.test-validity@11.0.0.md) | 2 | 2 | 0 |

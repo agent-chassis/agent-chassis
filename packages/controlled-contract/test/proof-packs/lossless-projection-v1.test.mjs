@@ -34,19 +34,16 @@ import {
   APPLICABILITY_MODES,
   OPERATORS
 } from "../../lib/vocabulary-v1.mjs";
+import { certificationDirectory, readDeclaredCertificationDocument, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.completeness.lossless-projection/3.0.0"
-);
+const identity = { profile_id: "proof.completeness.lossless-projection", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(name) {
-  return JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 function setPointer(document, pointer, value) {
   const tokens = pointer.slice(1).split("/");
@@ -241,7 +238,7 @@ test("lossless projection 1.0 binds and admits its complete proof corpus", async
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 179);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 195);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 160);
 
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });
@@ -262,7 +259,7 @@ test("every claimed coverage binding rejects canonical and rebounds under its we
     ]);
     const fixtures = new Map(await Promise.all(
       adequacy.negative_contract_fixtures.map(async ({ fixture_id: fixtureId, path: declared }) =>
-        [fixtureId, JSON.parse(await readFile(path.join(repositoryRoot, declared), "utf8"))]
+        [fixtureId, await readDeclaredCertificationDocument(declared)]
       )
     ));
     const descriptorByPointer = new Map(claimNestedSemanticDescriptors(profile).map(

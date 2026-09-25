@@ -12,13 +12,14 @@ import {
   buildPrefixSafetyFixture,
   executePrefixChecks
 } from "./integration-prefix-safety-v1-adequacy.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
-const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.integration.prefix-safety/3.0.0");
+const identity = { profile_id: "proof.integration.prefix-safety", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 const admittedDirectory = path.join(packageRoot,
-  "profiles/proof.integration.prefix-safety/3.0.0");
-const profile = JSON.parse(await readFile(path.join(packDirectory, "profile.json"), "utf8"));
+  "profiles/proof.integration.prefix-safety/4.0.0");
+const profile = await readDefinitionDocument(identity, "profile.json");
 const descriptors = Object.freeze({
   "dag-source": { kind: "artifact_file", relative_path: "dag.json" },
   "execution-paths": { kind: "artifact_file", relative_path: "paths.json" },

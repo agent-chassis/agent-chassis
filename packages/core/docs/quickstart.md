@@ -103,7 +103,9 @@ an agent, or reaches an external service.
 - `wiki/initiatives/IN-0001.json` — the canonical `initiative.v1` in-progress
   placeholder for the first real work.
 - `wiki/initiatives/IN-0001.md` — the generated Markdown projection of that JSON record.
-- `wiki/templates/AGENTS.md.boilerplate.md` — directly appendable root guidance.
+- `wiki/templates/AGENTS.md.boilerplate.md` — directly appendable repository-policy
+  starter. Generic role guides ship in `@agent-chassis/agent-launch-core` and
+  reach sessions through launcher startup prompts.
 - `wiki/.wiki-contract.json` — local contract metadata (your `vocab.topics.local`
   and `inference.paths` entries are preserved across reruns).
 - `wiki/.wiki-mcp.json` — a gitignored local workspace declaration recording your
@@ -309,25 +311,32 @@ Deno, lib0/testing, pytest, stestr, go test and cargo test inside the launcher
 sandbox. It uses only runtimes that an explicit setup prepared.
 
 Ordinary `agent-chassis setup` (step 1) already does this as its last step: it
-finds the test project from this repository's own manifests, locates its
-toolchain on `PATH`, saves both choices in `agent-chassis-runtime.json`, and
-publishes `.agent-launch/test-runtimes/readiness.v1.json`. It asks only when
-the evidence leaves a choice open, and prints the exact option to pass when it
-has no terminal to ask in.
+inventories every test environment this repository's own manifests declare
+(npm packages with their workspace members, Python projects, Go modules, Cargo
+and Deno projects, in every language at once), locates each needed toolchain on
+`PATH`, saves those locations in `agent-chassis-runtime.json`, and publishes
+`.agent-launch/test-runtimes/readiness.json` with one ID per environment
+(for example `npm@.` or `python@services/api`). Several environments and
+runners are never a question; it asks only where a toolchain is installed when
+`PATH` has none, and prints the exact option to pass when it has no terminal to
+ask in.
 
-To rerun only that step, or to select runners and project directories
-explicitly, run it from the repository root:
+To rerun only that step, run it from the repository root:
 
 ```sh
-npx agent-chassis setup --test-runtimes --runner jest@web --runner go-test@services/api
+npx agent-chassis setup --test-runtimes
 ```
 
-In that form setup installs any missing selected toolchain (Node, Python, Go,
-Rust/Cargo, Deno) at a pinned version, prepares the projects' lockfile-pinned
-test dependencies, verifies them inside the sandbox and publishes the same
-readiness record. Add `--dry-run` to see the plan first. Rerun setup after
-changing a lockfile or toolchain pin; attempts report a stale-input environment
-failure with this exact command until you do. See
+In that form setup finds the toolchains (Node, Python, Go, Rust/Cargo, Deno)
+and each environment's dependencies that you installed, validates them against
+the repository's pins and lockfiles, verifies them inside the sandbox and
+publishes the same readiness record. It installs nothing: install or repair
+what it reports missing with the ecosystem's own tools (for example `npm ci`,
+`go mod download`) and rerun it. `--runner <name>[@<project>]` detects exactly
+the named runners' environments instead; add `--dry-run` to see the inventory
+and detection first. Rerun setup after changing a lockfile, toolchain pin,
+installed dependencies or project layout; attempts report a stale-input
+environment failure with this exact command until you do. See
 [docs/local-test-runtime-setup.md](local-test-runtime-setup.md) for every
 option and failure code.
 

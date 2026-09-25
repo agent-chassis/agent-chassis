@@ -118,10 +118,47 @@ function stableFixture() {
     evaluation_input: fixture.input };
 }
 
-const certificationCorpus = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.verification.test-validity/5.0.0/corpus.json",
-  import.meta.url
-)));
+const SINGLE_AXIS_WEAKENINGS = Object.freeze([
+  ["missing-sut-boundary", "test_validity_sut_boundary_mismatch"],
+  ["wrong-sut-boundary", "test_validity_sut_boundary_mismatch"],
+  ["missing-observable", "test_validity_observable_mismatch"],
+  ["wrong-observable", "test_validity_observable_mismatch"],
+  ["missing-falsifier", "test_validity_falsifier_missing"],
+  ["inert-falsifier", "test_validity_falsifier_inert"],
+  ["echoed-reason-without-mutation", "test_validity_falsifier_mutation_unobserved"],
+  ["wrong-structured-reason", "test_validity_falsifier_reason_mismatch"],
+  ["printed-traversal-marker", "test_validity_traversal_instrumentation_missing"],
+  ["echoed-environment-values", "test_validity_test_controlled_output_forbidden"],
+  ["inert-mutation", "test_validity_falsifier_mutation_unobserved"],
+  ["unrelated-verification-failure", "test_validity_falsifier_wrong_verification"],
+  ["supported-traversal-without-instrumentation", "test_validity_traversal_instrumentation_missing"],
+  ["test-authored-artifact", "test_validity_launcher_artifact_forged"],
+  ["forged-artifact-digest", "test_validity_launcher_artifact_forged"],
+  ["provider-strategy-mismatch", "test_validity_provider_strategy_mismatch"],
+  ["provider-boundary-mismatch", "test_validity_provider_boundary_mismatch"],
+  ["provider-observation-seam-mismatch", "test_validity_traversal_observation_seam_mismatch"],
+  ["skipped-falsifier", "test_validity_falsifier_skipped"],
+  ["wrong-target-falsifier", "test_validity_falsifier_wrong_target"],
+  ["selected-test-unobserved", "test_validity_selected_test_unobserved"],
+  ["selected-test-renamed", "test_validity_selected_test_unobserved"],
+  ["selected-test-skipped", "test_validity_selected_test_skipped"],
+  ["selected-test-failed", "test_validity_observed_test_failed"],
+  ["multiple-declared-tests", "test_validity_declared_selection_invalid"],
+  ["duplicate-declared-test", "test_validity_declared_test_duplicate"],
+  ["duplicate-observed-test", "test_validity_observed_test_duplicate"],
+  ["source-text-inspection", "test_validity_prohibited_source_text_inspection"],
+  ["supported-traversal-missing", "test_validity_traversal_evidence_missing"],
+  ["unsupported-traversal-overclaim", "test_validity_unsupported_traversal_overclaimed"],
+  ["missing-candidate-provider", "test_validity_candidate_provider_missing"],
+  ["missing-falsifier-provider", "test_validity_falsifier_provider_missing"],
+  ["unknown-provider", "test_validity_provider_unknown"],
+  ["wrong-provider-version", "test_validity_provider_version_mismatch"],
+  ["provider-capability-mismatch", "test_validity_provider_capability_mismatch"],
+  ["incomplete-falsifier-provider-population", "test_validity_falsifier_provider_population_incomplete"],
+  ["falsely-supported-traversal", "test_validity_unsupported_traversal_overclaimed"],
+  ["caller-injected-executor", "test_validity_caller_executor_forbidden"],
+  ["wrong-provider-snapshot-digest", "test_validity_provider_snapshot_digest_mismatch"]
+].map(([case_id, expected_code]) => Object.freeze({ case_id, expected_code })));
 const evidenceArtifact = (character) => ({
   artifact_digest: `sha256:${character.repeat(64)}`,
   artifact_id: `artifact-${character.repeat(64)}`,
@@ -634,7 +671,7 @@ test("native stable evaluator rejects all 39 isolated test-validity weakenings",
     ["wrong-provider-snapshot-digest", "stable_test_proof_provider_snapshot_mismatch"]
   ]);
   const passed = [];
-  for (const control of certificationCorpus.single_axis_weakenings) {
+  for (const control of SINGLE_AXIS_WEAKENINGS) {
     const subject = nativeTestValidityFixture();
     weakenTestValidity(subject, control.case_id);
     const result = evaluateVerificationProfileV1(subject);

@@ -14,8 +14,9 @@ function usage() {
     --pack <proof-pack-directory> [--variation-mode indexed|full_census] \\
     [--output <result.json>]
 
-Loads a proof pack only when profile.json and adequacy.json are present,
-schema-valid, identity-matched, and digest-bound. It then executes the declared
+Loads a proof pack only when its certification.json.gz archive and the
+current runtime profile it names are present, schema-valid, identity-matched,
+and digest-bound. It then executes the declared
 adequacy module and requires one machine-readable result for every positive,
 mutant, profile-rejection, and exclusion control. This local release check is
 not contract evidence, pack applicability policy, CCE authority, or dispatch

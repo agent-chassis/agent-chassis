@@ -83,7 +83,7 @@ export function createCompactValidateDispatchResponse(_workspaceRepo, result) { 
 export function validateOptionalExpectedSourceDigest() { return true; }
 export function runWorkspaceWorkRecordAdmissionRefreshRoute() { return {}; }
 export function jsonContent(value) {
-  return { structuredContent: value, content: [{ type: "text", text: JSON.stringify(value) }] };
+  return { structuredContent: value, content: [] };
 }
 export function errorContent(error) {
   return {
@@ -403,6 +403,8 @@ async function importServerWithFakes(t) {
   const transformed = [
     `import { ${importNames.join(", ")} } from ${JSON.stringify(pathToFileURL(stubsPath).href)};`,
     `import { registerWorkspaceCommitTool, WORKER_COMMIT_TOOL_NAME } from ${JSON.stringify(pathToFileURL(commitToolPath).href)};`,
+
+    `import { proofExecutionTestCompositionDeps } from ${JSON.stringify(pathToFileURL(path.join(REPO_ROOT, "packages/wiki-mcp/src/lib/proof-execution-test-composition.mjs")).href)};`,
     withoutMain.replace(
       'await import("../../wiki-core/src/operations/initiative-status.mjs")',
       `await import(${JSON.stringify(pathToFileURL(initiativeStatusPath).href)})`

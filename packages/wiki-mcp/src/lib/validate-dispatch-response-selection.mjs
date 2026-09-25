@@ -110,37 +110,35 @@ function definitionReadinessFacts(state) {
   const readiness = state?.definition_readiness ?? null;
   if (readiness === null || typeof readiness !== "object") return null;
   const unresolvedTotal = readiness.unresolved_obligation_count ?? 0;
-  const gapTotal = readiness.authored_gap_count ?? 0;
   const execution = scalarFields(readiness.execution ?? null, EXECUTION_FACTS);
   const correction = readiness.correction === null || readiness.correction === undefined
     ? null
     : { ...scalarFields(readiness.correction, CORRECTION_FACTS),
       ...(readiness.correction.arguments === undefined
-        ? {} : { arguments: canonicalJson(readiness.correction.arguments) }) };
-  const population = (total, key, rows) => ({ total,
-    inline: { complete: rows.length === total, listed: rows.length },
-    omitted: Math.max(0, total - rows.length), [key]: rows });
-  const gaps = Array.isArray(readiness.authored_gaps) ? readiness.authored_gaps : [];
+        ? {} : { arguments: canonicalJson(readiness.correction.arguments) }),
 
-  const reasonTotal = gaps.filter((gap) => typeof gap?.reason === "string").length;
-  const gapPopulation = (rows) => {
-    const base = population(gapTotal, "gaps", rows);
-    const reasonsListed = rows.filter((row) => Object.hasOwn(row, "reason")).length;
-    return { ...base,
-      inline: { ...base.inline,
+      ...(Object.hasOwn(readiness.correction, "observed_source_content_digest") ? {
+        selected_unit_source: readiness.correction.observed_source_content_digest === null
+          ? "absent" : "present" } : {}) };
+  const rows = Array.isArray(readiness.unresolved_obligations)
+    ? readiness.unresolved_obligations : [];
 
-        reasons_listed: reasonsListed,
+  const unresolved = (listed) => {
+    const explained = listed.filter((row) =>
+      Object.hasOwn(row, "authored_input_diagnostic_codes")).length;
+    const complete = listed.length === unresolvedTotal;
+    return { total: unresolvedTotal,
+      inline: { complete, listed: listed.length,
+        explanations_listed: explained,
 
-        content_complete: base.inline.complete && reasonsListed === reasonTotal } };
+        content_complete: complete && explained === listed.length },
+      omitted: Math.max(0, unresolvedTotal - listed.length), obligations: listed };
   };
   return {
-    ids: Array.isArray(readiness.unresolved_obligation_ids)
-      ? readiness.unresolved_obligation_ids : [],
-    gaps,
-    summary: (listedIds, listedGaps) => ({
+    rows,
+    summary: (listed) => ({
       ...scalarFields(readiness, DEFINITION_READINESS_COUNTS),
-      unresolved_obligations: population(unresolvedTotal, "ids", listedIds),
-      authored_gaps: gapPopulation(listedGaps),
+      unresolved_obligations: unresolved(listed),
       ...(execution === null ? {} : { execution }),
       ...(correction === null ? {} : { correction })
     })
@@ -232,6 +230,10 @@ export function createValidateDispatchResponseSelection({
     const definitionSource = definitionReadinessFacts(complete[CONTROLLED_ACCEPTANCE_MEMBER]);
 
     const detailCalls = () => {
+
+      const optional = omitted.length > 0 && Array.isArray(complete.next_calls) &&
+        complete.next_calls.length > 0 && inlined.includes("next_calls")
+        ? omitted[0] : null;
       const members = omitted.length === 0 ? [] : [omitted[0]];
       if (derived.reasons?.inline?.complete === false) members.push("reasons");
       if (derived.owner_next_calls?.inline?.complete === false) members.push("next_calls");
@@ -239,13 +241,14 @@ export function createValidateDispatchResponseSelection({
       const definitions = derived[DEFINITION_READINESS];
       const explanatoryOmission = definitionSource !== null &&
         (definitions === undefined ||
-         definitions.unresolved_obligations?.inline?.complete === false ||
-         definitions.authored_gaps?.inline?.content_complete === false);
+         definitions.unresolved_obligations?.inline?.content_complete === false);
       if (omitted.includes(CONTROLLED_ACCEPTANCE_MEMBER) && explanatoryOmission) {
         members.push(CONTROLLED_ACCEPTANCE_MEMBER);
       }
+      const required = new Set(members.slice(1));
       return [...new Set(members)].map((member) => session.detailCall(binding,
-        { ...selectionForMember(source, complete, member), snapshot_identity: snapshotIdentity }));
+        { ...selectionForMember(source, complete, member), snapshot_identity: snapshotIdentity },
+        { recommended: member !== optional || required.has(member) }));
     };
     const detailFor = () => ({
       schema_version: VALIDATE_DISPATCH_SELECTED_SUMMARY_SCHEMA_VERSION,
@@ -315,25 +318,19 @@ export function createValidateDispatchResponseSelection({
     }
 
     const definitions = definitionSource;
-    if (definitions !== null && tryDerive(DEFINITION_READINESS, definitions.summary([], []))) {
-      let listedIds = [];
-      let listedGaps = [];
-      for (const id of definitions.ids) {
-        const next = [...listedIds, id];
-        if (!tryDerive(DEFINITION_READINESS, definitions.summary(next, listedGaps))) break;
-        listedIds = next;
-      }
-      for (const gap of definitions.gaps) {
-        const next = [...listedGaps,
-          { obligation_id: gap.obligation_id, gap_kind: gap.gap_kind }];
-        if (!tryDerive(DEFINITION_READINESS, definitions.summary(listedIds, next))) break;
-        listedGaps = next;
+    if (definitions !== null && tryDerive(DEFINITION_READINESS, definitions.summary([]))) {
+      let listed = [];
+      for (const row of definitions.rows) {
+        const next = [...listed, { obligation_id: row.obligation_id }];
+        if (!tryDerive(DEFINITION_READINESS, definitions.summary(next))) break;
+        listed = next;
       }
 
-      for (const index of listedGaps.keys()) {
-        const next = [...listedGaps];
-        next[index] = { ...next[index], reason: definitions.gaps[index].reason };
-        if (tryDerive(DEFINITION_READINESS, definitions.summary(listedIds, next))) listedGaps = next;
+      for (const index of listed.keys()) {
+        const next = [...listed];
+        next[index] = { ...next[index], authored_input_diagnostic_codes:
+          definitions.rows[index].authored_input_diagnostic_codes };
+        if (tryDerive(DEFINITION_READINESS, definitions.summary(next))) listed = next;
       }
     }
 

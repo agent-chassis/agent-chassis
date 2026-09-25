@@ -56,8 +56,12 @@ export function selectedResponseDeliveryBound(env = process.env) {
 }
 
 export function selectedResponseMaximumScalarRangeBytes(env = process.env) {
-  const bound = selectedResponseDeliveryBound(env);
-  return Math.max(1, Math.floor((bound - SCALAR_RANGE_FRAME_RESERVE_BYTES) * 3 / 8));
+  return scalarRangeBytesWithinDeliveryBound(selectedResponseDeliveryBound(env));
+}
+
+export function scalarRangeBytesWithinDeliveryBound(bound) {
+
+  return Math.max(1, Math.floor((bound - SCALAR_RANGE_FRAME_RESERVE_BYTES) * 3 / 4));
 }
 
 export function selectedResponseDetailSchema(z) {

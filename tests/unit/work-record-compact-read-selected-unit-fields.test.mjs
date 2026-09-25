@@ -5,10 +5,8 @@ import path from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { z } from "zod";
 
-import {
-  bootstrapRepo,
-  validateWorkRecord
-} from "../../packages/wiki-core/src/index.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
+import { validateWorkRecord } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 import { registerWikiCoreTools } from "../../packages/wiki-mcp/src/lib/wiki-core-tools.mjs";
 import { registerWorkRecordReadTools } from "../../packages/wiki-mcp/src/lib/work-record-read-tools.mjs";
 import {

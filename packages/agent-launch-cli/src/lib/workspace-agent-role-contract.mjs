@@ -8,6 +8,8 @@ import {
 } from '@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs';
 import { buildSelectedRecordMemberCall } from
   '@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs';
+import { readAgentRoleGuide, resolveAgentRoleGuidePath } from
+  '@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs';
 
 export { TERMINAL_STRUCTURED_ROLE_RESULT_MODES };
 
@@ -98,7 +100,7 @@ const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
   'The only delivery capability is the closed-input commit tool; it accepts no worker-supplied path, ref, message, or binding.',
   'Do not native-edit wiki/work-records/*.json unless that file is explicitly in write_scope.',
   'The coordinator owns acceptance of the declared validation. An eligible reviewer granted workspace_verify_proof may execute it and report evidence for the exact candidate, proof, and result; the coordinator may consume that evidence without rerunning validation solely because the reviewer performed it.',
-  'Worker-side checks are optional implementation evidence, not acceptance validation: run useful checks already available to this session, but do not treat absent undeclared test infrastructure or inability to run the complete repository suite as a blocker.',
+  'Follow the runtime’s required verification steps. Additional worker-side checks are optional; report what ran and what could not run.',
   'Test availability and success are not closed-input commit prerequisites; complete the assigned implementation and invoke commit when the scoped change is ready.',
   'If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker; do not try environment overrides or alternate delivery paths.',
 ].join(' ');
@@ -445,6 +447,8 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     role === 'worker'
       ? `Role: implementation worker for ${subject}.`
       : `Subject: ${subject}. ${LAUNCHER_FINDINGS_ROLE_PURPOSE[role]}`,
+
+    readAgentRoleGuide(role === 'worker' ? 'managed-worker' : 'reviewer'),
   ];
 
   if (role === 'worker' && workspaceDir) {
@@ -541,7 +545,7 @@ function isHeadlessOrchestratorPromptMode(input) {
   return mode === LAUNCHER_ORCHESTRATOR_PROMPT_MODES.HEADLESS;
 }
 
-function renderOrchestratorAuthorityPacket({
+function renderOrchestratorContext({
   appName,
   subject,
   subjectPath,
@@ -560,12 +564,8 @@ function renderOrchestratorAuthorityPacket({
   }
 
   return [
-    'Coordinator authority reminder:',
-    `- Context: ${context.join('; ')}.`,
-    '- Allowed coordination surfaces: canonical docs/wiki/work records and structured wiki/MCP coordination tools.',
-    '- Forbidden implementation/test surfaces: do not use the orchestrator role to edit packages/, tests/, product/runtime code, or runnable artifacts under docs/ or wiki/; dispatch the appropriate worker instead.',
-    '- When role authority, mount state, dispatch readiness, or write authority is unclear, use structured tool discovery and workspace coordination/preflight/status checks before acting.',
-    '- This packet is a reminder for orchestrator startup/resume prompts; it is not runtime enforcement and does not solve mid-session compaction or non-Codex harness behavior.',
+    `Context: ${context.join('; ')}.`,
+    `Read your orchestrator guide before acting: ${resolveAgentRoleGuidePath('orchestrator')}`,
   ].join('\n');
 }
 
@@ -599,7 +599,7 @@ export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
     lines.splice(lines.length, 0, `Workspace directory: ${workspaceDir}.`);
   }
 
-  lines.push(renderOrchestratorAuthorityPacket({
+  lines.push(renderOrchestratorContext({
     appName,
     subject: normalizedThreadName,
     subjectPath,

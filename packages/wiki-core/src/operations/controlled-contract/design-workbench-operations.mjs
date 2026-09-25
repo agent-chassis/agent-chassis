@@ -430,39 +430,53 @@ function narrowControlledContractDesignWorkbench(workbench) {
     const rows = dimension.rows.map((row) => {
       const eligibleResponseForms = (row.eligible_response_forms ?? [])
         .filter((kind) => CURRENT_DESIGN_RESPONSE_KINDS.has(kind));
-      if (eligibleResponseForms.length > 0) return Object.freeze({
-        ...structuredClone(row),
-        eligible_response_forms: Object.freeze(eligibleResponseForms)
-      });
       return Object.freeze({
-        row_id: row.row_id,
-        semantic_identity: structuredClone(row.semantic_identity),
-        state: row.state,
-        reason_codes: Object.freeze([...(row.reason_codes ?? [])]),
-        evidence: Object.freeze({
-          capability_status: "current_semantic_owner_required",
-          remedy
-        }),
-        dependencies: Object.freeze([...(row.dependencies ?? [])]),
-        eligible_response_forms: Object.freeze([])
+        ...structuredClone(row),
+        eligible_response_forms: Object.freeze(eligibleResponseForms),
+        ...(eligibleResponseForms.length > 0 ? {} : {
+          recovery_guidance: Object.freeze(structuredClone(remedy))
+        })
       });
     });
     return Object.freeze({
       ...structuredClone(dimension),
       rows: Object.freeze(rows),
-      owner_result: Object.freeze({
-        status: dimension.status,
-        counts: structuredClone(dimension.counts),
-        remedy
-      }),
-      owner_accounting: Object.freeze({
-        total: dimension.counts?.total ?? rows.length,
-        returned: rows.length,
-        omitted: 0
-      })
+      recovery_guidance: Object.freeze(structuredClone(remedy))
     });
   });
   return Object.freeze({ ...structuredClone(workbench), dimensions: Object.freeze(dimensions) });
+}
+
+function projectDiagnosticAndRepairFacts(workbench, classification) {
+  const descriptors = classification.descriptors;
+  const rowsById = new Map();
+  const dimensions = workbench.dimensions.map((dimension) => Object.freeze({
+    ...structuredClone(dimension),
+    rows: Object.freeze(dimension.rows.map((row) => {
+      const descriptor = descriptors.get(row.row_id) ?? null;
+      const projected = Object.freeze({ ...structuredClone(row),
+        diagnostic_provenance: Object.freeze({
+          owner: dimension.owner,
+          owner_identity: structuredClone(dimension.owner_identity ?? null),
+          dimension_id: dimension.dimension_id
+        }),
+        repair_authority: descriptor === null
+          ? Object.freeze({ status: "unavailable", semantic_owner: null,
+            response_kinds: Object.freeze([]) })
+          : Object.freeze({ status: "authenticated",
+            semantic_owner: descriptor.semantic_owner,
+            response_kinds: Object.freeze([...(descriptor.response_kinds ?? [])]) })
+      });
+      rowsById.set(projected.row_id, projected);
+      return projected;
+    }))
+  }));
+  const projectRows = (rows) => Object.freeze(rows.map((row) =>
+    rowsById.get(row.row_id) ?? row));
+  return Object.freeze({ ...structuredClone(workbench), dimensions,
+    actionable_rows: projectRows(workbench.actionable_rows ?? []),
+    non_actionable_rows: projectRows(workbench.non_actionable_rows ?? []),
+    elective_actions: projectRows(workbench.elective_actions ?? []) });
 }
 
 async function evaluateControlledAcceptance(input, deps) {
@@ -491,8 +505,9 @@ async function evaluateControlledAcceptance(input, deps) {
   const narrowed = narrowControlledContractDesignWorkbench(initialClassified);
   const classification =
     classifyControlledContractDesignWorkbenchActionability(narrowed);
-  const classified = projectClassifiedControlledContractDesignWorkbench(
-    narrowed, classification);
+  const classified = projectDiagnosticAndRepairFacts(
+    projectClassifiedControlledContractDesignWorkbench(narrowed, classification),
+    classification);
 
   const repairCandidate = deriveControlledContractRepairCandidate(classified,
     { descriptors: classification.descriptors });

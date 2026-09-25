@@ -6,7 +6,7 @@ Given one grounded operation attempt, one declared failure injection and injecte
 
 Profile digest: fe733bcbc83de3f5519b133b5a87abf20b65481e3013dcbdd6fb0edcdf181051. Parameter digest: 897a438015e3a2b356cf96afdab8bfe629c02d831b913f6e318bbd40f16dd87b.
 
-Admission digest: 975b785f2b1bc3e5fd6b8dd01c90d9fdcf9cd110f3781d2f87a17f5f21ec4f73.
+Admission digest: bb449b3a1badc41523c6cc8bbf216e072bda367d93a6b07dbd36379b9eb3b841.
 
 Roles: 19/19 accounted; 5 owned gaps. Semantic parameters: 14; internal roles: 5.
 

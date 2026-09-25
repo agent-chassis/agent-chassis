@@ -124,9 +124,6 @@
             }
           ]
         },
-        "gap": {
-          "$ref": "controlled-contract-obligation-coverage.v3.schema.json#/$defs/gap"
-        },
         "design_status": {
           "enum": [
             "valid",

@@ -83,13 +83,27 @@ test("only the exact selected test may execute and must complete", () => {
 
   const sibling = passingRun();
   sibling.splice(3, 1, { kind: "test_start", file: FILE, test: SIBLING });
-  assert.equal(read(sibling).code, "test_proof_structured_events_unselected_execution");
+
+  assert.deepEqual(read(sibling), { valid: false, code: "test_proof_structured_events_unselected_execution",
+    detail: { provider_id: "launcher.jest", provider_version: "1.0.0", selected_node_id: NODE_ID,
+      record_kind: "test_start", observed_node_id: nativeNodeId(FILE, SIBLING, IDENTITY), writer: "main",
+      sequence: 3, record_index: 3, record_count: 7 } });
+  const unselectedResult = passingRun();
+  unselectedResult.splice(3, 1, { kind: "test_result", file: FILE, test: SIBLING, outcome: "passed",
+    assertion_failure: false, src: "worker" });
+  assert.deepEqual(read(unselectedResult).detail, { provider_id: "launcher.jest", provider_version: "1.0.0",
+    selected_node_id: NODE_ID, record_kind: "test_result", observed_node_id: nativeNodeId(FILE, SIBLING, IDENTITY),
+    observed_outcome: "passed", writer: "worker", sequence: 0, record_index: 3, record_count: 7 });
   assert.equal(read(passingRun().slice(0, -1)).code, "test_proof_structured_test_inventory_incomplete");
-  assert.equal(read(passingRun(), 1).code, "test_proof_structured_events_exit_status_mismatch",
-    "a passing result cannot come from a failing process");
+  assert.deepEqual(read(passingRun(), 1), { valid: false,
+    code: "test_proof_structured_events_exit_status_mismatch",
+    detail: { provider_id: "launcher.jest", provider_version: "1.0.0", selected_node_id: NODE_ID,
+      selected_outcome: "passed", exit_code: 1, record_count: 7 } },
+  "a passing result cannot come from a failing process");
   const duplicate = passingRun();
   duplicate.splice(2, 0, { kind: "collected", file: FILE, test: SELECTED });
   assert.equal(read(duplicate).code, "test_proof_structured_test_identity_duplicate");
+  assert.equal(read(duplicate).detail.record_index, 2);
   const afterEnd = [...passingRun(), { kind: "collected", file: FILE, test: SIBLING }];
   assert.equal(read(afterEnd).code, "test_proof_structured_events_lifecycle_invalid");
 

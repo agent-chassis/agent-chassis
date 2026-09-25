@@ -24,18 +24,15 @@ import {
 import {
   evaluateStableProofPackFixtureV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.single-use.replay-refusal/3.0.0"
-);
+const identity = { profile_id: "proof.single-use.replay-refusal", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(relativePath) {
-  return JSON.parse(await readFile(path.join(packDirectory, relativePath), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 function adequacySubstancePasses(controls) {
   return controls.every((control) => {
@@ -60,7 +57,7 @@ test("single-use replay refusal binds and passes the complete release corpus", a
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 263);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 183);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 138);
 
   const result = await runProofPackAdequacy(packDirectory, {
     variationMode: "full_census"

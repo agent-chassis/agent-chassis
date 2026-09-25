@@ -26,8 +26,10 @@ cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
 printf '@AGENTS.md\n' > CLAUDE.md
 ```
 
-Run both commands before staging. `AGENTS.md` is the canonical agent guidance;
-`CLAUDE.md` is exactly the one-line bridge to it. The setup output then stages
+Run both commands before staging. `AGENTS.md` holds repository policy; generic
+role guidance ships in `@agent-chassis/agent-launch-core` under
+`data/role-guides/` and reaches sessions through launcher startup prompts.
+`CLAUDE.md` is exactly the one-line bridge to `AGENTS.md`. The setup output then stages
 both files:
 
 ```sh

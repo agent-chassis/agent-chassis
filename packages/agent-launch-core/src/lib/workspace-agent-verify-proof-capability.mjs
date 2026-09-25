@@ -52,6 +52,7 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
   );
   const receiptsByTarget = {};
   const evidenceByTarget = {};
+  const runtimeEnvironmentsByTarget = {};
   for (const target of targets) {
     const verificationIds = validationBindings[target] ?? Object.freeze([]);
     if (!Array.isArray(verificationIds) || verificationIds.some((id) =>
@@ -77,6 +78,7 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
     }
     const receipts = [];
     const evidence = [];
+    const runtimeEnvironments = [];
     for (const verificationId of verificationIds) {
       let context;
       try {
@@ -120,9 +122,12 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
       }
       receipts.push(receipt);
       if (attempt?.evidence !== undefined) evidence.push(attempt.evidence);
+
+      runtimeEnvironments.push(attempt?.runtime_environment ?? null);
     }
     receiptsByTarget[target] = Object.freeze(receipts);
     evidenceByTarget[target] = Object.freeze(evidence);
+    runtimeEnvironmentsByTarget[target] = Object.freeze(runtimeEnvironments);
   }
   return Object.freeze({
     schema_version: VERIFY_PROOF_EXECUTION_SCHEMA_VERSION,
@@ -132,7 +137,8 @@ async function executeVerifyProofReceiptPopulation(input = {}) {
     review_effect: "none",
     lifecycle_effect: "none",
     receipts_by_target: Object.freeze(receiptsByTarget),
-    evidence_by_target: Object.freeze(evidenceByTarget)
+    evidence_by_target: Object.freeze(evidenceByTarget),
+    runtime_environments_by_target: Object.freeze(runtimeEnvironmentsByTarget)
   });
 }
 

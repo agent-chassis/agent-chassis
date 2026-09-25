@@ -9,6 +9,7 @@ import path from "node:path";
 
 import { createWorkspaceAgentDispatchBackend } from "../../packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
 import { runPostWorkerSliceLifecycle } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle.mjs";
+import { sliceLifecycleProvisioning } from "../helpers/slice-lifecycle-projection-fixture.mjs";
 import {
   createLifecycleCheckpoint,
   POST_WORKER_LIFECYCLE_CHECKPOINT,
@@ -130,9 +131,7 @@ const WORKER_STATUS = Object.freeze({
 });
 
 const BACKEND_LIFECYCLE_DEPS = Object.freeze([
-  "authenticateTerminalCandidatePreparation",
   "resolveCommittedSliceIntegrationContinuation",
-  "resolveDeclaredTerminalReviewUnit",
   "resolveManagedRunBinding",
   "resolveManagedWorkerProvenDeath",
   "retireManagedWorkerIdentity"
@@ -141,11 +140,14 @@ const BACKEND_LIFECYCLE_DEPS = Object.freeze([
 const RETIRED_BACKEND_REVIEW_DEPS = Object.freeze([
   ...RETIRED_POST_WORKER_REVIEW_SEAMS,
   "resolveSliceReviewAcceptanceBinding",
+
+  "resolveDeclaredTerminalReviewUnit",
+  "authenticateTerminalCandidatePreparation",
   "terminalReviewEvidenceMode",
   "reviewEnforcementMode"
 ]);
 
-async function createPublicSeamFixture(t, { declareTerminalReview = true } = {}) {
+async function createPublicSeamFixture(t) {
   const mainRepo = await mkdtemp(path.join(os.tmpdir(), "slice-seam-main-"));
   const worktreeRoot = await mkdtemp(path.join(os.tmpdir(), "slice-seam-worktrees-"));
   const sliceWorktree = path.join(worktreeRoot, `slice-${INITIATIVE}-${RECORD_ID}-${IMPL_SLICE}`);
@@ -156,32 +158,26 @@ async function createPublicSeamFixture(t, { declareTerminalReview = true } = {})
   t.after(() => rm(wkWorktree, { recursive: true, force: true }));
 
   const record = sliceReviewRecord();
-  if (!declareTerminalReview) {
-    record.slices = record.slices.filter((slice) => slice.work_kind !== "review");
-  }
   const recordFile = path.join(mainRepo, "wiki", "work-records", `${RECORD_ID}.json`);
   await mkdir(path.dirname(recordFile), { recursive: true });
   await mkdir(path.join(mainRepo, "docs"), { recursive: true });
   const recordBytes = JSON.stringify(record, null, 2);
   await writeFile(recordFile, recordBytes, "utf8");
 
-  const provisioning = Object.freeze({
-    record_id: RECORD_ID,
-    slice_id: IMPL_SLICE,
-    slice_binding: Object.freeze({
-      unit_address: `${INITIATIVE}/${RECORD_ID}/${IMPL_SLICE}`,
-      output_branch: SLICE_REF,
-      worktree_path: sliceWorktree,
-      base_sha: DIFF_BASE_SHA,
+  const provisioning = sliceLifecycleProvisioning({
+    initiative: INITIATIVE,
+    recordId: RECORD_ID,
+    sliceId: IMPL_SLICE,
+    sliceRef: SLICE_REF,
+    baseSha: DIFF_BASE_SHA,
+    sliceWorktree,
+    wkWorktree,
+    dispatchTuple: Object.freeze({
+      assigned_unit: SUBJECT,
+      launch_ref: WORKER_MONITOR_HANDLE,
+      run_id: WORKER_RUN_ID,
       retry_id: 0
-    }),
-    wk_binding: Object.freeze({
-      unit_address: `${INITIATIVE}/${RECORD_ID}`,
-      output_branch: WK_REF,
-      worktree_path: wkWorktree,
-      base_sha: DIFF_BASE_SHA
-    }),
-    validation_worktree_path: wkWorktree
+    })
   });
 
   const integrationCalls = [];
@@ -311,26 +307,6 @@ test("public seam: a committed delivery integrates directly with no review surfa
 
   assert.equal(await fixture.runLifecycle(), finalized);
   assert.equal(fixture.integrationCalls.length, 1);
-});
-
-test("public seam: the declared terminal review unit resolves only what the record declares", async (t) => {
-  const declared = await createPublicSeamFixture(t);
-  await declared.runLifecycle();
-  const unit = declared.composedDeps[0].resolveDeclaredTerminalReviewUnit({
-    mainRepo: declared.mainRepo,
-    wkId: RECORD_ID
-  });
-  assert.equal(unit.record_id, RECORD_ID);
-  assert.equal(unit.initiative, INITIATIVE);
-  assert.equal(unit.slice_id, REVIEW_SLICE);
-  assert.equal(unit.subject, `${RECORD_ID}#${REVIEW_SLICE}`);
-
-  const undeclared = await createPublicSeamFixture(t, { declareTerminalReview: false });
-  await undeclared.runLifecycle();
-  assert.equal(undeclared.composedDeps[0].resolveDeclaredTerminalReviewUnit({
-    mainRepo: undeclared.mainRepo,
-    wkId: RECORD_ID
-  }), null);
 });
 
 test("public slice-review seam does not become a readiness authority", () => {

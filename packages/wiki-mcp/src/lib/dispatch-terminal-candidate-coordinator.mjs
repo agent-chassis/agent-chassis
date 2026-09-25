@@ -37,19 +37,25 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
 import {
   TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION,
-  compareTerminalReviewContractBindingIdentity,
   constructTerminalReviewContractBinding,
-  terminalReviewContractBindingAddresses,
   terminalReviewContractBindingIdentity
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-review-contract-binding.mjs";
 import {
   evaluateWorkRecordParentLifecycleContract,
   PARENT_LIFECYCLE_CONTRACT_FACTS
 } from "../../../wiki-core/src/lib/work-record-parent-lifecycle-contract.mjs";
-import { materializeTerminalCandidateCheckout } from
-  "@agent-chassis/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
+import {
+  readTerminalWkCandidateMetadata,
+  resolveTerminalWkCandidateBaseRef
+} from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
+import {
+  materializeTerminalCandidateCheckout,
+  verifyTerminalCandidateCheckout
+} from "@agent-chassis/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
 import {
   assertTerminalWkCandidateInputsUnmoved,
+  assertTerminalWkCandidateVersionDecision,
+  inspectTerminalWkCandidateVersion,
   deriveTerminalCandidateCurrentRef,
   deriveTerminalCandidateDurableRefs,
   deriveRecoveredTerminalWkCandidateIdentity,
@@ -58,11 +64,11 @@ import {
   freezeReconstructedTerminalWkCandidateInputs,
   freezeRecoveredTerminalWkCandidateInputs,
   freezeTerminalWkCandidateInputs,
+  observeExactDirectCommitRef,
   publishTerminalWkCandidateVersion,
   readTerminalCandidateCurrentRef,
-  readTerminalWkCandidateMetadata,
   TERMINAL_WK_CANDIDATE_CODES,
-  TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3,
+  terminalWkCandidateVerifyRefs,
   TerminalWkCandidateError,
   verifyTerminalWkCandidateObjectBinding
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
@@ -337,8 +343,6 @@ async function exactWkBoundContract({
 
 export { TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION };
 
-const canonicalTerminalReviewBindings = new WeakMap();
-
 export const CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES = Object.freeze({
   REPOSITORY_ROOT_NOT_CANONICAL: "canonical_repository_root_not_canonical",
   RECORD_UNREADABLE: "canonical_record_unreadable",
@@ -360,7 +364,7 @@ function canonicalCurrentTerminalReviewFailure(code, projectionCause = null) {
   });
 }
 
-export function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
+export function canonicalWorkRecordIdentity({ mainRepo, recordId }) {
   let requested;
   try {
     requested = path.resolve(mainRepo);
@@ -387,6 +391,13 @@ export function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
     return canonicalCurrentTerminalReviewFailure(
       CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES);
   }
+  return Object.freeze({ ok: true, record, initiative: record.initiative });
+}
+
+export function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
+  const identity = canonicalWorkRecordIdentity({ mainRepo, recordId });
+  if (identity.ok !== true) return identity;
+  const record = identity.record;
   const projected = projectTerminalReviewUnit(record);
   if (projected.ok !== true) {
     return canonicalCurrentTerminalReviewFailure(
@@ -423,7 +434,6 @@ export function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
       review_unit_contract: projected.contracts.slice_review_contract
     })
   });
-  canonicalTerminalReviewBindings.set(contract, binding);
   return Object.freeze({ ok: true, contract });
 }
 
@@ -549,32 +559,15 @@ const terminalCandidateRecoveryFailures = new WeakMap();
 export const TERMINAL_CANDIDATE_RECOVERY_REASONS = Object.freeze({
   FAILED: "terminal_candidate_recovery_failed",
   CONSTRUCTION_FAILED: "terminal_candidate_recovery_construction_failed",
-  CANONICAL_REVIEW_CONTRACT_UNAVAILABLE:
-    "terminal_candidate_recovery_canonical_review_contract_unavailable",
+  CANONICAL_RECORD_UNAVAILABLE: "terminal_candidate_recovery_canonical_record_unavailable",
   CURRENT_REF_ABSENT: "terminal_candidate_recovery_current_ref_absent",
-  REVIEW_CONTRACT_MOVED: "terminal_candidate_recovery_review_contract_moved",
   CURRENT_REF_PUBLICATION_DISAGREES:
     "terminal_candidate_recovery_current_ref_publication_disagrees",
-  CANONICAL_WK_BINDING_DISAGREES:
-    "terminal_candidate_recovery_canonical_wk_binding_disagrees",
-  REVIEW_CONTRACT_BINDING_DISAGREES:
-    "terminal_candidate_recovery_review_contract_binding_disagrees",
   NO_DETERMINISTIC_MATCH: "terminal_candidate_recovery_no_deterministic_match"
 });
 
 export const TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION =
   "agent_launch.terminal_candidate_recovery_diagnostic.v1";
-
-function terminalCandidateRecoveryDiagnostic(cause) {
-  if (cause === null || cause === undefined) return null;
-  return Object.freeze({
-    schema_version: TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
-    contract_code: cause.code ?? null,
-    projection_code: cause.projection_code ?? null,
-    missing_facts: cause.missing_facts ?? NO_LIFECYCLE_FACTS,
-    ambiguous_facts: cause.ambiguous_facts ?? NO_LIFECYCLE_FACTS
-  });
-}
 
 function failTerminalCandidateRecovery(reason, diagnostic = null) {
   const error = new Error(reason);
@@ -638,6 +631,69 @@ export function projectTerminalCandidateRecoveryDiagnostic(error) {
   return terminalCandidateRecoveryFailures.get(error)?.diagnostic ?? null;
 }
 
+function terminalCandidateState({ worktreeRoot, wkId, binding, materialization, dependencyProof,
+  contract, reviewUnit }) {
+  return Object.freeze({
+    binding,
+    materialization,
+    dependency_proof: dependencyProof,
+    review_unit: reviewUnit,
+    canonical_targets: contract.targets,
+    canonical_validation_bindings: contract.validation_bindings,
+    validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate),
+    version_decision: binding.version_decision
+  });
+}
+
+function canonicalRecordInitiative({ mainRepo, recordId }) {
+  const identity = canonicalWorkRecordIdentity({ mainRepo, recordId });
+  return identity.ok === true ? identity.initiative : null;
+}
+
+export async function authenticateExistingTerminalCandidate({
+  mainRepo, wkId, candidate, generationAuthentication, runGit = defaultTerminalCandidateRunGit
+}) {
+  const currentRef = deriveTerminalCandidateCurrentRef({ canonicalWkId: wkId });
+
+  const contract = await exactWkBoundContract({
+    recordId: wkId,
+    mainRepo,
+    wkSha: candidate,
+    runGit
+  });
+
+  const recoveredWkRef = `refs/heads/wk/${contract.initiative}/${wkId}`;
+  const recoveredBaseRef = resolveTerminalWkCandidateBaseRef({
+    mainRepo,
+    wkRef: recoveredWkRef,
+    base: (await readTerminalWkCandidateMetadata({ mainRepo, candidate, runGit })).base
+  });
+  const frozen = await freezeRecoveredTerminalWkCandidateInputs({
+    mainRepo,
+    baseRef: recoveredBaseRef,
+    wkRef: recoveredWkRef,
+    canonicalWkId: wkId,
+    candidate,
+    generationAuthentication,
+    runGit
+  });
+  const derived = await deriveRecoveredTerminalWkCandidateIdentity({
+    frozen,
+    runGit
+  });
+  if (derived.candidate !== candidate || derived.candidate_ref !== currentRef) {
+    return Object.freeze({ deterministic: false, contract, frozen, binding: null });
+  }
+  const binding = Object.freeze({
+    ...derived,
+    candidate_ref_state: derived.candidate_ref_state === "derived"
+      ? "recovered"
+      : derived.candidate_ref_state
+  });
+  await verifyTerminalWkCandidateObjectBinding({ binding, runGit });
+  return Object.freeze({ deterministic: true, contract, frozen, binding });
+}
+
 export function createTerminalCandidateCoordinator({
   mainRepo,
   worktreeRoot,
@@ -654,25 +710,26 @@ export function createTerminalCandidateCoordinator({
     runGit === PRODUCTION_TERMINAL_CANDIDATE_RUN_GIT;
   const cycles = new Map();
 
-  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef, baseSha,
-    baseRef = "main", authenticateAuthoredState }) => {
+  const prepareTerminalCandidate = async ({ integration, initiative, wkId, wkRef, baseSha,
+    baseRef }) => {
     try {
-      if (integration?.wk_ref !== wkRef || integration?.wk_sha == null || reviewUnit?.record_id !== wkId) {
+      if (integration?.wk_ref !== wkRef || integration?.wk_sha == null ||
+          typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) {
         throw new Error("terminal candidate preparation does not match the exact integrated WK identity");
       }
 
       if (typeof baseSha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(baseSha)) {
         throw new Error("terminal candidate preparation requires the launcher-bound WK lifecycle base");
       }
-      if (typeof authenticateAuthoredState !== "function") {
-        throw new Error("terminal candidate preparation requires backend-owned authored-state authentication");
+      if (typeof baseRef !== "string" || baseRef.length === 0) {
+        throw new Error("terminal candidate preparation requires the launcher-bound WK base branch");
       }
       return await withCurrentControlledGeneration({
         mainRepo, wkId, expectedW: integration.wk_sha, runGit,
         run: async (generationAuthentication) => {
           const canonical = await exactWkBoundContract({
-            recordId: reviewUnit.record_id,
-            initiative: reviewUnit.initiative,
+            recordId: wkId,
+            initiative: initiative ?? null,
             mainRepo,
             wkSha: integration.wk_sha,
             runGit
@@ -696,20 +753,10 @@ export function createTerminalCandidateCoordinator({
             runGit
           });
           const derived = await deriveTerminalWkCandidate({ frozen, runGit });
-
-          await authenticateAuthoredState({
-            historicalReviewUnit: canonical.review_unit,
-            candidateBinding: derived
-          });
           const binding = await publishTerminalWkCandidateVersion({
             binding: derived,
             expectedOld,
-            verifyRefs: [
-              { ref: frozen.wk_ref, oid: frozen.wk_tip },
-              ...(frozen.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3
-                ? [{ ref: frozen.base_ref, oid: frozen.base }]
-                : [])
-            ],
+            verifyRefs: terminalWkCandidateVerifyRefs(frozen),
             runGit
           });
           const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
@@ -719,15 +766,10 @@ export function createTerminalCandidateCoordinator({
             runGit
           });
           const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-          const state = Object.freeze({
-            binding,
-            materialization,
-            dependency_proof: dependencyProof,
-            review_unit: canonical.review_unit,
-            canonical_targets: canonical.targets,
-            canonical_validation_bindings: canonical.validation_bindings,
-            validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate),
-            version_decision: binding.version_decision
+          const state = terminalCandidateState({
+            worktreeRoot,
+            wkId, binding, materialization, dependencyProof, contract: canonical,
+            reviewUnit: canonical.review_unit
           });
           cycles.set(wkId, state);
           return state;
@@ -745,21 +787,24 @@ export function createTerminalCandidateCoordinator({
   const reconstructAbsentTerminalCandidate = async ({
     wkId, currentRef, generationAuthentication
   }) => {
-    const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (resolved.ok !== true) {
+    const initiative = canonicalRecordInitiative({ mainRepo, recordId: wkId });
+    if (initiative === null) {
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_canonical_review_contract_unavailable",
-        terminalCandidateRecoveryDiagnostic(resolved.cause));
+      failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_record_unavailable");
     }
-    const canonical = resolved.contract;
+
+    const contract = await exactWkBoundContract({
+      recordId: wkId,
+      initiative,
+      mainRepo,
+      wkSha: generationAuthentication.wk_tip_sha,
+      runGit
+    });
     const frozen = await freezeReconstructedTerminalWkCandidateInputs({
       mainRepo,
-      initiative: canonical.initiative,
+      initiative,
       canonicalWkId: wkId,
-      canonicalWkDigest: canonical.digest,
-      terminalReviewSubject: canonical.review_subject,
-      terminalReviewContractDigest: canonical.review_contract_digest,
+      canonicalWkDigest: contract.digest,
       generationAuthentication,
       runGit
     });
@@ -767,45 +812,13 @@ export function createTerminalCandidateCoordinator({
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
       failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
     }
-
     const derived = await deriveTerminalWkCandidate({ frozen, runGit });
-
-    const republished = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-
-    let republishedMovement = republished.ok !== true ? republished.cause : null;
-    if (republishedMovement === null) {
-      const comparison = compareTerminalReviewContractBindingIdentity(
-        canonicalTerminalReviewBindings.get(republished.contract), {
-          reviewSubject: frozen.terminal_review_subject,
-          reviewContractDigest: frozen.terminal_review_contract_digest
-        });
-      if (comparison.reason === "review_subject_moved") {
-        republishedMovement = {
-          code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_SUBJECT_MOVED
-        };
-      } else if (comparison.reason === "review_contract_digest_moved") {
-        republishedMovement = {
-          code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_CONTRACT_DIGEST_MOVED
-        };
-      }
-    }
-    if (republishedMovement !== null) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_review_contract_moved",
-        terminalCandidateRecoveryDiagnostic(republishedMovement));
-    }
     await assertTerminalWkCandidateInputsUnmoved({ frozen, runGit });
 
     const publishedBinding = await publishTerminalWkCandidateVersion({
       binding: derived,
       expectedOld: null,
-
-      verifyRefs: [
-        { ref: frozen.wk_ref, oid: frozen.wk_tip },
-        ...(frozen.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3
-          ? [{ ref: frozen.base_ref, oid: frozen.base }]
-          : [])
-      ],
+      verifyRefs: terminalWkCandidateVerifyRefs(frozen),
       runGit
     });
 
@@ -816,58 +829,13 @@ export function createTerminalCandidateCoordinator({
       if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
       failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_publication_disagrees");
     }
-    return Object.freeze({
-      candidate: published,
-      generationAuthentication
-    });
+    return Object.freeze({ candidate: published });
   };
 
-  const recoveredCandidateReviewBinding = async ({ wkId, candidate }) => {
-    const metadata = await readTerminalWkCandidateMetadata({ mainRepo, candidate, runGit });
-    if (metadata.schema_version !== TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3) {
-      const recoveredCanonical = await exactWkBoundContract({
-        recordId: wkId,
-        mainRepo,
-        wkSha: candidate,
-        runGit
-      });
-      if (recoveredCanonical.review_unit === null) {
-        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-        failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_wk_binding_disagrees",
-          terminalCandidateRecoveryDiagnostic(recoveredCanonical.review_unit_absence));
-      }
-      return {
-        canonical: recoveredCanonical,
-        canonicalWkDigest: null,
-        wkRef: `refs/heads/wk/${recoveredCanonical.initiative}/${wkId}`
-      };
-    }
-    const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (resolved.ok !== true) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_canonical_review_contract_unavailable",
-        terminalCandidateRecoveryDiagnostic(resolved.cause));
-    }
-    const canonical = resolved.contract;
-
-    if (!terminalReviewContractBindingAddresses(
-      canonicalTerminalReviewBindings.get(canonical), metadata.terminal_review_subject)) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_review_contract_binding_disagrees",
-        terminalCandidateRecoveryDiagnostic({
-          code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_SUBJECT_MOVED
-        }));
-    }
-    return {
-      canonical,
-      canonicalWkDigest: canonical.digest,
-      wkRef: deriveTerminalCandidateDurableRefs({
-        initiative: canonical.initiative,
-        canonicalWkId: wkId
-      }).wk_ref
-    };
+  const reviewConsumerUnit = ({ wkId, contract }) => {
+    if (contract.review_unit !== null) return contract.review_unit;
+    const current = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
+    return current.ok === true ? current.contract.review_unit : null;
   };
 
   const recoverTerminalCandidateWithGeneration = async ({
@@ -881,44 +849,13 @@ export function createTerminalCandidateCoordinator({
         })
       : null;
     const candidate = reconstruction?.candidate ?? observed;
-    const { canonical: recoveredCanonical, canonicalWkDigest, wkRef } =
-      await recoveredCandidateReviewBinding({ wkId, candidate });
-    const frozen = await freezeRecoveredTerminalWkCandidateInputs({
-      mainRepo,
-      wkRef,
-      canonicalWkId: wkId,
-      candidate,
-      canonicalWkDigest,
-      generationAuthentication,
-      runGit
-    });
-    const derived = await deriveRecoveredTerminalWkCandidateIdentity({
-      frozen,
-      runGit
-    });
-    if (derived.candidate !== candidate || derived.candidate_ref !== currentRef) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
-    }
-    const recoveredBinding = Object.freeze({
-      ...derived,
-      candidate_ref_state: derived.candidate_ref_state === "derived"
-        ? "recovered"
-        : derived.candidate_ref_state
-    });
-    await verifyTerminalWkCandidateObjectBinding({
-      binding: recoveredBinding,
-      runGit
+    const { contract, frozen, recoveredBinding } = await authenticateExistingCandidate({
+      wkId, candidate, generationAuthentication
     });
     const binding = await publishTerminalWkCandidateVersion({
       binding: recoveredBinding,
       expectedOld: candidate,
-      verifyRefs: [
-        { ref: frozen.wk_ref, oid: frozen.wk_tip },
-        ...(frozen.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3
-          ? [{ ref: frozen.base_ref, oid: frozen.base }]
-          : [])
-      ],
+      verifyRefs: terminalWkCandidateVerifyRefs(frozen),
       runGit
     });
     const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
@@ -928,15 +865,10 @@ export function createTerminalCandidateCoordinator({
       runGit
     });
     const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-    const state = Object.freeze({
-      binding,
-      materialization,
-      dependency_proof: dependencyProof,
-      review_unit: recoveredCanonical.review_unit,
-      canonical_targets: recoveredCanonical.targets,
-      canonical_validation_bindings: recoveredCanonical.validation_bindings,
-      validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate),
-      version_decision: binding.version_decision
+    const state = terminalCandidateState({
+            worktreeRoot,
+      wkId, binding, materialization, dependencyProof, contract,
+      reviewUnit: reviewConsumerUnit({ wkId, contract })
     });
     await verifyTerminalWkCandidateObjectBinding({
       binding,
@@ -946,7 +878,67 @@ export function createTerminalCandidateCoordinator({
     return state;
   };
 
-  const recoverTerminalCandidateWithRunner = async ({ wkId, runWithAuthority }) => {
+  const authenticateExistingCandidate = async ({ wkId, candidate, generationAuthentication }) => {
+    const authenticated = await authenticateExistingTerminalCandidate({
+      mainRepo, wkId, candidate, generationAuthentication, runGit
+    });
+    if (authenticated.deterministic !== true) {
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
+    }
+    return Object.freeze({
+      contract: authenticated.contract,
+      frozen: authenticated.frozen,
+      recoveredBinding: authenticated.binding
+    });
+  };
+
+  const observeTerminalCandidateWithGeneration = async ({
+    wkId, generationAuthentication, observed
+  }) => {
+    const { contract, recoveredBinding } = await authenticateExistingCandidate({
+      wkId, candidate: observed, generationAuthentication
+    });
+    const versionDecision = await inspectTerminalWkCandidateVersion({
+      binding: recoveredBinding, runGit
+    });
+    assertTerminalWkCandidateVersionDecision(versionDecision, {
+      binding: recoveredBinding,
+      requireSelected: true
+    });
+    const binding = Object.freeze({ ...recoveredBinding, version_decision: versionDecision });
+    const materialization = await verifyTerminalCandidateCheckout({
+      binding,
+      candidateRoot: path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate),
+      runGit
+    });
+    return terminalCandidateState({
+      worktreeRoot,
+      wkId, binding, materialization,
+      dependencyProof: verifyTerminalCandidateDependencies({ binding, materialization }),
+      contract,
+      reviewUnit: null
+    });
+  };
+
+  const assertDurableReconstructionAuthority = async (wkId) => {
+    const initiative = canonicalRecordInitiative({ mainRepo, recordId: wkId });
+    if (initiative === null) {
+      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+      failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_record_unavailable");
+    }
+    const refs = deriveTerminalCandidateDurableRefs({ initiative, canonicalWkId: wkId });
+    for (const [ref, subject] of [[refs.fork_ref, "durable WK fork ref"], [refs.wk_ref, "durable WK ref"]]) {
+      if (await observeExactDirectCommitRef({ mainRepo, ref, runGit, subject }) === null) {
+        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+        failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
+      }
+    }
+  };
+
+  const recoverTerminalCandidateWithRunner = async ({
+    wkId, runWithAuthority, withGeneration = recoverTerminalCandidateWithGeneration
+  }) => {
     if (typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) return null;
     try {
       return await runWithAuthority(async () => {
@@ -957,12 +949,21 @@ export function createTerminalCandidateCoordinator({
           runGit
         });
 
+        if (observed === null) {
+
+          if (withGeneration !== recoverTerminalCandidateWithGeneration) {
+            if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
+            failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
+          }
+          await assertDurableReconstructionAuthority(wkId);
+        }
+
         return authenticateCurrentControlledGeneration({
           mainRepo,
           wkId,
           expectedW: null,
           runGit,
-          run: async (generationAuthentication) => recoverTerminalCandidateWithGeneration({
+          run: async (generationAuthentication) => withGeneration({
             wkId,
             generationAuthentication,
             observed
@@ -995,10 +996,20 @@ export function createTerminalCandidateCoordinator({
       })
     });
 
+  const observeTerminalCandidateUnderAuthority = async ({ wkId, authorityContext } = {}) =>
+    recoverTerminalCandidateWithRunner({
+      wkId,
+      withGeneration: observeTerminalCandidateWithGeneration,
+      runWithAuthority: async (run) => runWithControlledContractAuthorityContext({
+        repoRoot: mainRepo, wkId, authorityContext, run
+      })
+    });
+
   return Object.freeze({
     prepareTerminalCandidate,
     recoverTerminalCandidate,
     recoverTerminalCandidateUnderAuthority,
+    observeTerminalCandidateUnderAuthority,
     resolve: (wkId) => cycles.get(wkId) ?? null
   });
 }

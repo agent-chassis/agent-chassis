@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { readWorkRecordById, validateWorkRecordDispatch } from "../../packages/wiki-core/src/index.mjs";
+import { readWorkRecordById } from "../../packages/wiki-core/src/operations/work-records.mjs";
+import { validateWorkRecordDispatch } from "../../packages/wiki-core/src/operations/validate-dispatch.mjs";
 import {
   NODE_ENGINE_ADMISSIBILITY_UNDETERMINED_DECISION_CODE,
   NODE_ENGINE_ADMISSIBILITY_NEEDS_REVIEW_DECISION_CODE,

@@ -25,18 +25,15 @@ import {
   evaluateStableProofPackFixtureV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.authorization.failed-attempt-nonconsumption/3.0.0"
-);
+const identity = { profile_id: "proof.authorization.failed-attempt-nonconsumption", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(name) {
-  return JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 function adequacySubstancePasses(controls) {
   return controls.every((control) => {
@@ -100,7 +97,7 @@ test("failed-attempt nonconsumption binds and passes all executable controls", a
   assert.equal(result.passed, true);
   assert.equal(result.control_count, 59);
   assert.equal(result.negative_fixture_count, 87);
-  assert.equal(result.coverage_witness_count, 200);
+  assert.equal(result.coverage_witness_count, 199);
   assert.equal(result.negative_fixture_results.every(
     ({ outcome }) => outcome === "rejected"
   ), true);

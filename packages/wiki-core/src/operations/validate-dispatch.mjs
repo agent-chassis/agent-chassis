@@ -373,7 +373,8 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
   if (controlledAcceptanceState.semantic.admission.admits) {
     return { controlledAcceptanceState };
   }
-  const decisionCode = CONTROLLED_ACCEPTANCE_DECISION_CODES[controlledAcceptanceState.state];
+  const decisionCode = controlledAcceptanceState.semantic.admission.blocked_reason_code ??
+    CONTROLLED_ACCEPTANCE_DECISION_CODES[controlledAcceptanceState.state];
   const readiness = buildTerminalReadiness({
     recordId: loaded.record.id,
     unit: options.unitAddress,
@@ -381,14 +382,36 @@ async function controlledAcceptanceReadiness(options, dispatchRole) {
     decisionCode,
     reason: controlledAcceptanceState.state === "absent"
       ? "the canonical proof posture has no controlled-acceptance disposition"
-      : controlledAcceptanceState.recovery?.explanation ??
-        "the current required controlled-acceptance contract is mechanically incomplete",
+      : decisionCode === "controlled_acceptance_source_not_current"
+        ? "the authenticated controlled-acceptance source moved during assessment"
+        : controlledAcceptanceState.recovery?.explanation ??
+          "the current required controlled-acceptance contract is mechanically incomplete",
     dispatchRole
   });
   const recovery = controlledAcceptanceState.recovery;
+  const admission = controlledAcceptanceState.semantic.admission;
+  const recoveryContract = recovery === null ? null : Object.freeze({
+    ...recovery,
+    selected_unit: controlledAcceptanceState.semantic.selected_unit.address,
+    deciding_cause: decisionCode,
+    recovery_actor: admission.recovery_capability.actor_recovery,
+    operator_action: admission.operator_action,
+    fresh_cas: recovery.follow_up_tool ===
+      "workspace_controlled_contract_obligation_coverage_upsert"
+      ? Object.freeze({
+          required: true,
+          source: "query.content_digest",
+          argument: "expected_content_digest"
+        })
+      : null,
+    authority: Object.freeze({
+      decision: "authored_completeness_admission",
+      observations: "nonblocking"
+    })
+  });
   return { controlledAcceptanceState, refusal: { ...readiness,
     controlled_acceptance_state: controlledAcceptanceState,
-    controlled_acceptance_recovery: recovery,
+    controlled_acceptance_recovery: recoveryContract,
     next_calls: typeof recovery?.tool === "string" ? [recovery] : [] } };
 }
 

@@ -12,8 +12,7 @@ import {
   readCanonicalContractGenerationIdentity
 } from "./slice-integration-authorization.mjs";
 import {
-  reconcileIntegratedSliceRecord,
-  recoverZeroDeltaIntegratedSlice,
+  observeIntegratedSliceDelivery,
   resolveAuthenticatedExactSliceDeliveryBase,
   SliceIntegrationError
 } from "./slice-integration.mjs";
@@ -21,7 +20,6 @@ import {
   resolveCanonicalSliceIntegrationUnit
 } from "./backend-scope-authority.mjs";
 import {
-  canonicalUnitScopes,
   resolveUniqueManagedLifecycleBindingPairForRecovery
 } from "./worktree-substrate-identity.mjs";
 
@@ -41,30 +39,6 @@ export function continuationRefusal(reason, detail = null, cause = null) {
       cause
     }
   );
-}
-
-export const COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH =
-  "completed_integration_write_scope_mismatch";
-
-const COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_REFUSALS = new WeakSet();
-
-const COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_FACT = Object.freeze({
-  reason: COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH
-});
-
-function refuseCompletedIntegrationWriteScopeMismatch() {
-  try {
-    continuationRefusal(COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH);
-  } catch (error) {
-    COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_REFUSALS.add(error);
-    throw error;
-  }
-}
-
-export function projectCompletedIntegrationContinuationFailure(error) {
-  return COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_REFUSALS.has(error)
-    ? COMPLETED_INTEGRATION_WRITE_SCOPE_MISMATCH_FACT
-    : null;
 }
 
 function normalizedBranchRef(value) {
@@ -145,7 +119,6 @@ export function brandedContinuation(fields) {
 }
 
 export function committedSliceIntegrationDeliveryKey(context) {
-  const identity = context?.worktree_identity;
   const fields = [
     context?.main_repo,
     context?.review_admission_kind,
@@ -155,11 +128,9 @@ export function committedSliceIntegrationDeliveryKey(context) {
     context?.review_slice_id,
     context?.slice_ref,
     context?.reviewed_sha,
-    context?.diff_base_sha,
-    identity?.write_scope
+    context?.diff_base_sha
   ];
-  if (fields.slice(0, 9).some((value) => typeof value !== "string") ||
-      !Array.isArray(fields[9])) {
+  if (fields.some((value) => typeof value !== "string")) {
     throw new TypeError("committed-slice completion requires exact delivery identity");
   }
   return JSON.stringify(fields);
@@ -249,68 +220,39 @@ export function createBackendIntegrationContinuation(ctx) {
         authenticated_base_sha: deliveryBase
       });
     }
-    const completedUnderScope = (writeScope) =>
-      canonicalCommittedSliceIntegrationsByDelivery.get(
-        committedSliceIntegrationDeliveryKey({
-          main_repo: worktreeProvisioningConfig.mainRepo,
-          review_admission_kind: "canonical_committed_slice",
-          review_subject: subject,
-          initiative,
-          record_id: recordId,
-          review_slice_id: sliceId,
-          slice_ref: sliceRef,
-          reviewed_sha: deliverySha,
-          diff_base_sha: deliveryBase,
-          worktree_identity: { write_scope: writeScope }
-        })
-      );
-    const authenticateCompletedIntegration = async (completed) => {
-      const completedIntegration = await completed;
-      const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
-      const target = completedIntegration?.boundary_authorization?.target;
-      if (completedIntegration?.integrated !== true ||
-          completedIntegration.delivery_sha !== deliverySha ||
-          completedIntegration.slice_ref !== sliceRef ||
-          completedIntegration.wk_ref !== wkRef ||
-          completedIntegration.wk_sha !== liveWkTip ||
-          target?.subject !== subject || target?.slice_ref !== sliceRef ||
-          target?.reviewed_sha !== deliverySha || target?.diff_base_sha !== deliveryBase ||
-          typeof target?.committed_target_digest !== "string") {
-        continuationRefusal("warm_completed_integration_mismatch");
-      }
-      return completedIntegration;
-    };
-    const completed = completedUnderScope(pair.slice_binding.write_scope);
-    if (completed === undefined) {
-
-      let currentWriteScope;
-      try {
-        currentWriteScope = canonicalUnitScopes(
-          worktreeProvisioningConfig.mainRepo, recordId, sliceId,
-          { expectedInitiative: initiative }
-        ).writeScope;
-      } catch {
-        return null;
-      }
-      if (JSON.stringify(currentWriteScope) === JSON.stringify(pair.slice_binding.write_scope)) {
-        return null;
-      }
-      const revised = completedUnderScope(currentWriteScope);
-      if (revised === undefined) return null;
-      await authenticateCompletedIntegration(revised);
-      refuseCompletedIntegrationWriteScopeMismatch();
+    const completed = canonicalCommittedSliceIntegrationsByDelivery.get(
+      committedSliceIntegrationDeliveryKey({
+        main_repo: worktreeProvisioningConfig.mainRepo,
+        review_admission_kind: "canonical_committed_slice",
+        review_subject: subject,
+        initiative,
+        record_id: recordId,
+        review_slice_id: sliceId,
+        slice_ref: sliceRef,
+        reviewed_sha: deliverySha,
+        diff_base_sha: deliveryBase
+      })
+    );
+    if (completed === undefined) return null;
+    const completedIntegration = await completed;
+    const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
+    const target = completedIntegration?.boundary_authorization?.target;
+    if (completedIntegration?.integrated !== true ||
+        completedIntegration.delivery_sha !== deliverySha ||
+        completedIntegration.slice_ref !== sliceRef ||
+        completedIntegration.wk_ref !== wkRef ||
+        completedIntegration.wk_sha !== liveWkTip ||
+        target?.subject !== subject || target?.slice_ref !== sliceRef ||
+        target?.reviewed_sha !== deliverySha || target?.diff_base_sha !== deliveryBase ||
+        typeof target?.committed_target_digest !== "string") {
+      continuationRefusal("warm_completed_integration_mismatch");
     }
-    const completedIntegration = await authenticateCompletedIntegration(completed);
     return brandedContinuation({
       requested: true,
       completed: true,
       reviewed_sha: deliverySha,
       integration: completedIntegration
     });
-  }
-
-  function refuseCanonicalRecordRepair() {
-    continuationRefusal("canonical_record_repair_required");
   }
 
   async function resolveLiteralIntegrationBase(integration) {
@@ -353,30 +295,23 @@ export function createBackendIntegrationContinuation(ctx) {
   }
 
   async function recoverDurableIntegratedSlice({ integrationUnit, pair, sliceRef, wkRef }) {
-    const args = {
+    const integration = await observeIntegratedSliceDelivery({
       mainRepo: worktreeProvisioningConfig.mainRepo,
       unitAddress: pair.slice_binding.unit_address,
       sliceRef,
       wkRef,
       deps: { runGit: postWorkerLifecycleRunGit }
-    };
-    const zeroDelta = await recoverZeroDeltaIntegratedSlice({
-      ...args,
-
-      writeRecordCas: refuseCanonicalRecordRepair
     });
-    if (zeroDelta !== null) return zeroDelta;
-    const ordinary = await reconcileIntegratedSliceRecord(args);
-    if (ordinary === null) return null;
-    if (ordinary.empty_delivery !== false ||
-        ordinary.slice_ref !== sliceRef || ordinary.wk_ref !== wkRef) {
+    if (integration === null) return null;
+    if (integration.slice_ref !== sliceRef || integration.wk_ref !== wkRef) {
       continuationRefusal("integration_result_invalid", {
         expected_subject: `${integrationUnit.record_id}#${integrationUnit.slice_id}`
       });
     }
+    if (integration.empty_delivery === true) return integration;
     return Object.freeze({
-      ...ordinary,
-      previous_wk_sha: await resolveLiteralIntegrationBase(ordinary)
+      ...integration,
+      previous_wk_sha: await resolveLiteralIntegrationBase(integration)
     });
   }
 
@@ -477,6 +412,7 @@ export function createBackendIntegrationContinuation(ctx) {
         confirmed.slice_sha !== integration.slice_sha ||
         confirmed.wk_sha !== integration.wk_sha ||
         confirmed.integrated_state !== integration.integrated_state ||
+        confirmed.record_reconciliation?.state !== integration.record_reconciliation?.state ||
         JSON.stringify(confirmed.review_target) !== JSON.stringify(integration.review_target) ||
         JSON.stringify(confirmed.transition) !== JSON.stringify(integration.transition)) {
       continuationRefusal("continuation_authority_changed_during_lookup");

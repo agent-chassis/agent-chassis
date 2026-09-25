@@ -648,11 +648,12 @@ export async function runSelectedRecordMember({
     selectedSlice: toolFamily === SUMMARY_TOOL_FAMILY || unitNamesSlice ? null : sliceId,
     member: selector
   });
+
   const loaded = workRecord
     ? await readWorkRecordById({ dir: workspaceDir, id: recordId })
-    : toolFamily === GET_RECORD_TOOL_FAMILY
-      ? await loadKindRecordById({ repoRoot: workspaceDir, id: identity.id })
-      : await loadKindRecordByPath({ repoRoot: workspaceDir, sourcePath: identity.path.replace(/^\.\//u, "") });
+    : typeof identity?.path === "string"
+      ? await loadKindRecordByPath({ repoRoot: workspaceDir, sourcePath: identity.path.replace(/^\.\//u, "") })
+      : await loadKindRecordById({ repoRoot: workspaceDir, id: recordId });
   const record = loaded?.record ?? null;
   if (!isObject(record) || loaded?.valid !== true) {
     const diagnostics = Array.isArray(loaded?.diagnostics) ? loaded.diagnostics : [];

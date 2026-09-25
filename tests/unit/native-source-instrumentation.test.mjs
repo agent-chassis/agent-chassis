@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { instrumentGoModule, instrumentGoTestFile } from
+import { goObserverSource, instrumentGoModule, instrumentGoTestFile } from
   "../../packages/agent-launch-cli/src/lib/test-execution/source-instrumentation/go.mjs";
 import { SourceInstrumentationError, applyEdits } from
   "../../packages/agent-launch-cli/src/lib/test-execution/source-instrumentation/index.mjs";
@@ -101,6 +101,25 @@ test("Go modules and test files are instrumented without changing lines", async 
   assert.equal(lines(wrapped.source), lines(tests));
   await assert.rejects(instrumentGoTestFile({ source: tests, selected: "TestGeneric" }),
     refusedWith("selected_test_not_observable"));
+
+  const composed = "package calc_test\n\nimport \"testing\"\n\nfunc TestAnswer(t *testing.T) {\n" +
+    "\tTestPreserves(t)\n\tt.Run(\"preserves\", TestPreserves)\n}\n\nfunc TestPreserves(t *testing.T) {\n}\n";
+  const selectedOnly = await instrumentGoTestFile({ source: composed, selected: "TestAnswer" });
+  assert.deepEqual(selectedOnly.tests, ["TestAnswer", "TestPreserves"]);
+  assert.equal(selectedOnly.source.match(/zzLauncherTestProofEnter/gu).length, 1);
+  assert.match(selectedOnly.source, /func TestPreserves\(t \*testing\.T\) \{\n\}/u);
+  assert.equal(lines(selectedOnly.source), lines(composed));
+  const other = await instrumentGoTestFile({ source: composed, selected: "TestPreserves" });
+  assert.match(other.source, /func TestAnswer\(t \*testing\.T\) \{\n\tTestPreserves/u);
+
+  const observer = goObserverSource({ packageName: "calc_test", channel: "/c", nonce: "n", file: "f" });
+  assert.match(observer, /root := zzLauncherTestProofRoot\.t == nil && t\.Name\(\) == name/u);
+  assert.match(observer, /if !root \{\n\t\treturn func\(\) \{\}\n\t\}/u);
+  const cleanup = observer.slice(observer.indexOf("t.Cleanup(func() {"));
+  assert.ok(cleanup.indexOf("\"window_end\"") < cleanup.indexOf("\"test_result\""));
+  const deferred = observer.slice(observer.lastIndexOf("return func() {"));
+  assert.doesNotMatch(deferred, /window_end|test_result/u, "function return closes nothing");
+  assert.match(deferred, /panic\(recovered\)/u, "a recorded panic is re-raised");
 });
 
 test("Rust crates receive guards, probes and the observer module", async () => {
@@ -123,6 +142,15 @@ test("Rust crates receive guards, probes and the observer module", async () => {
   const guarded = await instrumentRustTestFile({ source: tests, selected: ["nested", "inner"],
     file: "rust/tests/answer.rs" });
   assert.deepEqual(guarded.tests, [["plain"], ["nested", "inner"]]);
+
+  assert.equal(guarded.edits.length, 1);
+  const edited = applyEdits(tests, guarded.edits);
+  assert.match(edited, /fn inner\(\) \{ let _launcher_test_proof_guard = crate::__launcher_test_proof::enter\("rust\/tests\/answer\.rs", "nested::inner"\);\}/u);
+  assert.match(edited, /fn plain\(\) \{\}/u);
+  assert.equal(lines(edited), lines(tests));
+
+  assert.match(finished, /if ENTERED\.swap\(true, std::sync::atomic::Ordering::SeqCst\) \{\n\s+return Guard \{ file, path, active: false \};/u);
+  assert.match(finished, /fn drop\(&mut self\) \{\n\s+if !self\.active \{\n\s+return;/u);
   await assert.rejects(instrumentRustTestFile({ source: tests, selected: ["returns"], file: "t.rs" }),
     refusedWith("selected_test_shape_unsupported"));
   await assert.rejects(instrumentRustTestFile({ source: tests, selected: ["absent"], file: "t.rs" }),

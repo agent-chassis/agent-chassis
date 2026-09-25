@@ -26,14 +26,13 @@ import {
   COMMITTED_SLICE_REVIEW_ADMISSION_CODES
 } from "../../packages/agent-launch-cli/src/lib/committed-slice-review-admission.mjs";
 import {
-  LIFECYCLE_FAILURE_HISTORY_LIMIT,
   LIFECYCLE_RESOLUTION_NEXT_ACTIONS,
   POST_WORKER_LIFECYCLE_PHASES
 } from "../../packages/wiki-mcp/src/lib/dispatch-post-worker-lifecycle-bindings.mjs";
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 import {
   compareOidVocabulary, mintedRefusalLiterals, OID_SUFFIX, oidFamily
@@ -117,8 +116,10 @@ function monitorRoutes(makeValue, { child = TERMINAL_CHILD, lifecycle = null } =
       }
     }
   });
-  const call = async (_tool, extra) => parseStructuredTextResponse(
-    await tools.get("workspace_agent_run_status").handler({ subject: child.subject, ...extra }));
+
+  const call = async (_tool, extra) => readStructuredResult(
+    await tools.get("workspace_agent_run_status").handler({ subject: child.subject,
+      include_final_result: true, ...extra }));
   return {
     counters,
     status: () => call("workspace_agent_run_status", {}),
@@ -165,7 +166,8 @@ function assertGenericLifecycleFailure(label, response) {
   }
   assert.equal(response.terminal, false, label);
   assert.equal(response.child_terminal, true, label);
-  assert.equal(response.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY, label);
+  assert.equal(response.next_action,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.ESCALATE_MISSING_RETRY_CAPABILITY, label);
   assert.deepEqual(classified.lifecycle_resolution.latest_failure, { ...LATEST_GENERIC_FAILURE }, label);
 }
 
@@ -198,7 +200,8 @@ function productionAssertions(label, response) {
     assert.equal(Object.hasOwn(response.slice_lifecycle, key), false, `${label}: ${key}`);
   }
   assert.equal(response.terminal, false, label);
-  assert.equal(response.next_action, LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY, label);
+  assert.equal(response.next_action,
+    LIFECYCLE_RESOLUTION_NEXT_ACTIONS.ESCALATE_MISSING_RETRY_CAPABILITY, label);
 }
 
 test("WK-2510 production lifecycle refusals publish no review-derived diagnostic", async () => {
@@ -438,22 +441,22 @@ test("WK-1793 concurrent observers share one attempt and one retained generic fa
   assert.equal(new Set(observers.map((r) => JSON.stringify(r.slice_lifecycle))).size, 1);
 });
 
-test("WK-1793 repeated polling stays nonterminal and keeps the retry action", async () => {
+test("WK-1793 repeated polling stays nonterminal and returns the one retained failure", async () => {
   const routes = monitorRoutes(() =>
     authentic(CODES.PREPARE_FAILED, REASON[CODES.PREPARE_FAILED], { status: 1 }));
   for (let poll = 1; poll <= 5; poll += 1) {
     const response = await routes.status();
     assertGenericLifecycleFailure(`poll ${poll}`, response);
-    assert.equal(response.lifecycle_resolution.failure_attempts, poll);
-    assert.equal(response.lifecycle_resolution.retained_failures.length,
-      Math.min(poll, LIFECYCLE_FAILURE_HISTORY_LIMIT));
+
+    assert.equal(response.lifecycle_resolution.failure_attempts, 1);
+    assert.equal(response.lifecycle_resolution.retained_failures.length, 1);
 
     for (const entry of response.lifecycle_resolution.retained_failures) {
       assert.deepEqual(Object.keys(entry).sort(),
         ["error_code", "error_message", "error_message_truncated", "evidence_summary", "phase"]);
     }
   }
-  assert.equal(routes.counters.lifecycle, 5, "one attempt per poll, unchanged");
+  assert.equal(routes.counters.lifecycle, 1, "one attempt; later polls withhold");
   assert.equal(routes.counters.launched, 0);
 });
 const MATERIALIZATION_PATH = fileURLToPath(new URL(

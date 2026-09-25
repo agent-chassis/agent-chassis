@@ -69,9 +69,10 @@ export function assessProofAuthoringRowSemantics(row, path, context = {}) {
       'Node is absent from the current native contract', { node_id: id },
       proofProblem('author_input', 'canonical_reference_unknown', { node_id: id })));
   }
-  if (row.gap) diagnostics.push(proofDiagnostic('obligation_coverage_explicit_gap', `${path}/gap`,
-    'Clear the explicit gap through upsert before this mapping can be complete', { gap: row.gap },
-    proofProblem('author_input', 'authored_explicit_gap', { gap: row.gap })));
+  if (row.gap) diagnostics.push(proofDiagnostic('obligation_coverage_authored_gap_retired', `${path}/gap`,
+    'The authored gap field is retired; preserve the reason while authoring the actual missing meaning',
+    { retired_gap: row.gap }, proofProblem('author_input', 'retired_authored_field', {
+      field: 'gap', retired_gap: row.gap })));
   return diagnostics;
 }
 

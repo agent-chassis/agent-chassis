@@ -17,7 +17,7 @@ import {
 import {
   canonicalizeWorkRecordJson,
   computeWorkRecordSourceDigest
-} from "../../packages/wiki-core/src/index.mjs";
+} from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 import {
   TerminalReviewContractBindingError,
   compareTerminalReviewContractBindingIdentity,

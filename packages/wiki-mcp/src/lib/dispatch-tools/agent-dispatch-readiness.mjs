@@ -6,6 +6,7 @@ import {
   WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME
 } from "../work-record-write-tools.mjs";
 import {
+  nextActionForControlledAcceptanceRecovery,
   nextActionForDecisionCode,
   nextActionForFreeLocalDecisionCode
 } from "../work-record-write-route-helpers.mjs";
@@ -82,7 +83,7 @@ export async function orchestrateAgentDispatchReadiness({
           "controlled_acceptance_incomplete",
           "controlled_acceptance_proof_posture_invalid"
         ].includes(readinessDecisionCode);
-        const nextAction = isPaidTier
+        const fallbackNextAction = isPaidTier
           ? nextActionForDecisionCode(
               readinessDecisionCode,
               readiness.dispatch_role ?? readinessDispatchRole,
@@ -94,6 +95,8 @@ export async function orchestrateAgentDispatchReadiness({
               readiness.dispatch_role ?? readinessDispatchRole,
               false
             );
+        const nextAction = nextActionForControlledAcceptanceRecovery(
+          readiness, fallbackNextAction);
         return {
           response: refuse({
             failure: readinessFailure(readiness),
@@ -115,16 +118,17 @@ export async function orchestrateAgentDispatchReadiness({
               "wk.dispatchable": false,
               "wk.decision_code": readiness.decision_code ?? null
             },
+            carried: controlledAcceptanceBlocked ? {
+              controlled_acceptance_recovery: readiness.controlled_acceptance_recovery
+            } : null,
             continuation: continuationOrNull({
               tool: controlledAcceptanceBlocked
                 ? "workspace_controlled_contract_obligation_coverage_query"
                 : WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME,
-              arguments: controlledAcceptanceBlocked
-                ? { unit: String(args.subject).split("#", 1)[0] }
-                : { unit: args.subject },
+              arguments: { unit: args.subject },
               predicate: { fact: "wk.dispatchable", operator: "is_true" },
               prerequisite: controlledAcceptanceBlocked
-                ? "the parent WK controlled-acceptance proof posture is absent, incomplete, or invalid"
+                ? "the selected unit controlled-acceptance proof posture is absent, incomplete, or invalid"
                 : "the selected unit is not dispatchable under its authored contract",
               successCondition:
                 "workspace_agent_dispatch reports the same unit dispatchable once the authored contract is corrected"
@@ -155,7 +159,7 @@ export async function orchestrateAgentDispatchReadiness({
     if (!readiness.dispatchable) {
       const classification = namedAuthoredReadinessClassification(readiness);
       const readinessDecisionCode = readiness.decision_code;
-      const nextAction = isPaidTier
+      const fallbackNextAction = isPaidTier
         ? nextActionForDecisionCode(
             readinessDecisionCode,
             readiness.dispatch_role ?? readinessDispatchRole,
@@ -167,6 +171,8 @@ export async function orchestrateAgentDispatchReadiness({
             readiness.dispatch_role ?? readinessDispatchRole,
             false
           );
+      const nextAction = nextActionForControlledAcceptanceRecovery(
+        readiness, fallbackNextAction);
       return {
         response: refuse({
           failure: readinessFailure(readiness),

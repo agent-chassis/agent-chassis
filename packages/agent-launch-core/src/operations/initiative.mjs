@@ -3,6 +3,8 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { isCanonicalWorkRecordBaseBranch } from
+  "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
 import {
   validateTemporalHandoffEnvelope,
   validateTemporalLaunchRecord
@@ -17,7 +19,6 @@ const CLOSED_STATUSES = new Set(["done", "closed", "superseded", "duplicate", "d
 const ACTIVE_STATUSES = new Set(["todo", "in_progress", "review"]);
 const TEMPORAL_WORKFLOW_NAME = "agentLaunchTemporalWorkflow";
 const DEFAULT_NAMESPACE = "agent-launch";
-const DEFAULT_TARGET_BRANCH = "main";
 const DEFAULT_AGENT = "codex";
 const DEFAULT_ATTEMPT_ID = "A001";
 
@@ -38,11 +39,10 @@ export async function planInitiativeCommand({
   json = false,
   executionMode = "smoke",
   attemptId = DEFAULT_ATTEMPT_ID,
-  targetBranch = DEFAULT_TARGET_BRANCH,
   temporalClient = null,
   env = process.env,
   now = () => new Date(),
-  git = gitRevParseHead,
+  git = gitRevParseBranch,
   temporalClientFactory = createTemporalClientFromEnv
 } = {}) {
   assertAction(action);
@@ -111,20 +111,27 @@ export async function planInitiativeCommand({
   }
 
   const client = temporalClient ?? await temporalClientFactory({ env });
-  const baseSha = await git(repo);
   const wrapper = requiredWrapperFromEnv(env);
-  const workflows = [];
-  for (const candidate of basePlan.implementation_candidates) {
+  const selections = await resolveCandidateBaseSelections({
+    repo, candidates: basePlan.implementation_candidates, git
+  });
+  const workflowInputs = basePlan.implementation_candidates.map((candidate) => {
+    const selection = selections.get(candidate.id);
     const workflowInput = buildWorkflowInput({
       initiative: basePlan.initiative,
       candidate,
       attemptId,
-      baseSha,
-      targetBranch,
+      baseSha: selection.base_sha,
+      targetBranch: selection.base_branch,
       wrapper,
       executionMode
     });
     assertWorkflowInput(workflowInput);
+    return workflowInput;
+  });
+  const workflows = [];
+  for (const [index, candidate] of basePlan.implementation_candidates.entries()) {
+    const workflowInput = workflowInputs[index];
     const workflowId = `agent-launch-${initiativeId}-${candidate.id}-${attemptId}`;
     const startResult = await client.startWorkflow({
       workflowName: TEMPORAL_WORKFLOW_NAME,
@@ -605,7 +612,56 @@ function assertAttemptId(value) {
   }
 }
 
-async function gitRevParseHead(repoRoot) {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repoRoot });
+async function gitRevParseBranch(repoRoot, branch) {
+  const { stdout } = await execFileAsync(
+    "git", ["rev-parse", "--verify", "--end-of-options", `refs/heads/${branch}^{commit}`], { cwd: repoRoot });
   return stdout.trim();
+}
+
+async function readCanonicalBaseBranch(repoRoot, wkId) {
+  try {
+    const record = JSON.parse(await readFile(
+      path.join(repoRoot, "wiki", "work-records", `${wkId}.json`), "utf8"));
+    return record?.id === wkId ? record.base_branch : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveCandidateBaseSelections({ repo, candidates, git }) {
+  const selections = new Map();
+  const errors = [];
+  for (const candidate of candidates) {
+    const baseBranch = await readCanonicalBaseBranch(repo, candidate.id);
+    if (!isCanonicalWorkRecordBaseBranch(baseBranch)) {
+      errors.push({
+        path: `${candidate.id}.base_branch`,
+        code: "required_base_ref_missing",
+        message: "Implementation dispatch requires the canonical record-level base_branch"
+      });
+      continue;
+    }
+    let baseSha;
+    try {
+      baseSha = String(await git(repo, baseBranch) ?? "").trim();
+    } catch {
+      baseSha = "";
+    }
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(baseSha)) {
+      errors.push({
+        path: `${candidate.id}.base_branch`,
+        code: "base_ref_unresolvable",
+        message: `Selected base branch ${baseBranch} does not resolve to a local commit`
+      });
+      continue;
+    }
+    selections.set(candidate.id, { base_branch: baseBranch, base_sha: baseSha });
+  }
+  if (errors.length > 0) {
+    throw new InitiativeCommandError("Selected implementation WK base branches are missing or unresolvable; refusing dispatch", {
+      code: "implementation_candidates_invalid",
+      errors
+    });
+  }
+  return selections;
 }

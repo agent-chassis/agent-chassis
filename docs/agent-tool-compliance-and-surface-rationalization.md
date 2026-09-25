@@ -151,7 +151,7 @@ the UTF-8 size of the compact canonical descriptor serialization. Raw notes are
 JavaScript string characters before role/tier projection. Live descriptions
 are JavaScript string characters in the model-visible paid/operator
 `tools/list` surface after registration-time description composition. Serialized
-MCP transport bytes include the complete two-channel result envelope and remain
+MCP transport bytes include the complete serialized result frame and remain
 owned by the projection-bounds measurement; they are not counted as
 model-visible description or raw-note debt.
 
@@ -194,11 +194,11 @@ characters across the four registrations. The short suffix remains owned once
 in `code-index-tools.mjs`; route-specific subjects and exact compact/detail
 semantics remain distinct.
 
-The list response preserves the two-channel MCP compatibility contract. The
-wiki-core projection owns row and structured-payload admission; the MCP adapter
-measures the complete serialized result, including the text channel's escaped
-JSON cost. Transport serialization duplication is therefore measured without
-copying duplicate selection prose into the compact model-visible rows.
+The list response follows the structured-result contract: its value is
+published once, in `structuredContent`, with `content: []`. The wiki-core
+projection owns row and structured-payload admission; the MCP adapter measures
+the complete serialized result frame, so transport cost is measured without
+copying selection prose into the compact model-visible rows.
 
 `total_count` is the exact complete role/tier-visible population,
 `returned_count` is the current page, and `truncated_count` is the remaining

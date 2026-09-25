@@ -500,7 +500,7 @@ test("an input-failure projector terminal result bypasses owner projection uncha
     inputValidationErrorProjector() {
       return {
         terminal_result: {
-          content: [{ type: "text", text: JSON.stringify(terminal) }],
+          content: [],
           structuredContent: terminal,
           isError: true
         }
@@ -510,6 +510,7 @@ test("an input-failure projector terminal result bypasses owner projection uncha
 
   const result = await registered.get(toolName).handler({ unit: "WK-2520", answer: "bad" });
   assert.deepEqual(result.structuredContent, terminal);
+  assert.deepEqual(result.content, []);
   assert.equal(result.isError, true);
   assert.deepEqual(calls, []);
 });

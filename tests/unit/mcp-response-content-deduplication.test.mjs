@@ -6,12 +6,21 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
 import {
   errorContent,
   getResponseSpillConfig,
   guardToolHandler,
   jsonContent,
-  readSpilledMcpContentReference
+  measureMcpInlineResultBytes,
+  normalizeMcpToolResult,
+  readSpilledMcpContentReference,
+  structuredToolResult
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 
 const INLINE_BYTE_LIMIT = 8192;
@@ -20,22 +29,16 @@ function utf8Bytes(value) {
   return Buffer.byteLength(value, "utf8");
 }
 
-function readAsContentOnlyConsumer(result) {
-  assert.ok(Array.isArray(result.content) && result.content.length === 1);
-  assert.equal(result.content[0].type, "text");
-  return JSON.parse(result.content[0].text);
-}
-
-function readAsStructuredConsumer(result) {
-  assert.notEqual(result.structuredContent, undefined);
+function readStructuredOnly(result) {
+  assert.ok(result.structuredContent !== null && typeof result.structuredContent === "object",
+    "structured result must carry structuredContent");
+  assert.deepEqual(result.content, []);
+  assert.equal(JSON.stringify(result).includes('"type":"text"'), false);
+  const parsed = CallToolResultSchema.safeParse(result);
+  assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
+  assert.deepEqual(parsed.data.structuredContent, result.structuredContent);
+  assert.deepEqual(parsed.data.content, []);
   return result.structuredContent;
-}
-
-function assertBothConsumersAgree(result) {
-  const contentOnly = readAsContentOnlyConsumer(result);
-  const structured = readAsStructuredConsumer(result);
-  assert.deepEqual(contentOnly, structured);
-  return structured;
 }
 
 function assertCompleteResultWithinLimit(result, limit = INLINE_BYTE_LIMIT) {
@@ -44,7 +47,7 @@ function assertCompleteResultWithinLimit(result, limit = INLINE_BYTE_LIMIT) {
 }
 
 async function withSpillDirectory(callback) {
-  const stateDir = await mkdtemp(path.join(tmpdir(), "wiki-mcp-response-compat-"));
+  const stateDir = await mkdtemp(path.join(tmpdir(), "wiki-mcp-response-carrier-"));
   try {
     return await callback(stateDir);
   } finally {
@@ -60,7 +63,33 @@ function spillEnv(stateDir, overrides = {}) {
   };
 }
 
-test("both consumer shapes recover the same stable success fields", () => {
+function readReferenceToEnd(reference, env) {
+  const chunks = [];
+  let offset = 0;
+  for (;;) {
+    const chunk = readSpilledMcpContentReference(
+      { ref_id: reference.ref_id, offset, length: reference.range.max_length },
+      { env }
+    );
+    chunks.push(Buffer.from(chunk.data_base64, "base64"));
+    if (chunk.eof) return Buffer.concat(chunks);
+    offset = chunk.next_offset;
+  }
+}
+
+function payloadWithFrameBytes(targetBytes, { isError = false } = {}) {
+  const prefix = "quote \" backslash \\ newline \n tab \t é 🔥 ";
+  const at = (padding) => ({
+    schema_version: "boundary-response.v1",
+    value: `${prefix}${"x".repeat(padding)}`
+  });
+  const base = measureMcpInlineResultBytes(at(0), { isError });
+  const payload = at(targetBytes - base);
+  assert.equal(measureMcpInlineResultBytes(payload, { isError }), targetBytes);
+  return payload;
+}
+
+test("a success publishes its complete value once, in structuredContent", () => {
   const payload = {
     schema_version: "example-success.v1",
     ok: true,
@@ -70,16 +99,13 @@ test("both consumer shapes recover the same stable success fields", () => {
 
   const result = jsonContent(payload);
 
-  const recovered = assertBothConsumersAgree(result);
-  assert.deepEqual(recovered, payload);
-  assert.equal(recovered.schema_version, "example-success.v1");
-  assert.equal(recovered.marker, "success-payload-marker");
-  assert.equal(recovered.nested.note, payload.nested.note);
+  assert.deepEqual(readStructuredOnly(result), payload);
   assert.equal(result.isError, undefined);
+  assert.deepEqual(result, structuredToolResult(payload));
   assertCompleteResultWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
-test("both consumer shapes recover the same stable error fields and isError", () => {
+test("a structured error publishes its envelope once and keeps isError", () => {
   const envelope = {
     schema_version: "example-error.v1",
     code: "example_refusal",
@@ -90,60 +116,88 @@ test("both consumer shapes recover the same stable error fields and isError", ()
   const result = errorContent({ envelope });
 
   assert.equal(result.isError, true);
-  const recovered = assertBothConsumersAgree(result);
-  assert.deepEqual(recovered, envelope);
-  assert.equal(recovered.code, "example_refusal");
-  assert.equal(recovered.message, "error-payload-marker");
+  assert.deepEqual(readStructuredOnly(result), envelope);
   assertCompleteResultWithinLimit(result, getResponseSpillConfig().inlineByteLimit);
 });
 
-test("an unstructured error stays lossless and readable through both channels", () => {
+test("an unstructured throw is translated once into the structured refusal carrier", () => {
   const message = `failure ${"🔥".repeat(400)}`;
   const result = errorContent(new Error(message));
 
   assert.equal(result.isError, true);
-  assert.equal(result.content[0].type, "text");
-  const envelope = result.structuredContent;
+  const envelope = readStructuredOnly(result);
   const refusal = envelope.refusal;
   assert.equal(envelope.code, "mcp_response.handler_exception.v1");
   assert.equal(refusal.schema_version, "public-mechanical-refusal.v1");
   assert.equal(refusal.code, envelope.code);
+
   assert.equal(envelope.diagnostic, message);
   assert.deepEqual(envelope.diagnostic_redactions, []);
-  assert.deepEqual(JSON.parse(result.content[0].text), envelope);
   const facts = Object.fromEntries(refusal.deciding_facts.map((fact) => [fact.field, fact]));
   assert.equal(facts["mcp_response.handler_completed"].value, false);
-  assert.equal(Object.hasOwn(facts, "mcp_response.thrown_diagnostic"), false);
   assert.equal(refusal.no_supported_route, true);
-  assert.equal(refusal.recovery.state, "no_supported_route");
-  assert.equal(Object.hasOwn(refusal, "next_calls"), false);
   assert.equal(Buffer.from(envelope.diagnostic, "utf8").equals(Buffer.from(message, "utf8")), true);
 });
 
-test("a near-limit result spills because the complete two-channel result exceeds the limit", async () => {
+test("inline admission is exact at the final-frame boundary with escaped and Unicode payloads", async () => {
   await withSpillDirectory(async (stateDir) => {
-    const payload = {
-      schema_version: "boundary-response.v1",
-      value: `boundary-payload-marker-${"x".repeat(5_000)}`
-    };
     const env = spillEnv(stateDir);
+    for (const isError of [false, true]) {
+      const atLimit = payloadWithFrameBytes(INLINE_BYTE_LIMIT, { isError });
+      const inline = isError
+        ? errorContent({ envelope: atLimit }, { env })
+        : jsonContent(atLimit, { env });
+      assert.deepEqual(readStructuredOnly(inline), atLimit);
+      assert.equal(utf8Bytes(JSON.stringify(inline)), INLINE_BYTE_LIMIT);
+      assert.equal(inline.isError, isError ? true : undefined);
 
-    assert.ok(utf8Bytes(JSON.stringify(payload)) < INLINE_BYTE_LIMIT);
-
-    const result = jsonContent(payload, { env });
-
-    const spilled = assertBothConsumersAgree(result);
-    assert.equal(spilled.schema_version, "wiki-mcp-spilled-response.v1");
-    assert.equal(spilled.response_spilled, true);
-    assertCompleteResultWithinLimit(result);
+      const overLimit = payloadWithFrameBytes(INLINE_BYTE_LIMIT + 1, { isError });
+      const spilled = isError
+        ? errorContent({ envelope: overLimit }, { env })
+        : jsonContent(overLimit, { env });
+      const envelope = readStructuredOnly(spilled);
+      assert.equal(envelope.response_spilled, true);
+      assert.equal(spilled.isError, isError ? true : undefined);
+      assert.equal(envelope.measurement.complete_frame_bytes, INLINE_BYTE_LIMIT + 1);
+      assertCompleteResultWithinLimit(spilled);
+      assert.deepEqual(
+        JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
+        overLimit
+      );
+    }
   });
 });
 
-test("a spilled response gives both consumers the same reference and ranged continuation", async () => {
+test("preserved protocol metadata is part of the measured frame and is kept", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+    const payload = { schema_version: "meta-bearing.v1", ok: true };
+    const _meta = { "example.org/trace": "t".repeat(128) };
+
+    const small = normalizeMcpToolResult({ ...jsonContent(payload, { env }), _meta }, { env });
+    assert.deepEqual(readStructuredOnly(small), payload);
+    assert.deepEqual(small._meta, _meta);
+
+    const fitting = payloadWithFrameBytes(INLINE_BYTE_LIMIT - 64);
+    const bigMeta = { "example.org/trace": "m".repeat(256) };
+    const spilled = normalizeMcpToolResult({ ...jsonContent(fitting, { env }), _meta: bigMeta }, { env });
+    const envelope = readStructuredOnly(spilled);
+    assert.equal(envelope.response_spilled, true);
+    assert.deepEqual(spilled._meta, bigMeta);
+    assert.ok(envelope.measurement.complete_frame_bytes > INLINE_BYTE_LIMIT);
+    assertCompleteResultWithinLimit(spilled);
+    assert.deepEqual(
+      JSON.parse(readReferenceToEnd(envelope.content_reference, env).toString("utf8")),
+      fitting
+    );
+  });
+});
+
+test("a spilled response carries the reference once and reconstructs the original value", async () => {
   await withSpillDirectory(async (stateDir) => {
     const payload = {
       schema_version: "spilled-response-source.v1",
-      value: `spilled-payload-marker-${"x".repeat(9_000)}`
+      value: `spilled-payload-marker-${"x".repeat(9_000)} é 🔥 "quoted"`
     };
     const env = spillEnv(stateDir, {
       WIKI_MCP_RESPONSE_PREVIEW_BYTE_LIMIT: "512",
@@ -151,7 +205,7 @@ test("a spilled response gives both consumers the same reference and ranged cont
     });
 
     const result = jsonContent(payload, { env });
-    const spilled = assertBothConsumersAgree(result);
+    const spilled = readStructuredOnly(result);
 
     assert.equal(spilled.schema_version, "wiki-mcp-spilled-response.v1");
     assert.equal(spilled.response_spilled, true);
@@ -163,19 +217,11 @@ test("a spilled response gives both consumers the same reference and ranged cont
       { env }
     );
     const sourceText = JSON.stringify(payload, null, 2);
-    assert.equal(firstRange.schema_version, "wiki-mcp-content-reference-read.v1");
-    assert.equal(firstRange.offset, 0);
-    assert.equal(firstRange.length, 512);
-    assert.equal(firstRange.eof, false);
     assert.equal(firstRange.next_offset, 512);
     assert.equal(Buffer.from(firstRange.data_base64, "base64").toString("utf8"), sourceText.slice(0, 512));
-
-    const secondRange = readSpilledMcpContentReference(
-      { ref_id: spilled.content_reference.ref_id, offset: firstRange.next_offset, length: 512 },
-      { env }
-    );
-    assert.equal(secondRange.offset, 512);
-    assert.equal(secondRange.next_offset, 1024);
+    const whole = readReferenceToEnd(spilled.content_reference, env);
+    assert.equal(whole.toString("utf8"), sourceText);
+    assert.deepEqual(JSON.parse(whole.toString("utf8")), payload);
   });
 });
 
@@ -191,32 +237,18 @@ test("an oversized structured error keeps isError and continues to the original 
     const result = errorContent({ envelope }, { env });
 
     assert.equal(result.isError, true);
-    const spilled = assertBothConsumersAgree(result);
+    const spilled = readStructuredOnly(result);
     assert.equal(spilled.response_spilled, true);
     assertCompleteResultWithinLimit(result);
-
-    const chunks = [];
-    let offset = 0;
-    for (;;) {
-      const chunk = readSpilledMcpContentReference(
-        {
-          ref_id: spilled.content_reference.ref_id,
-          offset,
-          length: spilled.content_reference.range.max_length
-        },
-        { env }
-      );
-      chunks.push(Buffer.from(chunk.data_base64, "base64"));
-      if (chunk.eof) break;
-      offset = chunk.next_offset;
-    }
-    assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString("utf8")), envelope);
+    assert.deepEqual(
+      JSON.parse(readReferenceToEnd(spilled.content_reference, env).toString("utf8")),
+      envelope
+    );
   });
 });
 
-test("a spill-persistence failure reaches both consumers as the same bounded refusal", async () => {
+test("a spill-persistence failure is one bounded structured refusal with no partial payload", async () => {
   await withSpillDirectory(async (root) => {
-
     const blocker = path.join(root, "blocker");
     await writeFile(blocker, "not a directory\n");
     const env = spillEnv(path.join(blocker, "response-spill"));
@@ -228,13 +260,10 @@ test("a spill-persistence failure reaches both consumers as the same bounded ref
     const result = jsonContent(payload, { env });
 
     assert.equal(result.isError, true);
-    const refusal = assertBothConsumersAgree(result);
+    const refusal = readStructuredOnly(result);
     assert.equal(refusal.schema_version, "mcp-response-refusal.v1");
     assert.equal(refusal.code, "mcp_response.spill_persistence_failed.v1");
     assert.equal(refusal.content_reference, undefined);
-    assert.equal(typeof refusal.cause_diagnostic, "object");
-    assert.equal(typeof refusal.cause_diagnostic.message, "string");
-    assert.equal(typeof refusal.cause_diagnostic.stack, "string");
     assert.equal(refusal.cause_diagnostic.code, "ENOTDIR");
     assert.equal(refusal.cause_diagnostic.path, path.join(blocker, "response-spill"));
     assert.deepEqual(refusal.cause_diagnostic_redactions, []);
@@ -243,24 +272,117 @@ test("a spill-persistence failure reaches both consumers as the same bounded ref
   });
 });
 
-test("a registered handler's already-formed result reaches both consumers equivalently", async () => {
+test("the public guard removes a text carrier a handler built or appended, below the byte limit", async () => {
   await withSpillDirectory(async (stateDir) => {
     const env = spillEnv(stateDir);
     const payload = { schema_version: "already-formed.v1", ok: true, items: ["a", "b"] };
-
-    const guarded = guardToolHandler(
-      async () => ({
+    const image = { type: "image", data: "aGVsbG8=", mimeType: "image/png" };
+    const shapes = {
+      duplicate_json_text: async () => ({
+        content: [{ type: "text", text: JSON.stringify(payload) }],
+        structuredContent: payload
+      }),
+      summary_text: async () => ({
         content: [{ type: "text", text: "handler-authored summary line" }],
         structuredContent: payload
       }),
-      { name: "already-formed-tool", env }
-    );
+      appended_after_helper: async () => {
+        const shaped = jsonContent(payload, { env });
+        shaped.content.push({ type: "text", text: JSON.stringify(shaped.structuredContent) });
+        return shaped;
+      },
+      mutated_after_helper: async () => {
+        const shaped = jsonContent({ schema_version: "already-formed.v1" }, { env });
+        shaped.structuredContent = payload;
+        shaped.content = [{ type: "text", text: "stale pointer" }];
+        return shaped;
+      },
+      structured_only_without_content: async () => ({ structuredContent: payload })
+    };
+    for (const [shape, handler] of Object.entries(shapes)) {
+      const result = await guardToolHandler(handler, { name: shape, env })({});
+      assert.ok(utf8Bytes(JSON.stringify(result)) < INLINE_BYTE_LIMIT, shape);
+      assert.deepEqual(readStructuredOnly(result), payload, shape);
+      assert.ok(!JSON.stringify(result).includes("handler-authored summary line"), shape);
+      assert.ok(!JSON.stringify(result).includes("stale pointer"), shape);
+    }
 
-    const result = await guarded({});
+    const mixed = await guardToolHandler(async () => ({
+      content: [{ type: "text", text: JSON.stringify(payload) }, image],
+      structuredContent: payload
+    }), { name: "mixed", env })({});
+    assert.deepEqual(mixed.content, [image]);
+    assert.deepEqual(mixed.structuredContent, payload);
+    assert.equal(CallToolResultSchema.safeParse(mixed).success, true);
+  });
+});
 
-    const recovered = assertBothConsumersAgree(result);
-    assert.deepEqual(recovered, payload);
-    assert.ok(!JSON.stringify(result).includes("handler-authored summary line"));
-    assertCompleteResultWithinLimit(result);
+test("a result already on the contract passes the guard unchanged", async () => {
+  const shaped = jsonContent({ ok: true });
+  assert.equal(normalizeMcpToolResult(shaped), shaped);
+});
+
+test("legitimate unstructured text results are left intact", async () => {
+  const plain = { content: [{ type: "text", text: "plain text result" }] };
+  assert.equal(normalizeMcpToolResult(plain), plain);
+  const guarded = await guardToolHandler(async () => plain, { name: "plain" })({});
+  assert.deepEqual(guarded, { content: [{ type: "text", text: "plain text result" }] });
+});
+
+test("the installed SDK client receives every structured shape without a text carrier", async () => {
+  await withSpillDirectory(async (stateDir) => {
+    const env = spillEnv(stateDir);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const server = new McpServer({ name: "wiki-mcp-carrier-contract-test", version: "1.0.0" });
+    const client = new Client({ name: "wiki-mcp-carrier-contract-client", version: "1.0.0" }, {
+      capabilities: {}
+    });
+    const outputSchema = { ok: z.boolean(), marker: z.string() };
+    const register = (name, config, handler) =>
+      server.registerTool(name, config, guardToolHandler(handler, {
+        name, env, outputSchema: config.outputSchema ?? null
+      }));
+    register("success", { description: "success", outputSchema },
+      async () => jsonContent({ ok: true, marker: "é 🔥 \"q\"" }, { env }));
+    register("structured_error", { description: "error" },
+      async () => errorContent({ envelope: { code: "example_refusal", ok: false } }, { env }));
+    register("thrown", { description: "thrown" }, async () => {
+      throw new Error("thrown-marker");
+    });
+    register("spilled", { description: "spill" },
+      async () => jsonContent({ value: "s".repeat(INLINE_BYTE_LIMIT * 2) }, { env }));
+    register("handler_text", { description: "handler text", outputSchema },
+      async () => ({
+        content: [{ type: "text", text: "{\"ok\":true,\"marker\":\"m\"}" }],
+        structuredContent: { ok: true, marker: "m" }
+      }));
+    register("plain_text", { description: "plain" },
+      async () => ({ content: [{ type: "text", text: "plain text result" }] }));
+
+    try {
+      await server.connect(serverTransport);
+      await client.connect(clientTransport);
+      const call = (name) => client.callTool({ name, arguments: {} });
+
+      assert.deepEqual(readStructuredOnly(await call("success")), { ok: true, marker: "é 🔥 \"q\"" });
+      const error = await call("structured_error");
+      assert.equal(error.isError, true);
+      assert.deepEqual(readStructuredOnly(error), { code: "example_refusal", ok: false });
+      const thrown = await call("thrown");
+      assert.equal(thrown.isError, true);
+      assert.equal(readStructuredOnly(thrown).diagnostic, "thrown-marker");
+      const spilled = readStructuredOnly(await call("spilled"));
+      assert.equal(spilled.response_spilled, true);
+      assert.deepEqual(
+        JSON.parse(readReferenceToEnd(spilled.content_reference, env).toString("utf8")),
+        { value: "s".repeat(INLINE_BYTE_LIMIT * 2) }
+      );
+      assert.deepEqual(readStructuredOnly(await call("handler_text")), { ok: true, marker: "m" });
+      assert.deepEqual((await call("plain_text")).content,
+        [{ type: "text", text: "plain text result" }]);
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });

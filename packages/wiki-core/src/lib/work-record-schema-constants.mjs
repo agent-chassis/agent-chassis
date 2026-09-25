@@ -301,6 +301,7 @@ const REQUIRED_STRING_TOP_LEVEL_FIELDS = Object.freeze([
 const OPTIONAL_STRING_TOP_LEVEL_FIELDS = Object.freeze([
   "initiative",
   "area",
+  "base_branch",
   "resolution",
   "severity",
   "target",

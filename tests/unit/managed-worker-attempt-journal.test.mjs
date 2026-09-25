@@ -464,8 +464,8 @@ test("recorded proof verification is informational, invocation-identified and pa
     invocation_id: "inv-2", sequence: first.snapshot.sequence, event_digest: first.snapshot.digest,
     record_identity: "record-2", requested_unit: SUBJECT, assigned_unit: SUBJECT,
     outcome: "refused", status: "not_executable", reason_code: "obligation_coverage_source_not_found",
-    selected_proof_count: 0, tested_source: null, coverage_scope: "requested_selection_only",
-    grants_authority: false
+    selected_proof_count: 0, tested_source: null, result_digest: null,
+    coverage_scope: "requested_selection_only", grants_authority: false
   });
   events = record("inv-3", { outcome: "completed", status: "unsatisfied" }).events;
   const rest = page({ limit: 2, cursor: first.cursor });
@@ -483,4 +483,55 @@ test("recorded proof verification is informational, invocation-identified and pa
     attemptId: dispatchTuple.run_id, kind: "failure_history", invocationId: "inv-3" }).code,
   "attempt_detail_request_invalid");
   assert.equal(page({ cursor: first.cursor.replace(/.$/u, "A") }).ok, false);
+});
+
+test("last recorded invocation forwards, omits or refuses a deficient outcome summary exactly", async () => {
+  const { pageManagedAttemptDetail, recordedProofVerificationOutcomeSummary } = await import(
+    "../../packages/agent-launch-core/src/lib/managed-run-observation.mjs");
+  const dispatchTuple = { ...tuple("wkdb_1123456789abcdef"), launch_ref: "wkmh_1123456789abcdef" };
+  let events = buildPrefix([ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED]);
+  events = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events, attempt: tuple(),
+    kind: ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED, payload: { dispatch_tuple: dispatchTuple } }).events;
+  const append = (invocationId, verification) => {
+    events = admitAttemptCommand({ repository: REPO, subject: SUBJECT, events, attempt: tuple(),
+      kind: ATTEMPT_EVENT_KINDS.PROOF_VERIFICATION_RECORDED,
+      payload: { dispatch_tuple: dispatchTuple, invocation_id: invocationId, verification } }).events;
+  };
+  const page = (args = { limit: 1 }) => pageManagedAttemptDetail({ repository: REPO, subject: SUBJECT,
+    events, attemptId: dispatchTuple.run_id, kind: "proof_verification", ...args });
+  const last = (invocationId, verification) => {
+    append(invocationId, verification);
+    return page().summary.last_recorded_invocation;
+  };
+  const outcomeSummary = { schema_version: "workspace-verify-proof-outcome-summary.v1",
+    status: "proven", proofs: [{ test_proof_id: "test-proof-1", selected_status: "passed" }] };
+  const current = last("inv-current", { outcome: "completed", status: "proven",
+    result_digest: "sha256:current", evidence: { kind: "aggregate" }, outcome_summary: outcomeSummary });
+  assert.deepEqual(current.outcome_summary, outcomeSummary);
+  assert.equal(current.result_digest, "sha256:current");
+  const refusal = last("inv-refusal", { outcome: "refused", status: "not_executable",
+    reason_code: "verify_proof.subject_unknown.v1", evidence: { kind: "refusal" } });
+  assert.equal(Object.hasOwn(refusal, "outcome_summary"), false);
+  assert.equal(refusal.reason_code, "verify_proof.subject_unknown.v1");
+
+  const eventsBeforeDeficient = events;
+  for (const [label, summary, reason] of [["missing", undefined, "missing"], ["null", null, "invalid_type"],
+    ["scalar", "proven", "invalid_type"], ["array", [], "invalid_type"]]) {
+    events = eventsBeforeDeficient;
+    const verification = { outcome: "completed", status: "satisfied", result_digest: `sha256:${label}`,
+      evidence: { kind: "aggregate" }, ...(summary === undefined ? {} : { outcome_summary: summary }) };
+    const expected = { code: "proof_verification_record_invalid",
+      field: "verification.outcome_summary", reason };
+    assert.deepEqual({ ...recordedProofVerificationOutcomeSummary(verification) },
+      { ok: false, ...expected }, label);
+    append(`inv-${label}`, verification);
+    for (const read of [page(), page({ limit: 20 }), page({ invocationId: "inv-current" }),
+      page({ invocationId: `inv-${label}` })]) {
+      assert.deepEqual([read.ok, read.code, { ...read.refusal }],
+        [false, expected.code, { ...expected, invocation_id: `inv-${label}` }], label);
+      assert.equal(Object.hasOwn(read, "summary"), false, `${label}: no partial summary is published`);
+    }
+  }
+  events = eventsBeforeDeficient;
+  assert.equal(page().ok, true, "the current population remains readable");
 });

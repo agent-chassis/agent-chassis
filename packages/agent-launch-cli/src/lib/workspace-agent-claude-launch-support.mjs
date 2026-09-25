@@ -756,6 +756,7 @@ export function defaultBuildClaudeBwrapPlan({
   stdioMcpConduit = null,
 
   workerScopeAuthority = null,
+  workerTestRuntime = null,
   familyRuntimeReadOnlyRoots = CLAUDE_FAMILY_RUNTIME_READ_ONLY_ROOTS,
   familyRuntimeMountPrefixes = null,
   familyRuntimePolicyProfile = null,
@@ -818,6 +819,7 @@ export function defaultBuildClaudeBwrapPlan({
     provisionedWorktreeGitIdentity,
     stdioMcpConduit,
     workerScopeAuthority,
+    workerTestRuntime,
 
     additionalMaskTmpfsDirs: deriveClaudeSettingsMaskDirs({ workspaceDir }),
     envPolicy: CLAUDE_BWRAP_ENV_POLICY,
@@ -869,6 +871,7 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
       stdioMcpConduit: opts?.stdioMcpConduit ?? null,
 
       workerScopeAuthority: opts?.workerScopeAuthority ?? null,
+      workerTestRuntime: opts?.workerTestRuntime ?? null,
       nativeRepoWriteMechanism: opts?.nativeRepoWriteMechanism ?? CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
       familyRuntimeReadOnlyRoots,
       credentialsReadOnlyFile,

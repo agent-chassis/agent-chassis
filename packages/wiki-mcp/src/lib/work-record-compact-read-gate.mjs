@@ -33,6 +33,7 @@ import {
   runSliceEnumeration,
   SUMMARY_TOOL_FAMILY
 } from "./work-record-compact-read-continuation.mjs";
+import { withCanonicalProjectionReadRecovery } from "./work-record-canonical-read-recovery.mjs";
 import {
   projectWorkRecordDetailMenu,
   projectWorkRecordNavigation,
@@ -956,7 +957,19 @@ export async function runWorkRecordSummaryWithCompactGate({
   return navigation;
 }
 
-export async function runWorkRecordReadWithCompactGate({
+export async function runWorkRecordReadWithCompactGate(options) {
+  if (options.toolFamily !== READ_PAGE_TOOL_FAMILY) return runWorkRecordRead(options);
+  return withCanonicalProjectionReadRecovery({
+    toolFamily: options.toolFamily,
+    workspaceRepo: options.workspaceRepo,
+    workspaceDir: options.workspaceDir,
+    args: options.args,
+    loadKindRecordByPath: options.loadKindRecordByPath,
+    read: () => runWorkRecordRead(options)
+  });
+}
+
+async function runWorkRecordRead({
   workspaceRepo,
   workspaceDir,
   args,

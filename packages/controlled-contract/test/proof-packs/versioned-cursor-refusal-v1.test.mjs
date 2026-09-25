@@ -9,19 +9,20 @@ import { runProofPackAdequacy } from "../support/proof-pack-adequacy.mjs";
 import {
   buildVersionedCursorPaginationFixture
 } from "./mutation-pagination-profiles-v1-fixture.mjs";
+import { certificationDirectory as certificationDirectoryOf, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(new URL("../../", import.meta.url).pathname);
-const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.pagination.versioned-cursor-refusal/3.0.0");
+const identity = { profile_id: "proof.pagination.versioned-cursor-refusal", profile_version: "4.0.0" };
+const certificationDirectory = certificationDirectoryOf(identity);
 const runtimeDirectory = path.join(packageRoot,
-  "profiles/proof.pagination.versioned-cursor-refusal/3.0.0");
+  "profiles/proof.pagination.versioned-cursor-refusal/4.0.0");
 
 async function json(directory, name) {
   return JSON.parse(await readFile(path.join(directory, name), "utf8"));
 }
 
 test("versioned cursor profile refuses the exact stale occurrence", async () => {
-  const profile = await json(certificationDirectory, "profile.json");
+  const profile = await json(runtimeDirectory, "profile.json");
   const fixture = buildVersionedCursorPaginationFixture({ profile });
   assert.equal(evaluateStableProofPackFixtureV1({
     contract: fixture.contract, profile, evaluation_input: fixture.input

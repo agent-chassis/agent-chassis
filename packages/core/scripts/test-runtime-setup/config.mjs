@@ -5,7 +5,9 @@ import path from "node:path";
 
 export const REPOSITORY_RUNTIME_CONFIG_FILE = "agent-chassis-runtime.json";
 
-export const TEST_RUNTIME_CONFIG_FIELDS = Object.freeze(["runners", "toolchains"]);
+export const TEST_RUNTIME_CONFIG_FIELDS = Object.freeze(["runners", "toolchains", "environments"]);
+const ENVIRONMENT_FIELDS = Object.freeze(["virtual_environment"]);
+const PYTHON_ENVIRONMENT_ID = /^python@(?:\.|[^/\s][^\s]*)$/u;
 const RUNNER_FIELDS = Object.freeze(["runner", "project"]);
 const TOOLCHAIN_FIELDS = Object.freeze(["executable", "version"]);
 const RUNNER_NAME = /^[a-z][a-z0-9-]*$/u;
@@ -36,11 +38,15 @@ export function parseTestRuntimeConfig(text, { source = "<runtime config>" } = {
     fail(`not valid JSON (${error.message})`);
   }
   closedObject(fail, "the configuration", document, TEST_RUNTIME_CONFIG_FIELDS);
-  if (!Array.isArray(document.runners) || document.runners.length === 0) {
+  if (!TEST_RUNTIME_CONFIG_FIELDS.some((field) => Object.hasOwn(document, field))) {
+    fail("the configuration must name runners, toolchains or environments");
+  }
+  if (Object.hasOwn(document, "runners") &&
+      (!Array.isArray(document.runners) || document.runners.length === 0)) {
     fail("runners must be a nonempty array of {runner, project} selections");
   }
   const runners = [];
-  for (const [index, entry] of document.runners.entries()) {
+  for (const [index, entry] of (document.runners ?? []).entries()) {
     const label = `runners[${index}]`;
     closedObject(fail, label, entry, RUNNER_FIELDS);
     if (typeof entry.runner !== "string" || !RUNNER_NAME.test(entry.runner)) {
@@ -73,7 +79,22 @@ export function parseTestRuntimeConfig(text, { source = "<runtime config>" } = {
         version: Object.hasOwn(entry, "version") ? entry.version : null };
     }
   }
-  return { runners, toolchains };
+  const environments = {};
+  if (Object.hasOwn(document, "environments")) {
+    if (!isPlainObject(document.environments)) fail("environments must be an object");
+    for (const [id, entry] of Object.entries(document.environments)) {
+      const label = `environments.${id}`;
+      if (!PYTHON_ENVIRONMENT_ID.test(id)) {
+        fail(`${label} must name a python@<project> environment; other ecosystems follow their own configuration`);
+      }
+      closedObject(fail, label, entry, ENVIRONMENT_FIELDS);
+      if (typeof entry.virtual_environment !== "string" || !path.isAbsolute(entry.virtual_environment)) {
+        fail(`${label}.virtual_environment must be the absolute path of an existing virtual environment`);
+      }
+      environments[id] = { virtual_environment: entry.virtual_environment };
+    }
+  }
+  return { runners, toolchains, environments };
 }
 
 export function loadTestRuntimeConfig(file, { cwd = process.cwd() } = {}) {
@@ -87,28 +108,24 @@ export function loadTestRuntimeConfig(file, { cwd = process.cwd() } = {}) {
   return { ...parseTestRuntimeConfig(text, { source: file }), path: resolved };
 }
 
-export function configuredToolchainVersions({ toolchains }) {
-  return Object.fromEntries(Object.entries(toolchains)
-    .filter(([, { version }]) => version !== null).map(([name, { version }]) => [name, version]));
-}
-
-export function configuredToolchainExecutables({ toolchains }) {
-  return Object.fromEntries(Object.entries(toolchains)
-    .map(([name, { executable }]) => [name, executable]));
-}
-
 export function repositoryRuntimeConfigPath(repositoryRoot) {
   return path.join(repositoryRoot, REPOSITORY_RUNTIME_CONFIG_FILE);
 }
 
-export function serializeTestRuntimeConfig({ runners, toolchains }) {
-  const document = { runners: runners.map(({ runner, project }) => ({ runner, project })) };
+export function serializeTestRuntimeConfig({ runners = [], toolchains, environments = {} }) {
+  const document = runners.length === 0 ? {}
+    : { runners: runners.map(({ runner, project }) => ({ runner, project })) };
   const names = Object.keys(toolchains ?? {}).sort();
   if (names.length > 0) {
     document.toolchains = Object.fromEntries(names.map((name) => [name, {
       executable: toolchains[name].executable,
       ...(toolchains[name].version ? { version: toolchains[name].version } : {})
     }]));
+  }
+  const ids = Object.keys(environments).sort();
+  if (ids.length > 0) {
+    document.environments = Object.fromEntries(ids.map((id) =>
+      [id, { virtual_environment: environments[id].virtual_environment }]));
   }
   return `${JSON.stringify(document, null, 2)}\n`;
 }

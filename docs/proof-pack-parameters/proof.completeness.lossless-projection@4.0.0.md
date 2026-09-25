@@ -6,7 +6,7 @@ When one declared structured tool exposes one compact mode and one distinct docu
 
 Profile digest: 99620e0574c57d85c97794351c5c66e1a40f3a147ba65161dcbce2ed7b89b4f2. Parameter digest: bca24756b82cd0ccf95ff302b1cc540a87f4dd39f22d6df6be2d7c4b1bc28800.
 
-Admission digest: 17746bf05d20f299ee4517d9e87f4f95fcfa517a9a97f053790e5ac143cd38fa.
+Admission digest: b9456eca01120c489700a260829db5a4668b9160e11333a9bb836fb92403d54d.
 
 Roles: 36/36 accounted; 3 owned gaps. Semantic parameters: 30; internal roles: 6.
 

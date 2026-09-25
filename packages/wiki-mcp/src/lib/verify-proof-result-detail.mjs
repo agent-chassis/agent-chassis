@@ -1,52 +1,96 @@
 import { projectDiagnostic, isStructuredDiagnostic } from "../../../wiki-core/src/lib/diagnostic-projection.mjs";
+import { classifyMutationOutcome, countMutationOutcomes } from
+  "../../../controlled-contract/lib/test-proof-mutation-outcome.mjs";
 const VERIFY_PROOF_TOOL_NAME = "workspace_verify_proof";
 const TEST_ID_RE = /^test-[a-f0-9]{64}$/u;
 const STABLE_CODE_RE = /^[a-z0-9_.-]{1,160}$/u;
 
 export const VERIFY_PROOF_EVIDENCE_MEANING = Object.freeze({
-  proof_observation: "selected test outcome",
-  mutation_evidence: "additional falsification evidence for the same proof; unavailable does not erase the test observation",
-  evaluator_outcome: "statuses are unchanged and missing evidence receives no credit"
+  proof_observation: "selected test outcome as observed (passed, failed, skipped or another reported status); not_observed when no selected-test event was recorded",
+  mutation_evidence: "additional falsification evidence for the same proof, per member: detected, survived (counterevidence), unavailable (a capability limitation: no credit and no counterevidence) or unevaluable",
+  evaluator_outcome: "proven or unproven for the requested proof and tested source only; not_executable when required evidence is incomplete or cannot be evaluated; never a verdict on the whole unit"
 });
 
-function authoritativeMutationOutcomes(observedEvidence) {
-  return (observedEvidence?.falsifier_outcomes ?? []).map((outcome) => ({
-    status: outcome.status,
-    survived: outcome.status === "not_detected" && outcome.provider_support === "supported" &&
-      outcome.isolated === true && outcome.candidate_status === "passed" &&
-      outcome.falsified_status === "passed" && outcome.mutation_observed === true
-  }));
+const PUBLIC_PROOF_STATUSES = Object.freeze({
+  satisfied: "proven", unsatisfied: "unproven", not_executable: "not_executable"
+});
+export const PUBLIC_PROOF_STATUS_VALUES = Object.freeze(["proven", "unproven", "not_executable"]);
+
+function publicProofStatus(status) {
+  const projected = PUBLIC_PROOF_STATUSES[status];
+  if (projected === undefined) throw new TypeError(`unknown proof verification status ${status}`);
+  return projected;
 }
 
 export function projectProofEvidencePresentation(proof) {
   const selectedStatus = proof.observed_evidence?.selected_status;
-  const outcomes = authoritativeMutationOutcomes(proof.observed_evidence);
-  const unavailableCount = (proof.observed_evidence?.capability_limitations ?? [])
-    .filter(({ check_kind: kind }) => kind === "falsifier").length;
-  const detectedCount = outcomes.filter(({ status }) => status === "detected").length;
-  const survivedCount = outcomes.filter(({ survived }) => survived).length;
-  const notDetectedCount = outcomes.filter(({ status, survived }) =>
-    status === "not_detected" && !survived).length;
-  const executionErrorCount = outcomes.filter(({ status }) => status === "execution_error").length;
-  const mutationStatus = notDetectedCount > 0 ? "not_detected"
-    : executionErrorCount > 0 ? "execution_error"
-      : survivedCount > 0 ? "survived"
-        : detectedCount > 0 ? "detected"
-          : unavailableCount > 0 ? "unavailable" : "not_run";
+  const outcomes = countMutationOutcomes((proof.observed_evidence?.falsifier_outcomes ?? [])
+    .map(classifyMutationOutcome));
+  const falsifierLimitations = (proof.observed_evidence?.capability_limitations ?? [])
+    .filter(({ check_kind: kind }) => kind === "falsifier");
+  const unavailableCount = outcomes.unavailable +
+    falsifierLimitations.filter(({ check_id: id }) => id === null).length;
+  const mutationStatus = outcomes.survived > 0 ? "survived"
+    : outcomes.unevaluable > 0 ? "unevaluable"
+      : unavailableCount > 0 ? "unavailable"
+        : outcomes.detected > 0 ? "detected" : "not_run";
   return Object.freeze({
     test_observation: Object.freeze({
-      status: selectedStatus === "passed" || selectedStatus === "failed"
-        ? selectedStatus : "not_observed",
+      status: typeof selectedStatus === "string" ? selectedStatus : "not_observed",
       execution_status: proof.execution_status
     }),
     mutation_evidence: Object.freeze({
       status: mutationStatus,
-      detected_count: detectedCount,
-      survived_count: survivedCount,
-      not_detected_count: notDetectedCount,
-      execution_error_count: executionErrorCount,
-      unavailable_count: unavailableCount
+      detected_count: outcomes.detected,
+      survived_count: outcomes.survived,
+      unavailable_count: unavailableCount,
+      unevaluable_count: outcomes.unevaluable,
+      limitation_codes: Object.freeze([...new Set(falsifierLimitations
+        .map(({ reason_code: code }) => code))].sort())
     })
+  });
+}
+
+function distinctDiagnosticCodes(relationships) {
+  const codes = new Set();
+  for (const relationship of relationships) {
+    for (const entry of relationship.diagnostics ?? []) {
+      const code = entry?.code ?? entry?.reason_code;
+      if (typeof code === "string" && STABLE_CODE_RE.test(code)) codes.add(code);
+    }
+  }
+  return [...codes].sort();
+}
+
+function projectProofRecovery(proof) {
+  if (proof.status === "unsatisfied") {
+    const failed = proof.relationship_results.filter(({ status }) => status === "unsatisfied");
+    return Object.freeze({
+      condition: "evaluated_counterevidence",
+      diagnostic_codes: distinctDiagnosticCodes(failed),
+      subject: Object.freeze({ test_proof_id: proof.test_proof_id,
+        verification_id: proof.verification_id }),
+      effect: "this proof is unproven for the tested source only; other proofs and later revisions are unaffected",
+      responsible_actor: "implementation_owner",
+      next_step: "Correct the implementation or the selected assertion so that no diagnosed condition holds, then verify the corrected source.",
+      follow_up_call: Object.freeze({ tool: VERIFY_PROOF_TOOL_NAME,
+        arguments: Object.freeze({ subject: proof.test_proof_id }) })
+    });
+  }
+  if (proof.status !== "not_executable") return undefined;
+  if (proof.recovery !== undefined) return structuredClone(proof.recovery);
+  const unevaluated = proof.relationship_results.filter(({ status }) => status === "not_executable");
+  if (proof.execution_status !== "completed" || unevaluated.length === 0) return undefined;
+  return Object.freeze({
+    condition: "evidence_not_evaluable",
+    reason_codes: [...new Set(unevaluated.map(({ reason_code: code }) => code))].sort(),
+    diagnostic_codes: distinctDiagnosticCodes(unevaluated),
+    subject: Object.freeze({ test_proof_id: proof.test_proof_id,
+      verification_id: proof.verification_id }),
+    effect: "no proof verdict for these relationships; the selected test observation is preserved and nothing is credited",
+    uncertainty: "whether the selected assertion discriminates the declared falsifier is unknown",
+    responsible_actor: "verification_runtime_owner",
+    next_step: "Inspect the recorded falsifier facts in the complete evidence; an unchanged-input retry is not implied."
   });
 }
 export function projectObservedIdentity(event) {
@@ -105,10 +149,11 @@ export function projectPublicVerifyProofAggregate(result) {
       ({ status }) => status !== "satisfied");
     const reasonCode = proof.reason_code ?? relationshipFailure?.reason_code ?? null;
     const evidencePresentation = projectProofEvidencePresentation(proof);
+    const recovery = projectProofRecovery(proof);
     return Object.freeze({
       test_proof_id: proof.test_proof_id,
       verification_id: proof.verification_id,
-      status: proof.status,
+      status: publicProofStatus(proof.status),
       readiness_status: proof.readiness_status,
       execution_status: proof.execution_status,
       ...evidencePresentation,
@@ -119,8 +164,12 @@ export function projectPublicVerifyProofAggregate(result) {
         observed_evidence: projectPublicDiagnostic(proof.observed_evidence,
           `proof_results.${proof.test_proof_id}.observed_evidence`, redactions)
       }),
+      ...(proof.runtime_environment === undefined ? {} : {
+        runtime_environment: structuredClone(proof.runtime_environment)
+      }),
       relationship_results: proof.relationship_results.map((relationship) => ({
         ...relationship,
+        status: publicProofStatus(relationship.status),
         ...(relationship.proof_instance === undefined ? {} : { proof_instance: projectPublicDiagnostic(relationship.proof_instance,
           `proof_results.${proof.test_proof_id}.relationships.${relationship.obligation_id}.proof_instance`, redactions) }),
         ...(relationship.diagnostics === undefined ? {} : {
@@ -130,20 +179,10 @@ export function projectPublicVerifyProofAggregate(result) {
         })
       })),
       ...(reasonCode === null ? {} : { reason_code: reasonCode }),
-      ...(proof.status === "not_executable" && proof.recovery !== undefined
-        ? { recovery: structuredClone(proof.recovery) }
-        : proof.status === "unsatisfied" ? { recovery: Object.freeze({
-          action: proof.observed_evidence?.selected_status === "failed"
-            ? "repair_or_reassess_the_failed_selected_assertion"
-            : evidencePresentation.mutation_evidence.status === "unavailable"
-              ? "use_the_observed_test_result_and_note_mutation_falsification_was_unavailable"
-              : evidencePresentation.mutation_evidence.status === "survived"
-                ? "inspect_the_surviving_mutation_and_evaluator_diagnostics"
-              : "inspect_the_relationship_evaluator_diagnostics",
-          retry_operation: VERIFY_PROOF_TOOL_NAME
-        }) } : {})
+      ...(recovery === undefined ? {} : { recovery })
     });
   });
+  const { satisfied, unsatisfied, ...counts } = result.counts;
   return Object.freeze({
     schema_version: result.schema_version,
     ...(result.authority_limb === undefined ? {} : { authority_limb: result.authority_limb }),
@@ -157,22 +196,19 @@ export function projectPublicVerifyProofAggregate(result) {
       }),
       candidate_identity: result.subject_binding
     }),
-    status: result.status,
+    status: publicProofStatus(result.status),
+    requested_environment: result.requested_environment ?? null,
     evidence_meaning: VERIFY_PROOF_EVIDENCE_MEANING,
-    counts: structuredClone(result.counts),
+    counts: { proofs: counts.proofs, relationships: counts.relationships, proven: satisfied,
+      unproven: unsatisfied, not_executable: counts.not_executable, ready: counts.ready,
+      nonready: counts.nonready, execution_not_started: counts.execution_not_started },
     proof_results: Object.freeze(proofResults),
     diagnostics: projectPublicDiagnostic(result.diagnostics ?? [], "diagnostics", redactions),
     diagnostic_redactions: redactions,
     result_digest: result.result_digest,
-    ...(result.reason_code === null ? {} : {
-      reason_code: result.reason_code,
-      ...(result.reason_code === "verify_proof.population_not_ready.v1" ? {} : {
-      recovery: Object.freeze({
-        action: typeof result.recovery?.action === "string" &&
-          STABLE_CODE_RE.test(result.recovery.action)
-          ? result.recovery.action : "repair_the_named_proof_prerequisite",
-        retry_operation: VERIFY_PROOF_TOOL_NAME })
-      })
-    })
+    ...(result.reason_code === null ? {} : { reason_code: result.reason_code }),
+
+    ...(result.reason_code === null || result.recovery === undefined ? {} : {
+      recovery: structuredClone(result.recovery) })
   });
 }

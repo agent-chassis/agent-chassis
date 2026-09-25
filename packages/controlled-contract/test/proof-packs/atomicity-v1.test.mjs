@@ -9,18 +9,15 @@ import {
   profileDigest,
   runProofPackAdequacy
 } from "../support/proof-pack-adequacy.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.atomicity.failure-boundary/3.0.0"
-);
+const identity = { profile_id: "proof.atomicity.failure-boundary", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(relativePath) {
-  return JSON.parse(await readFile(path.join(packDirectory, relativePath), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 test("atomicity 2.0 binds its canonical guarantee and executable controls", async () => {
   const [profile, adequacy] = await Promise.all([
@@ -38,7 +35,7 @@ test("atomicity 2.0 binds its canonical guarantee and executable controls", asyn
   assert.equal(result.passed, true);
   assert.equal(result.control_count, 46);
   assert.equal(result.negative_fixture_count, 66);
-  assert.equal(result.coverage_witness_count, 297);
+  assert.equal(result.coverage_witness_count, 294);
   assert.deepEqual(result.diagnostics, []);
 });
 

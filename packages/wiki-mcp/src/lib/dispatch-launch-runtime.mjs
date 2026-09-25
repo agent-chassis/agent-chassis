@@ -36,14 +36,19 @@ import {
   isPlainObject,
   WK_FORGE_HANDOFF_FAILURE_CATEGORIES
 } from "@agent-chassis/agent-launch-cli/src/lib/trusted-operation-contracts.mjs";
+import {
+  captureDiagnosticEvidence,
+  DIAGNOSTIC_EVIDENCE_SCHEMA_VERSION
+} from "@agent-chassis/agent-launch-cli/src/lib/diagnostic-evidence.mjs";
 import { defaultRunGitAsync } from
   "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate.mjs";
 import {
-  defaultWkForgeHandoff
+  defaultWkForgeHandoff,
+  observeAuthenticatedWkForgeHandoff
 } from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
 import {
-  trustedWkForgeMerge
-} from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-merge.mjs";
+  observeWkHandoffLanding
+} from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-landed-publication.mjs";
 
 import {
   evaluateWorkerAdmissionForBackend
@@ -59,6 +64,9 @@ import {
 
 import {
   buildAcceptSucceedCodexExecutorTestSeams,
+  isAdvisoryReviewMaterialProbeCodexExecutorTestSeams,
+  isConnectedDeliveryWitnessCodexExecutorTestSeams,
+  isConfinedWorkerProbeCodexExecutorTestSeams,
   consumeDispatchCodexTestSeamEvidence,
   isAcceptSucceedCodexExecutorTestSeams,
   createAcceptStayRunningTestExecutor,
@@ -66,6 +74,10 @@ import {
   createRefusingTestExecutor,
   createThrowingTestExecutor
 } from "./dispatch-launch-test-seam-executors.mjs";
+import {
+  isAssignmentStoryClaudeExecutorTestSeams,
+  isAssignmentStoryCodexExecutorTestSeams
+} from "./dispatch-launch-assignment-story-probe.mjs";
 
 import {
   createTerminalCandidateCoordinator,
@@ -90,17 +102,14 @@ export {
 } from "./dispatch-terminal-candidate-runtime.mjs";
 
 export function createWkForgeHandoffPublicationStateResolver({
-  dispatchBackend, terminalCandidateCoordinator
+  terminalCandidateCoordinator
 } = {}) {
-  if (typeof dispatchBackend?.resolveTerminalCandidatePublicationState !== "function" ||
-      typeof terminalCandidateCoordinator?.recoverTerminalCandidateUnderAuthority !== "function") {
+  if (typeof terminalCandidateCoordinator?.recoverTerminalCandidateUnderAuthority !== "function") {
     throw new TypeError(
-      "WK forge publication-state resolver requires trusted backend and recovery composition"
+      "WK forge publication-state resolver requires the trusted terminal-candidate coordinator"
     );
   }
   return async (wkId, authorityContext) => {
-    const retained = await dispatchBackend.resolveTerminalCandidatePublicationState(wkId);
-    if (retained !== null) return retained;
     const recovered = await terminalCandidateCoordinator.recoverTerminalCandidateUnderAuthority({
       wkId, authorityContext
     });
@@ -112,17 +121,71 @@ export function createWkForgeHandoffPublicationStateResolver({
   };
 }
 
-export function createForgeConfirmedLandedPublicationIdentityResolver({
+export function createWkForgeHandoffAuthenticationObserver({
   mainRepo,
-  resolveTerminalCandidatePublicationState,
-  forgeMerge = trustedWkForgeMerge
+  terminalCandidateCoordinator
 } = {}) {
   if (typeof mainRepo !== "string" || mainRepo.length === 0 ||
-      typeof resolveTerminalCandidatePublicationState !== "function" ||
-      typeof forgeMerge !== "function") {
+      typeof terminalCandidateCoordinator?.observeTerminalCandidateUnderAuthority !== "function") {
     throw new TypeError(
-      "forge-confirmed landed-publication resolver requires the trusted merge composition"
+      "WK forge handoff authentication observer requires the trusted terminal-candidate coordinator"
     );
+  }
+  const observeTerminalCandidatePublicationState = async (wkId, authorityContext) => {
+    const observed = await terminalCandidateCoordinator.observeTerminalCandidateUnderAuthority({
+      wkId, authorityContext
+    });
+    if (observed === null) return null;
+    return Object.freeze({
+      binding: observed.binding,
+      materialization: observed.materialization
+    });
+  };
+  return async (wkId, authorityContext, seams = {}) => {
+    try {
+      return await observeAuthenticatedWkForgeHandoff({
+        mainRepo,
+        assignedUnit: wkId,
+        authorityContext,
+        deps: { ...seams, observeTerminalCandidatePublicationState }
+      });
+    } catch (error) {
+      const observationFailure = projectAuthenticatedTerminalCandidateFailure(error);
+      return Object.freeze({
+        ok: false,
+        category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
+        detail: Object.freeze({
+          stage: "candidate_observation",
+          reason: projectTerminalCandidateRecoveryReason(error),
+          recovery_detail: observationFailure
+        })
+      });
+    }
+  };
+}
+
+export function createWkLandingObserver({
+  mainRepo,
+  terminalCandidateCoordinator,
+  seams = {}
+} = {}) {
+  const observeAuthenticatedHandoff = createWkForgeHandoffAuthenticationObserver({
+    mainRepo, terminalCandidateCoordinator
+  });
+  return async (wkId) => observeWkHandoffLanding({
+    mainRepo,
+    assignedUnit: wkId,
+    deps: {
+      ...seams,
+      observeAuthenticatedHandoff: (wk, authorityContext) =>
+        observeAuthenticatedHandoff(wk, authorityContext, seams)
+    }
+  });
+}
+
+export function createLandedPublicationIdentityResolver({ observeLanding } = {}) {
+  if (typeof observeLanding !== "function") {
+    throw new TypeError("landed-publication resolver requires the read-only landing observer");
   }
   return async ({ dependency } = {}) => {
     const wk = dependency?.record_id;
@@ -133,11 +196,11 @@ export function createForgeConfirmedLandedPublicationIdentityResolver({
         typeof wk !== "string" || !/^WK-\d{4}$/u.test(wk)) {
       return null;
     }
-    return await forgeMerge({
-      mainRepo,
-      assignedUnit: wk,
-      deps: { resolveTerminalCandidatePublicationState }
-    });
+    const observed = await observeLanding(wk);
+    const observation = observed?.result ?? null;
+    return observation?.state === "landed" && observation.landed_publication !== null
+      ? Object.freeze({ ok: true, result: observation.landed_publication })
+      : Object.freeze({ ok: false, observation: observed?.result ?? observed });
   };
 }
 
@@ -301,12 +364,16 @@ export function buildDispatchLaunchExecutors(env = process.env, {
     }),
 
     claude: buildFamilyExecutorRegistryEntry({
-      executor: createClaudeWorkspaceAgentLaunchExecutor({
-        env,
-        createMcpConduit: managedCreateMcpConduit,
+      executor: createClaudeWorkspaceAgentLaunchExecutor(
+        isAssignmentStoryClaudeExecutorTestSeams(claudeExecutorTestSeams)
 
-        ...(claudeExecutorTestSeams ?? {})
-      }),
+          ? { env, ...claudeExecutorTestSeams, createMcpConduit: managedCreateMcpConduit }
+          : {
+              env,
+              createMcpConduit: managedCreateMcpConduit,
+
+              ...(claudeExecutorTestSeams ?? {})
+            }),
       sourceReadMode: CLAUDE_FAMILY_SOURCE_READ_MODE,
       nativeReadCapability: CLAUDE_FAMILY_NATIVE_READ_CAPABILITY
     })
@@ -440,21 +507,53 @@ function boundedForgeRefusalValue(value, depth = 0) {
   );
 }
 
+function isUnreducedForgeRefusalValue(original, projected) {
+  if (Array.isArray(projected)) {
+    return Array.isArray(original) && original.length === projected.length &&
+      projected.every((entry, index) => isUnreducedForgeRefusalValue(original[index], entry));
+  }
+  if (isPlainObject(projected)) {
+    if (!isPlainObject(original)) return false;
+    const keys = Object.keys(original);
+    return keys.length === Object.keys(projected).length &&
+      keys.every((key) => Object.hasOwn(projected, key) &&
+        isUnreducedForgeRefusalValue(original[key], projected[key]));
+  }
+  return Object.is(original, projected);
+}
+
+const WK_FORGE_HANDOFF_CATEGORY_CODES = Object.freeze({
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.REMOTE_INVALID]: "agent_launch.wk_forge_handoff.remote_invalid.v1",
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY]: "agent_launch.wk_forge_handoff.eligibility_refused.v1",
+  [WK_FORGE_HANDOFF_FAILURE_CATEGORIES.GIT_FAILED]: "agent_launch.wk_forge_handoff.git_transport_failed.v1"
+});
+
 export function projectWkForgeHandoffRefusal(outcome) {
   const categories = new Set(Object.values(WK_FORGE_HANDOFF_FAILURE_CATEGORIES));
   const category = categories.has(outcome?.category)
     ? outcome.category
     : WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE;
-  const projected = boundedForgeRefusalValue(isPlainObject(outcome?.detail) ? outcome.detail : {});
+  const original = isPlainObject(outcome?.detail) ? outcome.detail : {};
+  const { evidence: encodedEvidence, ...display } = original;
+  const projected = boundedForgeRefusalValue(display);
   const reason = typeof projected?.reason === "string" && projected.reason.length > 0
     ? projected.reason
     : `wk_forge_handoff_${category}`;
+  const unreduced = category === outcome?.category &&
+    (outcome?.detail == null || isPlainObject(outcome.detail)) &&
+    isUnreducedForgeRefusalValue(display, projected);
+  let evidence;
+  if (encodedEvidence?.schema_version === DIAGNOSTIC_EVIDENCE_SCHEMA_VERSION) {
+    evidence = encodedEvidence;
+  } else if (encodedEvidence !== undefined || !unreduced) {
+    evidence = captureDiagnosticEvidence(outcome);
+  }
   return Object.freeze({
     schema_version: "wk-forge-handoff-refusal.v1",
-    code: category,
+    code: WK_FORGE_HANDOFF_CATEGORY_CODES[category] ?? category,
     category,
     reason,
-    detail: Object.freeze({ category, ...projected })
+    detail: Object.freeze({ category, ...projected, ...(evidence === undefined ? {} : { evidence }) })
   });
 }
 
@@ -470,9 +569,30 @@ function projectAuthenticatedWkForgeRecoveryRefusal(outcome, error) {
 }
 
 const DISPATCH_RUNTIME_TEST_COMPOSITION_FIELDS = Object.freeze([
+  "claudeExecutorTestSeams",
   "codexExecutorTestSeams",
+  "forge",
+  "resolveCapturedWkBase",
   "worktreeRoot"
 ]);
+export const DISPATCH_RUNTIME_HANDOFF_TEST_COMPOSITION_FIELDS = Object.freeze([
+  "forge",
+  "resolveCapturedWkBase"
+]);
+const STORY_CLAUDE_SEAM_FIELDS = Object.freeze(["readLauncherOwnedHostHome", "spawnIsolated"]);
+
+function isBrandedCodexTestSeams(value) {
+  return isAcceptSucceedCodexExecutorTestSeams(value) ||
+    isConnectedDeliveryWitnessCodexExecutorTestSeams(value) ||
+    isConfinedWorkerProbeCodexExecutorTestSeams(value) ||
+    isAdvisoryReviewMaterialProbeCodexExecutorTestSeams(value) ||
+    isAssignmentStoryCodexExecutorTestSeams(value);
+}
+
+function isClosedStoryClaudeTestSeams(value) {
+  return isAssignmentStoryClaudeExecutorTestSeams(value) && Object.isFrozen(value) &&
+    Object.keys(value).sort().join("\0") === STORY_CLAUDE_SEAM_FIELDS.join("\0");
+}
 
 export function assertDispatchRuntimeTestComposition(composition) {
   if (composition === null) return null;
@@ -484,7 +604,13 @@ export function assertDispatchRuntimeTestComposition(composition) {
       typeof composition.worktreeRoot !== "string" ||
       (composition.codexExecutorTestSeams !== undefined &&
         composition.codexExecutorTestSeams !== null &&
-        !isAcceptSucceedCodexExecutorTestSeams(composition.codexExecutorTestSeams))) {
+        !isBrandedCodexTestSeams(composition.codexExecutorTestSeams)) ||
+      (composition.claudeExecutorTestSeams !== undefined &&
+        !isClosedStoryClaudeTestSeams(composition.claudeExecutorTestSeams)) ||
+      (composition.forge !== undefined &&
+        (composition.forge === null || typeof composition.forge !== "object")) ||
+      (composition.resolveCapturedWkBase !== undefined &&
+        typeof composition.resolveCapturedWkBase !== "function")) {
     throw new TypeError("dispatch runtime test composition is malformed");
   }
   return composition;
@@ -521,7 +647,8 @@ export function buildDispatchRuntime(env = process.env, {
   const composition = assertDispatchRuntimeTestComposition(testComposition);
   const launchExecutors = buildDispatchLaunchExecutors(env, {
     managedStdioMcpCompositionAuthority,
-    codexExecutorTestSeams: composition?.codexExecutorTestSeams ?? null
+    codexExecutorTestSeams: composition?.codexExecutorTestSeams ?? null,
+    claudeExecutorTestSeams: composition?.claudeExecutorTestSeams ?? null
   });
 
   const worktreeProvisioning = resolveDispatchWorktreeProvisioningConfig(env, {
@@ -548,26 +675,29 @@ export function buildDispatchRuntime(env = process.env, {
         mainRepo: worktreeProvisioning.mainRepo,
         worktreeRoot: worktreeProvisioning.worktreeRoot
       });
-  const resolveForgeConfirmedLandedPublicationIdentity = worktreeProvisioning === null ||
-      terminalCandidateCoordinator === null
+  const handoffSeams = Object.freeze({
+    ...(composition?.forge === undefined ? {} : { forge: composition.forge }),
+    ...(composition?.resolveCapturedWkBase === undefined
+      ? {}
+      : { resolveCapturedWkBase: composition.resolveCapturedWkBase })
+  });
+  const observeLanding = worktreeProvisioning === null || terminalCandidateCoordinator === null
     ? null
-    : createForgeConfirmedLandedPublicationIdentityResolver({
+    : createWkLandingObserver({
         mainRepo: worktreeProvisioning.mainRepo,
-        resolveTerminalCandidatePublicationState: async (wkId, authorityContext) => {
-          if (dispatchBackend === null) return null;
-          return await createWkForgeHandoffPublicationStateResolver({
-            dispatchBackend,
-            terminalCandidateCoordinator
-          })(wkId, authorityContext);
-        }
+        terminalCandidateCoordinator,
+        seams: handoffSeams
       });
+  const resolveLandedPublicationIdentity = observeLanding === null
+    ? null
+    : createLandedPublicationIdentityResolver({ observeLanding });
   const worktreeProvisioningConfig = worktreeProvisioning === null
     ? null
     : Object.freeze({
         ...worktreeProvisioning,
         deps: Object.freeze({
           ...(worktreeProvisioning.deps ?? {}),
-          resolveForgeConfirmedLandedPublicationIdentity
+          resolveLandedPublicationIdentity
         })
       });
   const composedPostWorkerSliceLifecycle = composePostWorkerSliceLifecycle({
@@ -620,19 +750,19 @@ export function buildDispatchRuntime(env = process.env, {
             assignedUnit,
             deps: {
               resolveTerminalCandidatePublicationState:
-                createWkForgeHandoffPublicationStateResolver({
-                  dispatchBackend,
-                  terminalCandidateCoordinator
-                }),
+                createWkForgeHandoffPublicationStateResolver({ terminalCandidateCoordinator }),
 
-              forgeHandoffCcePolicy: wkForgeHandoffCcePolicy
+              forgeHandoffCcePolicy: wkForgeHandoffCcePolicy,
+              ...handoffSeams
             }
           });
         } catch (error) {
+
           outcome = {
             ok: false,
             category: WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY,
             detail: {
+              stage: "candidate_resolution",
               reason: projectTerminalCandidateRecoveryReason(error)
             }
           };
@@ -645,9 +775,19 @@ export function buildDispatchRuntime(env = process.env, {
           ? { accepted: true, forge_handoff: outcome.result }
           : { accepted: false, refusal: projectWkForgeHandoffRefusal(outcome) };
       };
+
+  const wkLandingStatusAdapter = observeLanding === null || dispatchBackend === null
+    ? null
+    : async ({ assigned_unit: assignedUnit }) => {
+        const observed = await observeLanding(assignedUnit);
+        return observed?.ok === true
+          ? { accepted: true, landing: observed.result }
+          : { accepted: false, refusal: observed };
+      };
   return {
     dispatchBackend,
     dispatchSessionIdentity,
     wkForgeHandoffAdapter,
+    wkLandingStatusAdapter
   };
 }

@@ -208,38 +208,37 @@ function ordinaryAuthoringReadiness({ obligationCoverage, contract, wkId, focus,
         ['not_started']))
     }),
     recovery,
-    definition_readiness: definitionReadiness({ obligationCoverage, rows,
+    definition_readiness: definitionReadiness({ obligationCoverage,
       declarations, stageAssessments, recovery, authoringIncomplete }),
     declarations: Object.freeze(declarations)
   });
 }
 
-const AUTHORED_GAP_LIMIT = 4;
 const UNRESOLVED_OBLIGATION_LIMIT = 8;
 
-function definitionReadiness({ obligationCoverage, rows, declarations,
+function definitionReadiness({ obligationCoverage, declarations,
   stageAssessments, recovery, authoringIncomplete }) {
-  const incompleteAuthoredInputs = [...new Set(stageAssessments.filter(row =>
-    row.stages.authored_inputs.status !== 'complete')
-    .map(row => row.obligation_id))].sort();
-  const openIds = new Set(incompleteAuthoredInputs);
-  const authored = rows.filter(row => row.gap != null && openIds.has(row.obligation_id));
+
+  const incompleteAuthoredInputs = new Map();
+  for (const row of stageAssessments) {
+    if (row.stages.authored_inputs.status === 'complete') continue;
+    incompleteAuthoredInputs.set(row.obligation_id, [...new Set([
+      ...(incompleteAuthoredInputs.get(row.obligation_id) ?? []),
+      ...row.stages.authored_inputs.diagnostic_codes])].sort());
+  }
+  const unresolved = [...incompleteAuthoredInputs.keys()].sort();
   const digest = obligationCoverage.source?.content_digest ?? null;
   return Object.freeze({
     schema_version: 'controlled-acceptance-definition-readiness.v1',
     complete: declarations.filter(row => row.status === 'complete').length,
     incomplete: declarations.filter(row => row.status !== 'complete').length,
 
-    unresolved_obligation_count: incompleteAuthoredInputs.length,
-    unresolved_obligation_ids: Object.freeze(
-      incompleteAuthoredInputs.slice(0, UNRESOLVED_OBLIGATION_LIMIT)),
-    unresolved_obligation_ids_omitted: Math.max(0,
-      incompleteAuthoredInputs.length - UNRESOLVED_OBLIGATION_LIMIT),
-    authored_gap_count: authored.length,
-    authored_gaps_omitted: Math.max(0, authored.length - AUTHORED_GAP_LIMIT),
-    authored_gaps: Object.freeze(authored.slice(0, AUTHORED_GAP_LIMIT).map(row =>
-      Object.freeze({ obligation_id: row.obligation_id,
-        gap_kind: row.gap.gap_kind, reason: row.gap.reason }))),
+    unresolved_obligation_count: unresolved.length,
+    unresolved_obligations: Object.freeze(unresolved.slice(0, UNRESOLVED_OBLIGATION_LIMIT)
+      .map(id => Object.freeze({ obligation_id: id,
+        authored_input_diagnostic_codes: Object.freeze(incompleteAuthoredInputs.get(id)) }))),
+    unresolved_obligations_omitted: Math.max(0,
+      unresolved.length - UNRESOLVED_OBLIGATION_LIMIT),
     execution: Object.freeze({
       status: 'not_started',
       owner: 'workspace_verify_proof',
@@ -257,7 +256,7 @@ function definitionReadiness({ obligationCoverage, rows, declarations,
         expected_content_digest_from: 'read_tool_response.content_digest',
         observed_source_content_digest: digest,
         authored_by: 'caller',
-        effect: 'supply_the_mapping_or_retain_the_authored_gap'
+        effect: 'author_the_missing_verification_meaning'
       })
   });
 }

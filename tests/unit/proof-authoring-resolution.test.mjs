@@ -40,17 +40,15 @@ test('every current catalog and evaluator descriptor retains owner constraints a
   assert.equal(Object.isFrozen(result.dependencies), true);
 });
 test('a saved selection of the deactivated write-confinement proof reports its unavailable definition without substitution or credit', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const { admissionDigest, loadExactAdmittedProofPack, readProofPackCatalog } =
+  const { loadExactAdmittedProofPack, readProofPackCatalog } =
     await import('../../packages/controlled-contract/lib/admitted-proof-packs.mjs');
   const { discoverProofIntents } = await import('@agent-chassis/controlled-contract');
   const proofName = 'proof.scope.write-confinement';
 
-  const admission = JSON.parse(await readFile(new URL(
-    `../../packages/controlled-contract/profiles/${proofName}/4.0.0/admission.json`, import.meta.url), 'utf8'));
-  assert.equal(admission.profile_id, proofName);
-  const savedPin = { proof_name: proofName, proof_version: '4.0.0', profile_digest: admission.profile_digest,
-    parameter_contract_digest: admission.parameter_contract_digest, admission_digest: admissionDigest(admission) };
+  const savedPin = { proof_name: proofName, proof_version: '4.0.0',
+    profile_digest: '5eaea9dd397823f7cf906060d658f3ce858fde930c98e730d448c8a8e6f3cd92',
+    parameter_contract_digest: 'd328351786abf903601a10d65e9a6aed72307128ce8c6700e393930f07f396aa',
+    admission_digest: '1f288b3dc8369fda7d68e2e4da0860d549a6e25a5436c88e3fad281ba3fb0507' };
   assert.equal((await readProofPackCatalog()).packs.some(pack => pack.profile_id === proofName), false);
   await assert.rejects(loadExactAdmittedProofPack({ profileId: proofName, profileVersion: '4.0.0' }),
     { code: 'proof_pack_not_found', details: { profile_id: proofName } });
@@ -122,6 +120,28 @@ test('a real current selection resolves without locator, selector, nodes or plan
   assert.ok(invalid.rows[0].diagnostics.some(d => d.code === ownerCode));
   const empty = await resolveProofAuthoring(source([]), context);
   assert.equal(empty.mapping, null); assert.equal(empty.status, 'invalid');
+});
+
+test('omitted configurable route parameters do not invalidate authored meaning', async () => {
+  const selected = (await loadCurrentParameterPopulation()).find(({ contract }) =>
+    contract.parameters.some(parameter => parameter.source.policy === 'configurable'));
+  assert.ok(selected);
+  const draft = { ...source([]), obligations: [{
+    obligation_id: 'OBL-CONFIGURABLE-OMITTED',
+    statement: 'Preserve authored meaning while execution inputs remain omitted.',
+    selection: { ...pin(selected.pack), parameters: {} }
+  }] };
+  const result = await resolveProofAuthoring(draft, context);
+  const [row] = result.rows;
+  const missing = row.diagnostics.filter(diagnostic =>
+    diagnostic.code === 'obligation_coverage_parameter_missing' &&
+    diagnostic.problem?.cause?.source_policy?.policy === 'configurable');
+  assert.ok(missing.length > 0);
+  assert.deepEqual([row.semantic_status, row.authoring_status, row.status],
+    ['valid', 'complete', 'valid']);
+  assert.equal(row.selected_proof_assessment.readiness_status, 'incomplete');
+  assert.equal(row.selected_proof_assessment.prevents_selected_route, true);
+  assert.equal(result.status, 'invalid', 'the strict executable map remains unresolved');
 });
 
 test('WK-2567 unknown authored node references share set-level upsert recovery', async () => {
@@ -359,6 +379,18 @@ test('WK-2567 eight complete selected test routes retain two generic limitations
   };
   await blockedBy({ case_definitions: [] },
     'obligation_coverage_authored_case_missing', 'incomplete', UPSERT, false);
+  const withoutOptionalCases = obligations.map(({ case_id: _caseId, ...row }) => row);
+  const omittedCases = await resolveProofAuthoring({ ...source([]),
+    obligations: withoutOptionalCases }, { ...selectedContext, case_definitions: [] });
+  assert.equal(omittedCases.status, 'invalid',
+    'the executable-map verdict remains strict without executable cases');
+  assert.ok(omittedCases.rows.every(row =>
+    row.semantic_status === 'valid' && row.authoring_status === 'complete' &&
+    row.status === 'valid' &&
+    row.selected_proof_assessment.readiness_status === 'incomplete'));
+  assert.ok(omittedCases.rows.every(row => row.diagnostics.some(diagnostic =>
+    diagnostic.code === 'obligation_coverage_authored_case_missing')),
+  'the execution route still reports its exact missing prerequisite');
   await blockedBy({ test_declarations: [] },
     'obligation_coverage_native_binding_missing');
   await blockedBy({ test_declarations: testDeclarations.flatMap(binding =>

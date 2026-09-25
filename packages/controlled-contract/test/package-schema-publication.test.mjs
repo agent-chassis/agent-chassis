@@ -95,7 +95,7 @@ function provenAssessment(overrides = {}) {
     runtime_truth: "proven",
     profile_discrimination: "proven",
     population: {
-      candidate_count: 1, falsifier_count: 1, traversal_count: 1, complete: true
+      candidate_count: 1, falsifier_count: 1, falsifier_unavailable_count: 0, traversal_count: 1, complete: true
     },
     receipts: [...PROVEN_POPULATION],
     diagnostics: [],
@@ -109,7 +109,7 @@ function notProvenAssessment(receipts) {
     runtime_truth: "not_proven",
     profile_discrimination: "not_proven",
     population: {
-      candidate_count: 1, falsifier_count: 1, traversal_count: 1, complete: false
+      candidate_count: 1, falsifier_count: 1, falsifier_unavailable_count: 0, traversal_count: 1, complete: false
     },
     receipts
   });
@@ -139,11 +139,15 @@ test("a proven v3 assessment cannot represent a failed, inert, or unproven membe
       `a proven assessment must not represent a ${label}`);
   }
 
+  assert.equal(validate(provenAssessment({ receipts: [PROVEN_POPULATION[0], PROVEN_POPULATION[2]],
+    population: { candidate_count: 1, falsifier_count: 1, falsifier_unavailable_count: 1,
+      traversal_count: 1, complete: true } })), true, JSON.stringify(validate.errors));
+
   for (const overrides of [
     { runtime_truth: "not_proven" },
     { profile_discrimination: "not_proven" },
     { population: {
-      candidate_count: 1, falsifier_count: 1, traversal_count: 1, complete: false } }
+      candidate_count: 1, falsifier_count: 1, falsifier_unavailable_count: 0, traversal_count: 1, complete: false } }
   ]) assert.equal(validate(provenAssessment(overrides)), false,
     `a proven assessment must not carry ${JSON.stringify(overrides)}`);
 });

@@ -29,10 +29,13 @@ import {
 import { defaultTerminalCandidateRunGit } from "./terminal-wk-candidate.mjs";
 import { assertOpaqueId } from "./worktree-substrate-primitives.mjs";
 import {
+  DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS,
   assertSelectedDependencyMountIntegrity,
   selectOptionalReviewerDependencyProjection,
   verifyTerminalCandidateDependencies
 } from "./terminal-wk-candidate-validation.mjs";
+import { DEPENDENCY_ECOSYSTEMS } from "./test-runtime-setup/ecosystems.mjs";
+import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 
 export const TEST_PROOF_RUNTIME_IDENTITY_SCHEMA_VERSION =
   "workspace-agent-test-proof-runtime-identity.v1";
@@ -66,16 +69,16 @@ const OID_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
 const UNIT_RE = /^WK-[0-9]{4}(?:#SLICE-[0-9]{3})?$/u;
 
 export class TestProofRuntimeIdentityError extends Error {
-  constructor(code, message, detail = null) {
-    super(message);
+  constructor(code, message, detail = null, cause = null) {
+    super(message, cause === null ? undefined : { cause });
     this.name = "TestProofRuntimeIdentityError";
     this.code = code;
     this.detail = detail;
   }
 }
 
-function fail(code, message, detail = null) {
-  throw new TestProofRuntimeIdentityError(code, message, detail);
+function fail(code, message, detail = null, cause = null) {
+  throw new TestProofRuntimeIdentityError(code, message, detail, cause);
 }
 
 function canonicalJson(value) {
@@ -128,6 +131,23 @@ function optionalDependencyProof({ mainRepo, worktreePath, projectionKind }) {
   });
 }
 
+function rootInstallationAbsent(mainRepo) {
+  try {
+    lstatSync(path.join(mainRepo, "node_modules"));
+    return false;
+  } catch (error) {
+    return error?.code === "ENOENT";
+  }
+}
+
+function candidateDeclaresNoNpmInstallation(worktreePath) {
+  const manifests = DEPENDENCY_ECOSYSTEMS.npm.manifests(worktreePath);
+  if (manifests.status !== "none") return false;
+  const manifestFile = manifests.files["package.json"];
+  if (manifestFile === undefined) return true;
+  return !Object.hasOwn(JSON.parse(readFileSync(manifestFile, "utf8")), "workspaces");
+}
+
 function requiredExactCandidateDependencyProof({
   mainRepo,
   worktreePath,
@@ -148,8 +168,24 @@ function requiredExactCandidateDependencyProof({
           : "dependency_projection_authentication_failed"
       });
   }
-  if (proof.projection_selected !== true ||
-      proof.workspace_links_resolve_against_reviewed_checkout !== true) {
+
+  let dependencyFree = false;
+  if (proof.projection_selected !== true &&
+      proof.projection_unavailable_reason ===
+        DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_ROOT_UNAVAILABLE &&
+      rootInstallationAbsent(mainRepo)) {
+    try {
+      dependencyFree = candidateDeclaresNoNpmInstallation(worktreePath);
+    } catch (error) {
+      fail("test_proof_exact_candidate_dependency_projection_unavailable",
+        "exact-commit proof execution requires one authenticated dependency projection", {
+          reason_code: proof.projection_unavailable_reason,
+          manifest_failure_code: typeof error?.code === "string" ? error.code : null
+        }, error);
+    }
+  }
+  if (!dependencyFree && (proof.projection_selected !== true ||
+      proof.workspace_links_resolve_against_reviewed_checkout !== true)) {
     fail("test_proof_exact_candidate_dependency_projection_unavailable",
       "exact-commit proof execution requires one authenticated dependency projection", {
         reason_code: proof.projection_unavailable_reason ??
@@ -170,12 +206,13 @@ function requiredExactCandidateDependencyProof({
         reason_code: "validator_cache_bind_plan_invalid"
       });
   }
+
   return deepFreeze({
     ...proof,
-    reviewer_read_only_binds: [
-      ...proof.reviewer_read_only_binds,
-      ...validatorCacheReadOnlyBinds
-    ]
+    reviewer_read_only_binds: proof.projection_selected === true
+      ? [...proof.reviewer_read_only_binds, ...validatorCacheReadOnlyBinds]
+      : [],
+    validator_cache_read_only_binds: [...validatorCacheReadOnlyBinds]
   });
 }
 
@@ -678,12 +715,13 @@ export function mintLauncherTestProofAttemptContext({
   target,
   authorizedTargets,
   controlledContractSelection,
-  verificationId
+  verificationId,
+  environment = null
 } = {}) {
   const supplied = arguments[0] ?? {};
   const allowed = new Set([
     "authority", "target", "authorizedTargets", "controlledContractSelection",
-    "verificationId"
+    "verificationId", "environment"
   ]);
   const unsupported = Object.keys(supplied).filter((key) => !allowed.has(key));
   if (unsupported.length > 0) fail(
@@ -692,6 +730,12 @@ export function mintLauncherTestProofAttemptContext({
     { unsupported_keys: unsupported.sort() }
   );
   const trusted = assertLauncherTestProofRuntimeAuthority(authority);
+
+  if (environment !== null && (typeof environment !== "string" ||
+      !TEST_RUNTIME_ENVIRONMENT_ID_RE.test(environment))) fail(
+    "test_proof_environment_invalid",
+    "a named prepared environment must be one <ecosystem>@<installation root> identity",
+    { environment: typeof environment === "string" ? environment : null });
   if (!Array.isArray(authorizedTargets) || authorizedTargets.some(
     (value) => typeof value !== "string"
   ) || !authorizedTargets.includes(target)) fail("test_proof_target_not_authorized",
@@ -720,6 +764,7 @@ export function mintLauncherTestProofAttemptContext({
     authority: trusted,
     target,
     authorized_targets: [...authorizedTargets].sort(),
+    requested_environment: environment,
     source_snapshot: snapshot,
     evidence_identity: {
       run_id: trusted.run_id,
@@ -767,9 +812,11 @@ export function bindLauncherNativeRuntimeInputs({ context, runtimeInputs } = {})
     "native dependency authentication refuses caller-selected dependency roots or inputs",
     { unsupported_keys: unsupported });
   const trusted = assertLauncherTestProofAttemptContext(context);
-  if (trusted.selected_test.selector_kind === undefined) fail(
+
+  if (trusted.selected_test.selector_kind === undefined &&
+      runtimeInputs?.dependency_population?.source !== "launcher_readiness") fail(
     "test_proof_native_runtime_inputs_invalid",
-    "node:test attempts consume the launcher dependency projection, not native runtime inputs");
+    "node:test attempts bind runtime inputs only from a setup-prepared environment");
   if (runtimeInputs === null || typeof runtimeInputs !== "object" ||
       !DIGEST_RE.test(runtimeInputs.runtime_inputs_digest ?? "") ||
       !DIGEST_RE.test(runtimeInputs.provider_asset_digest ?? "")) fail(
@@ -780,12 +827,14 @@ export function bindLauncherNativeRuntimeInputs({ context, runtimeInputs } = {})
     run_id: trusted.evidence_identity.run_id,
     verification_id: trusted.evidence_identity.verification_id,
     source_snapshot_digest: trusted.source_snapshot.source_snapshot_digest,
-    selector_kind: trusted.selected_test.selector_kind,
+    selector_kind: trusted.selected_test.selector_kind ?? "node_test_name",
     application_dependency_population: runtimeInputs.dependency_population?.source ===
       "launcher_readiness" ? {
         authenticated: true,
         source: "launcher_readiness",
         readiness_digest: runtimeInputs.dependency_population.readiness_digest,
+        environment: runtimeInputs.dependency_population.environment ?? null,
+        route: runtimeInputs.dependency_population.route ?? null,
         ...(runtimeInputs.dependency_population.dependencies === undefined ? {}
           : { dependencies: runtimeInputs.dependency_population.dependencies })
       } : { authenticated: true, count: 0, members: [] },

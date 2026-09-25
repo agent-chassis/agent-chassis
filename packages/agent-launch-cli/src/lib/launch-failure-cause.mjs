@@ -9,6 +9,10 @@ import {
   BubblewrapIsolationError
 } from "./launch-isolation-errors.mjs";
 import { STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON } from "./stdio-mcp-conduit-contract.mjs";
+import {
+  WORKER_TEST_RUNTIME_PREPARATION_REFUSAL_CODE,
+  WorkerTestRuntimePreparationError
+} from "./test-execution/worker-runtime.mjs";
 
 export const CONFINED_LAUNCH_PATH_UNPREPARED_CODE =
   "agent_launch.confined_launch.path_unprepared.v1";
@@ -157,11 +161,34 @@ export function buildLaunchPathFailureRefusal(makeRefusal, pathFailure, secondar
   });
 }
 
+export function classifyWorkerTestRuntimePreparationFailure(err) {
+  return err instanceof WorkerTestRuntimePreparationError ? err.detail : null;
+}
+
+export function buildWorkerTestRuntimePreparationRefusal(makeRefusal, detail, secondary = {}) {
+  return makeRefusal(WORKER_TEST_RUNTIME_PREPARATION_REFUSAL_CODE, WORKER_TEST_RUNTIME_PREPARATION_REFUSAL_CODE, {
+    ...detail,
+    authority_limb: "mechanical_failure",
+    actor_recovery: "operator",
+    scope_widening_recovers: false,
+    unchanged_retry_recovers: false,
+    sandbox_required: true,
+    unenforced_fallback_permitted: false,
+    ...secondary
+  });
+}
+
 export function isBubblewrapBackendFailure(err) {
   return err instanceof BubblewrapIsolationError && BUBBLEWRAP_BACKEND_UNUSABLE_CODES.has(err.code);
 }
 
 export function buildConduitSpawnFailureRefusal(makeRefusal, err, conduitCleanupFailure) {
+  const preparation = classifyWorkerTestRuntimePreparationFailure(err);
+  if (preparation !== null) {
+    return buildWorkerTestRuntimePreparationRefusal(makeRefusal, preparation, {
+      conduit_cleanup_failures: conduitCleanupFailure
+    });
+  }
   const pathFailure = classifyLaunchPathFailure(err);
   if (pathFailure !== null) {
     return buildLaunchPathFailureRefusal(makeRefusal, pathFailure, {

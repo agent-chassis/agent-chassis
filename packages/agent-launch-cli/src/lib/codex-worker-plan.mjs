@@ -453,6 +453,7 @@ export async function buildWorkerPlan({
         dir: canonicalReadRepo,
         id: recordId,
         sliceId,
+        scopePresentation: canonicalSummary.scope_presentation,
         repository: resolveWorkerMaterialRepository({
           managedCanonicalMainRepo,
           dispatchWorkspaceBinding,

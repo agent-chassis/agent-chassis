@@ -15,11 +15,13 @@ import {
   SLICE_INTEGRATION_DIAGNOSTIC_CODES,
   SLICE_REF_RE,
   WK_REF_RE,
+  SliceIntegrationError,
   fail,
   assertOid,
   normalizeRef,
   revParse,
   assertExactWorktreeBinding,
+  assertWkLifecycleObservationCurrent,
   parseCanonicalRecord,
   resolveSliceMarkerCommit,
   resolveSliceMarkerEvidence,
@@ -34,8 +36,10 @@ import {
 
 import {
   advanceSliceRefCas,
-  driveRecordCasWrite
+  driveRecordCasWrite,
+  resolveExactDeliveryMarkerFromObservation
 } from "./slice-integration-delivery.mjs";
+import { captureDiagnosticEvidence } from "./diagnostic-evidence.mjs";
 
 export {
   SLICE_INTEGRATION_SCHEMA_VERSION,
@@ -188,6 +192,7 @@ export async function integrateCommittedSlice({
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGitAsync;
+  const resolveCapturedBase = deps.resolveCapturedWkBase;
   const coordinatorContinuation = boundaryAuthorization?.operation ===
     "integrate_committed_slice";
   if (workerTerminated !== true && !coordinatorContinuation) {
@@ -280,34 +285,7 @@ export async function integrateCommittedSlice({
     );
   }
 
-  const write = await driveRecordCasWrite({
-    runGit,
-    mainRepo,
-    wkRef: wk.ref,
-    initiative: slice.match[1],
-    wkId: slice.match[2],
-    sliceId: slice.match[3],
-    loadRecord,
-    writeRecordCas,
-    transitionToReview,
-    markSliceComplete,
-    integratedCommit,
-    validateRecord: ({ wkTip }) => {
-      if (wkTip !== expectedPostHelperWkTip) {
-        fail(
-          SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
-          "WK ref moved before canonical record mutation",
-          {
-            wk_ref: wk.ref,
-            expected_wk_sha: expectedPostHelperWkTip,
-            observed_wk_sha: wkTip
-          }
-        );
-      }
-    }
-  });
-
-  return Object.freeze({
+  const integratedFact = {
     schema_version: SLICE_INTEGRATION_SCHEMA_VERSION,
     integrated: true,
     rebased,
@@ -316,12 +294,62 @@ export async function integrateCommittedSlice({
     slice_sha: integratedCommit,
     delivery_sha: advance.deliveryCommit,
     wk_ref: wk.ref,
-    wk_sha: write.wkTip,
+    wk_sha: expectedPostHelperWkTip,
     empty_delivery: advance.empty_delivery,
+    boundary_authorization: appliedBoundaryAuthorization
+  };
+  let write;
+  try {
+    write = await driveRecordCasWrite({
+      runGit,
+      mainRepo,
+      wkRef: wk.ref,
+      initiative: slice.match[1],
+      wkId: slice.match[2],
+      sliceId: slice.match[3],
+      loadRecord,
+      writeRecordCas,
+      transitionToReview,
+      markSliceComplete,
+      integratedCommit,
+      resolveCapturedBase,
+      validateRecord: ({ wkTip }) => {
+        if (wkTip !== expectedPostHelperWkTip) {
+          fail(
+            SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+            "WK ref moved before canonical record mutation",
+            {
+              wk_ref: wk.ref,
+              expected_wk_sha: expectedPostHelperWkTip,
+              observed_wk_sha: wkTip
+            }
+          );
+        }
+      }
+    });
+  } catch (error) {
+
+    let retained = false;
+    try {
+      const liveTip = await revParse(runGit, mainRepo, wk.ref);
+      const ancestry = await runGit({
+        repo: mainRepo,
+        args: ["merge-base", "--is-ancestor", integratedCommit, liveTip]
+      });
+      retained = ancestry?.ok === true;
+    } catch {
+      retained = false;
+    }
+    if (!retained) throw error;
+    return outstandingIntegration(integratedFact, outstandingRecordReconciliation(error));
+  }
+
+  return Object.freeze({
+    ...integratedFact,
+    wk_sha: write.wkTip,
 
     review_target: write.reviewTarget,
     transition: write.transition,
-    boundary_authorization: appliedBoundaryAuthorization,
 
     integrated_state: write.finalSlice && integratedCommit === write.wkTip
       ? "final"
@@ -425,15 +453,57 @@ function recoveredZeroDeltaResult({
   });
 }
 
-export async function recoverZeroDeltaIntegratedSlice({
-  mainRepo,
-  unitAddress,
-  sliceRef,
-  wkRef,
-  writeRecordCas = null,
-  deps = {}
-} = {}) {
-  const runGit = deps.runGit ?? defaultRunGitAsync;
+export const INTEGRATED_RECORD_RECONCILIATION_STATES = Object.freeze({
+  PENDING: "pending",
+  RECONCILED: "reconciled",
+  BLOCKED: "blocked"
+});
+
+const RECONCILED_RECORD = Object.freeze({
+  state: INTEGRATED_RECORD_RECONCILIATION_STATES.RECONCILED
+});
+
+const RECORD_RECONCILIATION_REFUSAL_CODES = new Set([
+  SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+  SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+  SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT
+]);
+
+function lifecycleContradiction(code, message, detail) {
+  return new SliceIntegrationError(`agent-launch slice-integration: ${message}`, { code, detail });
+}
+
+function withRecordReconciliation(result, recordReconciliation) {
+  return Object.freeze({ ...result, record_reconciliation: recordReconciliation });
+}
+
+export function outstandingRecordReconciliation(error, { state = null, reason = null } = {}) {
+  const refused = error?.refusal !== undefined ||
+    RECORD_RECONCILIATION_REFUSAL_CODES.has(error?.code);
+  return Object.freeze({
+    state: state ?? (refused
+      ? INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED
+      : INTEGRATED_RECORD_RECONCILIATION_STATES.PENDING),
+    reason: reason ?? (typeof error?.detail?.reason === "string"
+      ? error.detail.reason
+      : refused ? "record_reconciliation_refused" : "record_write_not_confirmed"),
+    code: typeof error?.code === "string" ? error.code : null,
+    ...(error?.refusal === undefined ? {} : { refusal: error.refusal }),
+    evidence: captureDiagnosticEvidence(error)
+  });
+}
+
+function outstandingIntegration(result, recordReconciliation) {
+  return Object.freeze({
+    ...result,
+    review_target: null,
+    transition: null,
+    integrated_state: null,
+    record_reconciliation: recordReconciliation
+  });
+}
+
+function normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef }) {
   const slice = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
   const wk = normalizeRef(wkRef, WK_REF_RE, "wkRef");
   if (slice.match[1] !== wk.match[1] || slice.match[2] !== wk.match[2]) {
@@ -445,10 +515,13 @@ export async function recoverZeroDeltaIntegratedSlice({
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
       "unitAddress does not match the exact slice ref", { expected: expectedUnit, actual: unitAddress });
   }
-  const subject = `${slice.match[2]}#${slice.match[3]}`;
+  return { slice, wk, subject: `${slice.match[2]}#${slice.match[3]}` };
+}
+
+async function classifyZeroDeltaIntegration({ runGit, mainRepo, slice, wk, subject, loadRecord,
+  freshAdmission, resolveCapturedBase }) {
   const sliceTip = await authenticateExactDirectCommitRef(runGit, mainRepo, slice.ref, "slice");
   const wkTip = await authenticateExactDirectCommitRef(runGit, mainRepo, wk.ref, "wk");
-  const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
   const record = loadRecord(mainRepo, slice.match[2]);
   const recordSourceDigest = computeWorkRecordSourceDigest(record);
   let recoveryObservation;
@@ -492,6 +565,7 @@ export async function recoverZeroDeltaIntegratedSlice({
     );
   }
   if (evidenceSet.count === 0) {
+    if (!freshAdmission) return null;
 
     const directBase = await resolveAuthenticatedExactSliceDeliveryBase({
       runGit,
@@ -519,110 +593,46 @@ export async function recoverZeroDeltaIntegratedSlice({
   }
 
   const evidence = evidenceSet.match;
+  const integrated = recoveredZeroDeltaResult({
+    slice, wk, evidence, wkTip, reviewTarget: null, transition: null, integratedState: null
+  });
+  const outstanding = (state, reason, refusal = null) => ({
+    state,
+    evidence,
+    integration: outstandingIntegration(integrated, Object.freeze({
+      state,
+      reason,
+      slice_status: sliceStatus,
+      parent_status: parentStatus,
+      ...(refusal === null ? {} : {
+        code: refusal.code,
+        evidence: captureDiagnosticEvidence(refusal)
+      })
+    })),
+    refusal
+  });
+  const blocked = (code, message, reason) => outstanding(
+    INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED,
+    reason,
+    lifecycleContradiction(code, message, {
+      subject, reason, slice_status: sliceStatus, parent_status: parentStatus
+    })
+  );
   const evidenceAtCurrentTip = evidence.evidence_sha === wkTip;
   const parentTerminal = parentStatus === "review" || parentStatus === "done";
   if (sliceStatus !== "done" && parentTerminal) {
-    zeroDeltaLifecycleRefusal(
-      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+    return blocked(SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
       "non-done slice contradicts terminal parent after zero-delta integration",
-      { subject, reason: "non_done_slice_with_terminal_parent", slice_status: sliceStatus, parent_status: parentStatus }
-    );
+      "non_done_slice_with_terminal_parent");
   }
   if (sliceStatus === "review" && isParentPreterminal(parentStatus)) {
-    let write;
-    try {
-      write = await driveRecordCasWrite({
-        runGit,
-        mainRepo,
-        wkRef: wk.ref,
-        initiative: slice.match[1],
-        wkId: slice.match[2],
-        sliceId: slice.match[3],
-        loadRecord,
-        writeRecordCas,
-        transitionToReview: null,
-        markSliceComplete: null,
-      validateRecord: async ({
-        record: currentRecord,
-        wkTip: currentTip,
-        finalSlice,
-        observation
-      }) => {
-        const currentSlice = currentRecord.slices.find((entry) => entry?.id === slice.match[3]);
-        if (currentSlice?.status !== "review" || !isParentPreterminal(currentRecord.status)) {
-          zeroDeltaLifecycleRefusal(
-            SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
-            "zero-delta record CAS source state changed incompatibly",
-            { subject, reason: "record_cas_source_inadmissible" }
-          );
-        }
-        const liveEvidenceSet = await resolveZeroDeltaIntegrationEvidenceFromObservation({
-          runGit,
-          mainRepo,
-          observation,
-          subject,
-          deliverySha: evidence.delivery_sha,
-          baseSha: evidence.base_sha
-        });
-        if (liveEvidenceSet.count > 1) {
-          zeroDeltaLifecycleRefusal(
-            SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_AMBIGUOUS,
-            "multiple exact zero-delta integration evidence commits are reachable from the live WK tip",
-            { subject, reason: "live_evidence_ambiguous", match_count: liveEvidenceSet.count }
-          );
-        }
-        const liveEvidence = liveEvidenceSet.match;
-        if (liveEvidenceSet.count !== 1 ||
-            liveEvidence.evidence_sha !== evidence.evidence_sha ||
-            liveEvidence.delivery_sha !== evidence.delivery_sha ||
-            liveEvidence.base_sha !== evidence.base_sha ||
-            liveEvidence.wk_parent_sha !== evidence.wk_parent_sha ||
-            liveEvidence.tree !== evidence.tree) {
-          zeroDeltaLifecycleRefusal(
-            SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
-            "the live WK tip does not retain the exact authenticated zero-delta evidence",
-            { subject, reason: "live_evidence_mismatch" }
-          );
-        }
-        if (finalSlice && currentTip !== evidence.evidence_sha) {
-          zeroDeltaLifecycleRefusal(
-            SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
-            "historical zero-delta evidence cannot own the final parent transition",
-            { subject, reason: "historical_evidence_cannot_finalize" }
-          );
-        }
-        }
-      });
-    } catch (error) {
-      const fixedForkRef = `refs/agent-launch/wk-forks/${slice.match[1]}/${slice.match[2]}`;
-      const fixedForkResolutionFailure = error?.detail?.fork_ref === fixedForkRef &&
-        (error?.code === SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH ||
-          error?.code === SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_FAILED);
-      if (error?.detail?.history_observation === true || fixedForkResolutionFailure) {
-        zeroDeltaLifecycleRefusal(
-          SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
-          "zero-delta live recovery history is indeterminate",
-          { subject, reason: error.detail.reason ?? "history_observation_indeterminate" }
-        );
-      }
-      throw error;
-    }
-    return recoveredZeroDeltaResult({
-      slice,
-      wk,
-      evidence,
-      wkTip: write.wkTip,
-      reviewTarget: write.reviewTarget,
-      transition: Object.freeze({ ...write.transition, recovered: true }),
-      integratedState: write.finalSlice ? "final" : "non_final"
-    });
+    return outstanding(INTEGRATED_RECORD_RECONCILIATION_STATES.PENDING,
+      "canonical_record_not_reconciled");
   }
   if (sliceStatus !== "done") {
-    zeroDeltaLifecycleRefusal(
-      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+    return blocked(SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
       "durable zero-delta evidence is incompatible with slice lifecycle status",
-      { subject, reason: "evidence_status_inadmissible", slice_status: sliceStatus, parent_status: parentStatus }
-    );
+      "evidence_status_inadmissible");
   }
 
   const finalSlice = await isLastIncompleteImplementationSlice(
@@ -635,11 +645,9 @@ export async function recoverZeroDeltaIntegratedSlice({
     { observation: recoveryObservation, recordSourceDigest }
   );
   if (isParentPreterminal(parentStatus) && finalSlice) {
-    zeroDeltaLifecycleRefusal(
-      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+    return blocked(SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
       "done zero-delta slice leaves a contradictory preterminal parent",
-      { subject, reason: "done_slice_preterminal_parent_without_remaining_implementation" }
-    );
+      "done_slice_preterminal_parent_without_remaining_implementation");
   }
   const reviewTarget = parentStatus === "review" && evidenceAtCurrentTip
     ? await buildCompleteWkReviewTarget({
@@ -648,28 +656,243 @@ export async function recoverZeroDeltaIntegratedSlice({
         initiative: slice.match[1],
         wkId: slice.match[2],
         wkRef: wk.ref,
-        wkTip
+        wkTip,
+        resolveCapturedBase
       })
     : null;
   const integratedState = parentStatus === "done" ||
       (parentStatus === "review" && evidenceAtCurrentTip)
     ? "final"
     : "non_final";
+  return {
+    state: INTEGRATED_RECORD_RECONCILIATION_STATES.RECONCILED,
+    evidence,
+    integration: recoveredZeroDeltaResult({
+      slice,
+      wk,
+      evidence,
+      wkTip,
+      reviewTarget,
+      transition: Object.freeze({
+        valid: true,
+        written: false,
+        no_op: true,
+        status: integratedState === "final" && parentStatus === "review" ? "review" : "done",
+        recovered: true
+      }),
+      integratedState
+    }),
+    refusal: null
+  };
+}
+
+function zeroDeltaRecordRepairValidator({ runGit, mainRepo, slice, subject, evidence }) {
+  return async ({ record: currentRecord, wkTip: currentTip, finalSlice, observation }) => {
+    const currentSlice = currentRecord.slices.find((entry) => entry?.id === slice.match[3]);
+    if (currentSlice?.status !== "review" || !isParentPreterminal(currentRecord.status)) {
+      zeroDeltaLifecycleRefusal(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+        "zero-delta record CAS source state changed incompatibly",
+        { subject, reason: "record_cas_source_inadmissible" }
+      );
+    }
+    const liveEvidenceSet = await resolveZeroDeltaIntegrationEvidenceFromObservation({
+      runGit,
+      mainRepo,
+      observation,
+      subject,
+      deliverySha: evidence.delivery_sha,
+      baseSha: evidence.base_sha
+    });
+    if (liveEvidenceSet.count > 1) {
+      zeroDeltaLifecycleRefusal(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_AMBIGUOUS,
+        "multiple exact zero-delta integration evidence commits are reachable from the live WK tip",
+        { subject, reason: "live_evidence_ambiguous", match_count: liveEvidenceSet.count }
+      );
+    }
+    const liveEvidence = liveEvidenceSet.match;
+    if (liveEvidenceSet.count !== 1 ||
+        liveEvidence.evidence_sha !== evidence.evidence_sha ||
+        liveEvidence.delivery_sha !== evidence.delivery_sha ||
+        liveEvidence.base_sha !== evidence.base_sha ||
+        liveEvidence.wk_parent_sha !== evidence.wk_parent_sha ||
+        liveEvidence.tree !== evidence.tree) {
+      zeroDeltaLifecycleRefusal(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+        "the live WK tip does not retain the exact authenticated zero-delta evidence",
+        { subject, reason: "live_evidence_mismatch" }
+      );
+    }
+    if (finalSlice && currentTip !== evidence.evidence_sha) {
+      zeroDeltaLifecycleRefusal(
+        SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+        "historical zero-delta evidence cannot own the final parent transition",
+        { subject, reason: "historical_evidence_cannot_finalize" }
+      );
+    }
+  };
+}
+
+function ordinaryRecordRepairValidator({ runGit, mainRepo, slice, subject, markerSha, deliverySha }) {
+  return async ({ record: currentRecord, wkTip: currentTip, finalSlice, observation }) => {
+    const currentSlice = currentRecord.slices.find((entry) => entry?.id === slice.match[3]);
+    if (!currentSlice || currentSlice.status === "cancelled" ||
+        (currentSlice.status !== "done" && !isParentPreterminal(currentRecord.status))) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "integrated slice record CAS source state changed incompatibly",
+        { subject, reason: "record_cas_source_inadmissible", slice_status: currentSlice?.status ?? null,
+          parent_status: currentRecord.status ?? null });
+    }
+    const liveMarker = await resolveExactDeliveryMarkerFromObservation({
+      runGit,
+      mainRepo,
+      observation,
+      wkId: slice.match[2],
+      sliceId: slice.match[3],
+      commit: deliverySha
+    });
+    const liveSliceTip = await revParse(runGit, mainRepo, slice.ref);
+    if (liveMarker !== markerSha || liveSliceTip !== deliverySha) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "the live WK tip does not retain the exact authenticated delivery marker",
+        { subject, reason: "live_marker_mismatch", marker_sha: markerSha, live_marker_sha: liveMarker,
+          delivery_sha: deliverySha, live_slice_tip: liveSliceTip });
+    }
+    if (finalSlice && currentTip !== markerSha) {
+      fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+        "a historical delivery marker cannot own the final parent transition",
+        { subject, reason: "historical_marker_cannot_finalize", marker_sha: markerSha,
+          wk_sha: currentTip });
+    }
+  };
+}
+
+function mapZeroDeltaRepairError(error, subject, slice) {
+  const fixedForkRef = `refs/agent-launch/wk-forks/${slice.match[1]}/${slice.match[2]}`;
+  const fixedForkResolutionFailure = error?.detail?.fork_ref === fixedForkRef &&
+    (error?.code === SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH ||
+      error?.code === SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_FAILED);
+  if (error?.detail?.history_observation === true || fixedForkResolutionFailure) {
+    return lifecycleContradiction(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "zero-delta live recovery history is indeterminate",
+      { subject, reason: error.detail.reason ?? "history_observation_indeterminate" }
+    );
+  }
+  return error;
+}
+
+async function driveIntegratedRecordRepair({ runGit, mainRepo, slice, wk, subject, loadRecord,
+  writeRecordCas, integration, evidence = null, resolveCapturedBase }) {
+  try {
+    return await driveRecordCasWrite({
+      runGit,
+      mainRepo,
+      wkRef: wk.ref,
+      initiative: slice.match[1],
+      wkId: slice.match[2],
+      sliceId: slice.match[3],
+      loadRecord,
+      writeRecordCas,
+      transitionToReview: null,
+      markSliceComplete: null,
+      integratedCommit: integration.slice_sha,
+      resolveCapturedBase,
+      validateRecord: integration.empty_delivery === true
+        ? zeroDeltaRecordRepairValidator({ runGit, mainRepo, slice, subject, evidence })
+        : ordinaryRecordRepairValidator({
+            runGit,
+            mainRepo,
+            slice,
+            subject,
+            markerSha: integration.slice_sha,
+            deliverySha: integration.delivery_sha
+          })
+    });
+  } catch (error) {
+    throw integration.empty_delivery === true ? mapZeroDeltaRepairError(error, subject, slice) : error;
+  }
+}
+
+export async function recoverZeroDeltaIntegratedSlice({
+  mainRepo,
+  unitAddress,
+  sliceRef,
+  wkRef,
+  writeRecordCas = null,
+  deps = {}
+} = {}) {
+  const runGit = deps.runGit ?? defaultRunGitAsync;
+  const { slice, wk, subject } = normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef });
+  const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
+  const resolveCapturedBase = deps.resolveCapturedWkBase;
+  const classified = await classifyZeroDeltaIntegration({
+    runGit, mainRepo, slice, wk, subject, loadRecord, freshAdmission: true, resolveCapturedBase
+  });
+  if (classified === null) return null;
+  if (classified.state === INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED) {
+    throw classified.refusal;
+  }
+  if (classified.state === INTEGRATED_RECORD_RECONCILIATION_STATES.RECONCILED) {
+    return classified.integration;
+  }
+  const write = await driveIntegratedRecordRepair({
+    runGit, mainRepo, slice, wk, subject, loadRecord, writeRecordCas,
+    integration: classified.integration, evidence: classified.evidence, resolveCapturedBase
+  });
   return recoveredZeroDeltaResult({
     slice,
     wk,
-    evidence,
-    wkTip,
-    reviewTarget,
+    evidence: classified.evidence,
+    wkTip: write.wkTip,
+    reviewTarget: write.reviewTarget,
+    transition: Object.freeze({ ...write.transition, recovered: true }),
+    integratedState: write.finalSlice ? "final" : "non_final"
+  });
+}
+
+async function reconciledOrdinaryResult({ runGit, mainRepo, slice, wk, markerSha, sliceTip, wkTip,
+  record, resolveCapturedBase }) {
+  const wkInReview = record?.status === "review";
+  const wkInTerminalRecoveryPosture = wkInReview || record?.status === "done";
+  const ownsCurrentWkTip = markerSha === wkTip;
+  const reviewTarget = wkInReview && ownsCurrentWkTip
+    ? await buildCompleteWkReviewTarget({
+        runGit, mainRepo, initiative: slice.match[1], wkId: slice.match[2], wkRef: wk.ref, wkTip,
+        resolveCapturedBase
+      })
+    : null;
+  return Object.freeze({
+    schema_version: SLICE_INTEGRATION_SCHEMA_VERSION,
+    integrated: true,
+    recovered: true,
+    rebased: false,
+    previous_wk_sha: null,
+    slice_ref: slice.ref,
+    slice_sha: markerSha,
+    delivery_sha: sliceTip,
+    wk_ref: wk.ref,
+    wk_sha: wkTip,
+    empty_delivery: false,
+    review_target: reviewTarget,
     transition: Object.freeze({
       valid: true,
       written: false,
       no_op: true,
-      status: integratedState === "final" && parentStatus === "review" ? "review" : "done",
+      status: wkInReview && ownsCurrentWkTip ? "review" : "done",
       recovered: true
     }),
-    integratedState
+    integrated_state: wkInTerminalRecoveryPosture && ownsCurrentWkTip ? "final" : "non_final"
   });
+}
+
+function recordReflectsIntegration(record, sliceId) {
+  const sliceEntry = Array.isArray(record?.slices)
+    ? record.slices.find((entry) => entry?.id === sliceId)
+    : null;
+  const sliceComplete = sliceEntry ? (sliceEntry.status === "done" || sliceEntry.status === "cancelled") : false;
+  return sliceComplete || record?.status === "review" || record?.status === "done";
 }
 
 export async function reconcileIntegratedSliceRecord({
@@ -681,25 +904,11 @@ export async function reconcileIntegratedSliceRecord({
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGitAsync;
-  const slice = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
-  const wk = normalizeRef(wkRef, WK_REF_RE, "wkRef");
-  if (slice.match[1] !== wk.match[1] || slice.match[2] !== wk.match[2]) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH, "slice and WK refs do not identify the same WK");
-  }
-  const expectedUnit = `${slice.match[1]}/${slice.match[2]}/${slice.match[3]}`;
-  if (unitAddress !== expectedUnit) {
-    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH, "unitAddress does not match the exact slice ref", { expected: expectedUnit, actual: unitAddress });
-  }
+  const { slice, wk } = normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef });
   const wkTip = await revParse(runGit, mainRepo, wk.ref);
   const markerSha = await resolveSliceMarkerCommit(runGit, mainRepo, wkTip, slice.match[2], slice.match[3]);
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
   const record = loadRecord(mainRepo, slice.match[2]);
-  const sliceEntry = Array.isArray(record?.slices)
-    ? record.slices.find((entry) => entry?.id === slice.match[3])
-    : null;
-  const sliceComplete = sliceEntry ? (sliceEntry.status === "done" || sliceEntry.status === "cancelled") : false;
-  const wkInReview = record?.status === "review";
-  const wkInTerminalRecoveryPosture = wkInReview || record?.status === "done";
   if (markerSha === null) {
 
     return null;
@@ -728,35 +937,195 @@ export async function reconcileIntegratedSliceRecord({
         });
     }
   }
-  if (!sliceComplete && !wkInTerminalRecoveryPosture) {
 
-    return null;
+  if (!recordReflectsIntegration(record, slice.match[3])) return null;
+
+  return reconciledOrdinaryResult({
+    runGit, mainRepo, slice, wk, markerSha, sliceTip, wkTip, record,
+    resolveCapturedBase: deps.resolveCapturedWkBase
+  });
+}
+
+async function classifyOrdinaryIntegration({ runGit, mainRepo, slice, wk, subject, loadRecord,
+  resolveCapturedBase }) {
+  const wkTip = await authenticateExactDirectCommitRef(runGit, mainRepo, wk.ref, "wk");
+  const sliceTip = await authenticateExactDirectCommitRef(runGit, mainRepo, slice.ref, "slice");
+  const record = loadRecord(mainRepo, slice.match[2]);
+  const recordSourceDigest = computeWorkRecordSourceDigest(record);
+  let observation;
+  try {
+    observation = await boundedWkLifecycleObservation({
+      runGit,
+      mainRepo,
+      initiative: slice.match[1],
+      wkId: slice.match[2],
+      wkTipSha: wkTip,
+      recordSourceDigest
+    });
+  } catch (error) {
+    fail(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "same-slice bounded history could not be authenticated",
+      { subject, reason: error?.detail?.reason ?? "history_observation_indeterminate" },
+      error
+    );
+  }
+  const markerSha = await resolveExactDeliveryMarkerFromObservation({
+    runGit,
+    mainRepo,
+    observation,
+    wkId: slice.match[2],
+    sliceId: slice.match[3],
+    commit: sliceTip
+  });
+  if (markerSha === null) return null;
+  const current = await assertWkLifecycleObservationCurrent({
+    observation,
+    runGit,
+    mainRepo,
+    wkTipSha: await revParse(runGit, mainRepo, wk.ref),
+    recordSourceDigest: computeWorkRecordSourceDigest(loadRecord(mainRepo, slice.match[2]))
+  });
+  if (current.current !== true) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
+      "WK observation moved during integrated-delivery classification",
+      { subject, reason: current.reason ?? "observation_not_current", wk_sha: wkTip });
+  }
+  const sliceEntry = record?.slices?.find((entry) => entry?.id === slice.match[3]) ?? null;
+  if (sliceEntry === null) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+      "canonical integration slice is absent", { subject });
+  }
+  const reconciled = await reconciledOrdinaryResult({
+    runGit, mainRepo, slice, wk, markerSha, sliceTip, wkTip, record, resolveCapturedBase
+  });
+  if (recordReflectsIntegration(record, slice.match[3])) {
+    return withRecordReconciliation(reconciled, RECONCILED_RECORD);
+  }
+  return outstandingIntegration(reconciled, Object.freeze({
+    state: INTEGRATED_RECORD_RECONCILIATION_STATES.PENDING,
+    reason: "canonical_record_not_reconciled",
+    slice_status: sliceEntry.status ?? null,
+    parent_status: record.status ?? null
+  }));
+}
+
+async function isZeroDeltaEvidenceCommit(runGit, mainRepo, oid, subject) {
+  const result = await runGit({
+    repo: mainRepo,
+    args: ["--no-replace-objects", "show", "-s", "--format=%s", oid]
+  });
+  if (result?.ok !== true) {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "integrated marker commit could not be classified", { subject, marker_sha: oid });
+  }
+  return String(result.stdout ?? "").trim() ===
+    `agent-launch zero-delta integration evidence: ${subject}`;
+}
+
+export async function observeIntegratedSliceDelivery({
+  mainRepo,
+  unitAddress,
+  sliceRef,
+  wkRef,
+  deps = {}
+} = {}) {
+  const runGit = deps.runGit ?? defaultRunGitAsync;
+  const { slice, wk, subject } = normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef });
+  const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
+
+  const reconciled = await reconcileIntegratedSliceRecord({
+    mainRepo, unitAddress, sliceRef, wkRef, deps: { ...deps, runGit }
+  });
+  if (reconciled !== null &&
+      !await isZeroDeltaEvidenceCommit(runGit, mainRepo, reconciled.slice_sha, subject)) {
+    return withRecordReconciliation(reconciled, RECONCILED_RECORD);
   }
 
-  const ownsCurrentWkTip = markerSha === wkTip;
-  const reviewTarget = wkInReview && ownsCurrentWkTip
-    ? await buildCompleteWkReviewTarget({ runGit, mainRepo, initiative: slice.match[1], wkId: slice.match[2], wkRef: wk.ref, wkTip })
-    : null;
+  const resolveCapturedBase = deps.resolveCapturedWkBase;
+  const zeroDelta = await classifyZeroDeltaIntegration({
+    runGit, mainRepo, slice, wk, subject, loadRecord, freshAdmission: true, resolveCapturedBase
+  });
+  if (zeroDelta !== null) {
+    return zeroDelta.state === INTEGRATED_RECORD_RECONCILIATION_STATES.RECONCILED
+      ? withRecordReconciliation(zeroDelta.integration, RECONCILED_RECORD)
+      : zeroDelta.integration;
+  }
+  return classifyOrdinaryIntegration({
+    runGit, mainRepo, slice, wk, subject, loadRecord, resolveCapturedBase
+  });
+}
+
+export async function reconcileIntegratedSliceRecordOnly({
+  mainRepo,
+  unitAddress,
+  sliceRef,
+  wkRef,
+  writeRecordCas,
+  deps = {}
+} = {}) {
+  const runGit = deps.runGit ?? defaultRunGitAsync;
+  const { slice, wk, subject } = normalizeIntegrationTarget({ unitAddress, sliceRef, wkRef });
+  const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
+  const observe = () => observeIntegratedSliceDelivery({
+    mainRepo, unitAddress, sliceRef, wkRef, deps: { ...deps, runGit }
+  });
+  const observed = await observe();
+  if (observed === null ||
+      observed.record_reconciliation.state !== INTEGRATED_RECORD_RECONCILIATION_STATES.PENDING) {
+    return observed;
+  }
+  if (typeof writeRecordCas !== "function") {
+    fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.INVALID_ARG,
+      "record-only reconciliation requires the validated canonical record writer", { subject });
+  }
+  let evidence = null;
+  if (observed.empty_delivery === true) {
+    evidence = (await classifyZeroDeltaIntegration({
+      runGit, mainRepo, slice, wk, subject, loadRecord, freshAdmission: false,
+      resolveCapturedBase: deps.resolveCapturedWkBase
+    }))?.evidence ?? null;
+    if (evidence === null || evidence.evidence_sha !== observed.slice_sha) {
+      return outstandingIntegration(observed, outstandingRecordReconciliation(
+        lifecycleContradiction(SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_LIFECYCLE_CONTRADICTION,
+          "zero-delta evidence changed before record reconciliation",
+          { subject, reason: "evidence_changed_before_record_reconciliation" })));
+    }
+  }
+  let write;
+  try {
+    write = await driveIntegratedRecordRepair({
+      runGit, mainRepo, slice, wk, subject, loadRecord, writeRecordCas,
+      integration: observed, evidence, resolveCapturedBase: deps.resolveCapturedWkBase
+    });
+  } catch (error) {
+    return outstandingIntegration(observed, outstandingRecordReconciliation(error));
+  }
+  let reobserved;
+  try {
+    reobserved = await observe();
+  } catch (error) {
+    return outstandingIntegration(observed, outstandingRecordReconciliation(error, {
+      state: INTEGRATED_RECORD_RECONCILIATION_STATES.BLOCKED,
+      reason: "post_repair_observation_failed"
+    }));
+  }
+  if (reobserved === null || reobserved.slice_sha !== observed.slice_sha ||
+      reobserved.delivery_sha !== observed.delivery_sha) {
+    return outstandingIntegration(observed, outstandingRecordReconciliation(
+      lifecycleContradiction(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
+        "the repaired record no longer observes the exact integrated delivery",
+        { subject, reason: "post_repair_observation_mismatch" })));
+  }
+  if (reobserved.record_reconciliation.state !== INTEGRATED_RECORD_RECONCILIATION_STATES.RECONCILED) {
+    return reobserved;
+  }
   return Object.freeze({
-    schema_version: SLICE_INTEGRATION_SCHEMA_VERSION,
-    integrated: true,
-    recovered: true,
-    rebased: false,
-    previous_wk_sha: null,
-    slice_ref: slice.ref,
-    slice_sha: markerSha,
-    delivery_sha: sliceTip,
-    wk_ref: wk.ref,
-    wk_sha: wkTip,
-    empty_delivery: false,
-    review_target: reviewTarget,
-    transition: Object.freeze({
-      valid: true,
-      written: false,
-      no_op: true,
-      status: wkInReview && ownsCurrentWkTip ? "review" : "done",
-      recovered: true
-    }),
-    integrated_state: wkInTerminalRecoveryPosture && ownsCurrentWkTip ? "final" : "non_final"
+    ...reobserved,
+    transition: Object.freeze({ ...write.transition, recovered: true }),
+    record_reconciliation: Object.freeze({
+      state: INTEGRATED_RECORD_RECONCILIATION_STATES.RECONCILED,
+      repaired: true
+    })
   });
 }

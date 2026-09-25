@@ -431,7 +431,7 @@ const WHOLE_WK_INTEGRATION = Object.freeze({
   })
 });
 
-async function finalizeWholeWk(workKind) {
+async function finalizeWholeWk() {
   const checkpoint = createLifecycleCheckpoint();
   checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
   checkpoint.integration = WHOLE_WK_INTEGRATION;
@@ -457,15 +457,6 @@ async function finalizeWholeWk(workKind) {
         wk_binding: { output_branch: "wk/IN-0042/WK-2383", worktree_path: WK_WORKTREE },
         validation_worktree_path: WK_WORKTREE
       }),
-      resolveDeclaredTerminalReviewUnit: () => {
-        calls.push("resolveDeclaredTerminalReviewUnit");
-        return {
-          record_id: "WK-2383",
-          initiative: "IN-0042",
-          subject: "WK-2383#SLICE-002",
-          review_unit_contract: JSON.stringify({ id: "SLICE-002", work_kind: workKind })
-        };
-      },
       ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, () => {
         calls.push(name);
         throw new Error(`retired review seam ${name} was called`);
@@ -477,7 +468,7 @@ async function finalizeWholeWk(workKind) {
 
 test("a final whole-WK integration finalizes with no reviewer dispatch for either findings kind", async () => {
   for (const workKind of ["redteam", "review"]) {
-    const { finalized, calls } = await finalizeWholeWk(workKind);
+    const { finalized, calls } = await finalizeWholeWk();
     assert.equal(finalized.phase, POST_WORKER_LIFECYCLE_PHASES.FINALIZED, workKind);
     assert.equal(finalized.integrated, true, workKind);
     assert.equal(finalized.wk_transitioned_to_review, true, workKind);

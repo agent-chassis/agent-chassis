@@ -10,6 +10,7 @@ import {
   assertRequiredReadOnlyFilesUnchanged
 } from "./launch-isolation-required-read-only-files.mjs";
 import { assertFindingsRoleGitMetadataUnchanged } from "./launch-isolation-findings-git-metadata.mjs";
+import { assertWorkerTestRuntimeMountsUnchanged } from "./launch-isolation-test-runtime-projection.mjs";
 
 import {
   STDIO_MCP_ABNORMAL_DRAIN_GRACE_MS,
@@ -207,6 +208,7 @@ export function spawnIsolated(plan, stdioOptions = {}) {
 
   assertRequiredReadOnlyFilesUnchanged(plan.requiredReadOnlyFiles ?? []);
   assertReadOnlyProjectionMountpointsUnchanged(plan.readOnlyProjectionMountpoints ?? []);
+  assertWorkerTestRuntimeMountsUnchanged(plan.workerTestRuntime ?? null);
   assertFindingsRoleGitMetadataUnchanged(plan.findingsRoleGitMetadata ?? null);
   assertFindingsRoleGitMetadataUnchanged(
     plan.provisionedWorktreeGitIsolation?.metadataProjection ?? null
@@ -226,6 +228,7 @@ export function spawnIsolated(plan, stdioOptions = {}) {
 
   assertRequiredReadOnlyFilesUnchanged(plan.requiredReadOnlyFiles ?? []);
   assertReadOnlyProjectionMountpointsUnchanged(plan.readOnlyProjectionMountpoints ?? []);
+  assertWorkerTestRuntimeMountsUnchanged(plan.workerTestRuntime ?? null);
   assertFindingsRoleGitMetadataUnchanged(plan.findingsRoleGitMetadata ?? null);
   assertFindingsRoleGitMetadataUnchanged(
     plan.provisionedWorktreeGitIsolation?.metadataProjection ?? null

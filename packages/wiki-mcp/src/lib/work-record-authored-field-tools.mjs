@@ -15,6 +15,7 @@ import {
   createWorkRecordTaskIndexSchema
 } from "./work-record-edit-input-contract.mjs";
 import { isLosslessMcpSpillDelivery } from "./mcp-response.mjs";
+import { mcpContentReferenceReassembly } from "./mcp-content-reference-tools.mjs";
 import {
   workRecordEditInputFailureNextCalls
 } from "./work-record-edit-input-guidance-delivery.mjs";
@@ -133,8 +134,7 @@ export function registerWorkRecordTaskAndGeneralEditTools(dependencies) {
           raw_validation_failure: {
             captured: true,
             content_reference: contentReference,
-            reassembly:
-              "follow next_offset to eof, concatenate decoded base64 bytes, then decode UTF-8"
+            reassembly: mcpContentReferenceReassembly("decode the verified bytes as UTF-8")
           }
         }
       }),

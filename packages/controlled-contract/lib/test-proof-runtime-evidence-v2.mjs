@@ -165,6 +165,28 @@ function validateTestProofRuntimeEvidenceV2(evidence) {
       "runtime_falsifier_launcher_evidence_missing", `/falsifier_executions/${index}`
     );
   });
+
+  const falsifierLimitations = new Map();
+  evidence.capability_limitations.forEach((entry, index) => {
+    if (entry.check_kind !== "falsifier" || entry.check_id === null) return;
+    falsifierLimitations.set(entry.check_id, { entry, index });
+  });
+  const limitedFalsifiers = new Set();
+  evidence.falsifier_executions.forEach((entry, index) => {
+    if (entry.provider_support !== "unsupported") return;
+    limitedFalsifiers.add(entry.falsifier_id);
+    const recorded = falsifierLimitations.get(entry.falsifier_id)?.entry;
+    if (recorded === undefined || recorded.reason_code !== entry.limitation.reason_code ||
+        canonical(recorded.detail) !== canonical(entry.limitation.detail)) emit(
+      "runtime_falsifier_limitation_incoherent", `/falsifier_executions/${index}/limitation`
+    );
+  });
+  for (const [falsifierId, { index }] of falsifierLimitations) {
+    if (!limitedFalsifiers.has(falsifierId)) emit(
+      "runtime_falsifier_limitation_incoherent", `/capability_limitations/${index}`,
+      { actual_identity: falsifierId }
+    );
+  }
   evidence.boundary_traversals.forEach((entry, index) => {
     const descriptor = validateProvider(entry.provider,
       entry.provider_support === "unsupported" ? "traversal_unsupported" : "boundary_traversal",

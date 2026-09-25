@@ -5,7 +5,7 @@ import path from "node:path";
 import { syncBuiltinESMExports } from "node:module";
 import fsPromises, { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
-import { bootstrapRepo } from "../../packages/wiki-core/src/index.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
 import { run } from "../../packages/wiki-cli/src/run.mjs";
 
 const FINDING_COUNT_OVER_COMPACT_LIMIT = 25;

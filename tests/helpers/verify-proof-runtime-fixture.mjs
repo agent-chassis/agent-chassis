@@ -14,6 +14,13 @@ import { loadAdmittedProofPack } from
   "../../packages/controlled-contract/lib/admitted-proof-packs.mjs";
 import { executeVerifyProofForContext } from
   "../../packages/wiki-mcp/src/lib/verify-proof-execution.mjs";
+import { normalizeFalsifierFacts } from "../../packages/controlled-contract/lib/test-proof-evidence-semantic-kernel.mjs";
+
+const DETECTED_FALSIFIER_FACTS = normalizeFalsifierFacts({ declaredFalsifierIds: ["falsifier"],
+  executions: [{ falsifier_id: "falsifier", status: "detected", provider_support: "supported",
+    isolated: true, candidate_status: "passed", falsified_status: "failed",
+    failure_reason_code: "assertion_failed", mutation: { observed: true } }],
+  declaredUnsupported: false });
 const digest = value => `sha256:${sha256(value)}`;
 
 export function currentProviderBinding(providerId, capability) {
@@ -239,8 +246,7 @@ export async function executeIndependentProofScenario(t, statuses, {
           facts: { candidate: { status: passed ? "passed" : "failed", passed },
             inventory: { declared_test_ids: ["selected"], discovered_test_ids: ["selected"],
               executed_test_ids: ["selected"], skipped_test_ids: [], observed_test_count: 1 },
-            falsifiers: { expected_ids: ["falsifier"], observations: [{ falsifier_id: "falsifier",
-              status: "detected", detected: true }], complete: true, all_detected: true },
+            falsifiers: DETECTED_FALSIFIER_FACTS,
             traversal: { observations: [{ boundary_id: "boundary", observable_id: "observable",
               provider_support: "supported", status: "proven", proven: true }],
               complete: true, all_proven: true },

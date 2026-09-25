@@ -465,7 +465,9 @@ const {
   parseStructuralDiff,
   recordObservationMatches,
   resolveBoundManifestArtifacts,
-  resolveBoundRecordArtifact
+  resolveBoundRecordArtifact,
+  resolveBoundRuntimePackageArtifacts,
+  runtimePackageMatchesTree
 } = createControlledContractGenerationTreeOperations({
   fail,
   codes: CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES,
@@ -807,7 +809,8 @@ export function admitVerifiedReceipt({ runGit, binding, receiptValue }) {
         { basename: descriptor.basename });
     }
   }
-  for (const artifact of resolveBoundManifestArtifacts(binding)) {
+  const manifestArtifacts = resolveBoundManifestArtifacts(binding);
+  for (const artifact of manifestArtifacts) {
     const resolved = runGit({
       gitDir: binding.git_dir,
       args: ["--no-replace-objects", "rev-parse", "--verify", "--quiet",
@@ -830,8 +833,16 @@ export function admitVerifiedReceipt({ runGit, binding, receiptValue }) {
       fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
         "persisted selected manifest differs from its bound authentication fence", {
           path: artifact.path
-        });
+      });
     }
+  }
+  const runtimePackageArtifacts = resolveBoundRuntimePackageArtifacts(
+    binding, manifestArtifacts);
+  if (!runtimePackageMatchesTree({
+    runGit, binding, treeish: receiptValue.final_tip, artifacts: runtimePackageArtifacts
+  })) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+      "persisted controlled-contract runtime package is absent or differs from the exact bound generation");
   }
   const recordArtifact = resolveBoundRecordArtifact(binding);
   const recordResolved = runGit({
@@ -900,6 +911,7 @@ async function observeExactChild({
   prior,
   priorManifestPaths,
   manifestArtifacts,
+  runtimePackageArtifacts,
   recordArtifact,
   invocationCommit = null
 }) {
@@ -920,6 +932,7 @@ async function observeExactChild({
     ...binding.descriptors.map((descriptor) => descriptor.path),
     ...priorManifestPaths,
     ...manifestArtifacts.map((artifact) => artifact.path),
+    ...runtimePackageArtifacts.map((artifact) => artifact.path),
     recordArtifact.path
   ]);
   if (changedPaths.some((changedPath) => !allowed.has(changedPath))) {
@@ -941,6 +954,12 @@ async function observeExactChild({
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
       "candidate winner does not contain the exact authentication population");
   }
+  if (!runtimePackageMatchesTree({
+    runGit, binding, treeish: liveTip, artifacts: runtimePackageArtifacts
+  })) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.CAS_CONFLICT,
+      "candidate winner does not contain the exact reader runtime package");
+  }
   return receipt(binding, {
     disposition: "observed",
     finalTip: liveTip,
@@ -950,7 +969,8 @@ async function observeExactChild({
 }
 
 function buildGenerationTree({
-  runGit, binding, prior, priorManifestPaths, manifestArtifacts, recordArtifact
+  runGit, binding, prior, priorManifestPaths, manifestArtifacts,
+  runtimePackageArtifacts, recordArtifact
 }) {
   const indexDir = mkdtempSync(path.join(tmpdir(), "controlled-contract-generation-index-"));
   const indexFile = path.join(indexDir, "index");
@@ -995,6 +1015,18 @@ function buildGenerationTree({
         ...GIT_INERT_CONFIG,
         "update-index", "--add", "--cacheinfo", `100644,${oid},${artifact.path}`
       ], "selected controlled-contract manifest could not be written to the private index");
+    }
+    for (const artifact of runtimePackageArtifacts) {
+      const blob = runGitOrFail(runGit, context,
+        [...GIT_INERT_CONFIG, "hash-object", "-w", "--stdin"],
+        "controlled-contract runtime package blob could not be materialized", {
+          stdin: artifact.bytes
+        });
+      const oid = assertOid(stdoutText(blob).trim(), "controlled-contract runtime package blob");
+      runGitOrFail(runGit, context, [
+        ...GIT_INERT_CONFIG,
+        "update-index", "--add", "--cacheinfo", `100644,${oid},${artifact.path}`
+      ], "controlled-contract runtime package path could not be written to the private index");
     }
     const recordBlob = runGitOrFail(runGit, context,
       [...GIT_INERT_CONFIG, "hash-object", "-w", "--stdin"],
@@ -1054,6 +1086,8 @@ export async function persistControlledContractGeneration(input = {}) {
       "canonical controlled-contract generation changed after binding");
   }
   const manifestArtifacts = resolveBoundManifestArtifacts(binding);
+  const runtimePackageArtifacts = resolveBoundRuntimePackageArtifacts(
+    binding, manifestArtifacts);
   const recordArtifact = resolveBoundRecordArtifact(binding);
 
   const runGit = deps.runGit ?? defaultControlledContractGenerationRunGit;
@@ -1068,7 +1102,8 @@ export async function persistControlledContractGeneration(input = {}) {
     return admitVerifiedReceipt({
       runGit, binding,
       receiptValue: await observeExactChild({
-        runGit, binding, liveTip, prior, priorManifestPaths, manifestArtifacts, recordArtifact
+        runGit, binding, liveTip, prior, priorManifestPaths, manifestArtifacts,
+        runtimePackageArtifacts, recordArtifact
       })
     });
   }
@@ -1086,7 +1121,10 @@ export async function persistControlledContractGeneration(input = {}) {
   if (generationMatches(prior.descriptors, binding.descriptors) &&
       priorObservations !== null &&
       manifestPopulationMatches(priorObservations.manifestObservations, manifestArtifacts) &&
-      recordObservationMatches(priorObservations.recordObservation, recordArtifact)) {
+      recordObservationMatches(priorObservations.recordObservation, recordArtifact) &&
+      runtimePackageMatchesTree({
+        runGit, binding, treeish: binding.wk_tip_sha, artifacts: runtimePackageArtifacts
+      })) {
     return admitVerifiedReceipt({
       runGit, binding,
       receiptValue: receipt(binding, {
@@ -1097,7 +1135,8 @@ export async function persistControlledContractGeneration(input = {}) {
   }
 
   const tree = buildGenerationTree({
-    runGit, binding, prior, priorManifestPaths, manifestArtifacts, recordArtifact
+    runGit, binding, prior, priorManifestPaths, manifestArtifacts,
+    runtimePackageArtifacts, recordArtifact
   });
   const changedPaths = structuralDiffPaths({
     runGit, binding, before: binding.wk_tip_sha, after: tree
@@ -1111,6 +1150,7 @@ export async function persistControlledContractGeneration(input = {}) {
     ...binding.descriptors.map((descriptor) => descriptor.path),
     ...priorManifestPaths,
     ...manifestArtifacts.map((artifact) => artifact.path),
+    ...runtimePackageArtifacts.map((artifact) => artifact.path),
     recordArtifact.path
   ]);
   if (changedPaths.some((changedPath) => !allowed.has(changedPath))) {
@@ -1129,6 +1169,12 @@ export async function persistControlledContractGeneration(input = {}) {
       !recordObservationMatches(postObservations.recordObservation, recordArtifact)) {
     fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
       "materialized tree does not contain the exact authentication population");
+  }
+  if (!runtimePackageMatchesTree({
+    runGit, binding, treeish: tree, artifacts: runtimePackageArtifacts
+  })) {
+    fail(CONTROLLED_CONTRACT_GENERATION_PERSISTENCE_CODES.INDETERMINATE,
+      "materialized tree does not contain the exact reader runtime package");
   }
   const commitResult = runGitOrFail(runGit, { gitDir: binding.git_dir }, [
     ...GIT_INERT_CONFIG,
@@ -1167,6 +1213,7 @@ export async function persistControlledContractGeneration(input = {}) {
       prior,
       priorManifestPaths,
       manifestArtifacts,
+      runtimePackageArtifacts,
       recordArtifact,
       invocationCommit: commit
     })

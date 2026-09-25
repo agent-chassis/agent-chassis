@@ -26,12 +26,13 @@ import {
   validateProfileSchemaV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
-const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.operation.forbidden-noninvocation/4.0.0");
-const readJson = async (name) => JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
+const identity = { profile_id: "proof.operation.forbidden-noninvocation", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 test("forbidden-operation noninvocation profile is valid and bounded to one declared context", async () => {
   assert.equal(validateProfileSchemaV1(FORBIDDEN_OPERATION_NONINVOCATION_V1_PROFILE), true,

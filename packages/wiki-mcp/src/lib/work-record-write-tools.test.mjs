@@ -29,7 +29,7 @@ const WORKSPACE_TOOL_CONSTANTS = {
 
 function parseStructuredResponse(result) {
   assert.equal(result.isError, undefined);
-  assert.equal(result.content[0].type, "text");
+  assert.deepEqual(result.content, []);
   assert.ok(result.structuredContent);
   return result.structuredContent;
 }

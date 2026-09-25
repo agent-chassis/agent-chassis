@@ -31,6 +31,9 @@ const EXPECTED_DURABLE_STORE_IDS = Object.freeze([
   "launcher-durable-state-root",
   "managed-run-process-identity",
   "managed-run-subject-reservation",
+
+  "test-runtime-preparation-lock",
+  "test-runtime-preparation-state",
   "wk-terminal-disposition-proof",
   "worktree-identity-binding",
   "worktree-provision-lock",
@@ -278,7 +281,9 @@ test("no package, dependency edge, or package cycle was added", () => {
 
   assert.deepEqual(
     Object.keys(wikiCore.dependencies ?? {}).sort(),
-    ["@agent-chassis/controlled-contract", "@vscode/tree-sitter-wasm", "ajv", "protobufjs", "web-tree-sitter"],
+
+    ["@agent-chassis/controlled-contract", "@bufbuild/protobuf", "@scip-code/scip",
+      "@vscode/tree-sitter-wasm", "ajv", "protobufjs", "web-tree-sitter"],
     "wiki-core gained no dependency by hosting the substrate"
   );
   assert.equal(

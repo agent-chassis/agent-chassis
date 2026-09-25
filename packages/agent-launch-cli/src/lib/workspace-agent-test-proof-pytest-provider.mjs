@@ -257,9 +257,15 @@ export async function resolveInstalledPytestRuntime({ executionBudget = null, co
     runtime_source: configured === null ? "launcher_path" : "launcher_readiness",
     readiness_digest: configured?.readiness_digest ?? null,
 
+    environment: configured?.route?.environment ?? null,
+    route: configured?.route ?? null,
+
     dependency_roots: Object.freeze([...(configured?.dependency_roots ?? [])]),
     dependency_population: configured === null ? null : Object.freeze({
-      source: "launcher_readiness", readiness_digest: configured.readiness_digest }),
+      source: "launcher_readiness", readiness_digest: configured.readiness_digest,
+      environment: configured.route?.environment ?? null, route: configured.route ?? null,
+
+      toolchains: configured.toolchains, dependencies: configured.dependencies }),
     runtime_packages: Object.freeze(runtimePackages),
     runtime_paths: Object.freeze(runtimePaths),
     read_only_binds: Object.freeze([...hostBinds, ...configuredBinds])

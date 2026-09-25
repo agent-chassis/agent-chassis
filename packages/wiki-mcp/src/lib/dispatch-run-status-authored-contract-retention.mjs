@@ -3,8 +3,11 @@
 import { createHash } from "node:crypto";
 
 import { retainSelectedResponseSource } from "./selected-response-snapshot.mjs";
-import { readTerminalCandidateAuthoredContracts } from
-  "./dispatch-run-status-authored-contract-projection.mjs";
+import {
+  readTerminalCandidateAuthoredContracts,
+  readTerminalCandidateControlledGeneration,
+  TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER
+} from "./dispatch-run-status-authored-contract-projection.mjs";
 import {
   INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER,
   readIntegrationTransitionAuthoredRecord
@@ -37,6 +40,10 @@ function* collectRetainableDocuments(lifecycle) {
   const contracts = readTerminalCandidateAuthoredContracts(lifecycle);
   if (contracts !== null) {
     for (const { member, text } of contracts.present) yield { member, text };
+  }
+  const generation = readTerminalCandidateControlledGeneration(lifecycle);
+  if (generation !== null) {
+    yield { member: TERMINAL_CANDIDATE_CONTROLLED_GENERATION_CARRIER_MEMBER, text: generation.text };
   }
   const receipt = readIntegrationTransitionAuthoredRecord(lifecycle);
   if (receipt !== null) {

@@ -268,10 +268,22 @@ test('real saved selections evaluate as design associations and never prove exec
   assert.equal(stale.obligation_outcomes[0].outcome, 'stale');
   assert.throws(() => evaluateAcceptanceCoverage({ obligationCoverage: resolution.mapping, staleObligationIds: ['OBL-ABSENT'] }),
     { code: 'acceptance_coverage_stale_obligation_unknown' });
-  assert.deepEqual(OBLIGATION_COVERAGE_OUTCOMES, ['stale', 'explicit_gap', 'design_invalid', 'selected']);
+  assert.deepEqual(OBLIGATION_COVERAGE_OUTCOMES,
+    ['stale', 'design_invalid', 'selected']);
 
   const valid = structuredClone(resolution.mapping); valid.obligations[0].diagnostics = [];
   valid.obligations[0].design_status = 'valid';
+  valid.obligations[0].selected_proof_assessment.readiness_status = 'complete';
+  valid.obligations[0].selected_proof_assessment.prevents_selected_route = false;
+  valid.obligations[0].selected_proof_assessment.stages.authored_inputs = {
+    status: 'complete', diagnostic_codes: [], blocking_diagnostic_codes: [],
+    nonblocking_diagnostic_codes: [], unresolved_diagnostic_codes: []
+  };
+  valid.obligations[0].selected_proof_assessment.stages.system_capability = {
+    ...valid.obligations[0].selected_proof_assessment.stages.system_capability,
+    diagnostic_codes: [], blocking_diagnostic_codes: [],
+    nonblocking_diagnostic_codes: [], unresolved_diagnostic_codes: []
+  };
   const selected = evaluateAcceptanceCoverage({ obligationCoverage: valid });
   assert.equal(selected.obligation_outcomes[0].outcome, 'selected');
   assert.equal(selected.complete, false);

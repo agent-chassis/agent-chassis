@@ -108,6 +108,8 @@ import { registerFrozenReviewContractTools } from "./lib/frozen-review-contract-
 import { registerDispatchTools } from "./lib/dispatch-tools.mjs";
 
 import { buildDispatchRuntime } from "./lib/dispatch-launch-runtime.mjs";
+import { proofExecutionTestCompositionDeps } from
+  "./lib/proof-execution-test-composition.mjs";
 
 import { bootstrapWikiMcpNodeEngineEnv } from "./lib/node-engine-env-bootstrap.mjs";
 
@@ -132,6 +134,7 @@ async function registerTools(server, {
   packageDocsCarrier = null,
   launcherNoCceAuthorityCapability = null,
   dispatchRuntimeTestComposition = null,
+  proofExecutionTestComposition = null,
   metricsWriter = null
 } = {}) {
   const workspaceRepos = await parseWorkspaceRepos();
@@ -146,7 +149,8 @@ async function registerTools(server, {
   const {
     dispatchBackend,
     dispatchSessionIdentity,
-    wkForgeHandoffAdapter
+    wkForgeHandoffAdapter,
+    wkLandingStatusAdapter
   } =
     buildDispatchRuntime(process.env, {
       testComposition: dispatchRuntimeTestComposition,
@@ -198,6 +202,7 @@ async function registerTools(server, {
     jsonContent,
     errorContent,
     resolveWorkspaceRepo,
+    verifyProofDeps: proofExecutionTestCompositionDeps(proofExecutionTestComposition),
     resolveControlledContractGenerationBinding,
     persistControlledContractGeneration
   });
@@ -215,6 +220,8 @@ async function registerTools(server, {
     launcherNoCceAuthorityCapability,
 
     wkForgeHandoffAdapter,
+
+    wkLandingStatusAdapter,
 
     registeredTier
   });
@@ -369,10 +376,21 @@ async function registerTools(server, {
   });
 }
 
+export const WIKI_MCP_SERVER_INSTRUCTIONS = [
+  "This server provides repository coordination: wiki records, decisions, docs, proof contracts, and agent dispatch.",
+  "Call a known registered operation directly.",
+  "When the next operation is unclear and workspace_tool_router_recommend is exposed, call it with the task and any known identifiers, then follow its next_calls.",
+  "Use workspace_tools_list for compact capability discovery and workspace_tools_describe for one selected tool's detail.",
+  "Load a full input schema only for the operation you will call, and use the tool names this session actually exposes.",
+  "App or plugin catalogs and MCP resource lists are not repository tool discovery.",
+  "An entrypoint missing from this session is a session-access limitation; this notice does not establish registration or override role restrictions."
+].join(" ");
+
 export async function startWikiMcpServer({
   packageDocsCarrier = null,
   launcherNoCceAuthorityCapability = null,
-  dispatchRuntimeTestComposition = null
+  dispatchRuntimeTestComposition = null,
+  proofExecutionTestComposition = null
 } = {}) {
 
   const effectivePackageDocsCarrier = bindSpawnedPackageDocsCarrierFromLauncher({
@@ -405,12 +423,13 @@ export async function startWikiMcpServer({
   const server = new McpServer({
     name: "@agent-chassis/wiki-mcp",
     version: SERVER_VERSION
-  });
+  }, { instructions: WIKI_MCP_SERVER_INSTRUCTIONS });
 
   const registration = await registerTools(server, {
     packageDocsCarrier: effectivePackageDocsCarrier,
     launcherNoCceAuthorityCapability,
     dispatchRuntimeTestComposition,
+    proofExecutionTestComposition,
     metricsWriter
   });
   registerStaticResources(server, { readContractFile, jsonContent, errorContent });

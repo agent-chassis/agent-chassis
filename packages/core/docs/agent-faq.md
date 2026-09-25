@@ -51,7 +51,7 @@ source of truth is the corpus data file, not this prose page.
 
 The `verify-proof-execution-not-executable` entry covers every stable
 `agent_launch.verify_proof.*` execution wrapper. It explains that a valid
-structured failing assertion is `unsatisfied`, while inability to obtain
+structured failing assertion is `unproven`, while inability to obtain
 authenticated execution or receipt evidence is `not_executable` or refused.
 Callers query the entry by the returned stable reason code, inspect its minimal
 recovery facts, repair the named contract/test or launcher/runtime prerequisite,

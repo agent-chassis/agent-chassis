@@ -25,7 +25,10 @@ function registerStaticResource(server, { name, uri, mimeType, loader, errorCont
             {
               uri,
               mimeType: "application/json",
-              text: shaped.content?.[0]?.text ?? String(error)
+
+              text: shaped.structuredContent === undefined
+                ? shaped.content?.[0]?.text ?? String(error)
+                : JSON.stringify(shaped.structuredContent)
             }
           ]
         };

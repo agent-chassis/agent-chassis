@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -39,6 +39,14 @@ const cliPath = fileURLToPath(new URL("../bin/check-contract.mjs", import.meta.u
 const EXAMPLE_PATH = fileURLToPath(new URL(
   "../examples/minimal-controlled-acceptance-contract.v1.json", import.meta.url));
 const p4Profile = "proof.authorization.failed-attempt-nonconsumption";
+const CLI_TIMEOUT_MS = 30_000;
+const CLI_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+async function ownedDirectory(t, prefix) {
+  const directory = await mkdtemp(path.join(os.tmpdir(), prefix));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  return directory;
+}
 
 function jsonText(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
@@ -73,10 +81,12 @@ async function runCli(args) {
   try {
     const result = await execFileAsync(process.execPath, [cliPath, ...args], {
       cwd: process.cwd(),
-      maxBuffer: 16 * 1024 * 1024
+      maxBuffer: CLI_OUTPUT_BYTES,
+      timeout: CLI_TIMEOUT_MS
     });
     return { code: 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
+    if (error.killed || !Number.isInteger(error.code)) throw error;
     return {
       code: error.code,
       stdout: error.stdout ?? "",
@@ -121,8 +131,8 @@ test("minimal agent-authored contract resolves without a model", async () => {
   assert.equal(result.passed, true);
 });
 
-test("missing verification coverage is reported as incomplete structure", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "controlled-contract-check-"));
+test("missing verification coverage is reported as incomplete structure", async (t) => {
+  const directory = await ownedDirectory(t, "controlled-contract-check-");
   const contract = JSON.parse(await readFile(EXAMPLE_PATH, "utf8"));
   contract.relations = [];
   const input = path.join(directory, "missing-verification.json");
@@ -136,8 +146,8 @@ test("missing verification coverage is reported as incomplete structure", async 
   ));
 });
 
-test("operative residue remains explicit and prevents a clean result", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "controlled-contract-check-"));
+test("operative residue remains explicit and prevents a clean result", async (t) => {
+  const directory = await ownedDirectory(t, "controlled-contract-check-");
   const contract = JSON.parse(await readFile(EXAMPLE_PATH, "utf8"));
   contract.residue.push({
     residue_id: "res-unexpressed-owner",
@@ -266,8 +276,8 @@ test("CLI duplicate and partial-mode errors are deterministic", async () => {
   }
 });
 
-test("CLI uses one release-certified built-in profile and is deterministic", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "check-contract-admitted-"));
+test("CLI uses one release-certified built-in profile and is deterministic", async (t) => {
+  const directory = await ownedDirectory(t, "check-contract-admitted-");
   const fixture = buildFailedAttemptNonconsumptionFixture();
   const { contractPath, evaluationInputPath } = await writeFixture(directory, fixture);
   const args = [
@@ -305,8 +315,8 @@ test("CLI uses one release-certified built-in profile and is deterministic", asy
   );
 });
 
-test("CLI exits 2 when a structurally complete contract is inadequate for the pack", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "check-contract-inadequate-"));
+test("CLI exits 2 when a structurally complete contract is inadequate for the pack", async (t) => {
+  const directory = await ownedDirectory(t, "check-contract-inadequate-");
   const fixture = buildFailedAttemptNonconsumptionFixture();
   fixture.contract.claims.find(
     ({ claim_id: claimId }) => claimId === "claim-failed-input-unauthorized"
@@ -326,8 +336,8 @@ test("CLI exits 2 when a structurally complete contract is inadequate for the pa
   assert.equal(result.passed, false);
 });
 
-test("CLI refuses unknown profiles and arbitrary pack paths", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "check-contract-pack-refusal-"));
+test("CLI refuses unknown profiles and arbitrary pack paths", async (t) => {
+  const directory = await ownedDirectory(t, "check-contract-pack-refusal-");
   const fixture = buildIdempotencyV2Fixture();
   const { contractPath, evaluationInputPath } = await writeFixture(directory, fixture);
   const baseArgs = ["--input", contractPath, "--evaluation-input", evaluationInputPath];
@@ -361,8 +371,8 @@ test("direct CLI structural mode is explicitly unadmitted", async () => {
   assert.equal("profile_evaluation" in result, false);
 });
 
-test("library admission accepts profile identity, never an arbitrary directory", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "check-contract-admission-"));
+test("library admission accepts profile identity, never an arbitrary directory", async (t) => {
+  const directory = await ownedDirectory(t, "check-contract-admission-");
   const fixture = buildFailedAttemptNonconsumptionFixture();
   const { contractPath, evaluationInputPath } = await writeFixture(directory, fixture);
   const result = await checkContractWithProofPack({

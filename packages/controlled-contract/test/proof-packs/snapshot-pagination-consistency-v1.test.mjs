@@ -9,19 +9,20 @@ import { runProofPackAdequacy } from "../support/proof-pack-adequacy.mjs";
 import {
   buildSnapshotPaginationFixture
 } from "./mutation-pagination-profiles-v1-fixture.mjs";
+import { certificationDirectory as certificationDirectoryOf, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(new URL("../../", import.meta.url).pathname);
-const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.pagination.snapshot-consistency/3.0.0");
+const identity = { profile_id: "proof.pagination.snapshot-consistency", profile_version: "4.0.0" };
+const certificationDirectory = certificationDirectoryOf(identity);
 const runtimeDirectory = path.join(packageRoot,
-  "profiles/proof.pagination.snapshot-consistency/3.0.0");
+  "profiles/proof.pagination.snapshot-consistency/4.0.0");
 
 async function json(directory, name) {
   return JSON.parse(await readFile(path.join(directory, name), "utf8"));
 }
 
 test("snapshot pagination profile requires exact snapshot resolution", async () => {
-  const profile = await json(certificationDirectory, "profile.json");
+  const profile = await json(runtimeDirectory, "profile.json");
   const fixture = buildSnapshotPaginationFixture({ profile });
   assert.equal(evaluateStableProofPackFixtureV1({
     contract: fixture.contract, profile, evaluation_input: fixture.input

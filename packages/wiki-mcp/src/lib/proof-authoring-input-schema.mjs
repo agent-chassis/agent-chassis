@@ -1,5 +1,6 @@
 import {
   CONTROLLED_CONTRACT_FOCUS_GRAMMAR,
+  CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_TOOL_DEFINITIONS,
   CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_QUERY_INPUT_SCHEMA,
   isControlledContractFocus
 } from "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
@@ -23,4 +24,18 @@ export function proofAuthoringFocusInputSchema(z) {
       measurement: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.measurement,
       statement: CONTROLLED_CONTRACT_FOCUS_GRAMMAR.accepted_form }]
   );
+}
+
+export function proofAuthoringSchema(tool, z, focus) {
+  const operation = tool.name === "workspace_validate_proof"
+    ? "validate" : tool.name.split("_").at(-1);
+  return requestSchema(z, tool.inputSchema, tool.inputSchema.$defs,
+    { memoize: operation === "upsert" }).extend({ focus });
+}
+
+export function createProofAuthoringQueryInputSchema(z) {
+  const tool = CONTROLLED_CONTRACT_OBLIGATION_COVERAGE_TOOL_DEFINITIONS.find(
+    ({ name }) => name === "workspace_controlled_contract_obligation_coverage_query");
+  if (tool === undefined) throw new Error("proof-authoring query declaration is unavailable");
+  return proofAuthoringSchema(tool, z, proofAuthoringFocusInputSchema(z).optional());
 }

@@ -4,6 +4,8 @@ import path from "node:path";
 import os from "node:os";
 import { mkdtempSync, rmSync } from "node:fs";
 
+import { isCanonicalWorkRecordBaseBranch } from
+  "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
   DEFAULT_EXPECTED_ENVELOPE_FIELD,
@@ -130,7 +132,7 @@ function replayRangeOnScratch({ runGit, mainRepo, scratchRoot, wkTip, oldBase, o
   if (!rebase || rebase.ok !== true) {
     runGit({ repo: scratchWorktree, args: ["rebase", "--abort"] });
     cleanup();
-    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REPLAY_CONFLICT, "dispatch-time WK-branch replay onto current main conflicted; scratch state cleaned and the shared WK ref untouched", { wk_tip: wkTip, old_base: oldBase, onto: ontoSha, stderr: rebase?.stderr ?? rebase?.error ?? null });
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REPLAY_CONFLICT, "dispatch-time WK-branch replay onto the selected base conflicted; scratch state cleaned and the shared WK ref untouched", { wk_tip: wkTip, old_base: oldBase, onto: ontoSha, stderr: rebase?.stderr ?? rebase?.error ?? null });
   }
   const replayedTip = replayResolveTip(runGit, scratchWorktree, "HEAD");
   cleanup();
@@ -143,7 +145,7 @@ function replayRangeOnScratch({ runGit, mainRepo, scratchRoot, wkTip, oldBase, o
 export function replayWkBranchOntoMain({
   mainRepo,
   wkRef,
-  mainRef = "refs/heads/main",
+  mainRef,
   scratchRoot = null,
   deps = {}
 } = {}) {
@@ -151,6 +153,10 @@ export function replayWkBranchOntoMain({
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
   if (typeof wkRef !== "string" || wkRef.length === 0) {
     fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.INVALID_ARG, `wkRef must be a non-empty string, got: ${JSON.stringify(wkRef)}`);
+  }
+  if (typeof mainRef !== "string" || !mainRef.startsWith("refs/heads/") ||
+      !isCanonicalWorkRecordBaseBranch(mainRef.slice("refs/heads/".length))) {
+    fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.INVALID_ARG, `mainRef must name the explicitly selected base branch as refs/heads/<branch>, got: ${JSON.stringify(mainRef ?? null)}`);
   }
   const mainTip = replayResolveTip(runGit, repo, mainRef);
   const wkTip = replayResolveTip(runGit, repo, wkRef);
@@ -180,7 +186,7 @@ export function replayWkBranchOntoMain({
       const mergeBaseRes = runGit({ repo, args: ["merge-base", mCur, wOld] });
       const oldBase = mergeBaseRes && mergeBaseRes.ok === true ? String(mergeBaseRes.stdout ?? "").trim() : "";
       if (oldBase.length === 0) {
-        fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REPLAY_CONFLICT, "could not derive the WK/main merge-base for the dispatch replay", { wk_tip: wOld, main_tip: mCur });
+        fail(WORKTREE_PROVISIONING_DISPATCH_DIAGNOSTIC_CODES.REPLAY_CONFLICT, "could not derive the WK/base merge-base for the dispatch replay", { wk_tip: wOld, main_tip: mCur });
       }
       const replayedTip = replayRangeOnScratch({ runGit, mainRepo: repo, scratchRoot: resolvedScratchRoot, wkTip: wOld, oldBase, ontoSha: mCur });
 

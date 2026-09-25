@@ -49,6 +49,18 @@ test("resolveModel returns the model spec and derives app/backend from the regis
   assert.equal(resolveModel("gpt-6-astra").backend, "codex");
   assert.equal(resolveModel("gpt-6-astra").codex_profile, "orchestrator");
   assert.equal(resolveModel("gpt-6-astra").default_effort, "high");
+  assert.equal(resolveModel("gpt-6-luna").app, "codex");
+  assert.equal(resolveModel("gpt-6-luna").backend, "codex");
+  assert.equal(resolveModel("gpt-6-luna").codex_profile, "worker");
+  assert.equal(resolveModel("gpt-6-luna").default_effort, "low");
+  assert.equal(resolveModel("gpt-6-sol").app, "codex");
+  assert.equal(resolveModel("gpt-6-sol").backend, "codex");
+  assert.equal(resolveModel("gpt-6-sol").codex_profile, "orchestrator");
+  assert.equal(resolveModel("gpt-6-sol").default_effort, "high");
+  assert.equal(resolveModel("gpt-6-terra").app, "codex");
+  assert.equal(resolveModel("gpt-6-terra").backend, "codex");
+  assert.equal(resolveModel("gpt-6-terra").codex_profile, "worker");
+  assert.equal(resolveModel("gpt-6-terra").default_effort, "medium");
   assert.equal(resolveModel("gpt-5.4-nano").default_effort, "low");
   assert.equal(resolveModel("fable").app, "claude");
   assert.equal(resolveModel("opus").backend, "claude");
@@ -105,6 +117,9 @@ test("registry exports the array source and model-name set used by the DEC-0114 
       "gpt-5.5",
       "gpt-5.5-pro",
       "gpt-6-astra",
+      "gpt-6-luna",
+      "gpt-6-sol",
+      "gpt-6-terra",
       ...addedCodexModels,
       "haiku",
       "opus",

@@ -48,6 +48,8 @@ export function buildFamilyExecutorBwrapPlan({
   provisioned_worktree_git_identity = null,
   provisioned_worktree_git_binding = null,
   workerScopeAuthority = null,
+
+  workerTestRuntime = null,
   stdioMcpConduit = null,
   envPolicy = null,
   familyRuntimeReadOnlyRoots = [],
@@ -129,6 +131,7 @@ export function buildFamilyExecutorBwrapPlan({
     ...(workerScopeAuthority !== null
       ? { workerScopeAuthority }
       : {}),
+    ...(workerTestRuntime !== null ? { workerTestRuntime } : {}),
     ...(stdioMcpConduit !== null ? { stdioMcpConduit } : {}),
     familyRuntimeReadOnlyRoots: mergedFamilyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,

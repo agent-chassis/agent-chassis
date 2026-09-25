@@ -18,8 +18,9 @@ material does not discharge this requirement.
 The current registered family contains these operations:
 
 - `workspace_controlled_proof_intents_discover` discovers package-owned named
-  proof intents. Its primary call returns the complete admitted catalogue and
-  it also supports selected detail retrieval.
+  proof intents. A query returns bounded pages of compact ranked candidates, no
+  query browses the catalogue compactly, and selected detail returns one
+  candidate's complete scope.
 - `workspace_controlled_contract_obligation_coverage_upsert` atomically saves
   one or more obligation changes. The same ordinary mutation can save
   contract-level requirements and the controlled-acceptance disposition.
@@ -63,17 +64,29 @@ is `identified` when the terms fit one family, `ambiguous` for several,
 Unrecognized words stay ordinary query text and are never treated as an
 unsupported provider. A query with only provider terms matches no proof.
 
-The primary MCP call returns `controlled-proof-selection-catalogue.v1` with the
-complete admitted catalogue in one response. It accepts an optional `query`;
-matches are ranked first, while every nonmatching admitted proof remains in
-catalogue order. There is no catalogue `limit`, page cursor, preview, or
-content-reference follow-up. Every proof row carries its stable identity,
-version, exact assertion and exclusions, associated intent identities,
-verification applicability when declared, and a snapshot-bound selector for
-optional targeted detail. Repeated capability facts are interned once in
-`capability_sets`. `authoring.scope` reports the complete-population meaning,
-and `next_calls` names the obligation-coverage guidance selections for
-`case_authoring` and `unresolved_coverage`.
+The MCP call accepts an optional `query`. With one, it snapshots the package's
+complete ranked matches and returns the first page of them; without one, it
+returns the first page of the listed catalogue. A query never appends
+unmatched proofs, and zero lexical matches is not proof absence: that page
+offers the compact browse call. Pages use the selected-response complete-frame
+class, `min(WORK_RECORD_COMPACT_RESULT_MAX_UTF8_BYTES, active inline limit)`
+(currently at most 8192 UTF-8 bytes across both MCP carriers), and carry exact
+`total`, `returned` and `remaining` counts with a source-bound `continuation`
+that reaches every omitted match in the same order. Continuation is optional:
+no page has to be read to follow a row already shown.
+
+A candidate row is compact: `proof_name`, the associated `intent_ids`, the
+query's `match_kind`, the `essential_limitation` the query words touch (or
+null, which never means the proof has no exclusions), the
+`verification_capability` when the proof declares one, and a `detail_action`
+for its selected detail. Rows never carry every candidate's assertion,
+exclusions, parameter contracts or provenance. The first page adds `authoring`
+once: `population` distinguishes query matches from the listed catalogue,
+`scope` states whether matches remain unread, `row_meaning` states what each
+row field means and that rows are ordered by match tier (so no later row has a
+higher tier), and `next_calls` names the obligation-coverage guidance
+selections for `case_authoring` and `unresolved_coverage`. Continuation pages
+omit `authoring`.
 
 Four facts stay separate, and the response never collapses them:
 
@@ -83,8 +96,8 @@ Four facts stay separate, and the response never collapses them:
   none, never that the catalog lists none, and the published
   `recognition_meaning` says so.
 - **Catalog listing.** `listed_families` is the provider catalog's
-  own population, published beside recognition on the complete catalogue and
-  selected detail that carries
+  own population, published beside recognition on the first candidate page
+  and the selected detail that carries
   provider facts and never derived from the query. It is a catalog fact, not a
   statement about what the execution environment can run; discovery reports no
   such statement at all. When recognition identifies
@@ -93,7 +106,7 @@ Four facts stay separate, and the response never collapses them:
 - **Proof applicability.** Provider facts appear only where a candidate declares
   a test-execution verification capability, published per row as
   `verification_capability` and taken from that proof's own admitted profile —
-  never from a proof name or a language. A catalogue with no such candidate
+  never from a proof name or a language. A page with no such candidate
   carries no provider verdict; the gap route remains available.
 - **Target support.** `not_established` repeats the authoring owner's own
   support states: a lexical match is not a capability fact, a listed family
@@ -111,11 +124,13 @@ such capability advertises no authoring route and makes no claim either way.
 Selected proof detail preserves the admitted assertion and exclusion rows, then
 appends each associated intent's existing distinction as
 `{comparison: {intent_id, from_intent_id, explanation}}`. These source-exact
-comparison rows are usage guidance, not additional admitted guarantees. Direct
-`proof_name` lookup and catalogue-emitted scope actions expose the same exact
-detail population; only targeted detail may paginate, and field and range reads
-retain long explanations. Those detail continuations are not required to choose
-from the complete catalogue.
+comparison rows are usage guidance, not additional admitted guarantees. A
+candidate's detail is what a caller reads before binding it: a row is a
+lexical candidate, not a selection. Direct `proof_name` lookup and row-emitted
+detail actions expose the same exact detail population under the same
+complete-frame class; wide detail pages, and field and range reads retain long
+explanations losslessly, with range admission and emitted range continuation
+sharing one scalar-range size.
 
 ## Ordinary authoring
 
@@ -139,7 +154,7 @@ settlement.
 ```json
 {
   "unit": "work record",
-  "expected_content_digest": "sha256:...",
+  "expected_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "contract_requirements": {
     "requirements": [
       {
@@ -197,7 +212,7 @@ An exemption is explicit:
 ```json
 {
   "unit": "work record",
-  "expected_content_digest": "sha256:...",
+  "expected_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "controlled_acceptance": {
     "disposition": "opted_out",
     "rationale": "The record contains no implementation behavior."
@@ -249,6 +264,14 @@ unit's test declarations. It refuses mixed or amended uses, another unit's
 declarations and retained semantic dependencies before effects; see
 [Acceptance-coverage MCP](acceptance-coverage-mcp.md#requirement-retirement).
 Obligation removal never retires requirements.
+
+Proof-plan consumers distinguish canonical storage identity from compiler input
+identity when authored cases exist. The request skeleton and proof-plan compiler
+read the contract derived by the canonical case owner, while continuation, CAS,
+manifest and publication checks remain fenced by the raw canonical carrier and
+its digest. Case publication validates the prospective case/native-retirement
+state atomically and invalidates a plan compiled from older case facts. The
+derived native binding is never written back as a second case definition.
 
 ## Query and restart
 
@@ -357,20 +380,25 @@ the result to:
 - the exact candidate commit and source snapshot;
 - the invoked provider and its truthful outcome.
 
-Its result presents two evidence dimensions without changing proof semantics.
-`selected_status` in the compact result and `test_observation` in full evidence
-report what the selected test did; `mutation_evidence`
-reports whether a mutation added falsification evidence for that same proof.
-Unavailable or unsupported mutation does not erase an observed test pass or
-failure. A detected mutation records added falsification evidence, while a
-surviving mutation remains visible as adverse evidence. Failed test execution
-is separate from both and retains its reason and diagnostics. Compact results
-carry observed and unavailable mutation states directly, and full evidence
-retrieval preserves the original observations, outcomes, limitations,
-relationships, and evaluator diagnostics.
-The aggregate and relationship statuses remain the evaluator's outcomes; the
-presentation neither manufactures satisfaction nor claims evidence that did not
-run.
+Each requested proof, obligation relationship and the aggregate is `proven`,
+`unproven` or reason-coded `not_executable`, for the requested proofs against
+the tested source only. The result presents two evidence dimensions beside that
+verdict. `selected_test` and `selected_status` in the compact result and
+`test_observation` in full evidence report which test ran and what it did
+(`passed`, `failed`, `skipped`, or `not_observed` when no selected-test event
+was recorded); `mutation_evidence` reports per-member falsification for that
+same proof. A detected mutation adds falsification evidence and a surviving
+supported mutation is counterevidence that makes the proof `unproven`.
+Unavailable mutation is a capability limitation that neither earns nor
+withholds credit: a passing selected test whose other required checks hold is
+`proven` with that limitation, and the limitation never excuses a survivor
+elsewhere. Incomplete or unevaluable mutation evidence for a passing candidate
+is `not_executable` with its reason codes. Failed test execution is separate
+from all three and retains its reason and diagnostics. Compact rows carry the
+actual evaluator diagnostic codes and a recovery only where a correction is
+known; the complete evidence retrieval preserves the original observations,
+outcomes, limitations, relationships, and evaluator diagnostics. See
+[test-proof runtime identity](test-proof-runtime-identity.md#capability-limitations).
 
 An ID saved in more than one source refuses and lists every authorized source
 as a ready retry call; the explicit `source` selects exactly one of them and

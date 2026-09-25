@@ -515,6 +515,20 @@ export async function buildProofAuthoringSkeletonOperation(input) {
       carrierKind: "contract",
       canonicalSet
     });
+    const { resolveSavedProofSource, resolveDerivedProofContract } = await import(
+      "./saved-proof-source.mjs"
+    );
+    const proofSource = await resolveSavedProofSource({
+      repoRoot: input.repoRoot,
+      wkId: input.wkId,
+      focus: input.focus ?? null,
+      selectedUnit: null
+    });
+    const compilerContract = await resolveDerivedProofContract({
+      ...proofSource,
+      canonicalContract: contract,
+      canonicalSet
+    }) ?? contract;
 
     const requestedSelectedPackIdentity = {
       profile_id: input.selectedPack.profile_id,
@@ -551,7 +565,7 @@ export async function buildProofAuthoringSkeletonOperation(input) {
     }
     const pkg = await loadControlledContractPackage();
     let skeleton = await pkg.buildProofAuthoringSkeleton({
-      contract: contract.content,
+      contract: compilerContract.content,
       selectedPack,
       requestedIntents: input.requestedIntents,
       focus: input.focus ?? null,
@@ -571,10 +585,10 @@ export async function buildProofAuthoringSkeletonOperation(input) {
     let automaticCompletion = null;
     if (input.proposalDraft === undefined) {
       automaticCompletion = await completeUniquelyDerivableBindings({
-        pkg, contract: contract.content, skeleton
+        pkg, contract: compilerContract.content, skeleton
       });
       if (automaticCompletion !== null) skeleton = await pkg.buildProofAuthoringSkeleton({
-        contract: contract.content,
+        contract: compilerContract.content,
         selectedPack,
         requestedIntents: input.requestedIntents,
         focus: input.focus ?? null,

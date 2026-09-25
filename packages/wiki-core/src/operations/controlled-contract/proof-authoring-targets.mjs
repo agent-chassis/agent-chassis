@@ -1,4 +1,5 @@
-import { controlledContractCarrierFilename, withCanonicalControlledContractSourceLease } from '../../lib/controlled-contract-tools.mjs';
+import { controlledContractCarrierFilename, controlledContractContentDigest,
+  withCanonicalControlledContractSourceLease } from '../../lib/controlled-contract-tools.mjs';
 import { withOrderedCoverageLocks } from './acceptance-coverage-rebase.mjs';
 import { assertObligationCoverageSourcePathIntegrity } from './acceptance-coverage-facts.mjs';
 import { compileControlledContractAuthoringProspectiveMembers, settleControlledContractAuthoringProspectiveMembers } from './authoring-prospective-settlement.mjs';
@@ -19,12 +20,43 @@ export async function settleProofAuthoringCases({ input, initial, candidate, ass
         ? source.canonical_set.generation : source.canonical_set.generation?.id ?? null,
         manifest_content_digest: source.manifest_content_digest, record_source_digest: source.record_source_digest ?? null },
         contributions: [], changed_filenames: [], invalidated_proof_plan: false, member_digests: {} };
+      const selectedSource = candidate.sources.find(entry =>
+        entry.selectedUnit === initial.selectedUnit)?.content ?? null;
+      const parentSource = candidate.sources.find(entry => entry.selectedUnit === null)
+        ?.content ?? null;
+      const proofSourceOverride = {
+        ...initial,
+        record: candidate.record,
+        unit: candidate.unit,
+        recordSourceDigest: controlledContractContentDigest(candidate.record),
+        cases: candidate.cases,
+        sources: candidate.sources.map(entry => ({ ...entry,
+          source: entry.content === undefined ? null : {
+            content: entry.content,
+            content_digest: controlledContractContentDigest(entry.content)
+          } })),
+        source: selectedSource === null ? null : {
+          content: selectedSource,
+          content_digest: controlledContractContentDigest(selectedSource)
+        },
+        caseSource: parentSource === null ? null : {
+          content: parentSource,
+          content_digest: controlledContractContentDigest(parentSource)
+        },
+        contract: candidate.canonicalContract === null ? null : {
+          content: candidate.canonicalContract,
+          content_digest: controlledContractContentDigest(candidate.canonicalContract)
+        }
+      };
       return settleControlledContractAuthoringProspectiveMembers({ repoRoot: input.repoRoot, wkId: input.wkId,
         focus: input.focus, source, prospective, selectedUnit: initial.selectedUnit, publishCarriers: candidate.nativeChanged,
         obligationSources: candidate.sourceChanges.map(entry => ({ initial: { ...initial,
           selectedUnit: entry.selectedUnit, source: entry.source }, content: entry.content,
           assertCurrent: assertDefinitions, persistenceEffects: options.persistenceEffects })),
-        targetRecord: candidate.targetsChanged ? candidate.record : null, assertDefinitions });
+        targetRecord: candidate.targetsChanged ? candidate.record : null,
+        compilerContract: candidate.contract,
+        proofSourceOverride,
+        assertDefinitions });
     });
   });
 }

@@ -22,6 +22,18 @@ test('drafts enforce one identity, complete pins and bounded JSON without requir
   assert.equal(draft(selected).valid, true);
 });
 
+test('null obligation rows reach schema-owned structured validation', () => {
+  const malformed = source();
+  malformed.obligations = [null];
+  const validation = draft(malformed);
+  assert.equal(validation.valid, false);
+  assert.equal(validation.schema_valid, false);
+  assert.ok(validation.schema_errors.some(({ code, pointer }) =>
+    code === 'obligation_coverage_schema_invalid' && pointer === '/obligations/0'));
+  assert.equal(validation.diagnostics.some(({ code }) =>
+    code === 'obligation_coverage_authored_gap_retired'), false);
+});
+
 test('complete definition identities cannot contain draft null pins', () => {
   const validation = complete({ schema_version: 'resolved-obligation-coverage.v1', wk_id: 'WK-0001',
     selected_unit: null, focus: null, source_digest: `sha256:${'a'.repeat(64)}`, context_digest: `sha256:${'b'.repeat(64)}`,

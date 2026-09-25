@@ -149,15 +149,15 @@ test("loader recognizes the upgraded pack and preserves exact applicability subs
 test("exact loader admits only the current test-validity identity", async () => {
   const execution = await loadExactAdmittedProofPack({
     profileId: "proof.verification.test-validity",
-    profileVersion: "10.0.0",
+    profileVersion: "11.0.0",
 
   });
-  assert.equal(execution.profile.profile_version, "10.0.0");
+  assert.equal(execution.profile.profile_version, "11.0.0");
 
-  assert.equal(execution.test_validity_evaluator.implementation_version, "8.0.0");
+  assert.equal(execution.test_validity_evaluator.implementation_version, "9.0.0");
   assertAdmittedProofPackSnapshot(execution);
 
-  for (const profileVersion of ["1.0.0", "8.0.0", "9.0.0", "9.9.9"]) {
+  for (const profileVersion of ["1.0.0", "8.0.0", "9.0.0", "10.0.0", "9.9.9"]) {
     await assert.rejects(loadExactAdmittedProofPack({
       profileId: "proof.verification.test-validity",
       profileVersion,

@@ -57,6 +57,7 @@ import {
 } from "./workspace-agent-dispatch-result-mode.mjs";
 import { selectWorkerLifecycleFromEffectiveWriteScope } from
   "./workspace-agent-worker-lifecycle.mjs";
+import { composeWorkerTestRuntime } from "./test-execution/worker-runtime.mjs";
 
 import {
   assertManagedWorkerAssignment,
@@ -469,6 +470,11 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     let child;
     try {
+
+      const workerTestRuntime = managedImplementationWorker && workerScopeAuthority !== null
+        ? composeWorkerTestRuntime({ mainRepo: provisioning.main_repo, checkout: workspaceDir,
+          workerScopeAuthority })
+        : null;
       child = spawn(commandLine.command, argv, {
         env,
         cwd: workspaceDir ?? defaultCwd,
@@ -476,6 +482,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
         writeScope,
 
         workerScopeAuthority,
+        workerTestRuntime,
         nativeRepoWriteMechanism: effectiveNativeRepoWriteMechanism,
 
         runtimeRoots,

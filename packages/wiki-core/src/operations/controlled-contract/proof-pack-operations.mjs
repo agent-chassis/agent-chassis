@@ -347,6 +347,14 @@ export async function prepareControlledContractProofPlanBuild(input) {
     content: plan,
     source_identity: Object.freeze({
       contract_content_digest: loaded.contract.content_digest ?? null,
+      canonical_contract_content_digest:
+        loaded.canonicalContract?.content_digest ?? loaded.contract.content_digest ?? null,
+      case_source_content_digest:
+        loaded.proofSourceIdentity?.case_source_content_digest ?? null,
+      case_population_digest:
+        loaded.proofSourceIdentity?.case_population_digest ?? null,
+      record_source_digest:
+        loaded.proofSourceIdentity?.record_source_digest ?? null,
       request_content_digest: loaded.request.content_digest ?? null,
       evaluation_input_basenames: Object.freeze(
         Object.keys(loaded.evaluationInputs).sort())

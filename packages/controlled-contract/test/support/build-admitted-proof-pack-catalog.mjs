@@ -24,6 +24,13 @@ import {
 } from "../../lib/admitted-proof-packs.mjs";
 import { sha256 } from "../../lib/deterministic-projection-primitives.mjs";
 import { executableDependencyClosure } from "./executable-dependency-closure.mjs";
+import {
+  CERTIFICATION_ARCHIVE_NAME,
+  certificationJsonBytes,
+  certificationMember,
+  readCertificationArchive,
+  writeCertificationArchive
+} from "./certification-artifact.mjs";
 
 const packageRoot = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const repositoryRoot = path.resolve(packageRoot, "../..");
@@ -56,7 +63,7 @@ async function requireEmptyDirectory(directory) {
 }
 
 const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
-const jsonBytes = (value) => `${JSON.stringify(value, null, 2)}\n`;
+const jsonBytes = certificationJsonBytes;
 const keyOf = ({ profile_id: id, profile_version: version }) => `${id}@${version}`;
 import { exactProofEvaluatorIdentities } from "../../lib/proof-evaluator-registry.mjs";
 import { validatePackParameterContract } from "../../lib/pack-parameter-contract.mjs";
@@ -72,12 +79,10 @@ for (const identity of exactProofEvaluatorIdentities()) {
   }
 }
 
-function assertCatalogs(profileCatalog, certificationCatalog, intentCatalog) {
+function assertCatalogs(profileCatalog, intentCatalog) {
   if (profileCatalog.schema_version !== "controlled-contract-proof-pack-catalog.v1" ||
-      certificationCatalog.schema_version !== profileCatalog.schema_version ||
-      JSON.stringify(certificationCatalog) !== JSON.stringify(profileCatalog) ||
       profileCatalog.packs.length === 0) throw new Error(
-    "stable portfolio requires identical 37-pack runtime and certification catalogs"
+    "stable portfolio requires the current runtime catalog"
   );
   const keys = profileCatalog.packs.map(keyOf);
   if (new Set(keys).size !== keys.length ||
@@ -139,6 +144,19 @@ function admissionFor(profile, adequacy, result, parameterContract) {
   };
 }
 
+async function assertCanonicalCertificationDirectory(directory, identity) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const offending = entries.filter((entry) => !entry.isFile() ||
+    ![CERTIFICATION_ARCHIVE_NAME, "README.md"].includes(entry.name))
+    .map((entry) => entry.name).sort();
+  if (offending.length > 0) throw new Error(
+    `${identity} certification directory holds non-canonical entries: ${offending.join(", ")}`
+  );
+  if (!entries.some((entry) => entry.name === CERTIFICATION_ARCHIVE_NAME)) throw new Error(
+    `${identity} certification directory has no ${CERTIFICATION_ARCHIVE_NAME}`
+  );
+}
+
 async function refreshExecutableDigests(adequacy) {
   if (!adequacy.executable_module) return adequacy;
   const executableModuleDigest = sha256(await readFile(path.resolve(
@@ -164,43 +182,45 @@ export async function generatePack(destination, pack, { preflight = false } = {}
   const runtimeOutput = path.join(destination, pack.path);
   const certificationOutput = path.join(destination, "test/certification/profiles",
     pack.profile_id, pack.profile_version);
-  const [runtimeProfile, certificationProfile] = await Promise.all([
-    readJson(path.join(runtimeDirectory, "profile.json")),
-    readJson(path.join(certificationDirectory, "profile.json"))
-  ]);
-  if (JSON.stringify(runtimeProfile) !== JSON.stringify(certificationProfile) ||
-      certificationProfile.profile_id !== pack.profile_id ||
-      certificationProfile.profile_version !== pack.profile_version) throw new Error(
-    `${keyOf(pack)} runtime/certification profile identity mismatch`
+  const profile = await readJson(path.join(runtimeDirectory, "profile.json"));
+  if (profile.profile_id !== pack.profile_id ||
+      profile.profile_version !== pack.profile_version) throw new Error(
+    `${keyOf(pack)} runtime profile identity mismatch`
   );
+  await assertCanonicalCertificationDirectory(certificationDirectory, keyOf(pack));
   await Promise.all([
     cp(runtimeDirectory, runtimeOutput, { recursive: true }),
     cp(certificationDirectory, certificationOutput, { recursive: true })
   ]);
-  const profile = await readJson(path.join(certificationOutput, "profile.json"));
-  let adequacy = await readJson(path.join(certificationOutput, "adequacy.json"));
+  const members = new Map((await readCertificationArchive(certificationOutput, {
+    identity: pack
+  })).members);
+  const member = (memberPath) => certificationMember({
+    path: path.join(certificationOutput, CERTIFICATION_ARCHIVE_NAME), members
+  }, memberPath).value;
+  let adequacy = member("adequacy.json");
+  if (adequacy.profile_id !== pack.profile_id ||
+      adequacy.profile_version !== pack.profile_version) throw new Error(
+    `${keyOf(pack)} adequacy identity mismatch`
+  );
   adequacy = await refreshExecutableDigests(adequacy);
-  await writeFile(path.join(certificationOutput, "adequacy.json"), jsonBytes(adequacy));
+  members.set("adequacy.json", Buffer.from(jsonBytes(adequacy)));
+  await writeCertificationArchive(certificationOutput, pack, members);
   if (preflight) {
     if (pack.profile_id !== TEST_VALIDITY_ID) await loadProofPack(certificationOutput);
     return;
   }
   const result = pack.profile_id === TEST_VALIDITY_ID
     ? runTestValidityCertification(profile, adequacy,
-      await readJson(path.join(certificationOutput, "corpus.json")))
+      member("corpus.json"))
     : await runProofPackAdequacy(certificationOutput, { variationMode: "full_census" });
-  await writeFile(path.join(certificationOutput,
-    "certification-result.full-census.json"), jsonBytes(result));
-  if (pack.profile_id === TEST_VALIDITY_ID) await writeFile(
-    path.join(certificationOutput, "result.json"), jsonBytes(result));
+  members.set("certification-result.full-census.json", Buffer.from(jsonBytes(result)));
+  await writeCertificationArchive(certificationOutput, pack, members);
 
   const parameterContract = validatePackParameterContract(
     await readJson(path.join(runtimeDirectory, "parameter-contract.json")), profile);
   const admission = admissionFor(profile, adequacy, result, parameterContract);
-  await Promise.all([
-    writeFile(path.join(runtimeOutput, "admission.json"), jsonBytes(admission)),
-    writeFile(path.join(certificationOutput, "admission.json"), jsonBytes(admission))
-  ]);
+  await writeFile(path.join(runtimeOutput, "admission.json"), jsonBytes(admission));
 
   const companionPath = path.join(runtimeOutput, COMPONENT_EXCLUSION_APPLICABILITY);
   const companion = await readJson(companionPath).catch((error) => {
@@ -218,12 +238,11 @@ export async function generatePack(destination, pack, { preflight = false } = {}
 }
 
 async function generateProspectiveCorpus(staging) {
-  const [profileCatalog, certificationCatalog, intentCatalog] = await Promise.all([
+  const [profileCatalog, intentCatalog] = await Promise.all([
     readJson(path.join(profilesRoot, "catalog.json")),
-    readJson(path.join(certificationRoot, "catalog.json")),
     readJson(intentCatalogPath)
   ]);
-  assertCatalogs(profileCatalog, certificationCatalog, intentCatalog);
+  assertCatalogs(profileCatalog, intentCatalog);
   const population = profileCatalog.packs;
   for (const pack of population) await generatePack(staging, pack, { preflight: true });
   const prospective = [];
@@ -233,20 +252,15 @@ async function generateProspectiveCorpus(staging) {
   const validity = prospective.find(
     ({ pack }) => pack.profile_id === TEST_VALIDITY_ID
   )?.admission;
-  if (!validity || validity.certification.executable_control_count !== 10 ||
+  if (!validity || validity.certification.executable_control_count !== 14 ||
       validity.certification.negative_fixture_count !== 9 ||
       validity.certification.coverage_witness_count !== 9) throw new Error(
-    "Current test-validity admission must record exactly 10/9/9"
+    "Current test-validity admission must record exactly 14/9/9"
   );
 
-  await Promise.all([
-    mkdir(path.join(staging, "proof-intents"), { recursive: true }),
-    mkdir(path.join(staging, "test/certification/profiles"), { recursive: true })
-  ]);
+  await mkdir(path.join(staging, "proof-intents"), { recursive: true });
   await Promise.all([
     writeFile(path.join(staging, "profiles/catalog.json"), jsonBytes(profileCatalog)),
-    writeFile(path.join(staging, "test/certification/profiles/catalog.json"),
-      jsonBytes(certificationCatalog)),
     writeFile(path.join(staging, "proof-intents/catalog.json"), jsonBytes(intentCatalog))
   ]);
   return { profiles: prospective.length, intents: intentCatalog.intents.length,

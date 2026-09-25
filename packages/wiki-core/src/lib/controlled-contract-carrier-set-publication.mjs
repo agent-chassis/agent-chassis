@@ -422,7 +422,8 @@ function canonicalAuthoringEntries(input) {
   return entries;
 }
 
-async function validateCanonicalAuthoringEntries({ wkId, focus, entries }) {
+async function validateCanonicalAuthoringEntries({ wkId, focus, entries,
+  compilerContract = null }) {
   const byKind = new Map();
   for (const entry of entries) {
     const values = byKind.get(entry.carrier_kind) ?? [];
@@ -466,7 +467,11 @@ async function validateCanonicalAuthoringEntries({ wkId, focus, entries }) {
       "canonical request references an absent generation member");
     let plan;
     try {
-      plan = await pkg.buildProofPlan({ contract, request, evaluationInputs: evaluations });
+      plan = await pkg.buildProofPlan({
+        contract: compilerContract ?? contract,
+        request,
+        evaluationInputs: evaluations
+      });
     } catch (error) {
       carrierSetFailure("generated_binding_invalid",
         "canonical authoring population cannot build one proof plan", {
@@ -484,6 +489,28 @@ async function validateCanonicalAuthoringEntries({ wkId, focus, entries }) {
   }
   void wkId;
   void focus;
+}
+
+async function resolveCanonicalAuthoringCompilerContract({
+  repoRoot, wkId, focus, entries, compilerContract = null,
+  proofSourceOverride = null
+}) {
+  if (compilerContract !== null) return compilerContract;
+  const native = entries.find(entry => entry.carrier_kind === "contract");
+  if (native === undefined) return null;
+  const { resolveSavedProofSource, resolveDerivedProofContract } = await import(
+    "../operations/controlled-contract/saved-proof-source.mjs"
+  );
+  const source = proofSourceOverride ?? await resolveSavedProofSource({
+    repoRoot, wkId, focus: focus ?? null, selectedUnit: null
+  });
+  return (await resolveDerivedProofContract({
+    ...source,
+    canonicalContract: {
+      content: native.content,
+      content_digest: digestBytes(native.bytes)
+    }
+  }))?.content ?? native.content;
 }
 
 export async function projectControlledContractCanonicalAuthoringPopulation(input) {
@@ -1162,6 +1189,7 @@ export async function settleControlledContractRefactorTransaction({
   } catch (error) {
     if (terminalCommitted) throw error;
     const failures = [];
+    const compensationErrors = [];
     for (const entry of [...prepared].reverse()) {
       try {
         await canonicalAuthoringPublisherBoundary("refactor_compensate", {
@@ -1171,21 +1199,40 @@ export async function settleControlledContractRefactorTransaction({
           committed: committed.includes(entry)
         });
       } catch (compensationError) {
+        compensationErrors.push(compensationError);
         failures.push({ participant: entry.name,
-          cause_code: compensationError?.code ?? null });
+          cause_code: compensationError?.code ?? null,
+          cause_message: compensationError?.message ?? null,
+          details: compensationError?.details ?? null });
       }
     }
+
     if (failures.length > 0) carrierSetFailure("write_failed",
       "refactor settlement compensation could not prove fully uncommitted state", {
-        cause_code: error?.code ?? null,
+        cause_code: error?.code ?? null, cause_message: error?.message ?? null,
+        committed_participants: committed.map(({ name }) => name),
         compensation_failures: failures, commit_state: 'indeterminate', retry_safe: false
-      });
+      }, new AggregateError([error, ...compensationErrors],
+        "refactor settlement failure and its compensation failures"));
     error.details = { ...error.details, changed: false, settlement_status: 'compensated' };
     throw error;
   }
 }
 
-export async function prepareControlledContractRefactorCarrierSettlement(input) {
+async function carrierGenerationPresent(generationDir) {
+  try {
+    await lstat(generationDir);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+export async function prepareControlledContractRefactorCarrierSettlement(input, {
+  compilerContract = null,
+  proofSourceOverride = null
+} = {}) {
   if (!isPlainObject(input) || input.profile !== CANONICAL_AUTHORING_PROFILE_ID) {
     carrierSetFailure("input_invalid",
       "refactor carrier settlement requires one canonical-authoring publication");
@@ -1199,16 +1246,33 @@ export async function prepareControlledContractRefactorCarrierSettlement(input) 
       actual_manifest_digest: prior?.digest ?? null
     });
   const entries = canonicalAuthoringEntries(input);
+  const resolvedCompilerContract = await resolveCanonicalAuthoringCompilerContract({
+    repoRoot: store.repository, wkId: input.wkId, focus: input.focus ?? null,
+    entries, compilerContract, proofSourceOverride
+  });
   await validateCanonicalAuthoringEntries({ wkId: input.wkId,
-    focus: input.focus ?? null, entries });
+    focus: input.focus ?? null, entries,
+    compilerContract: resolvedCompilerContract });
   const prospectiveGeneration = canonicalAuthoringGeneration({ input, entries });
   const generationDir = path.join(store.contracts, ".carrier-generations",
     prospectiveGeneration);
-  const generationExisted = (await lstat(generationDir).catch(() => null)) !== null;
+
+  let generationExisted;
+  try {
+    generationExisted = await carrierGenerationPresent(generationDir);
+  } catch (error) {
+    fail("controlled_contract_carrier_read_failed",
+      "prospective carrier generation presence could not be observed", {
+        operation: "prepare_generation_observation", generation: prospectiveGeneration,
+        cause_code: error?.code ?? null
+      }, error);
+  }
   let publication = null;
   return Object.freeze({
     commit: async () => {
-      publication = await writeControlledContractCarrierSet(input);
+      publication = await writeControlledContractCarrierSet(input, {
+        compilerContract: resolvedCompilerContract, proofSourceOverride
+      });
       return publication;
     },
     compensate: async () => {
@@ -1222,35 +1286,61 @@ export async function prepareControlledContractRefactorCarrierSettlement(input) 
               expected_manifest_digest: publication.manifest_content_digest,
               actual_manifest_digest: current?.digest ?? null
             });
-          const rollback = `${manifestPath}.rollback-${randomUUID()}`;
-          if (prior === null) await unlink(manifestPath);
-          else {
-            await writeFile(rollback, prior.bytes, { flag: "wx", mode: 0o600 });
-            await rename(rollback, manifestPath);
+          const effects = { manifest_restored: false, generation_removed: false };
+          const unverified = (operation, error) => carrierSetFailure("write_failed",
+            "refactor carrier compensation could not verify the exact prior selection", {
+              operation, cause_code: error?.code ?? null, generation: prospectiveGeneration,
+              generation_existed: generationExisted, effects: { ...effects },
+              commit_state: "indeterminate", retry_safe: false
+            }, error);
+          const step = async (operation, action) => {
+            try { return await action(); } catch (error) { return unverified(operation, error); }
+          };
+          await step("manifest_restore", async () => {
+            const rollback = `${manifestPath}.rollback-${randomUUID()}`;
+            if (prior === null) await unlink(manifestPath);
+            else {
+              await writeFile(rollback, prior.bytes, { flag: "wx", mode: 0o600 });
+              await rename(rollback, manifestPath);
+            }
+          });
+          effects.manifest_restored = true;
+
+          if (!generationExisted) {
+            await step("generation_cleanup", () =>
+              rm(generationDir, { recursive: true, force: false }));
+            effects.generation_removed = true;
           }
-          if (!generationExisted) await rm(generationDir, { recursive: true, force: false });
-          const restored = await inspectCarrierFile(manifestPath, { required: false });
-          if ((restored?.digest ?? null) !== (prior?.digest ?? null) ||
-              (!generationExisted && (await lstat(generationDir).catch(() => null)) !== null)) {
-            carrierSetFailure("write_failed",
-              "refactor carrier compensation could not verify the exact prior selection");
+          const restored = await step("manifest_verify", () =>
+            inspectCarrierFile(manifestPath, { required: false }));
+          if ((restored?.digest ?? null) !== (prior?.digest ?? null)) {
+            unverified("manifest_verify", null);
           }
+          if (!generationExisted && await step("generation_verify", () =>
+            carrierGenerationPresent(generationDir))) unverified("generation_verify", null);
         } });
     }
   });
 }
 
 async function publishCanonicalAuthoringGenerationUnderAuthority({
-  input, store, expectedManifestDigest, publicationOwner, assertSources
+  input, store, expectedManifestDigest, publicationOwner, assertSources,
+  compilerContract = null, proofSourceOverride = null
 }) {
   const entries = canonicalAuthoringEntries(input);
+  const resolvedCompilerContract = await resolveCanonicalAuthoringCompilerContract({
+    repoRoot: store.repository, wkId: input.wkId, focus: input.focus ?? null,
+    entries, compilerContract, proofSourceOverride
+  });
   await validateCanonicalAuthoringEntries({
-    wkId: input.wkId, focus: input.focus ?? null, entries
+    wkId: input.wkId, focus: input.focus ?? null, entries,
+    compilerContract: resolvedCompilerContract
   });
   const { inspectNativePublicationProofParameters } = await import('../operations/controlled-contract/proof-authoring-source.mjs');
   const native = entries.find(entry => entry.carrier_kind === 'contract');
   const assessParameters = async () => native === undefined ? null : inspectNativePublicationProofParameters({
-    repoRoot: store.repository, wkId: input.wkId, focus: input.focus ?? null, contract: JSON.parse(native.bytes) });
+    repoRoot: store.repository, wkId: input.wkId, focus: input.focus ?? null,
+    contract: JSON.parse(native.bytes), sourceOverride: proofSourceOverride });
   const parameterIdentity = await assessParameters();
   const assertParameterSources = async () => {
     if (await assessParameters() !== parameterIdentity) carrierSetFailure('source_stale',
@@ -1434,7 +1524,10 @@ async function publishCanonicalAuthoringGeneration(args) {
   });
 }
 
-export async function writeControlledContractCarrierSet(input) {
+export async function writeControlledContractCarrierSet(input, {
+  compilerContract = null,
+  proofSourceOverride = null
+} = {}) {
   if (!isPlainObject(input)) carrierSetFailure("input_invalid", "input must be one plain object");
   normalizeControlledContractIdentity({ wkId: input.wkId, focus: input.focus ?? null });
   if (typeof input.repository !== "string" || input.repository.length === 0) {
@@ -1463,6 +1556,8 @@ export async function writeControlledContractCarrierSet(input) {
       store,
       expectedManifestDigest,
       publicationOwner: leaseState.publicationOwner,
+      compilerContract,
+      proofSourceOverride,
       assertSources: () => assertControlledContractSourceLease(input.sourceLease, {
         repoRoot: store.repository, wkId: input.wkId, focus: input.focus ?? null,
         repository: input.repository

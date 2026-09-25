@@ -4,6 +4,7 @@ import {
   buildStableTestProofRecoveryCall,
   resolveStableTestProofProviderBindings
 } from "@agent-chassis/controlled-contract";
+import { TEST_RUNTIME_ENVIRONMENT_ID_RE } from "@agent-chassis/controlled-contract/test-proof";
 
 import { assertProofAuthoringDraft } from "../../../../controlled-contract/lib/proof-contract.mjs";
 import { prepareProofObligationRuntime, PROOF_OBLIGATION_NOT_EXECUTABLE_CODES,
@@ -18,7 +19,8 @@ import { controlledContractFocusCause, isControlledContractFocus } from
   "../../lib/controlled-contract-tools.mjs";
 import { parseProofSourceUnitAddress as parseProofAuthoringUnitAddress } from "./saved-proof-source.mjs";
 
-const PUBLIC_KEYS = new Set(["git_sha", "repo", "source", "subject", "timeout"]);
+const PUBLIC_KEYS = new Set(["environment", "git_sha", "repo", "source", "subject", "timeout"]);
+
 const SOURCE_KEYS = new Set(["focus", "unit"]);
 
 const VERIFY_PROOF_TIMEOUT_PRESET_SECONDS = Object.freeze({ short: 30, medium: 300, long: 1800 });
@@ -27,7 +29,7 @@ const VERIFY_PROOF_TIMEOUT_MAX_SECONDS = 2147483;
 const VERIFY_PROOF_TIMEOUT_DESCRIPTION =
   "Optional proof/test execution budget: short=30s, medium=300s (default), long=1800s, or {seconds:N} with integer N in 1..2147483. One monotonic budget starts after canonical proof population and runtime binding resolution and is shared by provider preparation and every candidate, falsifier and traversal attempt; expiry or request cancellation interrupts the active attempt and starts no further attempt.";
 const FORBIDDEN_AUTHORITY_KEYS = Object.freeze([
-  "verification_id", "target", "command", "environment", "path", "root", "unit",
+  "verification_id", "target", "command", "path", "root", "unit",
   "provider", "evaluator", "candidate", "receipt", "receipts", "policy", "authority"
 ]);
 const ELIGIBLE_ROLES = new Set(["orchestrator", "reviewer", "worker"]);
@@ -141,7 +143,7 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
   if (unsupported.length > 0) throw new VerifyProofOperationError(
     authority.length > 0 ? "verify_proof.caller_authority_forbidden.v1"
       : "verify_proof.input_invalid.v1",
-    "verify_proof accepts one canonical subject plus optional repository, source, timeout and orchestrator git_sha",
+    "verify_proof accepts one canonical subject plus optional repository, source, timeout, environment and orchestrator git_sha",
     { unsupported_keys: unsupported.sort() }
   );
   if (typeof args.subject !== "string" || args.subject.length === 0 ||
@@ -149,6 +151,12 @@ function assertVerifyProofCallerShape(args, { authenticatedRole } = {}) {
     "verify_proof.subject_invalid.v1", "subject is required and must be a bounded canonical identity"
   );
   if (Object.hasOwn(args, "timeout")) parseVerifyProofTimeout(args.timeout);
+  if (Object.hasOwn(args, "environment") && (typeof args.environment !== "string" ||
+      args.environment.length > 512 || !TEST_RUNTIME_ENVIRONMENT_ID_RE.test(args.environment))) {
+    throw new VerifyProofOperationError("verify_proof.environment_invalid.v1",
+      "environment names one setup-published prepared environment as <ecosystem>@<installation root>",
+      { field: "environment", accepted_form: "<ecosystem>@<repository-relative installation root>, e.g. npm@. or python@services/api" });
+  }
   if (!ELIGIBLE_ROLES.has(authenticatedRole)) throw new VerifyProofOperationError(
     "verify_proof.role_ineligible.v1",
     "verify_proof requires an authenticated eligible session role"

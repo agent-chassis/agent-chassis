@@ -31,7 +31,7 @@ test("static resources convert loader failures into MCP error payloads", async (
   assert.notEqual(envelope.code, "operator_recovery_needed");
   assert.equal(envelope.diagnostic, "contract read failed");
   assert.equal(envelope.refusal.no_supported_route, true);
-  assert.deepEqual(JSON.parse(result.content[0].text), envelope);
+  assert.deepEqual(result.content, []);
   assert.equal(result.contents[0].uri, "contract://schema");
   assert.equal(result.contents[0].mimeType, "application/json");
   assert.deepEqual(JSON.parse(result.contents[0].text), envelope);

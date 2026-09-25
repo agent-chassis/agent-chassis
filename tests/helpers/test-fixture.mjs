@@ -4,7 +4,9 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+import { startComponentSpan } from "./test-component-journal.mjs";
 import { createTestResourceScope } from "./test-resource-scope.mjs";
+import { isContained, partialRealpath, pathsIntersect } from "./test-path-containment.mjs";
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_PREFIX = "agent-chassis-test-";
@@ -32,40 +34,6 @@ export class TestFixtureError extends Error {
 
 function failure(code, message, options) {
   return new TestFixtureError(code, message, options);
-}
-
-function isContained(candidate, parent) {
-  const relative = path.relative(parent, candidate);
-  const traversesParent = relative === ".." || relative.startsWith(`..${path.sep}`);
-  return relative === "" || (!traversesParent && !path.isAbsolute(relative));
-}
-
-function pathsIntersect(left, right) {
-  return isContained(left, right) || isContained(right, left);
-}
-
-async function partialRealpath(candidate) {
-  let existing = path.resolve(candidate);
-  const suffix = [];
-  while (true) {
-    try {
-      const resolvedExisting = await realpath(existing);
-      return path.resolve(resolvedExisting, ...suffix.reverse());
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-      try {
-        await lstat(existing);
-      } catch (inspectionError) {
-        if (inspectionError?.code !== "ENOENT") throw inspectionError;
-        const parent = path.dirname(existing);
-        if (parent === existing) throw error;
-        suffix.push(path.basename(existing));
-        existing = parent;
-        continue;
-      }
-      throw error;
-    }
-  }
 }
 
 function protectedRootInputs() {
@@ -155,9 +123,22 @@ export async function createTestFixture({ root, prefix = DEFAULT_PREFIX } = {}) 
     throw failure(TEST_FIXTURE_ERROR_CODES.INVALID_ARGUMENT,
       "test fixture prefix must be one non-empty path segment");
   }
+
+  const setup = startComponentSpan({ owner: "test-fixture", kind: "fixture_setup", label: prefix });
+  try {
+    const fixture = await allocateTestFixture(root, prefix, setup.id);
+    setup.end("ok");
+    return fixture;
+  } catch (error) {
+    setup.end("failed", error);
+    throw error;
+  }
+}
+
+async function allocateTestFixture(root, prefix, fixtureInstance) {
   const allocation = await resolveTestFixtureAllocation(root);
   const fixturePath = await mkdtemp(path.join(allocation.allocationParent, prefix));
-  const resources = createTestResourceScope();
+  const resources = createTestResourceScope({ label: `test-fixture:${prefix}`, fixtureInstance });
   resources.add("fixture-root", () => rm(fixturePath, { recursive: true, force: true }));
   try {
     const resolvedFixturePath = await realpath(fixturePath);

@@ -14,9 +14,11 @@ import test from "node:test";
 import {
   classifyControlledContractPrivatePathEntry,
   collectControlledContractPrivateScopeIntersections,
-  collectWorkRecordControlledContractPrivateScopeFacts,
+  collectWorkRecordControlledContractPrivateScopeFacts
+} from "../../packages/wiki-core/src/lib/controlled-contract-private-path-policy.mjs";
+import {
   queryControlledContractPrivateScopeCensusOperation
-} from "@agent-chassis/wiki-core";
+} from "../../packages/wiki-core/src/operations/controlled-contract.mjs";
 import { validateWorkRecord } from
   "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 

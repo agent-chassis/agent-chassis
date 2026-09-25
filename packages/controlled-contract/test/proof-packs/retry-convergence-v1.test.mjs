@@ -11,23 +11,25 @@ import { DOMAINS, MUTATIONS, executeRetryConvergence, retryConvergenceGuaranteeS
   from "./retry-convergence-v1-harness.mjs";
 import { validateProfileSchemaV1, validateProfileSemanticsV1 }
   from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
-const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.failure.retry-convergence/3.0.0");
-const readJson = async (name) => JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
+const identity = { profile_id: "proof.failure.retry-convergence", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 test("retry-convergence profile is valid, pre-dispatch, digest-bound, and explicitly bounded", async () => {
   const adequacy = await readJson("adequacy.json");
   assert.equal(validateProfileSchemaV1(RETRY_CONVERGENCE_V1_PROFILE), true,
     JSON.stringify(validateProfileSchemaV1.errors));
   assert.deepEqual(validateProfileSemanticsV1(RETRY_CONVERGENCE_V1_PROFILE), []);
-  assert.deepEqual(RETRY_CONVERGENCE_V1_PROFILE.evaluation_stages, ["pre_dispatch"]);
+
+  assert.equal(Object.hasOwn(RETRY_CONVERGENCE_V1_PROFILE, "evaluation_stages"), false);
   assert.equal(adequacy.profile_digest, profileDigest(RETRY_CONVERGENCE_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 198);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 202);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 166);
   assert.deepEqual(adequacy.explicit_exclusions, [...EXCLUSIONS].sort());
 });
 

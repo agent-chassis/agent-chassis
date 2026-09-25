@@ -5,7 +5,7 @@ import {
   CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS,
   assertControlledContractSemanticProjectionBound,
   controlledContractPrettyJsonBytes
-} from "@agent-chassis/wiki-core";
+} from "../../packages/wiki-core/src/operations/controlled-contract.mjs";
 import {
   assertNoControlledContractRawResponse
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { buildNextCall } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 
 const DESCRIBE_TOOL = "workspace_tools_describe";
+const WORK_RECORD_EDITOR_TOOL = "workspace_work_record_edit";
 export const TOOL_INPUT_GUIDANCE_SOURCE = "tool_input_guidance";
 export const TOOL_INPUT_GUIDANCE_SELECTOR_CONTRACT =
   "workspace-tools-describe-input-guidance-selector.v2";
@@ -312,12 +313,20 @@ export function toolInputGuidanceRequestRefusal(options) {
 
 export function deliverToolInputGuidance({ toolName, guidance, selector }) {
   if (guidance === null || guidance === undefined) {
+    const editorFieldRecovery = toolName === WORK_RECORD_EDITOR_TOOL;
     return inputContractMechanicalRefusal(
       TOOL_INPUT_GUIDANCE_CODES.UNAVAILABLE,
-      "the named tool registers no input guidance; verbose describe serves its complete descriptor and input contract",
+      editorFieldRecovery
+        ? "the named tool registers no generic input guidance; use its existing editor field contract"
+        : "the named tool registers no input guidance; verbose describe serves its complete descriptor and input contract",
       { source: TOOL_INPUT_GUIDANCE_SOURCE },
-      [describeInputContractContinuation({ tool_name: toolName, verbose: true },
-        "tool_discovery.complete_entry_returned")]
+      [editorFieldRecovery
+        ? describeInputContractContinuation({
+            tool_name: toolName,
+            input_contract: { kind: "fields" }
+          }, "editor_input_contract.first_page_returned")
+        : describeInputContractContinuation({ tool_name: toolName, verbose: true },
+          "tool_discovery.complete_entry_returned")]
     );
   }
   const digest = toolInputGuidanceDigest(toolName, guidance);

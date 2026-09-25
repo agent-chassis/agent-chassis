@@ -4,10 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
-import {
-  bootstrapRepo,
-  lintRepo
-} from "../../packages/wiki-core/src/index.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
+import { lintRepo } from "../../packages/wiki-core/src/operations/lint.mjs";
 
 async function withTempDir(fn) {
   const tempDir = await mkdtemp(

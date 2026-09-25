@@ -7,17 +7,9 @@ import { loadWorkRecordById } from
   "@agent-chassis/wiki-core/src/lib/work-record-store.mjs";
 import { assertControlledAcceptanceStateProjection } from
   "@agent-chassis/wiki-core/src/lib/work-record-proof-posture.mjs";
-import { coverageUnitAddress } from
-  "@agent-chassis/wiki-core/src/lib/controlled-contract-unit-address.mjs";
 import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
 import { MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES } from
   "./worktree-provisioning-dispatch-managed.mjs";
-
-const proofAuthoringRecovery = (wkId, sliceId = null) => Object.freeze({
-  tool: "workspace_controlled_contract_obligation_coverage_query",
-  arguments: Object.freeze({ unit: coverageUnitAddress({ wkId, selectedUnit: sliceId }) }),
-  follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert"
-});
 
 function refusal({ subject, state = null, reason, code, recovery, cause = null }) {
   return Object.freeze({
@@ -45,17 +37,19 @@ export async function preflightManagedControlledAcceptance({
   const wkId = typeof subject === "string" ? subject.split("#", 1)[0] : null;
   const sliceId = typeof subject === "string" && subject.includes("#")
     ? subject.slice(subject.indexOf("#") + 1) : null;
-  const sourceRefusal = (error) => {
+  const systemOwnerRefusal = (error, responsibleOwner) => {
     const sourceCode = typeof error?.code === "string"
-      ? error.code : "controlled_acceptance_proof_posture_invalid";
+      ? error.code : "controlled_acceptance_internal_failure";
     return refusal({
       subject,
       reason: sourceCode,
       code: MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
-      recovery: proofAuthoringRecovery(wkId, sliceId),
+      recovery: null,
       cause: Object.freeze({
-        type: "controlled_acceptance_source_failure",
+        type: "controlled_acceptance_system_owner_failure",
         code: sourceCode,
+        ownership: "system",
+        responsible_owner: responsibleOwner,
         structural_code:
           MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
         details: Object.freeze(structuredClone(error?.details ?? {}))
@@ -71,11 +65,13 @@ export async function preflightManagedControlledAcceptance({
       ? loaded.record
       : loaded.record.slices?.find(({ id }) => id === sliceId) ?? null;
     if (loaded.record?.id !== wkId || selected === null) {
-      throw new Error("canonical unit invalid");
+      throw Object.assign(new Error("canonical unit invalid"), {
+        code: "controlled_acceptance_selected_unit_absent"
+      });
     }
     record = loaded.record;
   } catch (error) {
-    return sourceRefusal(error);
+    return systemOwnerRefusal(error, "managed-controlled-acceptance-source");
   }
   if (selected.work_kind !== "implementation") return Object.freeze({ ok: true });
 
@@ -87,17 +83,17 @@ export async function preflightManagedControlledAcceptance({
     state = await classify({ repoRoot: worktreeProvisioningConfig.mainRepo, wkId,
       selectedUnit: sliceId, record });
   } catch (error) {
-    return sourceRefusal(error);
+    return systemOwnerRefusal(error, "classifyControlledAcceptanceStateOperation");
   }
   try {
     assertControlledAcceptanceStateProjection(state, wkId, sliceId);
-  } catch {
-    return refusal({
-      subject,
-      reason: "controlled_acceptance_proof_posture_invalid",
-      code: MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
-      recovery: proofAuthoringRecovery(wkId, sliceId)
-    });
+  } catch (error) {
+    const projectionError = new Error(error?.message ??
+      "controlled-acceptance state projection is invalid", { cause: error });
+    projectionError.code = "controlled_acceptance_state_projection_invalid";
+    projectionError.details = structuredClone(error?.details ?? {});
+    return systemOwnerRefusal(projectionError,
+      "assertControlledAcceptanceStateProjection");
   }
 
   if (state.semantic.admission.admits) {
@@ -105,15 +101,24 @@ export async function preflightManagedControlledAcceptance({
   }
   const absent = state.semantic.admission.blocked_reason_code ===
     "controlled_acceptance_disposition_missing";
+  const blockedReason = state.semantic.admission.blocked_reason_code;
+  const sourceNotCurrent = blockedReason === "controlled_acceptance_source_not_current";
   return refusal({
     subject,
     state,
-    reason: absent
-      ? "controlled_acceptance_disposition_missing"
-      : "controlled_acceptance_incomplete",
+    reason: blockedReason,
     code: absent
       ? MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.DISPOSITION_MISSING
-      : MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.CONTROLLED_ACCEPTANCE_INCOMPLETE,
-    recovery: state.recovery
+      : sourceNotCurrent
+        ? MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES
+          .CONTROLLED_ACCEPTANCE_SOURCE_NOT_CURRENT
+        : MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.CONTROLLED_ACCEPTANCE_INCOMPLETE,
+    recovery: state.recovery,
+    ...(sourceNotCurrent ? { cause: Object.freeze({
+      type: "controlled_acceptance_source_failure",
+      code: blockedReason,
+      structural_code: MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES
+        .CONTROLLED_ACCEPTANCE_SOURCE_NOT_CURRENT
+    }) } : {})
   });
 }

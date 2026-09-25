@@ -21,6 +21,18 @@ function gitInvocationPrefix({ repo, gitDir, workTree, quotePath }) {
   return prefix;
 }
 
+export function boundGitStderr(text, limit) {
+  const full = typeof text === "string" ? text : "";
+  const stderrBytes = Buffer.byteLength(full, "utf8");
+  if (!Number.isSafeInteger(limit) || limit < 0 || full.length <= limit) {
+    return { stderr: full, stderr_truncated: false, stderr_bytes: stderrBytes };
+  }
+  let end = limit;
+  const last = full.charCodeAt(end - 1);
+  if (end > 0 && last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return { stderr: full.slice(0, end), stderr_truncated: true, stderr_bytes: stderrBytes };
+}
+
 export async function runGitAsync({
   repo = null,
   gitDir = null,
@@ -30,7 +42,8 @@ export async function runGitAsync({
   env = undefined,
   input = undefined,
   maxBuffer = DEFAULT_GIT_MAX_BUFFER,
-  stderrLimit = null
+  stderrLimit = null,
+  timeoutMs = null
 } = {}) {
   let prefix;
   try {
@@ -43,6 +56,9 @@ export async function runGitAsync({
   }
   if (!Number.isSafeInteger(maxBuffer) || maxBuffer < 1) {
     return { ok: false, error: "runGitAsync maxBuffer must be a positive safe integer" };
+  }
+  if (timeoutMs !== null && (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1)) {
+    return { ok: false, error: "runGitAsync timeoutMs must be null or a positive safe integer" };
   }
 
   return await new Promise((resolve) => {
@@ -63,6 +79,8 @@ export async function runGitAsync({
     let stderrBytes = 0;
     let overflow = false;
     let spawnError = null;
+    let timedOut = false;
+    let timeoutTimer = null;
 
     const capture = (chunks, stream) => (chunk) => {
       if (overflow) return;
@@ -84,8 +102,29 @@ export async function runGitAsync({
     child.once("error", (error) => {
       spawnError = error;
     });
+
+    const bounding = Number.isSafeInteger(stderrLimit) && stderrLimit >= 0;
+    const capturedStderr = () => {
+      const fullStderr = Buffer.concat(stderrChunks).toString("utf8");
+      return bounding ? boundGitStderr(fullStderr, stderrLimit) : { stderr: fullStderr };
+    };
+
     child.once("close", (status, signal) => {
+      if (timeoutTimer !== null) clearTimeout(timeoutTimer);
+      if (timedOut) {
+        resolve({
+          ok: false,
+          error: `git process timed out after ${timeoutMs}ms`,
+          timed_out: true,
+          status: typeof status === "number" ? status : null,
+          signal: signal ?? null,
+          stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+          ...capturedStderr()
+        });
+        return;
+      }
       if (overflow) {
+
         resolve({
           ok: false,
           error: "git output exceeded maxBuffer",
@@ -93,7 +132,8 @@ export async function runGitAsync({
           status: typeof status === "number" ? status : null,
           signal: signal ?? null,
           stdout: "",
-          stderr: ""
+          stderr: "",
+          ...(bounding ? { stderr_truncated: true, stderr_bytes: null } : {})
         });
         return;
       }
@@ -104,21 +144,30 @@ export async function runGitAsync({
           status: typeof status === "number" ? status : null,
           signal: signal ?? null,
           stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-          stderr: Buffer.concat(stderrChunks).toString("utf8")
+          ...capturedStderr()
         });
         return;
       }
       const stdout = Buffer.concat(stdoutChunks).toString("utf8");
-      const fullStderr = Buffer.concat(stderrChunks).toString("utf8");
-      const stderr = Number.isSafeInteger(stderrLimit) && stderrLimit >= 0
-        ? fullStderr.slice(0, stderrLimit)
-        : fullStderr;
+      const bounded = capturedStderr();
       if (typeof status !== "number" || status !== 0) {
-        resolve({ ok: false, status: status ?? null, signal: signal ?? null, stdout, stderr });
+        resolve({ ok: false, status: status ?? null, signal: signal ?? null, stdout, ...bounded });
         return;
       }
-      resolve({ ok: true, stdout, status, signal: signal ?? null, stderr });
+      resolve({ ok: true, stdout, status, signal: signal ?? null, ...bounded });
     });
+
+    if (timeoutMs !== null) {
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        try {
+          child.kill("SIGKILL");
+        } catch (error) {
+          if (spawnError === null) spawnError = error;
+        }
+      }, timeoutMs);
+      if (typeof timeoutTimer.unref === "function") timeoutTimer.unref();
+    }
 
     if (input !== undefined && input !== null) {
       child.stdin.once("error", (error) => {

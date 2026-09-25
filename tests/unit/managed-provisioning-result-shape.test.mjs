@@ -147,6 +147,13 @@ test("WK-2352 the kernel accepts the exact v1 sparse and v2 full carriers by ide
   }
 });
 
+test("the structural binding accepts an arbitrary canonical WK base branch and rejects revisions", () => {
+  assert.ok(prove(carrier("full", { wkOverrides: { base_ref: "release/next" } })));
+  refusal(() => prove(carrier("full", { wkOverrides: { base_ref: "main~1" } })), {
+    message: /base_ref/u
+  });
+});
+
 test("WK-2352 the kernel proves shape with the launcher-owned root unmounted", () => {
 
   assert.equal(isPathWithinRoot(SLICE_WORKTREE, WORKTREE_ROOT), true);

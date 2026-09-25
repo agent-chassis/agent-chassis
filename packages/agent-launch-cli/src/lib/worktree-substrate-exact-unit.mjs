@@ -33,6 +33,7 @@ import {
   canonicalUnitScopes,
   bindingFilePath,
   defaultWriteBindingFile,
+  resolveCapturedWkBase,
   resolveVerifiedSparseExactUnitBinding
 } from "./worktree-substrate-identity.mjs";
 
@@ -461,7 +462,7 @@ export function allocateExactUnitWorktree({
   runId,
   retryId = 0,
   worktreeRoot,
-  base = "main",
+  base,
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
@@ -511,7 +512,7 @@ export function allocateExactUnitWorktree({
   gitOrThrow(
     runGit,
     repo,
-    ["worktree", "add", "-b", branch, worktreePath, baseRef],
+    ["worktree", "add", "-b", branch, worktreePath, baseSha],
     `failed to create exact-unit worktree/branch for ${name.unit_address}`
   );
 
@@ -569,7 +570,7 @@ export function allocateOrAdoptExactUnitWorktree({
   runId,
   retryId = 0,
   worktreeRoot,
-  base = "main",
+  base,
   deps = {}
 } = {}) {
   const runGit = deps.runGit ?? defaultRunGit;
@@ -623,6 +624,19 @@ export function allocateOrAdoptExactUnitWorktree({
   const wkTipSha = revParse(runGit, repo, branch);
   const forkRef = wkForkRefName(name.initiative, name.wk_id);
   const baseSha = recoverFixedWkFork(runGit, repo, forkRef, wkTipSha);
+  const capturedBase = resolveCapturedWkBase({ mainRepo: repo, unitAddress: name.unit_address });
+  if (capturedBase === null || capturedBase.base_sha !== baseSha) {
+    refuse("captured-base-unavailable", "WK adoption requires one authenticated captured base identity", {
+      fixed_fork_sha: baseSha,
+      captured_base_sha: capturedBase?.base_sha ?? null
+    });
+  }
+  if (base !== undefined && base !== capturedBase.base_ref) {
+    refuse("authored-base-conflict", "the authored base selection conflicts with the existing WK allocation", {
+      captured_base_ref: capturedBase.base_ref,
+      authored_base_ref: base
+    });
+  }
   assertNoRefNamespaceCollisionExceptSelf(enumerateRefs(runGit, repo), fullRef);
 
   const { writeScope, source: writeScopeSource } = canonicalWriteScope(repo, name.wk_id, name.slice_id);
@@ -636,7 +650,7 @@ export function allocateOrAdoptExactUnitWorktree({
     initiative: name.initiative,
     record_id: name.wk_id,
     slice_id: name.slice_id,
-    base_ref: base,
+    base_ref: capturedBase.base_ref,
     base_sha: baseSha,
     output_branch: branch,
     worktree_path: worktreePath,

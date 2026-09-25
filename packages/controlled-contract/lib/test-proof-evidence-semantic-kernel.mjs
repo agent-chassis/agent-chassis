@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { validateTestProofRuntimeEvidenceV2 } from "./test-proof-runtime-evidence-v2.mjs";
+import { classifyMutationOutcome, countMutationOutcomes } from "./test-proof-mutation-outcome.mjs";
 
 const KERNEL_SCHEMA_VERSION = "controlled-contract-test-proof-semantic-facts.v1";
 
@@ -56,19 +57,38 @@ function expectedEvidenceIdentity(resolution, expected) {
   };
 }
 
-function normalizedFacts(evidence, binding) {
-  const expectedFalsifiers = [...binding.falsifiers].map(({ falsifier_id: id }) => id)
-    .sort(compare);
-
-  const falsificationDeclaredUnsupported =
-    binding.falsification_provider?.mode === "registry_unsupported";
-  const observedFalsifiers = evidence.falsifier_executions.map((entry) => ({
+function normalizeFalsifierFacts({ declaredFalsifierIds, executions, declaredUnsupported }) {
+  const expectedFalsifiers = [...declaredFalsifierIds].sort(compare);
+  const observedFalsifiers = executions.map((entry) => ({
     falsifier_id: entry.falsifier_id,
     status: entry.status,
     detected: entry.status === "detected",
 
-    capability_available: entry.provider_support !== "unsupported"
+    capability_available: entry.provider_support !== "unsupported",
+    provider_support: entry.provider_support,
+    isolated: entry.isolated,
+    candidate_status: entry.candidate_status,
+    falsified_status: entry.falsified_status,
+    failure_reason_code: entry.failure_reason_code,
+    mutation_observed: entry.mutation.observed,
+
+    outcome: classifyMutationOutcome({ ...entry, mutation_observed: entry.mutation.observed })
   })).sort((left, right) => compare(left.falsifier_id, right.falsifier_id));
+  return {
+    expected_ids: expectedFalsifiers,
+    observations: observedFalsifiers,
+    complete: expectedFalsifiers.length === observedFalsifiers.length &&
+      expectedFalsifiers.every((id, index) => observedFalsifiers[index]?.falsifier_id === id),
+    all_detected: observedFalsifiers.length > 0 &&
+      observedFalsifiers.every(({ detected }) => detected),
+    capability_available: !declaredUnsupported &&
+      observedFalsifiers.every(({ capability_available: available }) => available),
+    declared_unsupported: declaredUnsupported,
+    outcome_counts: countMutationOutcomes(observedFalsifiers.map(({ outcome }) => outcome))
+  };
+}
+
+function normalizedFacts(evidence, binding) {
   const traversals = evidence.boundary_traversals.map((entry) => ({
     boundary_id: entry.boundary_id,
     observable_id: entry.observable_id,
@@ -97,16 +117,12 @@ function normalizedFacts(evidence, binding) {
       passed: selectedPassObserved
     },
     inventory,
-    falsifiers: {
-      expected_ids: expectedFalsifiers,
-      observations: observedFalsifiers,
-      complete: expectedFalsifiers.length === observedFalsifiers.length &&
-        expectedFalsifiers.every((id, index) => observedFalsifiers[index]?.falsifier_id === id),
-      all_detected: observedFalsifiers.length > 0 &&
-        observedFalsifiers.every(({ detected }) => detected),
-      capability_available: !falsificationDeclaredUnsupported &&
-        observedFalsifiers.every(({ capability_available: available }) => available)
-    },
+
+    falsifiers: normalizeFalsifierFacts({
+      declaredFalsifierIds: binding.falsifiers.map(({ falsifier_id: id }) => id),
+      executions: evidence.falsifier_executions,
+      declaredUnsupported: binding.falsification_provider?.mode === "registry_unsupported"
+    }),
     traversal: {
       observations: traversals,
       complete: traversals.length === 1,
@@ -130,6 +146,47 @@ function normalizedFacts(evidence, binding) {
         evidence.observed_shortcuts.includes(shortcut)).sort(compare)
     }
   };
+}
+
+const FALSIFICATION_NOT_EVALUABLE = "verify_proof.falsifier_evidence_not_evaluable.v1";
+
+function assertFalsificationLimitationCoherent(evidence, binding) {
+  const declaredUnsupported = binding.falsification_provider?.mode === "registry_unsupported";
+  const recorded = evidence.capability_limitations.filter(({ check_kind: kind,
+    check_id: id }) => kind === "falsifier" && id === null).length;
+  if (recorded !== (declaredUnsupported ? 1 : 0)) {
+    throw new TestProofEvidenceSemanticKernelError(
+      "verify_proof.evidence_population_contradictory.v1",
+      "falsification limitation contradicts the binding's declared falsification provider",
+      { declared_unsupported: declaredUnsupported, recorded_unsupported_limitations: recorded }
+    );
+  }
+}
+
+function unevaluableFalsification(facts) {
+  if (facts.candidate.passed !== true) return null;
+  const falsifiers = facts.falsifiers;
+  const diagnostics = [];
+  if (!falsifiers.complete ||
+      (falsifiers.expected_ids.length === 0 && !falsifiers.declared_unsupported)) {
+    diagnostics.push({
+      code: "verify_proof.falsifier_population_incomplete.v1",
+      reason_code: "verify_proof.falsifier_population_incomplete.v1",
+      details: {
+        expected_falsifier_ids: [...falsifiers.expected_ids],
+        observed_falsifier_ids: falsifiers.observations.map(({ falsifier_id: id }) => id)
+      }
+    });
+  }
+  for (const observation of falsifiers.observations) {
+    if (observation.outcome !== "unevaluable") continue;
+    diagnostics.push({
+      code: "verify_proof.falsifier_outcome_unevaluable.v1",
+      reason_code: "verify_proof.falsifier_outcome_unevaluable.v1",
+      details: structuredClone(observation)
+    });
+  }
+  return diagnostics.length === 0 ? null : diagnostics;
 }
 
 function evaluateTestProofEvidenceSemantics({ resolution, receipts, expected = {} }) {
@@ -196,7 +253,17 @@ function evaluateTestProofEvidenceSemantics({ resolution, receipts, expected = {
     { expected_count: 1, actual_count: bound.length }
   );
   const [{ receipt, receipt_digest: receiptDigest }] = bound;
+  assertFalsificationLimitationCoherent(receipt, resolution.test_proof);
   const facts = normalizedFacts(receipt, resolution.test_proof);
+  const unevaluable = unevaluableFalsification(facts);
+  if (unevaluable !== null) return deepFreeze({
+    schema_version: KERNEL_SCHEMA_VERSION,
+    status: "not_executable",
+    authority: "non_authoritative",
+    reason_code: FALSIFICATION_NOT_EVALUABLE,
+    obligation_id: resolution.obligation_id,
+    diagnostics: unevaluable
+  });
   return deepFreeze({
     schema_version: KERNEL_SCHEMA_VERSION,
     status: "facts",
@@ -223,5 +290,6 @@ function evaluateTestProofEvidenceSemantics({ resolution, receipts, expected = {
 export {
   KERNEL_SCHEMA_VERSION as TEST_PROOF_EVIDENCE_SEMANTIC_FACTS_VERSION,
   TestProofEvidenceSemanticKernelError,
-  evaluateTestProofEvidenceSemantics
+  evaluateTestProofEvidenceSemantics,
+  normalizeFalsifierFacts
 };

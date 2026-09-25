@@ -9,15 +9,22 @@ import { validateObligationCoverageCarrier } from './obligation-coverage-carrier
 
 const EXECUTION_OWNED_PREREQUISITES = new Set(['native_test_binding', 'declared_test_target']);
 
-function executionOwnedPrerequisite(entry) {
+function executionOwnedPrerequisite(entry, row) {
   const cause = entry.problem?.cause ?? {};
   if (cause.kind === 'selected_route_prerequisite') {
+
+    if (cause.prerequisite === 'authored_case') return typeof row.case_id !== 'string';
     if (!EXECUTION_OWNED_PREREQUISITES.has(cause.prerequisite)) return false;
     return !(cause.prerequisite === 'native_test_binding' &&
       AUTHORED_BINDING_OWNER_CODES.includes(cause.owner_code));
   }
   if (cause.kind === 'derived_parameter_prerequisite_missing') {
     return EXECUTION_OWNED_PREREQUISITES.has(cause.authored_prerequisite?.prerequisite);
+  }
+
+  if (cause.kind === 'parameter_source') {
+    return cause.source_policy?.policy === 'configurable' &&
+      cause.assessment?.status === 'missing';
   }
   return false;
 }
@@ -34,7 +41,7 @@ export async function resolveProofAuthoring(source, context = {}, owners = {}) {
     const authoringBlockers = facts.diagnostics.filter(entry =>
       entry.problem?.route_assessment?.effect === 'blocking' &&
       entry.problem.route_assessment.stage === 'authored_inputs' &&
-      !executionOwnedPrerequisite(entry));
+      !executionOwnedPrerequisite(entry, row));
     const authoringStatus = semanticStatus === 'valid' && authoringBlockers.length === 0
       ? 'complete' : 'incomplete';
     const canonicalCurrent = routeStages === null ||

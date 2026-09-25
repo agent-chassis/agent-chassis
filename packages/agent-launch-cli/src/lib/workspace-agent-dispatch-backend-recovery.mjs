@@ -4,7 +4,6 @@ import path from "node:path";
 import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import {
   resolveCanonicalSliceReviewUnit,
-  resolveDeclaredCanonicalFindingsOnlyReviewUnit,
   SLICE_REVIEW_AUTHORITY_REASONS
 } from "./backend-scope-authority.mjs";
 import {
@@ -160,8 +159,6 @@ export function createBackendRecovery(ctx) {
             status,
             deps: {
               resolveManagedRunBinding: () => pair.provisioning,
-              resolveDeclaredTerminalReviewUnit: ({ mainRepo, wkId }) =>
-                resolveDeclaredCanonicalFindingsOnlyReviewUnit(mainRepo, wkId),
 
               ...(resolveCommittedSliceIntegrationContinuation === null
                 ? {}

@@ -43,6 +43,7 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/refusal-payload.mjs";
 
 import { createReadySliceInputSchema } from "./work-record-write-tools.mjs";
+import { createProofAuthoringQueryInputSchema } from "./proof-authoring-input-schema.mjs";
 import { z as zodOwner } from "zod";
 import { getPublicFinalResultTextMember } from "./dispatch-final-result-projection.mjs";
 
@@ -217,6 +218,10 @@ recordRegisteredRequestSchema(
   "workspace_work_record_ready_slice",
   createReadySliceInputSchema(zodOwner)
 );
+recordRegisteredRequestSchema(
+  "workspace_controlled_contract_obligation_coverage_query",
+  createProofAuthoringQueryInputSchema(zodOwner)
+);
 
 export function dispatchRequestSchemaAuthority(toolName, ownerAuthority = null) {
   if (ownerAuthority !== null) {
@@ -225,6 +230,25 @@ export function dispatchRequestSchemaAuthority(toolName, ownerAuthority = null) 
     if (ownerSchema !== undefined) return ownerSchema;
   }
   return registeredRequestSchemas.get(toolName);
+}
+
+const activeRegisteredToolsByAuthority = new WeakMap();
+
+export function bindActiveRegisteredToolNames(registerTool, registeredToolNames) {
+  if (!(registeredToolNames instanceof Set)) return;
+  const { authority } = ownerRequestSchemaScopeForRegistrar(registerTool);
+  activeRegisteredToolsByAuthority.set(authority, registeredToolNames);
+}
+
+export function registrarGuidanceAuthority(ownerAuthority) {
+  if (ownerAuthority === null || ownerAuthority === undefined ||
+      !ownerRequestSchemaAuthorityTokens.has(ownerAuthority)) {
+    return null;
+  }
+  return Object.freeze({
+    lookup: (toolName) => ownerAuthority.lookup(toolName),
+    registeredTools: activeRegisteredToolsByAuthority.get(ownerAuthority) ?? null
+  });
 }
 
 export function hasRequestSchemaAuthority(toolName, ownerAuthority = null) {
@@ -492,9 +516,10 @@ function summarizeAdvisoryReview(advisoryReview, finalResult) {
     schema_observation: {
       adherent: schema.adherent === true,
       diagnostic_count: Array.isArray(schema.diagnostics) ? schema.diagnostics.length : 0,
+
       diagnostic_codes: Array.isArray(schema.diagnostics)
-        ? schema.diagnostics.map((entry) => entry?.code)
-          .filter((code) => typeof code === "string").slice(0, 20)
+        ? [...new Set(schema.diagnostics.map((entry) => entry?.code)
+          .filter((code) => typeof code === "string"))].slice(0, 20)
         : []
     },
     formal_attestation: {
@@ -524,9 +549,10 @@ function summarizeStructuredRoleResultEvidence(structuredRoleResult) {
   const diagnostics = Array.isArray(structuredRoleResult.diagnostics)
     ? structuredRoleResult.diagnostics
     : [];
-  const diagnosticCodes = diagnostics
+
+  const diagnosticCodes = [...new Set(diagnostics
     .map((diagnostic) => diagnostic?.code)
-    .filter((code) => typeof code === "string" && code.length > 0)
+    .filter((code) => typeof code === "string" && code.length > 0))]
     .slice(0, 20);
   const candidate =
     structuredRoleResult.candidate &&
@@ -643,7 +669,9 @@ function resolveRefusalNextAction({ nextAction = null, nextCalls = null } = {}) 
   return nextAction ?? null;
 }
 
-function refusalNextActionSlot(nextAction) {
+function refusalNextActionSlot(nextAction, refusal = null) {
+
+  if (refusal?.recovery?.state === "guidance") return { next_action: null };
 
   return nextAction === null || nextAction === undefined ? {} : { next_action: nextAction };
 }
@@ -659,7 +687,7 @@ export function buildBlockedDispatchResult({ blockerCode, reason, detail = null,
     monitor_handle: null,
     readiness: null,
     ...canonicalRefusalSlot(refusal),
-    ...refusalNextActionSlot(resolveEnvelopeNextAction({ nextAction, nextCalls, refusal }))
+    ...refusalNextActionSlot(resolveEnvelopeNextAction({ nextAction, nextCalls, refusal }), refusal)
   };
 }
 
@@ -672,7 +700,7 @@ export function buildBlockedRunStatusResult({ blockerCode, reason, detail = null
     run_id: null,
     status: null,
     ...canonicalRefusalSlot(refusal),
-    ...refusalNextActionSlot(resolveEnvelopeNextAction({ nextAction, nextCalls, refusal }))
+    ...refusalNextActionSlot(resolveEnvelopeNextAction({ nextAction, nextCalls, refusal }), refusal)
   };
 }
 

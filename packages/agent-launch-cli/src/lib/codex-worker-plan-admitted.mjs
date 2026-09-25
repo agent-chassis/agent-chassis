@@ -9,6 +9,7 @@ import {
   projectPermissionWritesForWorkerLaunch
 } from "./codex-worker-write-scope-plan.mjs";
 import { deriveWritableMountsFromResolvedScope } from "./workspace-agent-write-scope.mjs";
+import { composeWorkerTestRuntime } from "./test-execution/worker-runtime.mjs";
 
 import { resolveDispatchedRoleModel } from "./agent-launch-profiles.mjs";
 import {
@@ -123,6 +124,12 @@ export async function buildAdmittedCodexWorkerPlan({
   headlessPlan.preparedNewWriteRoots = preparedNewWriteRoots;
   headlessPlan.worker_scope_authority = frozenWorkerScopeAuthority;
   headlessPlan.worktree_provisioning = worktree_provisioning;
+
+  headlessPlan.worker_test_runtime = headlessPlan.mode !== "refusal" &&
+    frozenWorkerScopeAuthority != null && typeof worktree_provisioning?.main_repo === "string"
+    ? composeWorkerTestRuntime({ mainRepo: worktree_provisioning.main_repo, checkout: repo,
+      workerScopeAuthority: frozenWorkerScopeAuthority })
+    : null;
   if (serverProvisionedWorktreeGitBinding !== null) {
     headlessPlan.provisionedWorktreeGitBinding = serverProvisionedWorktreeGitBinding;
     headlessPlan.provisioned_worktree_git_binding = serverProvisionedWorktreeGitBinding;

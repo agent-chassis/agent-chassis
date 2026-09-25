@@ -3,7 +3,9 @@
 import {
   authoredDocumentDigest,
   buildRetainedDocumentRetrieval,
-  isObjectRecord
+  isObjectRecord,
+  objectCarrierStep,
+  serializeRetainedObject
 } from "./dispatch-run-status-retained-document-retrieval.mjs";
 
 export const RUN_STATUS_INTEGRATION_RECEIPT_PROJECTION_SCHEMA_VERSION =
@@ -11,15 +13,6 @@ export const RUN_STATUS_INTEGRATION_RECEIPT_PROJECTION_SCHEMA_VERSION =
 
 export const INTEGRATION_TRANSITION_AUTHORED_RECORD_MEMBER = "record";
 export const INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER = "integration_transition_record";
-
-function serializeAuthoredRecord(record) {
-  try {
-    const text = JSON.stringify(record);
-    return typeof text === "string" ? text : null;
-  } catch {
-    return null;
-  }
-}
 
 export function readIntegrationTransitionAuthoredRecord(lifecycle) {
   if (!isObjectRecord(lifecycle)) return null;
@@ -30,7 +23,7 @@ export function readIntegrationTransitionAuthoredRecord(lifecycle) {
   const record = transition[INTEGRATION_TRANSITION_AUTHORED_RECORD_MEMBER];
 
   if (!isObjectRecord(record)) return null;
-  const text = serializeAuthoredRecord(record);
+  const text = serializeRetainedObject(record);
   if (text === null) return null;
   return { integration, transition, record, text };
 }
@@ -52,9 +45,7 @@ function omittedRecordIdentity({ record, text }) {
 
 function integrationReceiptProjection({ record, text, retention }) {
   const retrieval = buildRetainedDocumentRetrieval(retention, {
-    carrierStep:
-      `JSON.parse the verified bytes as UTF-8, then JSON.parse ` +
-      `carrier.${INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER} to obtain the written record`
+    carrierStep: objectCarrierStep(INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER, "the written record")
   });
   return Object.freeze({
     schema_version: RUN_STATUS_INTEGRATION_RECEIPT_PROJECTION_SCHEMA_VERSION,

@@ -11,12 +11,13 @@ import { evaluateStableProofPackFixtureV1 } from
   "../support/stable-v1-proof-pack-runtime.mjs";
 import { buildCompletePaginationProfileFixture } from
   "./complete-pagination-traversal-v1-fixture.mjs";
+import { certificationDirectory as certificationDirectoryOf, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const packageRoot = path.resolve(new URL("../../", import.meta.url).pathname);
 const runtimeDirectory = path.join(packageRoot,
-  "profiles/proof.pagination.complete-traversal/3.0.0");
-const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.pagination.complete-traversal/3.0.0");
+  "profiles/proof.pagination.complete-traversal/4.0.0");
+const identity = { profile_id: "proof.pagination.complete-traversal", profile_version: "4.0.0" };
+const certificationDirectory = certificationDirectoryOf(identity);
 
 async function json(directory, name) {
   return JSON.parse(await readFile(path.join(directory, name), "utf8"));
@@ -79,7 +80,7 @@ test("empty binding permission does not weaken required bindings", async () => {
 });
 
 test("complete traversal freezes the full positive, mutant, and weakening census", async () => {
-  const result = await json(certificationDirectory, "certification-result.full-census.json");
+  const result = await readDefinitionDocument(identity, "certification-result.full-census.json");
   assert.equal(result.passed, true);
   assert.equal(result.control_count, 49);
   assert.equal(result.observations.controls.filter(
@@ -104,10 +105,8 @@ test("complete traversal freezes the full positive, mutant, and weakening census
 
 test("complete traversal admission binds adequacy certification bytes", async () => {
   const admission = await json(runtimeDirectory, "admission.json");
-  const adequacyBytes = await readFile(path.join(certificationDirectory, "adequacy.json"));
-  const adequacy = JSON.parse(adequacyBytes);
-  const result = await json(certificationDirectory,
-    "certification-result.full-census.json");
+  const adequacy = await readDefinitionDocument(identity, "adequacy.json");
+  const result = await readDefinitionDocument(identity, "certification-result.full-census.json");
   assert.equal(admission.certification.adequacy_declaration_digest,
     canonicalDigest(adequacy));
   assert.equal(admission.certification.adequacy_result_digest,
@@ -123,12 +122,10 @@ test("complete traversal admission binds adequacy certification bytes", async ()
 });
 
 test("complete traversal is one member of the complete stable catalog", async () => {
-  const [runtimeCatalog, certificationCatalog, intentCatalog] = await Promise.all([
+  const [runtimeCatalog, intentCatalog] = await Promise.all([
     json(path.join(packageRoot, "profiles"), "catalog.json"),
-    json(path.join(packageRoot, "test/certification/profiles"), "catalog.json"),
     json(path.join(packageRoot, "proof-intents"), "catalog.json")
   ]);
-  assert.deepEqual(certificationCatalog, runtimeCatalog);
   assert.equal(runtimeCatalog.packs.length, 37);
   assert.equal(runtimeCatalog.packs.filter(({ profile_id: id, profile_version: version }) =>
     id === "proof.pagination.complete-traversal" && version === "4.0.0"
@@ -136,20 +133,4 @@ test("complete traversal is one member of the complete stable catalog", async ()
   assert.equal(intentCatalog.intents.length, 37);
   assert.equal(intentCatalog.intents.reduce(
     (sum, intent) => sum + intent.capable_packs.length, 0), 39);
-});
-
-test("current pagination runtime carriers equal their certification copies", async () => {
-  for (const id of [
-    "proof.pagination.complete-traversal",
-    "proof.pagination.snapshot-consistency",
-    "proof.pagination.versioned-cursor-refusal"
-  ]) {
-    for (const file of ["profile.json", "admission.json"]) {
-      const [runtimeBytes, certificationBytes] = await Promise.all([
-        readFile(path.join(packageRoot, "profiles", id, "2.0.0", file)),
-        readFile(path.join(packageRoot, "test/certification/profiles", id, "2.0.0", file))
-      ]);
-      assert.deepEqual(runtimeBytes, certificationBytes, `${id}/${file}`);
-    }
-  }
 });

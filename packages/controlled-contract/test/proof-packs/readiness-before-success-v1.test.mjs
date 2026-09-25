@@ -26,18 +26,15 @@ import {
   evaluateStableProofPackFixtureV1,
   validateProfileSemanticsV1
 } from "../support/stable-v1-proof-pack-runtime.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
-const packDirectory = path.join(
-  controlledContractRoot,
-  "certification/profiles/proof.readiness.before-success/3.0.0"
-);
+const identity = { profile_id: "proof.readiness.before-success", profile_version: "4.0.0" };
+const packDirectory = certificationDirectory(identity);
 
-async function readJson(name) {
-  return JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
-}
+const readJson = (name) => readDefinitionDocument(identity, name);
 
 function evaluateFixture(fixture) {
   return evaluateStableProofPackFixtureV1({
@@ -99,7 +96,7 @@ test("readiness-before-success pack passes every executable and fixed control", 
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
   assert.equal(adequacy.guarantee_critical_profile_surfaces.length, 123);
-  assert.equal(adequacy.noncritical_profile_surfaces.length, 87);
+  assert.equal(adequacy.noncritical_profile_surfaces.length, 67);
 
   for (const variationMode of ["indexed", "full_census"]) {
     const result = await runProofPackAdequacy(packDirectory, { variationMode });

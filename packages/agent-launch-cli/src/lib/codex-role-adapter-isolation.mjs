@@ -218,6 +218,7 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       : [],
     maskTmpfsDirs: [...workerSecretMaskInputs.maskTmpfsDirs],
     workerScopeAuthority: plan.isolation.worker_scope_authority,
+    workerTestRuntime: plan.worker_test_runtime ?? null,
     ...(serverProvisionedWorktreeGitIdentity !== null
       ? { provisionedWorktreeGitIdentity: serverProvisionedWorktreeGitIdentity }
       : {}),

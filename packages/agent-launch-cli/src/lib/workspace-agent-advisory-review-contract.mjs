@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 
+import { readAgentRoleGuide } from
+  "@agent-chassis/agent-launch-core/src/lib/agent-role-guides.mjs";
+
 import {
   BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES,
   fail
@@ -132,8 +135,10 @@ export function renderFamilyNeutralAdvisoryReviewInput(input) {
   if (!trustedInputs.has(input)) {
     throw new TypeError("advisory review input is not launcher-owned");
   }
+
   return [
     input.review_brief.instructions,
+    readAgentRoleGuide("reviewer"),
     `Canonical role: ${input.role}`,
     `Canonical subject: ${input.subject}`,
     `Reviewed range: ${input.base_sha}..${input.reviewed_sha}`,

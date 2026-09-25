@@ -77,8 +77,9 @@ export function effectiveWorkRecordMaterialRefs(record, selected = record) {
   return refs;
 }
 
-function pathIsVisible(sourcePath, selected, record) {
+function pathIsVisible(sourcePath, selected, record, authorizeSource) {
   if (sourcePath === `wiki/work-records/${record.id}.json`) return true;
+  if (authorizeSource !== undefined) return authorizeSource(sourcePath) === true;
   const declared = [selected?.read_scope, selected?.repo_paths, selected?.write_scope]
     .flatMap((value) => Array.isArray(value) ? value : []);
   return declared.some((entry) => entry === sourcePath ||
@@ -98,8 +99,12 @@ export async function resolveWorkRecordEntryMaterial({
   selected = record,
   repository,
   dir = ".",
-  loadWorkRecordById = defaultLoadWorkRecordById
+  loadWorkRecordById = defaultLoadWorkRecordById,
+  authorizeSource = undefined
 } = {}) {
+  if (authorizeSource !== undefined && typeof authorizeSource !== "function") {
+    throw new TypeError("authorizeSource must be a function when supplied");
+  }
   const refs = effectiveWorkRecordMaterialRefs(record, selected);
   if (refs.length > WORK_RECORD_MATERIAL_REFERENCE_LIMIT) {
     return { ok: false, diagnostic: diagnostic("work_record_material_ref_limit_exceeded",
@@ -113,7 +118,7 @@ export async function resolveWorkRecordEntryMaterial({
   const cache = new Map();
   const guardedLoad = async ({ dir: sourceDir, id }) => {
     const sourcePath = `wiki/work-records/${id}.json`;
-    if (!pathIsVisible(sourcePath, selected, record)) {
+    if (!pathIsVisible(sourcePath, selected, record, authorizeSource)) {
       return { valid: false, record: null, diagnostics: [diagnostic(
         "work_record_material_source_denied",
         `assignment scope does not declare ${sourcePath}`,

@@ -97,6 +97,8 @@ export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
 }
 
 const WRITE_ROUTE_VERBOSE_NEXT_ACTION = "Re-call this tool with verbose:true to inspect suppressed write detail";
+const CONTROLLED_ACCEPTANCE_RECOVERY_UNAVAILABLE_NEXT_ACTION =
+  "Inspect controlled_acceptance_recovery for the exact selected unit; no authoring correction is claimed without that canonical carrier";
 
 const NODE_ENGINE_ADMISSIBILITY_NEXT_ACTIONS = Object.freeze({
   node_engine_pack_input_required:
@@ -177,7 +179,7 @@ export function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchab
     case "controlled_acceptance_disposition_missing":
     case "controlled_acceptance_incomplete":
     case "controlled_acceptance_proof_posture_invalid":
-      return "Query the parent WK proof-authoring state, then correct it through workspace_controlled_contract_obligation_coverage_upsert";
+      return CONTROLLED_ACCEPTANCE_RECOVERY_UNAVAILABLE_NEXT_ACTION;
 
     case "work_record_readiness_failure":
       return "Correct the exact contract defect the refusal names (its check, status, and path), then re-validate";
@@ -186,6 +188,31 @@ export function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchab
     default:
       return `Resolve blocking issue: ${decisionCode}`;
   }
+}
+
+function jsonArgument(value) {
+  return JSON.stringify(value ?? {});
+}
+
+export function nextActionForControlledAcceptanceRecovery(readiness, fallback) {
+  const recovery = readiness?.controlled_acceptance_recovery;
+  if (!hasSelectedUnitAuthoringRecovery(recovery)) {
+    return fallback;
+  }
+  return `Agent correction for selected unit ${recovery.selected_unit}: ` +
+    `${recovery.tool}(${jsonArgument(recovery.arguments)}), then ` +
+    `${recovery.follow_up_tool} on the same unit with fresh ${recovery.fresh_cas.source} ` +
+    `as ${recovery.fresh_cas.argument}. No operator action or executable inspection route ` +
+    "is required; route/workbench observations are nonblocking.";
+}
+
+function hasSelectedUnitAuthoringRecovery(recovery) {
+  return Boolean(recovery && recovery.recovery_actor === "agent" &&
+      typeof recovery.tool === "string" &&
+      typeof recovery.follow_up_tool === "string" &&
+      typeof recovery.selected_unit === "string" &&
+      recovery.arguments?.unit === recovery.selected_unit &&
+      recovery.operator_action === null && recovery.fresh_cas?.required === true);
 }
 
 export function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, dispatchable) {
@@ -206,7 +233,7 @@ export function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, d
     case "controlled_acceptance_disposition_missing":
     case "controlled_acceptance_incomplete":
     case "controlled_acceptance_proof_posture_invalid":
-      return "Query the parent WK proof-authoring state, then correct it through workspace_controlled_contract_obligation_coverage_upsert";
+      return CONTROLLED_ACCEPTANCE_RECOVERY_UNAVAILABLE_NEXT_ACTION;
     case "work_record_readiness_failure":
       return "Correct the exact contract defect the refusal names (its check, status, and path), then re-validate";
     case "worker_scope_path_refused":
@@ -246,7 +273,7 @@ export function createCompactValidateDispatchResponse(
     validation_hints: Array.isArray(readiness?.validation_hints) ? readiness.validation_hints : [],
     recovery: readiness?.recovery ?? null,
     state: readiness?.state ?? null,
-    next_action: isFreeLocal
+    next_action: nextActionForControlledAcceptanceRecovery(readiness, isFreeLocal
       ? nextActionForFreeLocalDecisionCode(
           readiness?.decision_code ?? null,
           readiness?.dispatch_role ?? null,
@@ -257,7 +284,7 @@ export function createCompactValidateDispatchResponse(
           readiness?.dispatch_role ?? null,
           readiness?.dispatchable === true,
           readiness?.admissibility ?? null
-        )
+        ))
   };
   if (readiness?.controlled_acceptance_state !== undefined) {
     response.controlled_acceptance_state = projectControlledAcceptanceReadiness(
@@ -269,6 +296,13 @@ export function createCompactValidateDispatchResponse(
     if (readiness?.[field] !== undefined) response[field] = readiness[field];
   }
 
+  const baseSelection = readiness?.worker_scope_preflight?.reason;
+  if (readiness?.dispatchable === true &&
+      baseSelection?.code === "scope_existence_base_selection_missing" &&
+      typeof baseSelection.message === "string" && baseSelection.message !== "") {
+    response.next_action = baseSelection.message;
+  }
+
   const structuredNextCalls = Array.isArray(readiness?.next_calls)
     ? readiness.next_calls
     : [];
@@ -276,13 +310,12 @@ export function createCompactValidateDispatchResponse(
     structuredNextCalls.length > 0 && validateNextCalls(structuredNextCalls).valid
       ? structuredNextCalls
       : null;
-  let descriptorAuthoritativeNextAction = false;
   if (canonicalNextCalls) {
     response.next_calls = canonicalNextCalls;
     const scalarNextAction = projectNextActionScalar(canonicalNextCalls);
-    if (typeof scalarNextAction === "string" && scalarNextAction.trim() !== "") {
+    if (!hasSelectedUnitAuthoringRecovery(readiness?.controlled_acceptance_recovery) &&
+        typeof scalarNextAction === "string" && scalarNextAction.trim() !== "") {
       response.next_action = scalarNextAction;
-      descriptorAuthoritativeNextAction = true;
     }
   }
 

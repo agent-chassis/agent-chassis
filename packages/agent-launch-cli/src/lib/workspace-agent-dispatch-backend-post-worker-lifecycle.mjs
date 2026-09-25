@@ -1,8 +1,5 @@
 
 
-import {
-  resolveDeclaredCanonicalFindingsOnlyReviewUnit
-} from "./backend-scope-authority.mjs";
 import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import { resolveUniqueManagedLifecycleBindingPairForRecovery } from
   "./worktree-substrate-identity.mjs";
@@ -14,8 +11,6 @@ export function createBackendPostWorkerLifecycle(ctx) {
     attemptStateAuthority
   } = ctx;
 
-  const authenticateTerminalCandidatePreparation = (args) =>
-    ctx.authenticateTerminalCandidatePreparation(args);
   const resolveCommittedSliceIntegrationContinuation = (args) =>
     ctx.resolveCommittedSliceIntegrationContinuation(args);
   const resolveManagedWorkerProvenDeath = (args) => ctx.resolveManagedWorkerProvenDeath(args);
@@ -49,9 +44,6 @@ export function createBackendPostWorkerLifecycle(ctx) {
         status,
         deps: {
           resolveManagedRunBinding,
-          resolveDeclaredTerminalReviewUnit: ({ mainRepo, wkId }) =>
-            resolveDeclaredCanonicalFindingsOnlyReviewUnit(mainRepo, wkId),
-          authenticateTerminalCandidatePreparation,
 
           resolveCommittedSliceIntegrationContinuation,
 

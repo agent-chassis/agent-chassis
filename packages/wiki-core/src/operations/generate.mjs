@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadManifest } from "../lib/contract.mjs";
+import {
+  canonicalKindRecordPathForProjection,
+  loadKindRecordByPath
+} from "../lib/kind-record-store.mjs";
 import { createWorkRecordCorpusSnapshot } from "../lib/work-record-corpus-snapshot.mjs";
 import { buildAreaReadmeProjections } from "./generate-area-readme-projection.mjs";
 import {
@@ -101,11 +105,29 @@ function entryLink(targetDir, page) {
   return `./${path.relative(path.join(targetDir, "wiki"), page.path).replaceAll(path.sep, "/")}`;
 }
 
+async function loadCatalogCanonicalLinks(targetDir, state, manifest) {
+  const links = new Map();
+  await Promise.all([...state.decisions, ...state.initiatives].map(async (page) => {
+    const canonicalPath = canonicalKindRecordPathForProjection(manifest, page.relativePath);
+    if (canonicalPath === null) return;
+    const loaded = await loadKindRecordByPath({ repoRoot: targetDir, sourcePath: canonicalPath });
+    if (loaded.valid) links.set(page.relativePath, canonicalPath);
+  }));
+  return links;
+}
+
+function catalogEntryLink(targetDir, page, canonicalLinks) {
+  const canonicalPath = canonicalLinks.get(page.relativePath);
+  return canonicalPath === undefined
+    ? entryLink(targetDir, page)
+    : `./${path.posix.relative("wiki", canonicalPath)}`;
+}
+
 function docLink(targetDir, docPath) {
   return `../${path.relative(targetDir, docPath).replaceAll(path.sep, "/")}`;
 }
 
-function renderPageBullet(targetDir, page, extra = []) {
+function renderPageBullet(targetDir, page, extra = [], link = entryLink(targetDir, page)) {
   const owners = Array.isArray(page.frontmatter?.owners)
     ? page.frontmatter.owners
     : null;
@@ -119,7 +141,7 @@ function renderPageBullet(targetDir, page, extra = []) {
     ...extra
   ];
 
-  return `- [${page.title}](${entryLink(targetDir, page)})${
+  return `- [${page.title}](${link})${
     parts.length > 0 ? ` - ${parts.join(", ")}` : ""
   }`;
 }
@@ -391,7 +413,9 @@ function buildCatalogGraph(targetDir, state, context) {
   };
 }
 
-function buildSectionDefinitions(targetDir, state, context) {
+function buildSectionDefinitions(targetDir, state, context, canonicalLinks) {
+  const catalogBullet = (page, extra = []) =>
+    renderPageBullet(targetDir, page, extra, catalogEntryLink(targetDir, page, canonicalLinks));
   const catalogDocs = [...collectCatalogDocPaths(state, context)]
     .map((docRelativePath) => state.docs.find((doc) => doc.relativePath === docRelativePath))
     .filter((doc) => doc && catalogEnabled(doc, context));
@@ -423,7 +447,7 @@ function buildSectionDefinitions(targetDir, state, context) {
       items: sources,
       renderLines: (orderedItems) =>
         orderedItems.map((page) =>
-          renderPageBullet(targetDir, page, [
+          catalogBullet(page, [
             ...(page.frontmatter?.kind ? [`kind: ${page.frontmatter.kind}`] : [])
           ])
         )
@@ -432,17 +456,17 @@ function buildSectionDefinitions(targetDir, state, context) {
       title: "Areas",
       items: areas,
       renderLines: (orderedItems) =>
-        orderedItems.map((page) => `- [${page.title}](${entryLink(targetDir, page)})`)
+        orderedItems.map((page) => `- [${page.title}](${catalogEntryLink(targetDir, page, canonicalLinks)})`)
     },
     decisions: {
       title: "Decisions",
       items: decisions,
-      renderLines: (orderedItems) => orderedItems.map((page) => renderPageBullet(targetDir, page))
+      renderLines: (orderedItems) => orderedItems.map((page) => catalogBullet(page))
     },
     active_work: {
       title: "Active Work",
       items: activeWork,
-      renderLines: (orderedItems) => orderedItems.map((page) => renderPageBullet(targetDir, page))
+      renderLines: (orderedItems) => orderedItems.map((page) => catalogBullet(page))
     },
     extensions: {
       title: "Extensions",
@@ -564,11 +588,11 @@ export function generateArchivePage(targetDir, state, context) {
   ].join("\n");
 }
 
-export function generateCatalogPage(targetDir, state, manifest, context) {
+export function generateCatalogPage(targetDir, state, manifest, context, canonicalLinks) {
   const catalogPolicy = manifest.catalog;
   const policyHash = computeCatalogPolicyHash(catalogPolicy);
   const graph = buildCatalogGraph(targetDir, state, context);
-  const sections = buildSectionDefinitions(targetDir, state, context);
+  const sections = buildSectionDefinitions(targetDir, state, context, canonicalLinks);
   const eligibleSections = Object.entries(sections).filter(([, section]) => section.items.length > 0);
   const eligibleSectionKeys = new Set(eligibleSections.map(([sectionKey]) => sectionKey));
   const orderedSectionKeys = [
@@ -661,12 +685,13 @@ export async function buildGeneratedViewsFromCanonicalState({
 
   const summaryPath = path.join(generatedDir, "summary.md");
   const state = canonicalState;
+  const canonicalLinks = await loadCatalogCanonicalLinks(targetDir, state, manifest);
   const outputs = new Map([
     [path.join(targetDir, "wiki", "now.md"), generateNowPage(targetDir, state, context)],
     [path.join(targetDir, "wiki", "inbox.md"), generateInboxPage(targetDir, state, context)],
     [path.join(targetDir, "wiki", "backlog.md"), generateBacklogPage(targetDir, state, context)],
     [path.join(targetDir, "wiki", "archive.md"), generateArchivePage(targetDir, state, context)],
-    [path.join(targetDir, "wiki", "catalog.md"), generateCatalogPage(targetDir, state, manifest, context)]
+    [path.join(targetDir, "wiki", "catalog.md"), generateCatalogPage(targetDir, state, manifest, context, canonicalLinks)]
   ]);
 
   const areaReadmeProjection = buildAreaReadmeProjections(targetDir, state);

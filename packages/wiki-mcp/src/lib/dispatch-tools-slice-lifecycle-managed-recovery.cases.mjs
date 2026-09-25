@@ -19,6 +19,7 @@ import {
 } from "@agent-chassis/agent-launch-cli/src/lib/slice-review-materialization.mjs";
 import {
   buildDispatchToolExceptionDetail,
+  DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION,
   SAFE_POSTCHECK_MISMATCH_FIELDS,
   SLICE_REVIEW_POSTCHECK_FAILED_CODE
 } from "./dispatch-tool-helpers.mjs";
@@ -32,7 +33,7 @@ import {
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "./dispatch-tools-test-helpers.mjs";
 
 import {
@@ -41,7 +42,7 @@ import {
 } from "./dispatch-tools-slice-lifecycle-test-support.mjs";
 
 const WORKSPACE = Object.freeze({ repo: "agent-chassis", dir: "/home/user/agent-chassis" });
-const NO_CALLS = Object.freeze({ integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+const NO_CALLS = Object.freeze({ integrationCalls: 0, reviewSeamCalls: 0 });
 
 function unadvancedSliceGit(harness) {
   const base = "a".repeat(40);
@@ -245,7 +246,7 @@ test("WK-1694#SLICE-002 a finalized integration retires the attempt with the exa
     slice_ref: harness.integrationResult.slice_ref,
     integrated_sha: harness.integrationResult.wk_sha
   });
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
 });
 
 test("a finalized integration whose identity retirement is pending finishes cleanup on a later poll without reintegration", async () => {
@@ -271,7 +272,7 @@ test("a finalized integration whose identity retirement is pending finishes clea
   assert.equal(completed.cleanup_pending, false);
   assert.equal(completed.cleanup.state, "complete");
   assert.deepEqual(completed.integration, pending.integration);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
 
   const replay = await runPostWorkerSliceLifecycle({ workspace: WORKSPACE, status, deps });
   assert.equal(replay, completed, "a completed finalization replays the recorded result");
@@ -373,7 +374,7 @@ test("WK-1694#SLICE-002 a lifecycle that has NOT finalized retires nothing", asy
   assert.equal(checkpoint.phase, "pre-integration");
   assert.equal(checkpoint.integration, null);
   assert.deepEqual(retirements, []);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
 });
 
 test("final_result:null cannot turn committed worker recovery into integration authority", async () => {
@@ -469,14 +470,14 @@ test("a retried attempt without a completed continuation re-requests integration
   assert.equal(finalized.phase, "finalized");
   assert.equal(finalized.integrated, true);
   assert.deepEqual(finalized.integration, harness.integrationResult);
-  assert.deepEqual(harness.counts(), { integrationCalls: 2, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 2, reviewSeamCalls: 0 });
 });
 
 async function runStatusEnvelope(error) {
   const tools = createDispatchToolRegistry({
     backend: { getRunStatus: async () => { throw error; } }
   });
-  return parseStructuredTextResponse(
+  return readStructuredResult(
     await tools.get("workspace_agent_run_status").handler({ subject: "WK-1691#SLICE-002" })
   );
 }
@@ -485,7 +486,7 @@ async function runWaitEnvelope(error) {
   const tools = createDispatchToolRegistry({
     backend: { waitForRunStatus: async () => { throw error; } }
   });
-  return parseStructuredTextResponse(
+  return readStructuredResult(
     await tools.get("workspace_agent_run_status").handler({
       subject: "WK-1691#SLICE-002",
       timeout_ms: 1
@@ -591,16 +592,24 @@ test("WK-1691#SLICE-002 existing diagnostic envelopes stay byte-identical apart 
 
   const ordinary = buildDispatchToolExceptionDetail("t", new Error("boom"));
   assert.deepEqual(Object.keys(ordinary), [
-    "tool", "error_name", "error_message", "error_message_redactions"
+    "tool", "error_name", "error_message", "error_message_redactions", "evidence"
   ]);
+  assert.equal(ordinary.evidence.schema_version, DISPATCH_TOOL_EXCEPTION_EVIDENCE_SCHEMA_VERSION);
+  assert.equal(ordinary.evidence.operation, "t");
+  assert.equal(ordinary.evidence.thrown.value.name, "Error");
+  assert.equal(ordinary.evidence.thrown.value.message, "boom");
 
-  const safe = buildDispatchToolExceptionDetail("t", postcheckError({ field: "baseTree" }));
+  const safeError = postcheckError({ field: "baseTree" });
+  const safe = buildDispatchToolExceptionDetail("t", safeError);
   assert.deepEqual(Object.keys(safe), [
     "tool", "error_name", "error_message", "error_message_redactions",
-    "cause_code", "postcheck_mismatch_field"
+    "cause_code", "postcheck_mismatch_field", "evidence"
   ]);
   assert.equal(safe.cause_code, SLICE_REVIEW_POSTCHECK_FAILED_CODE);
   assert.equal(safe.postcheck_mismatch_field, "baseTree");
+  assert.equal(safe.evidence.thrown.value.message, safeError.message);
+  assert.equal(safe.evidence.thrown.value.properties.code, SLICE_REVIEW_POSTCHECK_FAILED_CODE);
+  assert.equal(safe.evidence.thrown.value.properties.detail.field, "baseTree");
 
   const long = postcheckError({ field: "gitDir" });
   long.message = "x".repeat(5000);

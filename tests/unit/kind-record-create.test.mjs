@@ -6,7 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 
-import { bootstrapRepo, createWikiRecord } from "../../packages/wiki-core/src/index.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
+import { createWikiRecord } from "../../packages/wiki-core/src/operations/create.mjs";
 import {
   loadKindRecordById,
   getKindRecordPath

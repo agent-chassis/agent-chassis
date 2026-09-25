@@ -4,15 +4,15 @@ import { discoverCompleteControlledProofIntentsOperation,
 import { createControlledContractRefusal } from '@agent-chassis/wiki-core/src/operations/controlled-contract/refusal.mjs';
 import { CONTROLLED_CONTRACT_REQUIREMENT_INPUT_GUIDANCE } from '@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs';
 import { PROOF_INTENT_DISCOVERY_CATALOG, PROOF_INTENT_DISCOVERY_QUERY_POLICY, isProofIntentDiscoveryQueryWithinLimit, proofVerificationCapability } from '@agent-chassis/controlled-contract/proof-intent-discovery';
-import { activeMcpInlineByteLimit, completeInlineJsonContent,
-  measureMcpInlineResultBytes } from './mcp-response.mjs';
+import { measureMcpInlineResultBytes } from './mcp-response.mjs';
 import { createToolInputValidationError } from './register-tool.mjs';
+import { scalarRangeBytesWithinDeliveryBound, selectedResponseDeliveryBound } from './selected-response-snapshot.mjs';
 
 export const PROOF_DISCOVERY_TOOL = 'workspace_controlled_proof_intents_discover';
 const domain = 'proof_discovery';
 const action = args => ({ tool: PROOF_DISCOVERY_TOOL, arguments: args });
 const recovery = action({});
-const candidateFields = ['proof_name', 'matching_assertion', 'essential_limitation', 'scope'];
+const candidateFields = ['proof_name', 'associations', 'essential_limitation', 'scope'];
 const scopeFields = ['clause', 'ranking', 'provenance'];
 const intentsById = new Map(PROOF_INTENT_DISCOVERY_CATALOG.intents.map(
   intent => [intent.intent_id, intent]
@@ -45,12 +45,6 @@ const withGuidancePath = (call, ...segments) => ({ ...call, arguments: { ...call
   input_contract: { ...call.arguments.input_contract,
     path: [...call.arguments.input_contract.path, ...segments] } } });
 
-function identifiedFamily(familyId) {
-  const { falsification: mechanism, ...family } = upsertGuidance.case_authoring.families[familyId];
-  return { family_id: familyId, ...family,
-    falsification: { mechanism, ...upsertGuidance.case_authoring.falsification[mechanism] } };
-}
-
 function providerFacts(provider) {
   const identified = provider.status === 'identified' ? provider.families[0] : null;
   return {
@@ -62,7 +56,8 @@ function providerFacts(provider) {
     ...(identified === null
       ? { missing_selection: 'provider identity, node_id form and falsification fields are ' +
           'per family: name one listed family, or read every family through case_authoring' }
-      : identifiedFamily(identified)),
+      : { family_id: identified, family_facts: 'next_calls.case_authoring returns this ' +
+          'family\'s provider identity, node_id form and falsification facts' }),
 
     not_established: [SUPPORT_STATES.candidate_proof, SUPPORT_STATES.listed_family,
       SUPPORT_STATES.target_uninspected]
@@ -79,13 +74,23 @@ function authoringCalls(provider) {
   };
 }
 
-function authoringContext(provider, page) {
-  const testExecution = page.items.some(item =>
-    proofVerificationCapability(item.proof_name) !== null);
+const CANDIDATE_ROW_MEANING = 'Lexical candidates, not selections, ordered by match_kind tier, ' +
+  'then relevance: no later row has a higher tier. match_kind: ' +
+  'assertion_match (all property terms in assertion, constraint or definition text), ' +
+  'partial_assertion_match (some), navigation_or_exclusion_match (none). essential_limitation: ' +
+  'the exclusion the query words touch, else null; null is not "no exclusions". A row\'s ' +
+  'detail_action returns its complete assertion, exclusions and intent comparisons.';
+
+function authoringContext(provider, page, capabilityOf) {
+  const testExecution = page.items.some(item => capabilityOf(item.proof_name) !== null);
   return {
+
+    population: page.query === null ? { catalogue: page.total }
+      : { query_matches: page.total, catalogue: page.catalogue_total },
     scope: page.total === 0 ? 'No lexical match; no proof is ruled out.'
       : page.remaining > 0 ? `${page.remaining} unread may apply.`
-        : 'All lexical matches; no proof is ruled out.',
+        : page.query === null ? 'Every listed proof.' : 'All lexical matches; no proof is ruled out.',
+    row_meaning: CANDIDATE_ROW_MEANING,
     ...(testExecution ? {
       candidate_route: 'a candidate row detail_action carries that proof\'s own authoring ' +
         'route; reading the remaining pages is not a prerequisite for following it',
@@ -98,98 +103,18 @@ function authoringContext(provider, page) {
   };
 }
 
-function completeCatalogueAuthoring(provider, proofs, matchedCount, queried) {
-  const testExecution = proofs.some(item => proofVerificationCapability(item.proof_name) !== null);
-  return {
-    scope: queried
-      ? `Complete admitted catalogue; ${matchedCount} query matches are ranked first. Query relevance hides no proof.`
-      : 'Complete admitted catalogue; no proof is hidden by a preview or page boundary.',
-    ...(testExecution ? { provider: providerFacts(provider) } : {}),
-    next_calls: authoringCalls(provider)
-  };
-}
-
-function conciseRelevance(ranking, matched) {
-  if (!matched) return { matched: false };
-  return { matched: true, match_kind: ranking.match_kind,
-    relevance_score: ranking.relevance_score, matched_terms: ranking.matched_terms,
-    unmatched_terms: ranking.unmatched_terms, semantic_terms: ranking.semantic_terms,
-    provider_terms: ranking.provider_terms };
-}
-
-function completeCatalogueCandidates(catalogue, ranked, queried) {
-  const rankedByName = new Map(ranked.candidates.map(candidate => [candidate.proof_name, candidate]));
-  const catalogueByName = new Map(catalogue.candidates.map(candidate => [candidate.proof_name, candidate]));
-  if (rankedByName.size !== ranked.candidates.length ||
-      [...rankedByName.keys()].some(name => !catalogueByName.has(name)) ||
-      queried && (ranked.truncated || ranked.returned_count !== ranked.total_match_count)) {
-    throw new TaskResultSnapshotError('invalid', 'catalogue_query_population_inconsistent', recovery);
-  }
-  return [...ranked.candidates,
-    ...catalogue.candidates.filter(candidate => !rankedByName.has(candidate.proof_name))];
-}
-
-function completeCatalogueProjection({ candidates, ranked, identity, queried }) {
-  const rankedNames = new Set(ranked.candidates.map(candidate => candidate.proof_name));
-  const capabilitySetIds = new Map();
-  const capabilitySets = [];
-  const proofs = candidates.map(candidate => {
-    const matched = rankedNames.has(candidate.proof_name);
-    const capabilityKey = JSON.stringify(candidate.capabilities);
-    let capabilitySet = capabilitySetIds.get(capabilityKey);
-    if (capabilitySet === undefined) {
-      capabilitySet = `capability-set-${capabilitySets.length + 1}`;
-      capabilitySetIds.set(capabilityKey, capabilitySet);
-      capabilitySets.push({ capability_set: capabilitySet, capabilities: candidate.capabilities });
-    }
-    return {
-      id: candidate.id,
-      proof_name: candidate.proof_name,
-      proof_version: candidate.profile_version,
-      assertion: candidate.assertion,
-      exclusions: candidate.exclusions,
-      intent_ids: candidate.associations,
-      capability_set: capabilitySet,
-      ...(proofVerificationCapability(candidate.proof_name) === null ? {}
-        : { verification_capability: proofVerificationCapability(candidate.proof_name) }),
-      ...(queried ? { relevance: conciseRelevance(candidate.ranking, matched),
-        relevant_limitation: matched ? candidate.essential_limitation : null } : {}),
-      detail_selector: { proof_name: candidate.proof_name }
-    };
-  });
-  return {
-    schema_version: 'controlled-proof-selection-catalogue.v1',
-    complete: true,
-    query: queried ? ranked.query : null,
-    total: proofs.length,
-    returned: proofs.length,
-    remaining: 0,
-    source_identity: ranked.source_identity,
-    capability_sets: capabilitySets,
-    detail_operation: {
-      tool: PROOF_DISCOVERY_TOOL,
-      fixed_arguments: { snapshot_identity: identity, collection: 'scope' },
-      selector_field: 'selector.proof_name'
-    },
-    proofs,
-    authoring: completeCatalogueAuthoring(ranked.provider_context ?? UNSPECIFIED_PROVIDER,
-      proofs, ranked.total_match_count, queried)
-  };
-}
-
-function candidateAuthoring(provider, proofName) {
-  const capability = proofVerificationCapability(proofName);
+function candidateAuthoring(provider, proofName, capabilityOf) {
+  const capability = capabilityOf(proofName);
   if (capability === null) return null;
   const identified = provider.status === 'identified' ? provider.families[0] : null;
   const family = identified === null ? null : upsertGuidance.case_authoring.families[identified];
   const caseAuthoring = upsertGuidance.authority.case_authoring;
   return {
     verification_capability: capability,
-    meaning: 'this proof is observed through its authored selected test. Mutation, when the ' +
-      'provider can apply it, supplies additional falsification evidence for that same proof; ' +
-      'unavailable mutation does not erase the test observation. Author the existing required ' +
-      'case.target and case.falsification fields through case_authoring; discovery establishes ' +
-      'neither that the proof applies nor that any target can execute',
+    meaning: 'observed through its authored selected test; mutation the provider can apply is ' +
+      'additional falsification evidence for that same proof, and unavailable mutation is a capability ' +
+      'limitation that neither earns nor withholds credit. Author the required case.target and case.falsification through ' +
+      'case_authoring; discovery establishes neither applicability nor an executable target',
     provider: {
       query_recognition: provider.status,
       recognition_meaning: RECOGNITION_MEANING,
@@ -215,7 +140,8 @@ function inspectAction(page, fieldPath, extra = {}, selector = page.selector) {
     ...(fieldPath === undefined ? {} : { field_path: fieldPath }), ...extra });
 }
 
-export function projectProofDiscoveryResponse(page, { rangeBytes = 1024 } = {}) {
+export function projectProofDiscoveryResponse(page, { rangeBytes,
+  verificationCapability: capabilityOf = proofVerificationCapability }) {
   const next = page.continuation?.kind === 'cursor' ? action({ cursor: page.continuation.cursor }) : null;
   const name = page.proof_name;
   const fields = (entries, selector) => entries.map(field => ({
@@ -238,22 +164,32 @@ export function projectProofDiscoveryResponse(page, { rangeBytes = 1024 } = {}) 
       returned: page.returned, remaining: page.remaining, continuation: next };
     return { proof_name: name, field_path: page.field_path, value: page.value };
   }
+
+  const firstDetailAuthoring = () => page.collection === 'scope' && page.offset === 0
+    ? candidateAuthoring(page.provider_context ?? UNSPECIFIED_PROVIDER, name, capabilityOf) : null;
   const inventory = page.items.find(item => item.schema_version === 'task-result-row-projection.v1');
-  if (inventory) return { proof_name: inventory.proof_name, complete: false,
-    fields: fields(inventory.fields, { id: inventory.stable_id }),
-    total: page.total, returned: page.returned, remaining: page.remaining, continuation: next };
+  if (inventory) {
+    const authoring = firstDetailAuthoring();
+    return { proof_name: inventory.proof_name, complete: false,
+      fields: fields(inventory.fields, { id: inventory.stable_id }),
+      total: page.total, returned: page.returned, remaining: page.remaining, continuation: next,
+      ...(authoring === null ? {} : { authoring }) };
+  }
   const envelope = { results: page.collection === 'candidates' ? page.items.map(item => ({
-    proof_name: item.proof_name, matching_assertion: item.matching_assertion,
+
+    proof_name: item.proof_name, intent_ids: item.associations,
+
+    ...(item.ranking.match_kind === 'catalog_entry' ? {} : { match_kind: item.ranking.match_kind }),
     essential_limitation: item.essential_limitation,
 
-    ...(proofVerificationCapability(item.proof_name) === null ? {}
-      : { verification_capability: proofVerificationCapability(item.proof_name) }),
+    ...(capabilityOf(item.proof_name) === null ? {}
+      : { verification_capability: capabilityOf(item.proof_name) }),
     detail_action: action({ snapshot_identity: page.task_result_identity,
       collection: 'scope', selector: { proof_name: item.proof_name } })
   })) : page.items.map(item => item.clause),
   total: page.total, returned: page.returned, remaining: page.remaining, continuation: next };
   if (page.collection === 'candidates' && page.offset === 0 && page.provider_context) {
-    envelope.authoring = authoringContext(page.provider_context, page);
+    envelope.authoring = authoringContext(page.provider_context, page, capabilityOf);
   }
   if (page.collection === 'scope') {
     envelope.proof_name = name;
@@ -262,7 +198,7 @@ export function projectProofDiscoveryResponse(page, { rangeBytes = 1024 } = {}) 
         ranking: inspectAction(page, ['ranking'], {}, { id: page.items[0].id }),
         provenance: inspectAction(page, ['provenance'], {}, { id: page.items[0].id })
       };
-      const authoring = candidateAuthoring(page.provider_context ?? UNSPECIFIED_PROVIDER, name);
+      const authoring = firstDetailAuthoring();
       if (authoring !== null) envelope.authoring = authoring;
     }
   }
@@ -272,9 +208,11 @@ export function projectProofDiscoveryResponse(page, { rangeBytes = 1024 } = {}) 
 export function createProofDiscoverySession({ discover = discoverControlledProofIntentsOperation,
   discoverComplete = discover === discoverControlledProofIntentsOperation
     ? discoverCompleteControlledProofIntentsOperation : discover,
-  maximumBytes = activeMcpInlineByteLimit(), now, capacity, onMeasured = () => {} } = {}) {
 
-  const context = { rangeBytes: Math.min(1024, Math.max(1, Math.floor(maximumBytes / 16))) };
+  verificationCapability = proofVerificationCapability,
+  maximumBytes = selectedResponseDeliveryBound(), now, capacity, onMeasured = () => {} } = {}) {
+
+  const context = { rangeBytes: scalarRangeBytesWithinDeliveryBound(maximumBytes), verificationCapability };
   const project = page => projectProofDiscoveryResponse(page, context);
   const measure = page => measureMcpInlineResultBytes(project(page));
   const descriptors = {
@@ -304,7 +242,9 @@ export function createProofDiscoverySession({ discover = discoverControlledProof
       return { proof_name: collection === 'scope' || selector !== null ? rows[0]?.proof_name : undefined,
 
         ...(result.provider_context && (collection === 'scope' || selector === null)
-          ? { provider_context: result.provider_context } : {}) };
+          ? { provider_context: result.provider_context } : {}),
+        ...(collection === 'candidates' && selector === null
+          ? { query: result.query, catalogue_total: result.catalogue_total } : {}) };
     },
     projectRow: (_domain, collection, row, descriptor) => ({
       schema_version: 'task-result-row-projection.v1', stable_id: row.id, proof_name: row.proof_name,
@@ -330,19 +270,13 @@ export function createProofDiscoverySession({ discover = discoverControlledProof
         offset: args.offset ?? null, length: args.length ?? null, recovery });
     } else {
       const direct = Object.hasOwn(args, 'proof_name');
-      const request = direct ? args : Object.hasOwn(args, 'query') ? { query: args.query } : {};
+      const queried = Object.hasOwn(args, 'query');
+      const request = direct ? args : queried ? { query: args.query } : {};
 
-      if (Object.hasOwn(args, 'query') && !isProofIntentDiscoveryQueryWithinLimit(args.query))
-        await discover(args);
-      const result = !direct && Object.hasOwn(args, 'query')
-        ? await discoverComplete(request) : await discover(request);
-      const catalogue = direct || !Object.hasOwn(args, 'query') ? result : await discover({});
-      if (JSON.stringify(catalogue.source_identity) !== JSON.stringify(result.source_identity)) {
-        throw new TaskResultSnapshotError('unavailable', 'source_identity_changed', recovery);
-      }
-      const completeCandidates = direct ? catalogue.candidates :
-        completeCatalogueCandidates(catalogue, result, Object.hasOwn(args, 'query'));
-      const candidates = completeCandidates.map(candidate => ({ ...candidate, scope: {
+      if (queried && !isProofIntentDiscoveryQueryWithinLimit(args.query)) await discover(args);
+      const search = () => queried ? discoverComplete(request) : discover(request);
+      const result = await search();
+      const candidates = result.candidates.map(candidate => ({ ...candidate, scope: {
         assertion: candidate.assertion, exclusions: candidate.exclusions, constraints: candidate.constraints,
         refinements: candidate.refinements, provenance: candidate.provenance
       } }));
@@ -358,27 +292,21 @@ export function createProofDiscoverySession({ discover = discoverControlledProof
           ranking: candidate.ranking, provenance }));
       });
 
-      const context = direct ? {} : { provider_context: result.provider_context ?? UNSPECIFIED_PROVIDER };
+      const context = direct ? {} : { provider_context: result.provider_context ?? UNSPECIFIED_PROVIDER,
+        query: result.query ?? null, catalogue_total: result.candidate_count };
       const identity = registry.put({ domain, result: { candidates, scope, ...context },
-        sourceIdentity: catalogue.source_identity, recovery: action(request),
+        sourceIdentity: result.source_identity, recovery: action(request),
         resolveCurrentSourceIdentity: async () => {
-          try { return (await (!direct && Object.hasOwn(request, 'query')
-            ? discoverComplete(request) : discover(request))).source_identity; }
+          try { return (await search()).source_identity; }
           catch (error) {
 
             if (error.code === 'proof_discovery_source_changed') return error.details.source_identity;
             throw error;
           }
         } });
-      if (!direct) {
-        const projected = completeCatalogueProjection({ candidates: completeCandidates,
-          ranked: result, identity,
-          queried: Object.hasOwn(args, 'query') });
-        onMeasured({ payload: projected, bytes: measureMcpInlineResultBytes(projected) });
-        return projected;
-      }
-      page = await registry.query({ domain, identity, collection: 'scope',
-        selector: { proof_name: args.proof_name }, maximumItems: 256, recovery: action(request) });
+      page = await registry.query({ domain, identity, collection: direct ? 'scope' : 'candidates',
+        selector: direct ? { proof_name: args.proof_name } : null, maximumItems: 256,
+        recovery: action(request) });
     }
     return project(page);
   } };
@@ -417,7 +345,7 @@ export function registerProofDiscoveryTool({ defineTool, z, jsonContent, errorCo
   const allowedFieldSets = inputSchema.options.map(option => Object.keys(option.shape));
   const session = createProofDiscoverySession({ discover, discoverComplete });
   defineTool(PROOF_DISCOVERY_TOOL, {
-    description: 'Return the complete admitted proof catalogue in one response, optionally ranking query matches first, or inspect a known proof_name. Catalogue rows include exact identity, assertion, exclusions, applicability and capability facts; shared facts occur once. Query terms never hide proofs. Targeted detail may use emitted snapshot-bound operations. ' +
+    description: 'Find proof candidates by the property to establish, browse compactly with no query, or inspect a known proof_name. Ranked bounded pages give compact rows (identity, match kind, relevant limitation, capability, detail_action); a query adds no unmatched proof and continuation reaches every match. A candidate\'s detail holds its complete assertion and exclusions. ' +
       `Query limit: ${PROOF_INTENT_DISCOVERY_QUERY_POLICY.maximum_bytes} UTF-8 bytes. ` +
       'Discovery is read-only; it does not select, map, construct or execute proofs.',
     inputSchema,
@@ -428,9 +356,7 @@ export function registerProofDiscoveryTool({ defineTool, z, jsonContent, errorCo
   }, async args => {
     try {
       const parsed = inputSchema.parse(args);
-      const payload = await session.run(parsed);
-      return Object.hasOwn(parsed, 'proof_name') || Object.hasOwn(parsed, 'cursor') ||
-        Object.hasOwn(parsed, 'snapshot_identity') ? jsonContent(payload) : completeInlineJsonContent(payload);
+      return jsonContent(await session.run(parsed));
     } catch (error) { return errorContent(createControlledContractRefusal(error)); }
   }, { losslessDelivery: true });
 }

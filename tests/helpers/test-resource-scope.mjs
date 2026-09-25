@@ -1,3 +1,5 @@
+import { startComponentSpan } from "./test-component-journal.mjs";
+
 export const TEST_RESOURCE_SCOPE_ERROR_CODES = Object.freeze({
   INVALID_LABEL: "test_resource_scope.invalid_label.v1",
   INVALID_DISPOSER: "test_resource_scope.invalid_disposer.v1",
@@ -36,7 +38,7 @@ function labelledCleanupError(label, cause) {
   return error;
 }
 
-export function createTestResourceScope() {
+export function createTestResourceScope({ label = "test-resource-scope", fixtureInstance = null } = {}) {
   let state = "open";
   let disposePromise;
   const labels = new Set();
@@ -259,7 +261,13 @@ export function createTestResourceScope() {
   function dispose() {
     if (disposePromise !== undefined) return disposePromise;
     state = "disposing";
-    disposePromise = runDispose();
+
+    const span = registrationOrder.length === 0 ? null : startComponentSpan({
+      owner: "test-resource-scope", kind: "owned_cleanup", label, fixtureInstance });
+    disposePromise = runDispose().then(() => span?.end("ok"), (error) => {
+      span?.end("failed", error);
+      throw error;
+    });
     return disposePromise;
   }
 

@@ -205,8 +205,17 @@ export function createWorkerScopeTreeReader({ runGit, mainRepo, baseSha } = {}) 
 export function resolveWritableScopeCoverage(reader, writeScope, { exclusions = [] } = {}) {
   const writable = reader.resolveMembership(writeScope, { exclusions });
   const files = Object.freeze([...new Set([...writable.files, ...writable.missing])].sort());
-  const fileSet = new Set(files);
-  const covers = (candidate) => !excludedFromScope(exclusions, candidate) && (fileSet.has(candidate) ||
-    writable.directories.some((directory) => candidate === directory || candidate.startsWith(`${directory}/`)));
+  const covers = resolvedMembershipCoverage({ files, directories: writable.directories }, { exclusions });
   return Object.freeze({ files, directories: writable.directories, covers });
+}
+
+export function resolvedMembershipCoverage({ files, directories }, { exclusions = [] } = {}) {
+  if (!Array.isArray(files) || !Array.isArray(directories) || !Array.isArray(exclusions)) {
+    throw new Error("resolved scope membership is malformed");
+  }
+  const fileSet = new Set(files);
+  const directoryMembers = [...directories];
+  const excludedRoots = [...exclusions];
+  return (candidate) => !excludedFromScope(excludedRoots, candidate) && (fileSet.has(candidate) ||
+    directoryMembers.some((directory) => candidate === directory || candidate.startsWith(`${directory}/`)));
 }

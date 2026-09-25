@@ -15,8 +15,8 @@ import { readinessRecovery } from "../../test-runtime-setup/readiness.mjs";
 import { DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS } from "../confined-capture.mjs";
 import { nativeNodeId, projectNativeObservation } from "../native-observation.mjs";
 import { resolveInstalledRunnerIntegration } from "../runner-integrations.mjs";
-import { resolveConfiguredRunnerProject, resolveRunnerRuntimeInputs }
-  from "../runtime-inputs.mjs";
+import { resolveProofEnvironment, resolveRunnerRuntimeInputs, workingCopyProjectDir } from "../runtime-inputs.mjs";
+import { selectWorkingCopySource } from "../source-selection.mjs";
 import { SourceInstrumentationError } from "../source-instrumentation/index.mjs";
 import {
   TEST_PROOF_PROVIDER_REGISTRY_ERROR_CODES,
@@ -39,9 +39,6 @@ import {
 export const NATIVE_RUNTIME_INPUTS_SCHEMA_VERSION = "workspace-agent-test-proof-native-runtime-inputs.v1";
 export const OBSERVER_CONFIG_SCHEMA_VERSION = "launcher-test-proof-observer-config.v1";
 export const OBSERVER_CONFIG_ENV = "LAUNCHER_TEST_PROOF_CONFIG";
-
-export const WORKING_COPY_EXCLUSIONS = Object.freeze([".git", ".agent-launch", "node_modules", "target",
-  "__pycache__", ".pytest_cache", ".stestr"]);
 const CAPABILITY_MODES = Object.freeze({ candidate_execution: "candidate",
   falsifier_execution: "falsifier", boundary_traversal: "traversal" });
 const FALSIFIER_REASON_CODE = "test_proof_fault.result_inversion.v1";
@@ -73,9 +70,10 @@ function assetDigest(spec) {
       sha256(readFileSync(asset))])) })));
 }
 
-function runtimeInputsDigest(runtime, providerAssetDigest) {
+export function runtimeInputsDigest(runtime, providerAssetDigest) {
   return sha256(JSON.stringify(canonical({ schema_version: NATIVE_RUNTIME_INPUTS_SCHEMA_VERSION,
-    readiness_digest: runtime.identity.readiness_digest, toolchains: runtime.identity.toolchains,
+    readiness_digest: runtime.identity.readiness_digest, environment: runtime.identity.environment,
+    toolchains: runtime.identity.toolchains,
     dependencies: runtime.identity.dependencies, provider_asset_digest: providerAssetDigest })));
 }
 
@@ -94,28 +92,28 @@ function refusedRun(code, detail) {
 function resolveRuntime({ spec, input, worktree, workProjectDir = null,
   scratchRoot = ATTEMPT_SCRATCH_ROOT }) {
   const runner = testRuntimeRunner({ name: spec.runtime_runner });
-  const located = resolveConfiguredRunnerProject({ repositoryRoot: input.authority.main_repo,
-    target: input.target, runner });
+  const located = resolveProofEnvironment({ repositoryRoot: input.authority.main_repo,
+    checkoutRoot: worktree, target: input.target, runner, environment: input.environment ?? null });
   if (!located.configured || !located.ok) {
 
     const code = located.failure?.code ?? "test_runtime_runner_not_prepared";
     const recovery = located.configured ? located.failure.recovery ?? null
-      : readinessRecovery([{ provider_id: runner.runner_id, project: "<project>" }]);
+      : readinessRecovery(`No prepared ${runner.dependency_ecosystem} environment owns ${input.target}; ` +
+        "rerun local test-runtime setup after the project that contains it declares its dependencies.");
     return { ok: false, code, detail: { failure: "configured_runtime_not_ready",
-      readiness_code: code, recovery } };
+      readiness_code: code, recovery,
+      ...(located.failure?.detail === undefined ? {} : { route: located.failure.detail }) } };
   }
   const project = located.project;
   const runtime = resolveRunnerRuntimeInputs({ repositoryRoot: input.authority.main_repo,
     checkoutRoot: worktree, descriptor: runner, project,
-    workProjectDir: workProjectDir === null ? null
-      : project === "." ? path.join(scratchRoot, "work")
-        : path.join(scratchRoot, "work", project),
+    workProjectDir: workProjectDir === null ? null : workingCopyProjectDir(scratchRoot, project),
     scratchRoot });
   if (!runtime.ok) {
     return { ok: false, code: runtime.code, detail: { failure: "configured_runtime_not_ready",
-      readiness_code: runtime.code, recovery: runtime.recovery ?? null } };
+      readiness_code: runtime.code, recovery: runtime.recovery ?? null, route: located.route } };
   }
-  return { ok: true, runner, project, runtime };
+  return { ok: true, runner, project, runtime, route: located.route };
 }
 
 function readAuthenticatedSource(worktree, project, relative) {
@@ -160,7 +158,7 @@ export function nativeProviderImplementation(spec) {
 
   async function prepareInScratch(resolved, input, scratchRoot) {
     assertClosedInput(input, ["authority", "target", "authorizedTargets", "selectedTest",
-      "executionBudget"], "provider preparation refuses caller-supplied executable authority");
+      "executionBudget", "environment"], "provider preparation refuses caller-supplied executable authority");
     selectedTestExecutionInput(input);
     const worktree = launcherResolvedWorktree(input);
     const located = resolveRuntime({ spec, input, worktree, scratchRoot });
@@ -198,11 +196,15 @@ export function nativeProviderImplementation(spec) {
         runtime_source: "launcher_readiness",
         runtime_runner: located.runner.runner_id,
         project: located.project,
+        environment: located.runtime.identity.environment,
+        route: located.route,
         readiness_digest: located.runtime.identity.readiness_digest,
         provider_asset_digest: providerAssetDigest,
         runtime_inputs_digest: inputsDigest,
         dependency_population: Object.freeze({ source: "launcher_readiness",
           readiness_digest: located.runtime.identity.readiness_digest,
+          environment: located.runtime.identity.environment,
+          route: located.route,
           toolchains: located.runtime.identity.toolchains,
           dependencies: located.runtime.identity.dependencies })
       }),
@@ -233,7 +235,8 @@ export function nativeProviderImplementation(spec) {
       "the prepared native runtime is no longer ready", located.detail);
     const providerAssetDigest = assetDigest(spec);
     const currentDigest = runtimeInputsDigest(located.runtime, providerAssetDigest);
-    if (located.project !== prepared.project || currentDigest !== prepared.runtime_inputs_digest) {
+    if (located.project !== prepared.project || currentDigest !== prepared.runtime_inputs_digest ||
+        located.runtime.identity.environment !== prepared.runtime.environment) {
       throw Object.assign(new Error("installed native runtime inputs changed after preparation"), {
         code: "test_proof_native_runtime_inputs_stale",
         detail: { expected: prepared.runtime_inputs_digest, actual: currentDigest } });
@@ -246,7 +249,7 @@ export function nativeProviderImplementation(spec) {
       "the selected test belongs to another provider family");
     const project = located.project;
     const workRoot = path.join(scratchRoot, "work");
-    const workProject = project === "." ? workRoot : path.join(workRoot, project);
+    const workProject = workingCopyProjectDir(scratchRoot, project);
     const privateRoot = path.join(scratchRoot, ".launcher-test-proof");
     const configPath = path.join(privateRoot, "config.json");
     const channelPath = path.join(privateRoot, "channel.jsonl");
@@ -287,7 +290,11 @@ export function nativeProviderImplementation(spec) {
       const layout = await spec.layout(attempt);
       const instrumentation = await spec.instrument(attempt, layout);
       const invocation = spec.invocation(attempt, layout);
-      plan = { layout, instrumentation, invocation };
+      const source = await selectWorkingCopySource(attempt.projectHost);
+      if (!source.ok) {
+        refuseAttempt(source.code, source.message, { ...source.detail, recovery: source.recovery });
+      }
+      plan = { layout, instrumentation, invocation, source };
     } catch (error) {
       if (!(error instanceof SourceInstrumentationError) && !(error instanceof NativeAttemptRefusal) &&
           !(typeof error?.code === "string" && error.code.startsWith("test_runtime_"))) throw error;
@@ -297,7 +304,7 @@ export function nativeProviderImplementation(spec) {
         observation: { valid: false, code: error.code, detail },
         run: refusedRun(error.code, detail) });
     }
-    const { instrumentation, invocation } = plan;
+    const { instrumentation, invocation, source } = plan;
 
     const config = {
       schema_version: OBSERVER_CONFIG_SCHEMA_VERSION,
@@ -348,8 +355,9 @@ export function nativeProviderImplementation(spec) {
         args: invocation.args,
         cwd: invocation.cwd,
         env: { ...(invocation.env ?? {}), [OBSERVER_CONFIG_ENV]: configPath },
-        directories: [privateRoot, ...(invocation.directories ?? [])],
-        copies: [{ from: attempt.projectHost, to: workProject, exclude: WORKING_COPY_EXCLUSIONS }],
+
+        directories: [privateRoot, ...(invocation.directories ?? []), ...located.runtime.directories],
+        copies: [{ from: attempt.projectHost, to: workProject, entries: source.entries }],
         links: located.runtime.links,
         writes,
         channel: { kind: "file", path: channelPath },

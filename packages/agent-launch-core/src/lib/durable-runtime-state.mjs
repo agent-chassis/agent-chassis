@@ -35,6 +35,14 @@ function refuse(code, reason) {
   return Object.freeze({ ok: false, code, reason });
 }
 
+function refuseObservation(code, reason, operation, observedPath, cause) {
+  return Object.freeze({ ok: false, code, reason, operation, path: observedPath, cause });
+}
+
+function isAbsent(error) {
+  return error?.code === "ENOENT";
+}
+
 function rejectUnownedOptions(options) {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     return refuse(
@@ -74,10 +82,13 @@ function authenticateWorkspaceIdentity(workspaceDir) {
   let info;
   try {
     info = statSync(workspaceDir);
-  } catch {
-    return refuse(
+  } catch (error) {
+    return refuseObservation(
       LAUNCHER_DURABLE_STATE_CODES.WORKSPACE_UNAUTHENTICATED,
-      "launcher durable state workspace root does not exist"
+      isAbsent(error)
+        ? "launcher durable state workspace root does not exist"
+        : "launcher durable state workspace root could not be observed",
+      "stat", workspaceDir, error
     );
   }
   if (!info.isDirectory()) {
@@ -89,10 +100,12 @@ function authenticateWorkspaceIdentity(workspaceDir) {
   let realWorkspaceDir;
   try {
     realWorkspaceDir = realpathSync(workspaceDir);
-  } catch {
-    return refuse(
-      LAUNCHER_DURABLE_STATE_CODES.WORKSPACE_REDIRECTED,
-      "launcher durable state workspace root could not be canonicalized"
+  } catch (error) {
+
+    return refuseObservation(
+      LAUNCHER_DURABLE_STATE_CODES.WORKSPACE_UNAUTHENTICATED,
+      "launcher durable state workspace root could not be canonicalized",
+      "realpath", workspaceDir, error
     );
   }
   if (realWorkspaceDir !== workspaceDir) {
@@ -102,12 +115,16 @@ function authenticateWorkspaceIdentity(workspaceDir) {
     );
   }
   let gitInfo;
+  const gitPath = path.join(workspaceDir, ".git");
   try {
-    gitInfo = lstatSync(path.join(workspaceDir, ".git"));
-  } catch {
-    return refuse(
+    gitInfo = lstatSync(gitPath);
+  } catch (error) {
+    return refuseObservation(
       LAUNCHER_DURABLE_STATE_CODES.WORKSPACE_UNAUTHENTICATED,
-      "launcher durable state workspace root is not a repository checkout"
+      isAbsent(error)
+        ? "launcher durable state workspace root is not a repository checkout"
+        : "launcher durable state workspace repository metadata could not be observed",
+      "lstat", gitPath, error
     );
   }
   if (gitInfo.isSymbolicLink()) {
@@ -153,9 +170,14 @@ function assertUnredirectedRootChain(workspaceRoot, root) {
     let info;
     try {
       info = lstatSync(current);
-    } catch {
+    } catch (error) {
 
-      return null;
+      if (isAbsent(error)) return null;
+      return refuseObservation(
+        LAUNCHER_DURABLE_STATE_CODES.ROOT_UNWRITABLE,
+        "launcher durable state root chain could not be observed",
+        "lstat", current, error
+      );
     }
     if (info.isSymbolicLink()) {
       return refuse(
@@ -178,17 +200,25 @@ export async function ensureLauncherOwnedWorkspaceDurableStateRoot(options = {})
   if (resolved.ok !== true) return resolved;
   const redirected = assertUnredirectedRootChain(resolved.workspace_root, resolved.root);
   if (redirected !== null) return Object.freeze({ ...redirected, root: resolved.root });
+  const probe = path.join(resolved.root, `.write-probe-${randomBytes(8).toString("hex")}`);
+  let operation = "mkdir";
+  let operationPath = resolved.root;
   try {
     await mkdir(resolved.root, { recursive: true, mode: 0o700 });
-    const probe = path.join(resolved.root, `.write-probe-${randomBytes(8).toString("hex")}`);
+    operation = "open";
+    operationPath = probe;
     const handle = await open(probe, "wx", 0o600);
+    operation = "close";
     await handle.close();
+    operation = "rm";
     await rm(probe, { force: true });
   } catch (error) {
     return Object.freeze({
-      ok: false,
-      code: LAUNCHER_DURABLE_STATE_CODES.ROOT_UNWRITABLE,
-      reason: `launcher durable state root is not writable (${error?.code ?? error?.message ?? error})`,
+      ...refuseObservation(
+        LAUNCHER_DURABLE_STATE_CODES.ROOT_UNWRITABLE,
+        `launcher durable state root is not writable (${operation}: ${error?.code ?? error?.message ?? error})`,
+        operation, operationPath, error
+      ),
       root: resolved.root
     });
   }

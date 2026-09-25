@@ -427,7 +427,7 @@ async function snapshotRepository(dir) {
 
 async function readHandlerResponse(fixture, result) {
   assert.equal(result.isError, true);
-  assert.deepEqual(JSON.parse(result.content[0].text), result.structuredContent);
+  assert.deepEqual(result.content, []);
   const spilled = result.structuredContent;
   if (spilled.response_spilled !== true) {
     return { envelope: spilled, spilled: false, reads: 0 };

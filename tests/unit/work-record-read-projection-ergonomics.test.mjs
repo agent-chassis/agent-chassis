@@ -5,13 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 
-import {
-  bootstrapRepo,
-  getWorkRecordSummary,
-  getWikiRecord,
-  readWikiPage,
-  validateWorkRecord
-} from "../../packages/wiki-core/src/index.mjs";
+import { bootstrapRepo } from "../../packages/wiki-core/src/operations/bootstrap.mjs";
+import { getWorkRecordSummary } from "../../packages/wiki-core/src/operations/work-record-summary.mjs";
+import { getWikiRecord, readWikiPage } from "../../packages/wiki-core/src/operations/read.mjs";
+import { validateWorkRecord } from "../../packages/wiki-core/src/lib/work-record-schema.mjs";
 
 async function withTempDir(fn) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "wiki-read-projection-test-"));

@@ -141,6 +141,17 @@ test("validateWorkRecord still passes a valid work_item unchanged", () => {
   assert.deepEqual(validateWorkRecord(validWorkItem()), []);
 });
 
+test("base_branch is optional for stored work items and validates as a local branch name", () => {
+  assert.deepEqual(validateWorkRecord(validWorkItem()), []);
+  assert.deepEqual(validateWorkRecord(validWorkItem({ base_branch: "main" })), []);
+  assert.deepEqual(validateWorkRecord(validWorkItem({ base_branch: "master" })), []);
+  assert.deepEqual(validateWorkRecord(validWorkItem({ base_branch: "release/next" })), []);
+  for (const base_branch of ["main~1", "release/../next", "refs/heads/main", "topic lock", "@{"]) {
+    const diagnostics = validateWorkRecord(validWorkItem({ base_branch }));
+    assert.ok(diagnostics.some(({ path }) => path === "base_branch"), base_branch);
+  }
+});
+
 test("validateWorkRecord still diagnoses a work_item missing a required field", () => {
   const missing = validWorkItem();
   delete missing.title;

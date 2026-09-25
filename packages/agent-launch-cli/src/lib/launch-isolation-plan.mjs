@@ -10,7 +10,10 @@ import {
   prepareReadOnlyProjectionMountpoints,
   prepareRequiredReadOnlyFiles
 } from "./launch-isolation-required-read-only-files.mjs";
-import { DEFAULT_SYSTEM_READ_ONLY_ROOTS } from "./launch-isolation-executable.mjs";
+import {
+  DEFAULT_SYSTEM_READ_ONLY_ROOTS,
+  resolverPathFromEnv
+} from "./launch-isolation-executable.mjs";
 import { prepareBubblewrapPlanCore } from "./launch-isolation-plan-core.mjs";
 import {
   composeDecisionsReadOnlyOverlay,
@@ -21,7 +24,15 @@ import { buildBubblewrapArgs } from "./launch-isolation-bwrap-args.mjs";
 import {
   prepareGitStatusWrapperProjection
 } from "./launch-isolation-git-status-wrapper.mjs";
-import { prepareSparseWorkerWritableDirectories } from "./launch-isolation-worker-scope.mjs";
+import {
+  prepareSparseWorkerWritableDirectories,
+  rollbackPreparedWorkerDirectories
+} from "./launch-isolation-worker-scope.mjs";
+import {
+  pinHarnessInterpreter,
+  prepareWorkerTestRuntimeMounts,
+  projectWorkerTestRuntimeEnv
+} from "./launch-isolation-test-runtime-projection.mjs";
 import {
   assertCheckoutDerivedGitMetadata,
   assertFindingsRoleGitMetadataReadOnly
@@ -75,6 +86,8 @@ function composeBubblewrapLaunchPlan({
   bwrapPath = null,
 
   installGitStatusWrapper = false,
+
+  workerTestRuntime = null,
   stdioMcpConduit = null
 } = {}, preparation = { rollback: () => null }) {
   if (
@@ -126,10 +139,17 @@ function composeBubblewrapLaunchPlan({
     familyRuntimePolicyProfile,
     commandResolution,
     systemReadOnlyRoots,
-    tmpfsDirs,
+    tmpfsDirs: workerTestRuntime === null ? tmpfsDirs : [...tmpfsDirs, workerTestRuntime.scratchRoot],
     maskTmpfsDirs,
     newSession
   });
+
+  const harness = pinHarnessInterpreter({ resolvedCommand, args,
+    pathEnv: resolverPathFromEnv(env), prepared: workerTestRuntime });
+  const childCommandResolution = { ...resolvedCommand, argvCommand: harness.argvCommand };
+  const childArgs = harness.args;
+  const projectedEnv = workerTestRuntime === null ? env
+    : projectWorkerTestRuntimeEnv(env, workerTestRuntime);
 
   const gitStatusWrapper = prepareGitStatusWrapperProjection({
     requested: installGitStatusWrapper === true,
@@ -147,7 +167,8 @@ function composeBubblewrapLaunchPlan({
   const effectiveReadOnlyRoots = Array.isArray(readOnlyRoots)
     ? [
         ...readOnlyRoots,
-        ...(findingsRoleGitMetadata?.readOnlyBinds ?? [])
+        ...(findingsRoleGitMetadata?.readOnlyBinds ?? []),
+        ...(workerTestRuntime?.readOnlyBinds ?? [])
       ]
     : readOnlyRoots;
 
@@ -174,7 +195,7 @@ function composeBubblewrapLaunchPlan({
     familyRuntimeReadOnlyRoots,
     familySystemReadOnlyRoots,
     familyRuntimeWritableRoots,
-    env: gitStatusWrapper === null ? env : gitStatusWrapper.env,
+    env: gitStatusWrapper === null ? projectedEnv : gitStatusWrapper.env,
     envPolicy: gitStatusWrapper === null ? envPolicy : gitStatusWrapper.envPolicy,
     cwd,
     repoReal,
@@ -183,6 +204,15 @@ function composeBubblewrapLaunchPlan({
     familyRuntimeApprovedPrefixes,
     resolvedFamilyRuntimePolicyProfile
   });
+
+  const testRuntime = prepareWorkerTestRuntimeMounts({ workerTestRuntime, sparseWorkerNamespace,
+    repoReal, writableRoots: writable, runtimeRoots: runtime });
+  if (testRuntime !== null && testRuntime.created.length > 0) {
+    preparation.rollback = () => {
+      rollbackPreparedWorkerDirectories(testRuntime.created);
+      return directoryPreparation.rollback();
+    };
+  }
 
   assertFindingsRoleGitMetadataReadOnly(findingsRoleGitMetadata, {
     writableRoots: writable,
@@ -212,7 +242,7 @@ function composeBubblewrapLaunchPlan({
 
   const writableFilePreparation = prepareWritableFiles(effectiveWritableFiles, repoReal, {
     refuseSymlinks: sparseWorkerNamespace !== null,
-    preparedDirectories: directoryPreparation.entries,
+    preparedDirectories: [...directoryPreparation.entries, ...(testRuntime?.created ?? [])],
     attemptBinding: sparseWorkerNamespace === null
       ? null
       : Object.freeze({
@@ -271,10 +301,12 @@ function composeBubblewrapLaunchPlan({
     provisionedGitIsolation,
     gitNamespaceDirectories: findingsRoleGitMetadata?.namespaceDirectories ?? [],
     decisionsReadOnly,
+    testRuntimeSkeletonDirs: testRuntime?.skeletonDirs ?? [],
+    testRuntimeDependencyBinds: testRuntime?.dependencyBinds ?? [],
     policedEnv,
     cwdNormalized,
-    resolvedCommand,
-    args,
+    resolvedCommand: childCommandResolution,
+    args: childArgs,
     stdioMcpConduit: trustedStdioMcpConduit
   });
 
@@ -282,9 +314,9 @@ function composeBubblewrapLaunchPlan({
     schemaVersion: BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION,
     bwrapPath: pinnedBwrapPath,
     bwrapArgs: Object.freeze(bwrapArgs),
-    childCommand: resolvedCommand.argvCommand,
+    childCommand: childCommandResolution.argvCommand,
     childCommandInput: command,
-    childArgs: Object.freeze([...args]),
+    childArgs: Object.freeze([...childArgs]),
     repo: repoReal,
     cwd: cwdNormalized,
     shareNet: shareNet === true,
@@ -343,6 +375,16 @@ function composeBubblewrapLaunchPlan({
       familyRuntimeWritable.map((b) => Object.freeze({ ...b }))
     ),
     systemReadOnlyRoots: Object.freeze([...systemRoots]),
+    workerTestRuntime: testRuntime === null
+      ? null
+      : Object.freeze({
+          identity: testRuntime.identity,
+          publication: testRuntime.publication,
+          pathPrefix: testRuntime.pathPrefix,
+          commands: testRuntime.commands,
+          mounts: testRuntime.mounts,
+          sources: testRuntime.sources
+        }),
     stdioMcpConduit: trustedStdioMcpConduit
   });
 }

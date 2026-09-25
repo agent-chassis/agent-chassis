@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 import { runProofPackAdequacy } from "../support/proof-pack-adequacy.mjs";
+import { certificationDirectory, readDefinitionDocument } from "../support/certification-artifact.mjs";
 
-const packDirectory = fileURLToPath(new URL(
-  "../certification/profiles/proof.idempotency.effect-nonduplication/4.0.0/",
-  import.meta.url
-));
+const packDirectory = certificationDirectory({
+  profile_id: "proof.idempotency.effect-nonduplication", profile_version: "5.0.0"
+});
 
 test("idempotency v2 proof pack has complete discriminating coverage", async () => {
   const result = await runProofPackAdequacy(packDirectory, {
@@ -15,6 +14,6 @@ test("idempotency v2 proof pack has complete discriminating coverage", async () 
   });
   assert.equal(result.passed, true, JSON.stringify(result.diagnostics));
   assert.equal(result.negative_fixture_count, 46);
-  assert.equal(result.coverage_witness_count, 131);
+  assert.equal(result.coverage_witness_count, 129);
   assert.deepEqual(result.diagnostics, []);
 });

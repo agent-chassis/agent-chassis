@@ -167,8 +167,8 @@ test("current packaged proof bindings reject historical and stale identities", a
   });
   assert.equal(admitted.test_validity_evaluator.status, "resolved");
   assert.equal(admitted.test_validity_evaluator.implementation_digest,
-    "sha256:8aff870dc00038e340e6e9bf889eb2c8f74b2f8b1fd70024fd54994b90cee90f");
-  for (const profileVersion of ["7.0.0", "9.0.0"]) {
+    "sha256:1ab1b1817b591583293a6d093e1a93b53e71b146e8c7b30f89df4eb479f6ef7a");
+  for (const profileVersion of ["7.0.0", "9.0.0", "10.0.0"]) {
     await assert.rejects(loadExactAdmittedProofPack({
       profileId: current.profile_id,
       profileVersion
@@ -181,10 +181,18 @@ test("current packaged proof bindings reject historical and stale identities", a
   const names = new Set(JSON.parse(stdout)[0].files.map(({ path: file }) => file));
   assert.equal(names.has("lib/proof-evaluator-registry.mjs"), true);
   assert.equal(names.has(`${current.path}/evaluator.mjs`), true);
-  assert.equal(names.has(
-    "profiles/proof.verification.test-validity/7.0.0/evaluator.mjs"), true);
   assert.equal([...names].some((name) => /(?:^|\/)test(?:\/|$)|certification/u.test(name)),
     false);
+
+  const currentPaths = new Set(catalog.packs.map(({ path: packPath }) => `${packPath}/`));
+  const packedProfiles = [...names].filter((name) => name.startsWith("profiles/"));
+  assert.deepEqual(packedProfiles.filter((name) => name !== "profiles/catalog.json" &&
+    ![...currentPaths].some((prefix) => name.startsWith(prefix))), []);
+  for (const pack of catalog.packs) {
+    for (const file of await readdir(path.join(packageRoot, pack.path))) {
+      assert.equal(names.has(`${pack.path}/${file}`), true, `${pack.path}/${file}`);
+    }
+  }
 
   const temporary = await mkdtemp(path.join(os.tmpdir(), "wk2568-stale-pack-"));
   t.after(() => rm(temporary, { recursive: true, force: true }));
@@ -262,7 +270,8 @@ test("the public current surface exposes selection and zero/one/many assessment"
   assert.equal(typeof current.validateObligationCoverageCarrier, "function");
   assert.equal(typeof current.buildObligationGuaranteeSelectorIndex, "function");
   assert.equal(typeof current.resolveObligationGuaranteeSelector, "function");
-  assert.deepEqual(current.OBLIGATION_COVERAGE_OUTCOMES, ['stale', 'explicit_gap', 'design_invalid', 'selected']);
+  assert.deepEqual(current.OBLIGATION_COVERAGE_OUTCOMES,
+    ['stale', 'design_invalid', 'selected']);
   assert.equal(typeof current.describeStableTestProofAuthoring, "function");
   assert.equal(typeof current.queryStableTestProofBindings, "function");
   assert.equal(typeof current.replaceStableTestProofBindings, "function");
@@ -394,7 +403,6 @@ test("the publication dry run ships discovery runtime and excludes test corpora"
     "schema/controlled-contract-test-proof-runtime-evidence.v2.schema.json",
     "lib/test-proof-assessment.mjs",
     "schema/controlled-contract-assessment.v2.schema.json",
-    "profiles/proof.verification.test-validity/7.0.0/evaluator.mjs",
     "profiles/proof.design.implementation-readiness/4.0.0/admission.json",
     "profiles/proof.design.implementation-readiness/4.0.0/component-exclusion-applicability.json",
     "profiles/proof.design.implementation-readiness/4.0.0/evaluation-input.template.json",
@@ -498,8 +506,7 @@ test("the packed package root excludes experimental producers and preserves stab
     const resolved = await resolveProofAuthoring({
       schema_version: 'controlled-contract-obligation-coverage.v3', wk_id: 'WK-2095',
       selected_unit: null, focus: null, obligations: [{ obligation_id: 'OBL-001',
-        statement: 'Expose one exact package root behavior.', selection,
-        gap: { gap_kind: 'review_only', reason: 'Package import does not execute proof.' } }]
+        statement: 'Expose one exact package root behavior.', selection }]
     }, { source_digest: `sha256:${'a'.repeat(64)}` });
     const carrier = resolved.mapping;
     for (const root of [sourceRoot, packedRoot]) {
@@ -513,7 +520,7 @@ test("the packed package root excludes experimental producers and preserves stab
       const evaluation = root.evaluateAcceptanceCoverage({
         obligationCoverage: carrier
       });
-      assert.equal(evaluation.obligation_outcomes[0].outcome, "explicit_gap");
+      assert.equal(evaluation.obligation_outcomes[0].outcome, "design_invalid");
       assert.equal(root.projectAcceptanceCoverage({ evaluation }).totals.total, 1);
     }
   });

@@ -12,7 +12,6 @@ import { loadExactAdmittedProofPack } from '../../packages/controlled-contract/l
 
 const packageRoot = new URL('../../packages/controlled-contract/', import.meta.url);
 const read = async path => JSON.parse(await readFile(new URL(path, packageRoot), 'utf8'));
-const ledger = await read('test/parameter-cutover-reconciliation.json');
 const catalog = await read('profiles/catalog.json');
 const identity = (id, version) => `${id}@${version}`;
 async function fixture(id) {
@@ -67,55 +66,30 @@ test('P2 closed schema and exact refinements reject widening, duplicates and dan
   assert.throws(() => describePackParameters(structuredClone(contract)), { code: 'pack_parameter_snapshot_unrecognized' });
 });
 
-test('P3 original cutover roles and profile constraints remain immutable historical evidence', async () => {
+test('P3 every current parameter contract accounts for exactly its profile roles', async () => {
   let roles = 0;
-  for (const row of ledger.definitions) {
-    const p = `profiles/${row.profile_id}/${row.current_version}`;
-    const profile = await read(`${p}/profile.json`), raw = await read(`${p}/parameter-contract.json`);
-    const baseline = await read(`profiles/${row.profile_id}/${row.baseline_version}/profile.json`);
-    const historical = await read(`profiles/${row.profile_id}/${row.historical_version}/profile.json`);
-    assert.equal(profileDigest(baseline), row.baseline_digest);
-    assert.equal(profileDigest(historical), row.historical_digest);
-    assert.deepEqual(profile.reference_roles, historical.reference_roles);
-    assert.deepEqual(profile.number_roles, historical.number_roles);
-    assert.deepEqual(row.roles.map(r => r.role), [...profile.reference_roles, ...profile.number_roles].map(r => r.role));
-    assert.deepEqual(row.roles.map(r => r.baseline_refinement), [...baseline.reference_roles, ...baseline.number_roles]);
-    assert.deepEqual(row.roles.map(r => r.current_refinement), [...profile.reference_roles, ...profile.number_roles]);
-    const normalized = { ...profile, profile_version: baseline.profile_version };
-    assert.deepEqual(normalized, baseline, row.profile_id);
-    const coverage = inspectPackParameterCoverage(validatePackParameterContract(raw, profile), profile);
-    assert.equal(coverage.total, row.roles.length);
+  let parameters = 0;
+  for (const row of catalog.packs) {
+    const { profile, raw, contract } = await fixture(row.profile_id);
+    const coverage = inspectPackParameterCoverage(contract, profile);
+    assert.equal(coverage.total, [...profile.reference_roles, ...profile.number_roles].length,
+      row.profile_id);
     assert.equal(coverage.total, coverage.accounted);
-    assert.equal(coverage.omitted, 0); roles += coverage.total;
+    assert.equal(coverage.omitted, 0);
+    roles += coverage.total;
+    parameters += raw.parameters.length;
     rejectsMutation(raw, profile, c => c.role_producers.pop(), 'pack_parameter_coverage_mismatch');
     rejectsMutation(raw, profile, c => c.role_producers.push(c.role_producers[0]), 'pack_parameter_coverage_mismatch');
     rejectsMutation(raw, profile, c => { c.role_producers[0].role = 'invented_role'; }, 'pack_parameter_coverage_mismatch');
     const withRule = raw.role_producers.findIndex(r => r.rule_refs.length);
-    rejectsMutation(raw, profile, c => c.role_producers[withRule].rule_refs.pop(), 'pack_parameter_coverage_mismatch');
+    if (withRule >= 0) rejectsMutation(raw, profile, c => c.role_producers[withRule].rule_refs.pop(),
+      'pack_parameter_coverage_mismatch');
   }
-  assert.equal(roles, ledger.historical_roles);
-  assert.equal(ledger.definitions.length, ledger.historical_definitions);
-});
-
-test('P3 current census retires write-confinement 4.0.0 and test-validity 7.0.0 and 8.0.0 from the original ledger', async () => {
   const population = await loadCurrentParameterPopulation();
-  const current = population.map(({ contract }) => identity(contract.profile_id, contract.profile_version));
-  const historical = ledger.definitions.map(row => identity(row.profile_id, row.current_version));
-  assert.deepEqual(historical.filter(key => !current.includes(key)), ['proof.scope.write-confinement@4.0.0', 'proof.verification.test-validity@7.0.0', 'proof.verification.test-validity@8.0.0']);
-  assert.deepEqual(current.filter(key => !historical.includes(key)), ['proof.verification.test-validity@10.0.0']);
-  assert.ok(current.includes('proof.verification.test-validity@10.0.0'));
-  assert.equal(current.includes('proof.verification.test-validity@9.0.0'), false);
-  let historicalParameters = 0;
-  for (const row of ledger.definitions) {
-    const raw = await read(`profiles/${row.profile_id}/${row.current_version}/parameter-contract.json`);
-    historicalParameters += raw.parameters.length;
-  }
-  assert.deepEqual([ledger.definitions.length, ledger.historical_roles, historicalParameters], [39, 968, 744]);
-  assert.deepEqual([population.length,
+  assert.deepEqual([catalog.packs.length, roles, parameters], [population.length,
     population.reduce((sum, { contract }) => sum + contract.role_producers.length, 0),
-    population.reduce((sum, { contract }) => sum + contract.parameters.length, 0)], [37, 959, 735]);
-  const retired = await read('profiles/proof.verification.test-validity/7.0.0/parameter-contract.json');
-  assert.deepEqual([retired.role_producers.length, retired.parameters.length], [2, 2]);
+    population.reduce((sum, { contract }) => sum + contract.parameters.length, 0)]);
+  assert.deepEqual([population.length, roles, parameters], [37, 959, 735]);
 });
 
 test('P4 explicit, missing and canonical sources remain distinct without materialized defaults', async () => {

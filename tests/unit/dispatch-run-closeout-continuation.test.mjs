@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 import {
   CLOSEOUT_WORKFLOW_CONTINUATION_SCHEMA_VERSION
@@ -34,7 +34,7 @@ function managedWorkerFixture({ integrationFailures = 0, perturbLifecycle = null
       startAdvisoryReview: forbidden
     }
   });
-  const call = async (extra = {}) => parseStructuredTextResponse(
+  const call = async (extra = {}) => readStructuredResult(
     await tools.get("workspace_agent_run_status").handler({ subject: SUBJECT, ...extra })
   );
   return { harness, call, observed };
@@ -58,12 +58,13 @@ test("a finalized managed worker publishes no lifecycle closeout continuation", 
   assert.equal(fixture.harness.counts().reviewSeamCalls, 0);
 });
 
-test("an unresolved managed worker retries status and publishes no integration continuation", async () => {
+test("an unresolved managed worker names its next step and publishes no integration continuation", async () => {
   const fixture = managedWorkerFixture({ integrationFailures: 1 });
   const status = await fixture.call();
 
   assert.equal(status.terminal, false);
-  assert.equal(status.next_action, "retry_wait_or_check_status");
+
+  assert.equal(status.next_action, "escalate_missing_retry_capability");
   assert.equal(status.closeout_continuation, undefined);
   assert.equal(JSON.stringify(status).includes("awaiting-slice-review"), false);
   assert.equal(JSON.stringify(status).includes("workspace_integrate_committed_slice"), false);
@@ -167,7 +168,7 @@ function terminalReviewerFixture({ status = terminalReviewStatus(), publication 
       startAdvisoryReview: forbidden
     }
   });
-  const call = async (tool, extra = {}) => parseStructuredTextResponse(await tools.get(tool).handler({
+  const call = async (tool, extra = {}) => readStructuredResult(await tools.get(tool).handler({
     subject: status.subject,
     ...extra
   }));

@@ -54,13 +54,12 @@ export function createDispatchToolRegistry({
   return tools;
 }
 
-export function parseStructuredTextResponse(result) {
+export function readStructuredResult(result) {
   assert.equal(result.isError, undefined);
-  assert.equal(result.content[0].type, "text");
-  assert.equal(typeof result.content[0].text, "string");
-  const structured = JSON.parse(result.content[0].text);
-  assert.deepEqual(result.structuredContent, structured);
-  return structured;
+  assert.deepEqual(result.content, []);
+  assert.ok(result.structuredContent !== null && typeof result.structuredContent === "object",
+    "structured result must carry structuredContent");
+  return result.structuredContent;
 }
 
 export const RETIRED_POST_WORKER_REVIEW_SEAMS = Object.freeze([
@@ -75,8 +74,7 @@ export const RETIRED_POST_WORKER_REVIEW_SEAMS = Object.freeze([
 
 export function createResumableLifecycleHarness({
   integrationFailures = 0,
-  integrationGate = null,
-  declaredTerminalReviewUnit = null
+  integrationGate = null
 } = {}) {
   const base = "a".repeat(40);
   const commit = "b".repeat(40);
@@ -127,7 +125,6 @@ export function createResumableLifecycleHarness({
   });
   let canonicalStatus = "in_progress";
   let integrationCalls = 0;
-  let declaredUnitCalls = 0;
   const reviewSeamCalls = [];
 
   const provisioningFor = (observed = status) => ({
@@ -176,10 +173,6 @@ export function createResumableLifecycleHarness({
     resolveCommittedSliceIntegrationContinuation: () => null,
 
     verifyDeliveredProofs: async () => Object.freeze({ verified: [] }),
-    resolveDeclaredTerminalReviewUnit: () => {
-      declaredUnitCalls += 1;
-      return declaredTerminalReviewUnit;
-    },
     ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, (...args) => {
       reviewSeamCalls.push({ name, args });
       throw new Error(`retired post-worker review seam ${name} was called`);
@@ -211,7 +204,7 @@ export function createResumableLifecycleHarness({
     reviewedSha: commit,
     sliceRef,
     sliceWorktree,
-    counts: () => ({ integrationCalls, declaredUnitCalls, reviewSeamCalls: reviewSeamCalls.length }),
+    counts: () => ({ integrationCalls, reviewSeamCalls: reviewSeamCalls.length }),
     reviewSeamCalls: () => [...reviewSeamCalls],
     setCanonicalStatus(value) { canonicalStatus = value; }
   };

@@ -13,7 +13,7 @@ import { runPostWorkerSliceLifecycle } from "./dispatch-run-monitor-routes.mjs";
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse,
+  readStructuredResult,
   RETIRED_POST_WORKER_REVIEW_SEAMS
 } from "./dispatch-tools-test-helpers.mjs";
 import {
@@ -22,12 +22,6 @@ import {
 } from "./dispatch-lifecycle-failure-projection.mjs";
 
 const WORKSPACE = Object.freeze({ repo: "agent-chassis", dir: "/home/user/agent-chassis" });
-const DECLARED_TERMINAL_UNIT = Object.freeze({
-  record_id: "WK-1537",
-  initiative: "IN-0021",
-  slice_id: "SLICE-099",
-  subject: "WK-1537#SLICE-099"
-});
 
 test("review findings remain evidence only and cause no automatic slice lifecycle mutation", async () => {
   let lifecycleCalls = 0;
@@ -54,7 +48,7 @@ test("review findings remain evidence only and cause no automatic slice lifecycl
     }
   });
 
-  const result = parseStructuredTextResponse(await tools.get("workspace_agent_run_status").handler({
+  const result = readStructuredResult(await tools.get("workspace_agent_run_status").handler({
     subject: "WK-1537#SLICE-003"
   }));
   assert.equal(result.review_result.review_outcome, "changes_requested");
@@ -130,11 +124,11 @@ test("WK-1555#SLICE-033 a host-delegated integration refusal fails the lifecycle
       return true;
     }
   );
-  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 });
 
 test("WK-1587 a non-final slice integration leaves the WK dispatchable and consults no terminal review unit", async () => {
-  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
+  const harness = createResumableLifecycleHarness();
 
   const nonFinalIntegration = { ...harness.integrationResult, review_target: null };
   let integrationCalls = 0;
@@ -159,7 +153,7 @@ test("WK-1587 a non-final slice integration leaves the WK dispatchable and consu
   assert.equal(Object.hasOwn(finalized, "terminal_candidate"), false);
   assert.equal(Object.hasOwn(finalized, "reviewer_dispatch"), false);
   assert.equal(prepareCalls, 0);
-  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 });
 
 test("managed lifecycle refuses a committed delivery when the writable host integration adapter is absent", async () => {
@@ -172,90 +166,53 @@ test("managed lifecycle refuses a committed delivery when the writable host inte
     }),
     /requires the writable host slice integration adapter/u
   );
-  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 });
 
-test("a final integration whose record declares no terminal review unit prepares no candidate", async () => {
-  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: null });
-  const resolverInputs = [];
-  let prepareCalls = 0;
-  const finalized = await runPostWorkerSliceLifecycle({
-    workspace: WORKSPACE,
-    status: { ...harness.status },
-    deps: {
-      ...harness.deps,
-      resolveDeclaredTerminalReviewUnit: (input) => {
-        resolverInputs.push(input);
-        return harness.deps.resolveDeclaredTerminalReviewUnit(input);
-      },
-      prepareTerminalCandidate: async () => { prepareCalls += 1; }
-    }
+const REVIEW_FREE_PREPARATION_INPUTS = Object.freeze([
+  "baseRef", "baseSha", "initiative", "integration", "wkId", "wkRef"
+]);
+
+{
+  test("a fresh final integration prepares the review-free candidate", async () => {
+    const harness = createResumableLifecycleHarness();
+    const prepared = [];
+    harness.deps.prepareTerminalCandidate = async (input) => {
+      prepared.push(input);
+      throw new Error("injected candidate preparation failure");
+    };
+    await assert.rejects(
+      harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
+      (error) => {
+        assert.equal(isClosedLifecycleFailure(error), true);
+        assert.equal(error.code, CLOSED_LIFECYCLE_FAILURE_CODES.TERMINAL_CANDIDATE_PREPARATION_FAILED);
+        assert.equal(error.message.includes("injected candidate preparation failure"), false);
+        return true;
+      }
+    );
+    assert.equal(prepared.length, 1);
+    assert.deepEqual(Object.keys(prepared[0]).sort(), REVIEW_FREE_PREPARATION_INPUTS);
+    assert.deepEqual(prepared[0].integration, harness.integrationResult);
+    assert.equal(prepared[0].initiative, "IN-0021");
+    assert.equal(prepared[0].wkId, "WK-1537");
+    assert.equal(prepared[0].wkRef, harness.wkRef);
+    assert.equal(prepared[0].baseSha, "a".repeat(40));
+    assert.equal(prepared[0].baseRef, "main");
+    assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
   });
-  assert.deepEqual(resolverInputs, [{ mainRepo: WORKSPACE.dir, wkId: "WK-1537" }]);
-  assert.equal(prepareCalls, 0);
-  assert.equal(finalized.phase, "finalized");
-  assert.equal(finalized.wk_transitioned_to_review, true);
-  assert.equal(Object.hasOwn(finalized, "terminal_candidate"), false);
-  assert.equal(Object.hasOwn(finalized, "terminal_candidate_validations"), false);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
-});
+}
 
-test("a final integration without a candidate capability never resolves the declared unit", async () => {
-  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
+test("a final integration without a candidate capability constructs no candidate", async () => {
+  const harness = createResumableLifecycleHarness();
   const finalized = await harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } });
   assert.equal(finalized.phase, "finalized");
   assert.equal(finalized.wk_transitioned_to_review, true);
   assert.equal(Object.hasOwn(finalized, "terminal_candidate"), false);
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 0, reviewSeamCalls: 0 });
-});
-
-test("a declared terminal review unit for another WK identity refuses before candidate preparation", async () => {
-  for (const unit of [
-    { ...DECLARED_TERMINAL_UNIT, record_id: "WK-9999" },
-    { ...DECLARED_TERMINAL_UNIT, initiative: "IN-9999" }
-  ]) {
-    const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: unit });
-    let prepareCalls = 0;
-    harness.deps.prepareTerminalCandidate = async () => { prepareCalls += 1; };
-    await assert.rejects(
-      harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
-      /declared terminal review unit does not match the exact launcher WK identity/u
-    );
-    assert.equal(prepareCalls, 0);
-    assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
-  }
-});
-
-test("a declared terminal review unit prepares the candidate from the exact integration and fails closed under its own seam", async () => {
-  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
-  const prepared = [];
-  harness.deps.prepareTerminalCandidate = async (input) => {
-    prepared.push(input);
-    throw new Error("injected candidate preparation failure");
-  };
-  await assert.rejects(
-    harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
-    (error) => {
-      assert.equal(isClosedLifecycleFailure(error), true);
-      assert.equal(error.code, CLOSED_LIFECYCLE_FAILURE_CODES.TERMINAL_CANDIDATE_PREPARATION_FAILED);
-      assert.equal(error.message.includes("injected candidate preparation failure"), false);
-      return true;
-    }
-  );
-  assert.equal(prepared.length, 1);
-  assert.deepEqual(prepared[0].integration, harness.integrationResult);
-  assert.equal(prepared[0].reviewUnit, DECLARED_TERMINAL_UNIT);
-  assert.equal(prepared[0].initiative, "IN-0021");
-  assert.equal(prepared[0].wkId, "WK-1537");
-  assert.equal(prepared[0].wkRef, harness.wkRef);
-  assert.equal(prepared[0].baseSha, "a".repeat(40));
-  assert.equal(prepared[0].baseRef, "main");
-  assert.equal(typeof prepared[0].authenticateAuthoredState, "function");
-  assert.deepEqual(harness.counts(), { integrationCalls: 1, declaredUnitCalls: 1, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 1, reviewSeamCalls: 0 });
 });
 
 test("a prepared terminal candidate without a binding refuses with missing_binding", async () => {
-  const harness = createResumableLifecycleHarness({ declaredTerminalReviewUnit: DECLARED_TERMINAL_UNIT });
+  const harness = createResumableLifecycleHarness();
   harness.deps.prepareTerminalCandidate = async () => ({ binding: null });
   await assert.rejects(
     harness.invoke({ workspace: WORKSPACE, status: { ...harness.status } }),
@@ -297,7 +254,7 @@ function restartReplayLifecycleArgs(markerOverrides = {}) {
     integrated_state: "final",
     ...markerOverrides
   };
-  const counters = { adapter: 0, declared: 0, prepare: 0, reviewSeams: 0 };
+  const counters = { adapter: 0, prepare: 0, reviewSeams: 0 };
   const deps = {
     ...Object.fromEntries(RETIRED_POST_WORKER_REVIEW_SEAMS.map((name) => [name, () => {
       counters.reviewSeams += 1;
@@ -315,10 +272,6 @@ function restartReplayLifecycleArgs(markerOverrides = {}) {
     hostSliceIntegrationAdapter: async () => {
       counters.adapter += 1;
       return { accepted: true, integration: { ...recoveredMarker } };
-    },
-    resolveDeclaredTerminalReviewUnit: () => {
-      counters.declared += 1;
-      return DECLARED_TERMINAL_UNIT;
     },
     prepareTerminalCandidate: async () => {
       counters.prepare += 1;
@@ -354,7 +307,7 @@ test("an authenticated final restart replay finalizes as the WK handoff without 
   assert.equal(result.integration.review_target, null);
   assert.equal(Object.hasOwn(result, "terminal_candidate"), false);
   assert.equal(Object.hasOwn(result, "reviewer_dispatch"), false);
-  assert.deepEqual(counters, { adapter: 1, declared: 0, prepare: 0, reviewSeams: 0 });
+  assert.deepEqual(counters, { adapter: 1, prepare: 0, reviewSeams: 0 });
 });
 
 test("an authenticated non-final exact-tip restart replay finalizes without a WK review handoff", async () => {
@@ -364,7 +317,7 @@ test("an authenticated non-final exact-tip restart replay finalizes without a WK
   assert.equal(result.integrated, true);
   assert.equal(result.wk_transitioned_to_review, false);
   assert.equal(result.integration.integrated_state, "non_final");
-  assert.deepEqual(counters, { adapter: 1, declared: 0, prepare: 0, reviewSeams: 0 });
+  assert.deepEqual(counters, { adapter: 1, prepare: 0, reviewSeams: 0 });
 });
 
 test("a restart replay whose integrated_state cannot be authenticated refuses rather than guessing", async () => {
@@ -393,7 +346,7 @@ test("a restart replay whose integrated_state cannot be authenticated refuses ra
       },
       reason
     );
-    assert.deepEqual(counters, { adapter: 1, declared: 0, prepare: 0, reviewSeams: 0 }, reason);
+    assert.deepEqual(counters, { adapter: 1, prepare: 0, reviewSeams: 0 }, reason);
   }
 });
 
@@ -420,7 +373,7 @@ test("committed-slice recovery is disjoint from worker liveness and performs no 
     assert.equal(recovered, null);
   }
   assert.equal(livenessConsults, 0);
-  assert.deepEqual(harness.counts(), { integrationCalls: 0, declaredUnitCalls: 0, reviewSeamCalls: 0 });
+  assert.deepEqual(harness.counts(), { integrationCalls: 0, reviewSeamCalls: 0 });
 });
 
 function registerStandaloneRedteamDispatchFixture(t, { slice, slices, recordId = "WK-9733", subjectSliceId = "SLICE-001" } = {}) {

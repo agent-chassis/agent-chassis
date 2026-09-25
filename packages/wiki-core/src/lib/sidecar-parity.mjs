@@ -155,12 +155,7 @@ export function createSidecarParityFixture({
     expectation,
     cliJson: cloneJson(envelope),
     mcpResult: Object.freeze({
-      content: Object.freeze([
-        Object.freeze({
-          type: "text",
-          text: `${JSON.stringify(envelope, null, 2)}\n`
-        })
-      ]),
+      content: Object.freeze([]),
       structuredContent: cloneJson(envelope)
     })
   });

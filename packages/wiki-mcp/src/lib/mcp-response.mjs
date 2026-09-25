@@ -95,8 +95,6 @@ const VERIFY_PROOF_EVIDENCE_REFERENCE_FIELDS = Object.freeze([
 const RESULT_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/u;
 
 const SPILL_MEASUREMENT_SCHEMA_VERSION = "mcp-response-spill-measurement.v1";
-
-const COMPLETE_INLINE_RESULT = Symbol("wiki-mcp-complete-inline-result");
 const RETAINED_PAYLOAD_ENCODING = "application/json; charset=utf-8; indent=2";
 const SPILL_MEASUREMENT_FIELDS = Object.freeze([
   "schema_version", "compared", "complete_frame_bytes", "inline_byte_limit",
@@ -117,10 +115,10 @@ function spillMeasurement({ completeFrameBytes, inlineByteLimit, retainedPayload
     inline_byte_limit: inlineByteLimit,
     retained_payload_bytes: retainedPayloadBytes,
     retained_payload_encoding: RETAINED_PAYLOAD_ENCODING,
-    meaning: "inline admission compares complete_frame_bytes — the whole two-channel " +
-      "CallToolResult, text channel and JSON escaping included — against inline_byte_limit. " +
-      "total_bytes and retained_payload_bytes measure only the persisted payload, which is " +
-      "smaller than the compared frame and is not the quantity admission compared."
+    meaning: "inline admission compares complete_frame_bytes — the whole serialized " +
+      "CallToolResult, compact structuredContent, frame keys and protocol metadata included — " +
+      "against inline_byte_limit. total_bytes and retained_payload_bytes measure only the " +
+      "persisted indented payload, which is not the quantity admission compared."
   };
 }
 
@@ -285,7 +283,7 @@ export function isLosslessMcpSpillDelivery(result) {
   if (result === null || typeof result !== "object" || Array.isArray(result)) return false;
   const envelope = result.structuredContent;
   if (!isSpilledEnvelope(envelope) || !hasExactKeys(envelope, SPILLED_ENVELOPE_FIELDS) ||
-      !contentMirrorsStructuredContent(result.content, envelope)) {
+      !hasNoContentCarrier(result)) {
     return false;
   }
   const { preview, content_reference: reference } = envelope;
@@ -631,7 +629,7 @@ function serializedResultBytes(result) {
 export function measureMcpInlineResultBytes(payload, { isError = false } = {}) {
   const canonical = canonicalizeStructuredPayload(payload);
   if (!canonical) return Number.POSITIVE_INFINITY;
-  return serializedResultBytes(buildTwoChannelResult(canonical, { isError }));
+  return serializedResultBytes(structuredToolResult(canonical.value, { isError }));
 }
 
 export function activeMcpInlineByteLimit(env = process.env) {
@@ -659,15 +657,22 @@ function canonicalizeStructuredPayload(payload) {
   return { jsonText, value: JSON.parse(jsonText) };
 }
 
-function buildTwoChannelResult({ jsonText, value }, { isError = false } = {}) {
-  const result = {
-    content: [{ type: "text", text: jsonText }],
-    structuredContent: value
-  };
+export function structuredToolResult(value, { isError = false } = {}) {
+  const result = { content: [], structuredContent: value };
   if (isError) {
     result.isError = true;
   }
   return result;
+}
+
+function hasNoContentCarrier(result) {
+  return Array.isArray(result?.content) && result.content.length === 0;
+}
+
+function withoutTextCarriers(content) {
+  return Array.isArray(content)
+    ? content.filter((block) => !(block && typeof block === "object" && block.type === "text"))
+    : [];
 }
 
 function requiredStructuredContentFailure(operation, brokenInvariant) {
@@ -677,7 +682,7 @@ function requiredStructuredContentFailure(operation, brokenInvariant) {
     operation,
     broken_invariant: brokenInvariant
   };
-  return buildTwoChannelResult(canonicalizeStructuredPayload(payload), { isError: true });
+  return structuredToolResult(canonicalizeStructuredPayload(payload).value, { isError: true });
 }
 
 function normalizeDeclaredOutputSchema(outputSchema) {
@@ -719,23 +724,6 @@ async function validateRequiredStructuredContent(result, { name, outputSchema })
         name,
         "structuredContent must satisfy outputSchema"
       );
-}
-
-function contentMirrorsStructuredContent(content, payload) {
-  if (!Array.isArray(content) || content.length !== 1) {
-    return false;
-  }
-  const [block] = content;
-  if (!block || block.type !== "text" || typeof block.text !== "string") {
-    return false;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(block.text);
-  } catch {
-    return false;
-  }
-  return isDeepStrictEqual(parsed, payload);
 }
 
 function isSpilledEnvelope(value) {
@@ -1045,17 +1033,17 @@ function boundTerminalEnvelopeResult(envelope, { isError = false, config }) {
 
     return errorContent(new Error("MCP response envelope is not JSON-serializable"));
   }
-  const result = buildTwoChannelResult(canonical, { isError });
+  const result = structuredToolResult(canonical.value, { isError });
   if (serializedResultBytes(result) <= config.inlineByteLimit) {
     return result;
   }
   const trimmed = canonicalizeStructuredPayload(dropEnvelopePreview(envelope)) ?? canonical;
-  const trimmedResult = buildTwoChannelResult(trimmed, { isError });
+  const trimmedResult = structuredToolResult(trimmed.value, { isError });
   if (serializedResultBytes(trimmedResult) <= config.inlineByteLimit) {
     return trimmedResult;
   }
   const bounded = canonicalizeStructuredPayload(canonicalTerminalEnvelopeFields(trimmed.value));
-  const boundedResult = buildTwoChannelResult(bounded, { isError });
+  const boundedResult = structuredToolResult(bounded.value, { isError });
   return serializedResultFits(boundedResult, config.inlineByteLimit)
     ? boundedResult
     : errorContent(new Error("Canonical MCP terminal envelope exceeds inline byte limit"));
@@ -1148,7 +1136,7 @@ function shapeStructuredResult(
 
   let completeFrameBytes = comparedCompleteFrameBytes;
   if (!forceSpill) {
-    const inline = buildTwoChannelResult(canonical, { isError });
+    const inline = structuredToolResult(canonical.value, { isError });
     completeFrameBytes = serializedResultBytes(inline);
     if (completeFrameBytes <= resolvedConfig.inlineByteLimit) {
       return inline;
@@ -1258,16 +1246,6 @@ export function jsonContent(data, { env = process.env, forceSpill = false } = {}
   return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
 }
 
-export function completeInlineJsonContent(data, { env = process.env } = {}) {
-  const canonical = canonicalizeStructuredPayload(data);
-  if (!canonical) {
-    return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
-  }
-  const result = buildTwoChannelResult(canonical, { isError: false });
-  Object.defineProperty(result, COMPLETE_INLINE_RESULT, { value: true });
-  return result;
-}
-
 export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
     return result;
@@ -1279,24 +1257,20 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (payload === undefined) {
     return result;
   }
-  if (result[COMPLETE_INLINE_RESULT] === true &&
-      contentMirrorsStructuredContent(result.content, payload)) {
-    return result;
-  }
   const config = getResponseSpillConfig(env);
   const isError = result.isError === true;
-  if (
-    contentMirrorsStructuredContent(result.content, payload) &&
-    serializedResultFits(result, config.inlineByteLimit)
-  ) {
-    return result;
-  }
   const canonical = canonicalizeStructuredPayload(payload);
   if (!canonical) {
     return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
   }
-  const inline = buildTwoChannelResult(canonical, { isError });
-  const completeInline = { ...result, ...inline };
+
+  const retainedContent = withoutTextCarriers(result.content);
+  const inline = structuredToolResult(canonical.value, { isError });
+  const completeInline = { ...result, ...inline, content: retainedContent };
+  if (isDeepStrictEqual(completeInline, result) &&
+      serializedResultFits(result, config.inlineByteLimit)) {
+    return result;
+  }
   let completeFrameBytes = null;
   try {
     completeFrameBytes = serializedResultBytes(completeInline);
@@ -1320,7 +1294,7 @@ export function normalizeMcpToolResult(result, { env = process.env } = {}) {
   if (!shaped) {
     return errorContent(new Error("MCP result payload is not JSON-serializable"), { env });
   }
-  const completeSpill = { ...result, ...shaped };
+  const completeSpill = { ...result, ...shaped, content: retainedContent };
 
   return serializedResultFits(completeSpill, config.inlineByteLimit)
     ? completeSpill

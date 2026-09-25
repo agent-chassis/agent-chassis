@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
-import { validateWorkRecordDispatch } from "../../packages/wiki-core/src/index.mjs";
+import { validateWorkRecordDispatch } from "../../packages/wiki-core/src/operations/validate-dispatch.mjs";
 import {
   NODE_ENGINE_ADMISSIBILITY_DENIED_DECISION_CODE
 } from "../../packages/wiki-core/src/lib/work-record-dispatch.mjs";

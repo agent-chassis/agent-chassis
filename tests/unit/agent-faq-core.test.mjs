@@ -13,7 +13,7 @@ import {
   getAgentFaqEntryById,
   filterAgentFaqEntriesByRelatedCode,
   getAgentFaq
-} from "../../packages/wiki-core/src/index.mjs";
+} from "../../packages/wiki-core/src/operations/agent-faq.mjs";
 import {
   assertForgeHandoffGuidance,
   evaluateForgeHandoffGuidance,
@@ -113,7 +113,7 @@ test("verify-proof execution codes resolve one bounded recovery entry", () => {
   const entry = getAgentFaqEntryById(VERIFY_PROOF_EXECUTION_FAQ_ID);
   assert.equal(entry.actor, "agent_or_operator");
   assert.deepEqual(entry.routes.map(({ tool }) => tool), ["workspace_verify_proof"]);
-  assert.match(entry.cause, /failing assertion is unsatisfied/u);
+  assert.match(entry.cause, /failing assertion leaves it unproven/u);
   assert.match(entry.cause, /not_executable or refused/u);
   assert.match(entry.cause, /deepest_stable_cause_code/u);
   for (const code of VERIFY_PROOF_EXECUTION_CODES) {

@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
-import { runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
+import { boundGitStderr, runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
 
 export const WORKTREE_SUBSTRATE_SCHEMA_VERSION = "worktree-identity-binding.v1";
 
@@ -210,6 +210,20 @@ export function defaultRunGit({ repo, args }) {
   } catch (err) {
     return { ok: false, error: err?.message ?? String(err) };
   }
+  if (res.error?.code === "ENOBUFS") {
+
+    return {
+      ok: false,
+      error: res.error.message ?? String(res.error),
+      overflow: true,
+      status: res.status ?? null,
+      signal: res.signal ?? null,
+      stdout: "",
+      stderr: "",
+      stderr_truncated: true,
+      stderr_bytes: null
+    };
+  }
   if (res.error) {
     return { ok: false, error: res.error.message ?? String(res.error) };
   }
@@ -219,16 +233,51 @@ export function defaultRunGit({ repo, args }) {
       status: res.status ?? null,
       signal: res.signal ?? null,
       stdout: typeof res.stdout === "string" ? res.stdout : "",
-      stderr: typeof res.stderr === "string" ? res.stderr.slice(0, 2048) : null
+      ...(typeof res.stderr === "string" ? boundGitStderr(res.stderr, 2048) : { stderr: null })
     };
   }
   return { ok: true, stdout: typeof res.stdout === "string" ? res.stdout : "" };
 }
 
-export async function defaultRunGitAsync({ repo, args }) {
-  const result = await runGitAsync({ repo, args, quotePath: true, stderrLimit: 2048 });
+export async function defaultRunGitAsync({ repo, args, timeoutMs = null, maxBuffer = undefined }) {
+  const result = await runGitAsync({
+    repo,
+    args,
+    quotePath: true,
+    stderrLimit: 2048,
+    timeoutMs,
+    ...(maxBuffer === undefined ? {} : { maxBuffer })
+  });
   if (result.ok === true) {
     return { ok: true, stdout: result.stdout };
+  }
+
+  const stderrFacts = typeof result.stderr_truncated === "boolean"
+    ? { stderr_truncated: result.stderr_truncated, stderr_bytes: result.stderr_bytes }
+    : {};
+  if (result.timed_out === true) {
+    return {
+      ok: false,
+      error: result.error,
+      timed_out: true,
+      status: result.status ?? null,
+      signal: result.signal ?? null,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? null,
+      ...stderrFacts
+    };
+  }
+  if (result.overflow === true) {
+    return {
+      ok: false,
+      error: result.error,
+      overflow: true,
+      status: result.status ?? null,
+      signal: result.signal ?? null,
+      stdout: result.stdout ?? "",
+      stderr: result.stderr ?? null,
+      ...stderrFacts
+    };
   }
   if (result.error) {
     return { ok: false, error: result.error };
@@ -239,7 +288,7 @@ export async function defaultRunGitAsync({ repo, args }) {
     signal: result.signal ?? null,
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? null,
-    ...(result.overflow === true ? { overflow: true } : {})
+    ...stderrFacts
   };
 }
 

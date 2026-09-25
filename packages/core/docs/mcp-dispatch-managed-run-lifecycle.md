@@ -67,9 +67,10 @@ request rather than a chore handed back to the caller.
   Schema, CAS, identity, integrity and publication checks remain in force, and
   each refusal identifies its mechanical failure or returned policy decision.
   Marking a record `done` supplies no evidence that a forge merge occurred.
-- **Forge confirmation remains authenticated.** The trusted forge helper retains
-  its exact candidate, pull-request head and mergeability checks, two
-  work-record-only closeout commits, confirmed merge and exact reconciliation.
+- **Forge confirmation remains authenticated.** Trusted forge handoff prepares
+  the two work-record-only closeout commits before publication, and the trusted
+  forge merge helper retains its exact candidate, pull-request head and
+  mergeability checks, confirmed merge and exact reconciliation.
   An unconfirmed merge remains unconfirmed regardless of local record status;
   reconciliation failure after a confirmed merge remains typed partial success.
   Ordinary edits neither invoke those operations nor manufacture their evidence.
@@ -434,12 +435,57 @@ Capture is synchronous; publication precedes any claim of crash durability and
 precedes post-worker settlement consumption. Publication failure remains
 explicit while hot captured bytes stay retryable. Lifecycle failures receive one
 invocation id at the shared invocation seam and are recorded once per actual
-failed invocation. A retained failure that a later request does not re-attempt —
-because the producing owner's correction condition is unchanged — records no
-further event, so the journal keeps one event per real attempt. Retry facts
-themselves are never journaled and are never read back from the journal:
-historical diagnostics are not retry authority. Exact totals and snapshot-paged complete history derive from
+failed invocation. A retained failure that a later request does not re-attempt
+records no further event, so the journal keeps one event per real attempt. Only
+an authenticated completion of the exact delivery or a producer-verified relevant
+correction makes a retained pre-integration failure eligible for another attempt;
+a failure without a producer correction condition, and every missing, throwing,
+malformed or undecided assessment, withholds (see
+[retained failures](mcp-dispatch-monitoring-and-ownership.md#retained-failures-and-retry-eligibility)).
+Retry facts themselves are never journaled and are never read back from the
+journal: historical diagnostics are not retry authority. A journaled failure of
+the exact attempt may only withhold. Exact totals and snapshot-paged complete history derive from
 committed events; the five-entry process-local preview remains only a cache.
+
+A positively established missing explicit-base `git merge-tree` capability is one
+such producer-owned deterministic prerequisite. A later status request rechecks
+it with bounded, non-mutating `git merge-tree -h` observation through the same
+trusted asynchronous Git runner. The probe has an execution timeout and bounded
+output, and its process owner does not resolve until a timed-out child is
+terminal. Recognizable help that still omits the option leaves the retained
+failure in place without integration or another failure event; recognizable
+help that advertises it permits one newly authenticated attempt. While that
+prerequisite stands — the first failure and every unchanged reassessment — the
+status response publishes a bounded, advisory `required_correction`
+(`workspace-agent-lifecycle-required-correction.v1`, `grants_authority: false`)
+on `lifecycle_resolution` and, identically, at the top level beside
+`next_action: resolve_lifecycle_failure_then_retry_run_status`. It names the
+prerequisite `git_merge_tree_write_tree_explicit_merge_base`: the Git executable
+selected by the serving launcher runtime must support
+`git merge-tree --write-tree --merge-base`; correct that runtime's installation or
+executable selection, then observe the same retained run again;
+`retry_alone_repairs: false`. The lifecycle projection derives it from the retained
+failure's own deterministic correction condition, and the route copies it
+verbatim, so neither a detail read nor captured exception internals are needed.
+A content conflict, another merge-tree execution failure, an undecided
+assessment, an in-flight reassessment and a failure retained only across a restart
+carry none; after a restart the escalation stands, because correcting Git does not
+restore the lost correction facts. Timeout,
+signal, spawn failure, and unrecognizable or indeterminate output report
+assessment uncertainty, withhold the attempt, and never infer support or absence. Concurrent observers
+single-flight the assessment and any permitted attempt. Each observer waits only
+within its remaining request deadline; an observer deadline neither cancels nor
+replaces the retained assessment, and concurrent or later observers rejoin it.
+A restart retains diagnostics but not retry authority. Authenticated completion
+of the exact delivery, including one whose record reconciliation is pending, is
+observed through the continuation owner before the retry history is read or any
+assessment runs, so neither an unreadable history nor a failing assessor hides
+it. The first observation after a restart then adopts the attempt's journaled
+failure as the retained failure and, absent completion, re-derives the
+producer's current refusal read-only, or reports that the historical correction
+cannot be established and which owner holds the missing facts. It never
+integrates to find out; a currently supported capability alone does not prove the
+historical failure was corrected.
 
 ### Independent findings action boundary
 
@@ -540,6 +586,29 @@ settled result without a second integration, and restart reconstruction recovers
 the already-integrated delivery through the durable continuation without
 re-integrating or dispatching anything.
 
+Integration of the exact delivery and reconciliation of its canonical record are
+separate facts (see
+[record reconciliation](mcp-dispatch-slice-integration.md#authenticated-integration-and-record-reconciliation)).
+Before any integration request, the pre-integration phase observes the delivery
+read-only. An authenticated integration is installed in the existing `integrated`
+phase whether or not its record is reconciled; there is no additional lifecycle
+state. While its `record_reconciliation` is `pending` or `blocked`, the lifecycle
+mints no finality, review target, terminal candidate or finalization, and
+cleanup stays a separate later step. The record is repaired only by the writable
+integration owner, reached through the same host adapter and unchanged launcher
+tuple, which classifies the delivery as already integrated and writes metadata
+only; it never re-admits, replays, moves a ref or reaps. One lifecycle invocation
+makes at most one request to that owner. If the invocation's own integration
+returned pending bookkeeping, or the repair does not confirm, the run stays
+unresolved with `integrated: true`, the exact integration and its substate, and
+the closed failure cause `canonical_record_reconciliation_pending` or
+`canonical_record_reconciliation_blocked`; a later explicit status request
+reauthenticates and retries only the record step. After a confirmed repair the
+delivery is observed again before finality is minted. A coherent record needs no
+mutation request. The same holds for a restarted server: restart recovery
+reconstructs the integration through the durable continuation and repairs a
+stale record through the same owner, without a manual coordinator integration.
+
 Review of a delivery, a slice, or a whole WK remains available only as an
 explicit coordinator `workspace_agent_dispatch` of a reviewer or redteam unit.
 This repository's own contributor workflow may require those reviews; that
@@ -567,21 +636,28 @@ not claim integration is authorized or successful. If integration succeeds,
 remaining already-dispositioned remediation may be implemented in a follow-up
 slice of the same WK. The dispatch response never creates that slice, integrates
 automatically, or redispatches a worker.
-When the final integration completes and the canonical record declares a
-findings-only terminal review unit — the repository's explicit selection of the
-terminal review workflow — the lifecycle prepares the terminal publication
-candidate that an explicitly dispatched terminal review and forge handoff later
-recover. A record that declares none constructs no candidate and requires no
-review unit. To prepare the candidate the runtime freezes repository
+When a fresh final integration completes, the lifecycle prepares the terminal
+publication candidate that forge handoff later resolves and that an explicitly
+dispatched terminal review may consume. Preparation takes no review unit, review
+contract or review lifecycle decision as input and happens whether or not the
+canonical record designates a terminal review unit. To prepare the candidate the
+runtime freezes repository
 identity plus the launcher-bound base `B` of the persistent WK lifecycle
-(propagated from the WK identity binding's `base_sha`, base_ref `main`) and the
-accumulated WK tip `W`; constructs the deterministic squash candidate `C` such
+(propagated with its selected branch name from the WK identity binding's
+`base_sha` and `base_ref`; a missing branch name refuses and is never defaulted)
+and the accumulated WK tip `W`; constructs the deterministic squash candidate `C` such
 that `tree(C) === tree(W)` and `C`'s sole parent is `B` (`tree(C)` is resolved
 directly with `rev-parse <W>^{tree}` and `C` is created with `commit-tree` — no
 `merge-tree`, no current-landing-tip resolution); creates or recovers the fixed
 `refs/agent-launch/terminal-current-v2/<WK>` ref by expected-old CAS; and
 materializes a separate private mode-0700 full detached checkout. The WK ref and
 worktree remain assembly state and are not the terminal review checkout.
+Cold recovery, candidate-status authentication and stale-`W` advance keep the
+candidate's recorded immutable `B`; they take its branch name only from the WK's
+authenticated captured base, which must name that same `B`. An absent or
+disagreeing captured identity refuses with
+`agent_launch.terminal_wk_candidate.base_invalid.v1`; no default branch, checkout
+`HEAD` or live branch tip substitutes for either.
 
 The runtime verifies the complete `B/W/C/tree/parent/ref/checkout` binding and
 runs every canonical whole-WK validation against `C` in the read-only reviewer
@@ -601,16 +677,16 @@ candidate instead of stalling the WK. `B` is observed only from
 `refs/heads/wk/<initiative>/<WK>`, each as one exact direct commit-valued ref
 observation — never through a symbolic ref, peeling, a revision expression, current
 landing, a merge base, the reflog, caller input, or process memory — and the
-initiative and designated `terminal_whole_wk` review unit come from the CURRENT
-canonical validated work record, which is not required to exist in `tree(W)`. The
-product identity is unchanged (`tree(C) === tree(W)`, sole parent `B`), the
-reconstructed object is the explicitly versioned
-`agent_launch.terminal_wk_candidate.v3` form that names its review-contract binding
-in its own `Review-Unit:`/`Review-Contract:` fields rather than reinterpreting the
-v2 `Contract:` field, and already-valid v2 candidates keep their bytes and their
-read-only recovery unchanged. Repository identity, both durable refs, `tree(W)`,
-and the projected review contract are re-authenticated immediately before an
-absent-expected-old `update-ref --no-deref` publication, and the published ref is
+initiative comes from the canonical validated work record. No review unit or review
+contract is a reconstruction input: the reconstructed object is the one
+`agent_launch.terminal_wk_candidate.v2` candidate format, binding the digest of the
+record blob in `tree(W)` in its `Contract:` field, so it is byte-identical to the
+candidate hot construction derives from the same `B`, `W` and generation. An
+unreadable canonical record refuses with
+`terminal_candidate_recovery_canonical_record_unavailable`, never as absence.
+Repository identity, both durable refs and `tree(W)` are re-authenticated
+immediately before an absent-expected-old `update-ref --no-deref` publication, and
+the published ref is
 re-read as a direct commit-valued ref equal to `C`. An identical concurrent winner
 converges; any different winner refuses and is never clobbered. A refusal creates no
 ref, lifecycle, reviewer, executor, run, or monitor state and may leave only an
@@ -785,7 +861,7 @@ was thrown. The evidence is complete only when its `thrown.capture_failures`
 list is empty; anything the encoder could not capture is listed there.
 
 The classification is `error_code`, `error_message`, and, where a seam supplies
-them, `candidate_failure`, `continuation_failure`, and `failure_cause`. A
+them, `candidate_failure` and `failure_cause`. A
 rejection at a named lifecycle seam publishes that seam's code and fixed message
 (below). Any other rejection publishes the generic pair: code
 `agent_launch.slice_lifecycle.failed.v1` and message
@@ -811,6 +887,11 @@ dropped without a `capture_failures` entry:
   object becomes `{ "$ref": "<path of its first occurrence>" }`. A plain-object
   key that begins with `$` is escaped with one more `$`. Every own key,
   including `__proto__`, stays an own key of the encoding.
+- An object the producer publishes beside the evidence is encoded once, in that
+  sibling field, not again inside the evidence. Its first occurrence in the
+  encoding is `{ "$type": "published_field", "field": "<sibling field>" }`, and
+  any repeat is a `$ref` to that occurrence. The evidence together with the named
+  sibling field is the complete input.
 - `thrown.capture_failures` lists every inspection that itself threw — a getter,
   a proxy trap, a prototype probe — with its path, step, and the error's name,
   message, and stack. The failing value is encoded as
@@ -837,7 +918,9 @@ origin.
 Producers keep their facts at the point of failure:
 
 - The backend integration owner keeps the thrown error's reason, `detail`, and
-  captured evidence on every non-integrated result. That includes an admission
+  captured evidence on every non-integrated result. `detail` is published once,
+  on the result; the evidence's `properties.detail` is
+  `{ "$type": "published_field", "field": "detail" }`. That includes an admission
   refusal such as `trusted_commit_scope_mismatch` with its offending paths,
   checked write scope, reviewed and base commits, and counts. It also keeps the
   evidence of a retained-context recovery failure that fell through to fresh
@@ -858,6 +941,18 @@ Producers keep their facts at the point of failure:
 - Lifecycle-failure journaling that cannot derive the attempt's execution tuple
   refuses with its existing `attempt_binding_mismatch` code and `cause_code`,
   plus the derivation failure's `evidence`.
+- The launcher durable-state root refuses a failed filesystem operation with
+  `operation` (`stat`, `realpath`, `lstat`, `mkdir`, `open`, `close`, `rm`),
+  `path`, and the original exception as `cause`. Only `ENOENT` is reported as
+  absence. A failed workspace `stat`, `realpath`, or `.git` observation refuses
+  with `launcher_durable_state_workspace_unauthenticated`, and its reason says
+  the path could not be observed or canonicalized;
+  `launcher_durable_state_workspace_redirected` is reserved for an observed
+  symbolic-link redirect. A root-chain component that cannot be observed
+  refuses with `launcher_durable_state_root_unwritable` before anything is
+  created. The exact-review receipt store rethrows that refusal with the
+  complete refusal as `cause`, and the proof-verification detail read carries it
+  in `cause_diagnostic`.
 - The `workspace_agent_run_status` exception boundary keeps its existing rendered
   `error_message` (including a producer's declared-sensitive redactions) and adds
   the thrown value itself as `blocker.detail.evidence`, unredacted.
@@ -903,10 +998,22 @@ throwable, and nothing is classified or matched to select one. Both
 classification fields come from a fixed per-seam table, so
 `error_message_truncated` stays `false`; the original message is in the
 evidence. The nested closed `candidate_failure` projection described above
-accompanies the terminal-candidate preparation seam only. The integration-continuation
-seam alone may publish the closed `continuation_failure` fact described below.
-The four pre-integration seams alone publish the closed `failure_cause`
+accompanies the terminal-candidate preparation seam only. The four pre-integration seams alone publish the closed `failure_cause`
 described below.
+
+At the preparation seam, the production candidate coordinator throws an ordinary
+`Error` wrapper and keeps that failure's typed projection in its private
+`WeakMap`. The lifecycle reads the wrapper's cause only through the coordinator's
+read-only `projectAuthenticatedTerminalCandidateFailure` lookup. A wrapper the
+coordinator minted keeps its exact typed code, for example
+`controlled_generation_stale`. A `TerminalWkCandidateError` that reaches the seam
+unwrapped is still classified by the leaf `projectTerminalWkCandidateFailure`.
+Everything else publishes the fixed unknown form. That includes copied
+`terminal_candidate_failure` or `code` properties, spread or inherited copies,
+proxies around a real wrapper, code strings, diagnostic text, and failures from an
+injected-runner coordinator. The carrier republishes only the closed code and the
+approved Git detail keys. A coordinator projection's `git_status` survives, and its
+`git_operation` is not republished.
 
 The pre-integration seams cover the launcher-owned binding resolution and the
 lifecycle's exact subject and WK-ref checks over it; each resolution of the
@@ -916,23 +1023,17 @@ returns a refusal. Each seam wraps only its dependency call. A rejection raised
 by what the lifecycle later decides about a successful result is not rebranded.
 
 The integration-continuation seam is reached from restart recovery and from a
-retried pre-integration attempt, and both publish the SAME code, because they are
+pre-integration attempt made eligible by an observed completion or a verified
+correction, and both publish the SAME code, because they are
 one dependency boundary and the envelope's own `phase` already distinguishes them.
 
-That seam alone may additionally publish the closed, non-authorizing
-`slice_lifecycle.continuation_failure` fact. Its only value is
-`{ "reason": "completed_integration_write_scope_mismatch" }`: the live backend
-authenticated a successful integration of this worker's exact delivery, but that
-integration was admitted under a different write scope from the worker's retained
-binding, so the original monitor does not consume it (see
-[slice integration](mcp-dispatch-slice-integration.md)). The fact is selected only
-by a launcher-private brand on the refusal the continuation owner mints. A
-caller-built error with the same code, reason or property, a proxy around the
-real refusal, and every other throwable publish no fact; their content is in the
-evidence. The publication re-gate rebuilds the fact from its closed vocabulary
-and strips anything else. The fact grants no retry, recovery, integration or
-completion authority, and it leaves terminality, `next_action`, attempt
-accounting and the retained-failure ring unchanged.
+An authenticated completed integration is never a failure at that seam. A
+change to the slice's canonical write scope, before or after the integration,
+neither hides it nor makes it refusable; the lifecycle installs it as integrated
+without another integration request (see
+[slice integration](mcp-dispatch-slice-integration.md)). A refusal at a later seam,
+such as terminal candidate preparation, publishes that seam's code while the
+envelope keeps `integrated: true` and the installed integration.
 
 #### Pre-integration failure cause
 

@@ -20,6 +20,8 @@ import { ATTEMPT_HOME, isUnderSystemRoot } from "./runtime-inputs.mjs";
 import { ATTEMPT_SCRATCH_ROOT } from "../test-runtime-setup/ecosystems.mjs";
 
 export const ATTEMPT_DRIVER_PATH = fileURLToPath(new URL("./attempt-driver.mjs", import.meta.url));
+
+const SOURCE_COPY_PATH = fileURLToPath(new URL("./source-copy.mjs", import.meta.url));
 export const ATTEMPT_PLAN_SCHEMA_VERSION = "workspace-agent-runner-attempt-plan.v2";
 const STATUS_SCHEMA_VERSION = "workspace-agent-runner-attempt-status.v2";
 
@@ -86,6 +88,7 @@ export async function runConfinedInvocation({
   };
   const launcherNode = process.execPath;
   const driverBinds = [{ src: ATTEMPT_DRIVER_PATH, dst: ATTEMPT_DRIVER_PATH },
+    { src: SOURCE_COPY_PATH, dst: SOURCE_COPY_PATH },
     ...(isUnderSystemRoot(launcherNode) ? [] : [{ src: launcherNode, dst: launcherNode }])];
   const env = { ...runtime.env, ...(invocation.env ?? {}) };
 

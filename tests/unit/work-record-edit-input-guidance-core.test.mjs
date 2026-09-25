@@ -15,6 +15,8 @@ import {
   createWorkRecordEditInputRequestFacts,
   createWorkRecordEditInputSchema
 } from "../../packages/wiki-mcp/src/lib/work-record-edit-input-contract.mjs";
+import { isCanonicalWorkRecordBaseBranch } from
+  "../../packages/wiki-core/src/lib/work-record-base-branch.mjs";
 
 const facadeEntries = () => WORK_RECORD_EDIT_FIELD_REGISTRY.filter(({ facade }) => facade);
 
@@ -102,6 +104,10 @@ test("editor guidance derives its complete current population from canonical own
   assert.equal(unknown.ok, false);
   assert.equal(unknown.diagnostic.code, "unsupported_edit_field");
 
+  const guessed = createWorkRecordEditFieldGuidance({ field: "summary", scope: "record", requestFacts });
+  assert.equal(guessed.ok, false);
+  assert.equal(guessed.diagnostic.code, "unsupported_edit_field");
+
   const future = {
     id: "future_summary.record",
     field: "sections.future_summary",
@@ -156,6 +162,33 @@ test("editor guidance derives its complete current population from canonical own
     (error) => error instanceof WorkRecordEditInputContractCoverageError &&
       error.code === "unsupported_registry_kind" && error.entry_id === "future_object.record"
   );
+});
+
+test("format examples satisfy the owner validator and an unexampled format fails coverage", () => {
+  const requestFacts = createWorkRecordEditInputRequestFacts(z);
+  const guidance = createWorkRecordEditFieldGuidance({ field: "base_branch", scope: "record", requestFacts });
+  assert.equal(guidance.ok, true);
+  const example = guidance.actions.find(({ action }) => action === "replace").request_shapes[0].example;
+  assert.equal(isCanonicalWorkRecordBaseBranch(example.value), true, JSON.stringify(example));
+  assert.equal(isCanonicalWorkRecordBaseBranch("Example value"), false,
+    "the generic placeholder would violate the declared format");
+
+  const unexampled = {
+    id: "future_branch.record",
+    field: "future_branch",
+    kind: "scalar",
+    canonical_address: ["future_branch"],
+    applicability: ["record"],
+    value_schema: { type: "string", trim: true, min_length: 1, format: "future_ref_name" },
+    actions: ["replace"],
+    owner: "editWorkRecordByUnit",
+    facade: true
+  };
+  const registry = [...WORK_RECORD_EDIT_FIELD_REGISTRY, unexampled];
+  assert.throws(() => createWorkRecordEditFieldGuidance({ registry, field: "future_branch", scope: "record",
+    requestFacts: createWorkRecordEditInputRequestFacts(z, { registry }) }),
+  (error) => error instanceof WorkRecordEditInputGuidanceCoverageError &&
+    error.code === "unsupported_registry_value_format");
 });
 
 test("editor guidance covers field shapes and exact value boundaries", () => {
@@ -232,7 +265,7 @@ test("editor guidance covers field shapes and exact value boundaries", () => {
     ...titleRequest, field: "owner", value: ""
   }).success, false);
 
-  const notesEntry = facadeEntries().find(({ id }) => id === "agent_notes.record");
+  const notesEntry = facadeEntries().find(({ field }) => field === "sections.agent_notes");
   const maximum = notesEntry.value_schema.max_utf8_bytes;
   const notesRequest = {
     unit: "WK-0000",

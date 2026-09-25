@@ -10,7 +10,7 @@ import test from "node:test";
 import {
   createDispatchToolRegistry,
   createResumableLifecycleHarness,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 import {
   INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER,
@@ -21,6 +21,7 @@ import {
 import {
   activeMcpInlineByteLimit,
   jsonContent,
+  measureMcpInlineResultBytes,
   normalizeMcpToolResult
 } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 import { SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION } from
@@ -37,9 +38,13 @@ import {
   retainedArtifacts,
   retrievalRegistry,
   terminalCandidate,
-  terminalWorkerStatus
+  terminalWorkerStatus,
+  unfailedAttemptSelection
 } from "../helpers/run-status-authored-document-fixture.mjs";
+import { assertDefaultStatusFrame } from "../helpers/mcp-journey-accounting.mjs";
 import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+
+const COMPLETE = Object.freeze({ subject: SUBJECT, include_final_result: true });
 
 function receiptOf(structured) {
   return structured.slice_lifecycle.integration.transition.written_record;
@@ -50,9 +55,7 @@ function unprojectedBytes(observed, record) {
   const transition = clone.slice_lifecycle.integration.transition;
   delete transition.written_record;
   transition.record = record;
-  const text = JSON.stringify(clone);
-  return Buffer.byteLength(
-    JSON.stringify({ content: [{ type: "text", text }], structuredContent: clone }), "utf8");
+  return measureMcpInlineResultBytes(clone);
 }
 
 test("WK-2691: the reproduced leak — the integration receipt publishes the written record as identity, not as a document", async () => {
@@ -65,7 +68,7 @@ test("WK-2691: the reproduced leak — the integration receipt publishes the wri
       lifecycle: finalizedLifecycle(candidate, { transitionRecord: record })
     }));
 
-    const observed = await observe(tools, { subject: SUBJECT });
+    const observed = await observe(tools, COMPLETE);
     const transition = observed.structured.slice_lifecycle.integration.transition;
 
     assert.equal(Object.hasOwn(transition, "record"), false,
@@ -157,7 +160,7 @@ test("WK-2691: the receipt does not grow with unrelated authored text, and both 
         status: terminalWorkerStatus(),
         lifecycle: finalizedLifecycle(terminalCandidate(record), { transitionRecord: record })
       }));
-      observations.push(await observe(tools, { subject: SUBJECT }));
+      observations.push(await observe(tools, COMPLETE));
       artifactCounts.push(retainedArtifacts(dir).length);
     }
     const [lean, padded] = observations;
@@ -191,8 +194,15 @@ test("WK-2691: the receipt does not grow with unrelated authored text, and both 
       JSON.stringify(receiptOf(padded.structured).retrieval), "utf8");
     assert.ok(receiptRetrievalBytes < 2048,
       `the repeated retrieval limb stays bounded; was ${receiptRetrievalBytes}`);
-    assert.ok(padded.bytes < 20_480,
-      `default status stays inside the compact class; was ${padded.bytes}`);
+
+    const { tools: paddedTools } = await retrievalRegistry(scope, "receipt-padded-default",
+      observationBackend({ status: terminalWorkerStatus(),
+        lifecycle: finalizedLifecycle(terminalCandidate(paddedRecord), { transitionRecord: paddedRecord }) }));
+    const compact = await observe(paddedTools, { subject: SUBJECT });
+    assertDefaultStatusFrame([{ raw: compact.result, entry: { id: "padded receipt default" } }],
+      "padded receipt default");
+    assert.ok(compact.structured.slice_lifecycle.omitted_members
+      .includes("integration.transition.written_record"));
   } finally {
     await scope.dispose();
   }
@@ -209,7 +219,7 @@ test("WK-2691: following the emitted read reconstructs the written record exactl
       lifecycle: finalizedLifecycle(candidate, { transitionRecord: record })
     }));
 
-    const observed = await observe(tools, { subject: SUBJECT });
+    const observed = await observe(tools, COMPLETE);
     const receipt = receiptOf(observed.structured);
     const { bytes, pages, readerDigest } = await followRetrievalCall(tools, receipt.retrieval);
     assert.ok(pages >= 2, `a source larger than one range needs continuation; pages=${pages}`);
@@ -253,7 +263,7 @@ test("WK-2691: repeated and concurrent observation add no lifecycle effect and n
       observe(tools, { subject: SUBJECT })
     ]);
     const third = await observe(tools, { subject: SUBJECT });
-    const complete = await observe(tools, { subject: SUBJECT, include_final_result: true });
+    const complete = await observe(tools, COMPLETE);
 
     assert.equal(lifecycleCalls, 1, "observation adds no lifecycle attempt");
     assert.equal(retainedArtifacts(dir).length, 1,
@@ -262,11 +272,12 @@ test("WK-2691: repeated and concurrent observation add no lifecycle effect and n
     assert.deepEqual(third.structured, first.structured);
     assert.equal(third.bytes, first.bytes);
 
-    assert.deepEqual(complete.structured.slice_lifecycle, first.structured.slice_lifecycle);
+    assert.ok(first.structured.slice_lifecycle.omitted_members
+      .includes("integration.transition.written_record"));
     assert.ok(complete.bytes > first.bytes,
       "requested complete evidence still costs more than the compact answer");
 
-    const { bytes } = await followRetrievalCall(tools, receiptOf(third.structured).retrieval);
+    const { bytes } = await followRetrievalCall(tools, receiptOf(complete.structured).retrieval);
     assert.deepEqual(
       JSON.parse(JSON.parse(bytes.toString("utf8"))
         .carrier[INTEGRATION_TRANSITION_RECORD_CARRIER_MEMBER]),
@@ -305,9 +316,7 @@ test("WK-2691: adverse, unsettled and record-free observations stay truthful", a
   assert.equal(Object.hasOwn(observedRunning.structured, "slice_lifecycle"), false);
   assert.equal(observedRunning.structured.next_action, "retry_wait_or_check_status");
 
-  const harness = createResumableLifecycleHarness({
-    declaredTerminalReviewUnit: { record_id: WK_ID, initiative: "IN-0021", subject: SUBJECT }
-  });
+  const harness = createResumableLifecycleHarness();
   harness.deps.prepareTerminalCandidate = async () => {
     throw new Error("injected terminal candidate preparation failure");
   };
@@ -316,10 +325,12 @@ test("WK-2691: adverse, unsettled and record-free observations stay truthful", a
       getRunStatus: async () => harness.status,
       waitForRunStatus: async () => harness.status,
       runPostWorkerSliceLifecycle: harness.invoke,
-      readManagedRunObservation: async () => ({ ok: false, code: "run_detail_unavailable" })
+      readManagedRunObservation: async (input) => input?.detail === undefined
+        ? unfailedAttemptSelection(harness.status)
+        : ({ ok: false, code: "run_detail_unavailable" })
     }
   });
-  const failed = await observe(failing, { subject: harness.status.subject });
+  const failed = await observe(failing, { subject: harness.status.subject, include_final_result: true });
   assert.equal(failed.structured.slice_lifecycle.phase, "integrated");
   assert.equal(failed.structured.slice_lifecycle.integrated, true);
   assert.equal(failed.structured.slice_lifecycle.error_code,
@@ -387,11 +398,11 @@ test("WK-2691: a spilled response names the frame it compared apart from the pay
     const env = { ...process.env, WIKI_MCP_RESPONSE_STATE_DIR: dir };
     const limit = activeMcpInlineByteLimit(env);
 
-    const payload = { schema_version: "test.v1", blob: "z".repeat(Math.floor(limit * 0.62)) };
-    const payloadBytes = Buffer.byteLength(JSON.stringify(payload), "utf8");
-    assert.ok(payloadBytes < limit, `payload must fit under the limit; ${payloadBytes} >= ${limit}`);
+    const at = length => ({ schema_version: "test.v1", blob: "z".repeat(length) });
+    const payload = at(limit + 1 - measureMcpInlineResultBytes(at(0)));
+    assert.equal(measureMcpInlineResultBytes(payload), limit + 1);
 
-    const envelope = parseStructuredTextResponse(jsonContent(payload, { env }));
+    const envelope = readStructuredResult(jsonContent(payload, { env }));
     assert.equal(envelope.response_spilled, true);
     assert.equal(envelope.reason, "response_exceeds_inline_byte_limit");
 
@@ -407,7 +418,8 @@ test("WK-2691: a spilled response names the frame it compared apart from the pay
       `the compared frame must exceed the limit; ${measurement.complete_frame_bytes} <= ${limit}`);
 
     assert.ok(measurement.complete_frame_bytes > envelope.total_bytes);
-    assert.match(measurement.meaning, /two-channel/u);
+    assert.match(measurement.meaning, /complete_frame_bytes/u);
+    assert.doesNotMatch(measurement.meaning, /two-channel|text channel/u);
     assert.match(measurement.retained_payload_encoding, /indent=2/u);
   } finally {
     await scope.dispose();
@@ -422,21 +434,21 @@ test("WK-2691 remediation: normalization reports its oversized frame while delib
       (created) => rmSync(created, { recursive: true, force: true }));
     const env = { ...process.env, WIKI_MCP_RESPONSE_STATE_DIR: dir };
     const limit = activeMcpInlineByteLimit(env);
-    const payload = { schema_version: "test.v1", blob: "n".repeat(Math.floor(limit * 0.62)) };
+    const payload = { schema_version: "test.v1", blob: "n".repeat(limit) };
 
     const normalized = normalizeMcpToolResult({
       content: [{ type: "text", text: "stale pre-normalization channel" }],
       structuredContent: payload,
       protocol_extension: { preserved: true }
     }, { env });
-    const measured = parseStructuredTextResponse(normalized);
+    const measured = readStructuredResult(normalized);
     assert.equal(measured.response_spilled, true);
     assert.equal(measured.measurement.compared,
       "complete_frame_bytes_exceeded_inline_byte_limit");
     assert.ok(measured.measurement.complete_frame_bytes > limit);
     assert.equal(normalized.protocol_extension.preserved, true);
 
-    const retained = parseStructuredTextResponse(jsonContent(payload, { env, forceSpill: true }));
+    const retained = readStructuredResult(jsonContent(payload, { env, forceSpill: true }));
     assert.equal(retained.response_spilled, true);
     assert.equal(retained.measurement.compared, "not_compared_retention_forced");
     assert.equal(retained.measurement.complete_frame_bytes, null);

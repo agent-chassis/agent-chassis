@@ -102,18 +102,21 @@ required.
 
 ### Proof-intent discovery
 
-The primary discovery call accepts no arguments or one optional search query and
-returns the complete admitted proof catalogue in one
-`controlled-proof-selection-catalogue.v1` response. A query ranks matches first
-without filtering the catalogue. Each row includes the proof identity, version,
-exact assertion and exclusions, associated intent identities, applicability
-facts and a selector for optional snapshot-bound detail; genuinely shared
-capability facts occur once at catalogue level. Catalogue selection has no
-`limit`, pagination cursor, or content-reference continuation, and configured
-generic response budgets do not fragment it. Exact `proof_name` and emitted
-snapshot selectors retain targeted detail, currentness checks, and field/range
-continuation for wide detail. The package owns proof names and parameter
-contracts. Discovery does not select a proof or publish a plan.
+Discovery accepts one optional search query, an exact `proof_name`, or an
+emitted continuation or snapshot selector. A query returns the first page of
+the package's complete ranked matches; no query returns the first page of the
+listed catalogue. Pages are bounded by the selected-response complete-frame
+class (currently at most 8192 UTF-8 bytes of complete result frame) and carry exact
+counts and a source-bound continuation that reaches every omitted match; a
+query never appends unmatched proofs. Each compact row carries the proof
+identity, intent identities, match kind, query-relevant limitation,
+verification capability when declared, and a detail action; complete
+assertions, exclusions and comparisons are selected detail. The first page
+states once the query and catalogue populations and the meaning of each row
+field. Exact `proof_name` and emitted snapshot selectors retain targeted
+detail, currentness checks, and field/range continuation for wide detail. The
+package owns proof names and parameter contracts. Discovery does not select a
+proof or publish a plan.
 
 ### Ordinary upsert
 
@@ -237,7 +240,8 @@ installed, or a falsifier shape the installed mechanism does not support, is an
 explicit `not_executable` outcome; nothing substitutes another execution.
 
 The request accepts `subject`, optional `source: {unit, focus?}`, optional
-`repo`, optional `timeout`, and the orchestrator-only `git_sha`. `timeout` is
+`repo`, optional `timeout`, optional `environment`, and the orchestrator-only
+`git_sha`. `timeout` is
 `short` (30 seconds), `medium` (300
 seconds, the default when omitted), `long` (1800 seconds), or the closed object
 `{seconds: N}` with integer `N` from 1 to 2147483. No other value is coerced.
@@ -282,12 +286,33 @@ without executing. For example:
  "source": {"unit": "work record"}}
 ```
 
+Each selected native test runs in the prepared environment that local
+test-runtime setup published for it: its saved runner binding names the
+dependency ecosystem, the installation root that owns its target selects the
+environment, and the target suffix is recorded as a hint, so one call may run
+tests in several languages and environments. `environment` optionally names one
+published environment by its public ID, `<ecosystem>@<installation root>` (for
+example `npm@.`, `python@services/api` or `go_modules@billing`), in the shape
+the registered schema accepts; anything else refuses with the registered
+schema or `verify_proof.environment_invalid.v1`. A named environment must serve
+every selected proof. Before anything is bound, prepared or executed, a
+population it cannot fully serve refuses with
+`verify_proof.environment_incompatible.v1`, whose `recovery.facts` list the
+`requested_environment`, every `incompatible` proof with its obligation IDs,
+target and `reason`, the `valid_choices` that would serve the whole population,
+and the `prepared_environments`. The population is never filtered to fit the
+name. The name grants no visibility, source, preparation or executable, path,
+variable, root or mount. Each proof result reports the `runtime_environment`
+that ran it, the aggregate its `requested_environment`, and the compact summary
+each proof's `environment`. See
+[Prepared environment routing](test-proof-runtime-identity.md#prepared-environment-routing).
+
 A bare ID refusal with `verify_proof.source_tuple_ambiguous.v1`, or a cross-WK
 `verify_proof.subject_ambiguous.v1`, lists every authorized source as
 `recovery.action: "select_source"` with the complete ordered
 `recovery.choices` and its exact `recovery.choice_count`. Each choice is a
 ready `workspace_verify_proof` call that keeps the subject and the accepted
-call's `repo`, `timeout`, and `git_sha` and adds one `source`; root choices omit
+call's `repo`, `timeout`, `environment` and `git_sha` and adds one `source`; root choices omit
 `focus`. A source that cannot resolve the subject, such as a same-source
 proof/obligation collision, is never offered, so a refusal may carry an empty
 population. Large populations are delivered losslessly through the ordinary
@@ -307,10 +332,61 @@ and causes. The interrupted proof reports `execution_status: "interrupted"`
 with `verify_proof.execution_timed_out.v1` or `verify_proof.execution_cancelled.v1`;
 proofs never reached report `execution_status: "not_started"` with
 `verify_proof.execution_budget_exhausted_before_start.v1` or
-`verify_proof.execution_cancelled_before_start.v1`. Unsatisfied aggregate
+`verify_proof.execution_cancelled_before_start.v1`. The interrupted proof's
+diagnostic also carries, at `details.evidence`, the captured
+`agent_launch.diagnostic_evidence.v1` graph of the launcher failure that
+reported the interruption: its code, message, nested causes, execution stage,
+and the complete captured run (process outcome, signal, cleanup and timeout
+facts, and the attempt's captured stdout and stderr). Classification relabels
+the outcome and never replaces that evidence; unstarted proofs carry none
+because no producer ran. Unsatisfied aggregate
 precedence is unchanged and an interruption never grants proof credit. A
 failure to deliver an already settled result is reported as
 `verify_proof.result_delivery_failed.v1` and never re-executes the invocation.
+
+An attributable execution failure's `recovery.action` names the cause its run
+facts establish, most specific first. Each action is shared by every provider
+and claims no provider-specific repair; the facts name the provider that ran
+(`provider_id`, `provider_version`):
+
+- a forced-invocation export identity failure is a canonical proof binding
+  repair;
+- a `test_runtime_*` code, or `test_proof_native_runtime_unavailable`,
+  `test_proof_native_runtime_inputs_stale` or
+  `test_proof_native_interpreter_unavailable`, in either the run's blocker code
+  or its structured observation code, is
+  `run_local_test_runtime_setup_then_retry`
+  ([Local test-runtime setup](local-test-runtime-setup.md));
+- a native proof source the launcher cannot select, instrument, populate
+  dependencies for or fault is `repair_the_declared_native_proof_source_then_retry`;
+- an unattested native import policy
+  (`test_proof_native_import_policy_unenforced`) is a launcher execution
+  prerequisite, not a caller source edit;
+- a completed run the launcher's own observer could not attribute to the
+  selected test (`test_proof_structured_events_unselected_execution`,
+  `test_proof_structured_events_lifecycle_invalid`,
+  `test_proof_structured_events_exit_status_mismatch` or
+  `test_proof_structured_test_identity_duplicate`) is
+  `report_the_launcher_selected_test_observation_defect`, with
+  `correction_owner: launcher_test_proof_provider`, the observation code as
+  `condition`, the refused record's context in
+  `facts.structured_observation_detail`, and no `retry_operation`: the
+  consumer's source, selection and runtime are not the cause, and an unchanged
+  retry reproduces the refusal;
+- any other structured observation failure, and
+  `test_proof_candidate_inventory_missing`, is
+  `resolve_the_selected_test_observation_failure_then_retry`;
+- a timeout without one of those causes is the launcher runtime timeout
+  prerequisite.
+
+`retry_operation` is followed only after the named cause is resolved; nothing
+retries automatically. A proof whose native run completed before its
+observation was refused reports `execution_status: completed` beside
+`not_executable`; see
+[Test-proof runtime identity](test-proof-runtime-identity.md). The verifier summary's `evidence_retrieval.reassembly`
+states the reader's page protocol
+([Oversized MCP Response References](mcp-repository-model.md#oversized-mcp-response-references))
+followed by UTF-8 JSON decoding of the verified bytes.
 
 Removed construction, manual mapping, assessment, public refactoring, and
 duplicate execution routes are unknown at the MCP call boundary. Their former
@@ -621,6 +697,12 @@ identity recovery.
 ### Slice payload fields
 
 Slice payload semantics are defined in [Work-record schema](work-record-schema.md).
+A newly created slice must explicitly define `read_scope`, `repo_paths`,
+`write_scope`, `depends_on`, `acceptance.criteria`, and
+`acceptance.validation`. Missing fields are incomplete and never borrow parent
+record values. `depends_on: []` intentionally declares no dependencies. Partial
+updates may omit an already-authored field to preserve it.
+
 The three registry-owned prose destinations are `sections.summary`,
 `sections.why_it_matters`, and `sections.agent_notes`. Slice upsert accepts them
 inside `slice.sections`; ready-slice accepts the corresponding top-level
@@ -696,7 +778,8 @@ or bypass the exact-candidate route. Follow
 [Terminal review](mcp-dispatch-terminal-review.md) and the runtime-contract
 entry page for navigation.
 
-- `workspace_wk_forge_handoff` publishes an already-reviewed exact candidate through the launcher-owned forge route. Cold recovery reads only `refs/agent-launch/terminal-current-v2/<WK>` and accepts an already-present, directly commit-valued raw target. If that ref is absent, cold recovery fails closed with `terminal_candidate_recovery_current_ref_absent`; construction from absence belongs only to the hot post-worker lifecycle, where absence is the expected-old CAS state. Findings remain advisory and caller input supplies no forge authority.
+- `workspace_wk_forge_handoff` hands off an already-reviewed exact candidate to the repository's configured destination: locally, by plain Git delivery to a selected remote, or by hosted branch-and-proposal publication (see [Handoff destinations and landing observation](mcp-dispatch-terminal-review.md#handoff-destinations-and-landing-observation)). Cold recovery reads only `refs/agent-launch/terminal-current-v2/<WK>` and accepts an already-present, directly commit-valued raw target. If that ref is absent, cold recovery fails closed with `terminal_candidate_recovery_current_ref_absent`; construction from absence belongs only to the hot post-worker lifecycle, where absence is the expected-old CAS state. Findings remain advisory and caller input supplies no forge authority.
+- `workspace_wk_landing_status` is the read-only landing observation of that handoff: `awaiting_human_landing`, `landed` with the landed-publication carrier, `contradictory`, or `unavailable`, with the original cause. It never publishes, merges or reconciles.
 
 ## Contract-edit compact default, verbose opt-in, stale-source protection, and validate-before-write
 
@@ -774,10 +857,10 @@ for `offset` to its end, or for an explicit range, without echoing the body.
 
 Metadata and choice results target 2,048 serialized UTF-8 bytes by shrinking
 rows or choices; one item that cannot fit is returned alone. Every result other
-than a body, including refusals, fits 8,192 bytes in both structured and
-model-visible carriers or becomes the bounded compact refusal. A body carries
+than a body, including refusals, fits 8,192 bytes of structured result or
+becomes the bounded compact refusal. A body carries
 the selected text with no reader byte or scalar cap. The general MCP response
-boundary returns it inline when the complete two-channel result fits the
+boundary returns it inline when the complete structured result fits the
 configured inline limit (128 KB by default) and otherwise spills it once behind a
 content reference that `workspace_read_mcp_content_reference` reads losslessly. Returned calls
 contain only `tool` and `arguments` and retain the server-resolved repository,
@@ -881,7 +964,11 @@ the common request keys and replacement effects, the current field count, and
 callable field-detail and first-inventory-page requests. Add
 `input_contract:{kind:"field",field,scope}` for one field/scope contract, or
 `input_contract:{kind:"fields",offset?,limit?,expected_source_digest?}` for the
-bounded inventory. The selector requires this exact `tool_name`, permits no
+bounded inventory. A field the editor does not take, such as `summary`, is
+refused as `unsupported_edit_field` and never aliased; the refusal's
+`next_calls` carries the complete first-inventory-page request bound to the
+same source digest, from which the caller selects a real field such as
+`sections.summary`. The selector requires this exact `tool_name`, permits no
 `task_id`, and uses the nested limit rather than describe's top-level limit.
 `verbose:true` on the named describe call losslessly restores the complete
 enforced union and labels route-enforced constraints that are not structural
@@ -1032,10 +1119,11 @@ hardcoded.
 The complete raw Zod failure is captured once as
 `work-record-edit-input-validation-failure.v1` for the already-rejected
 request. Its owner-minted `content_reference` is carried unchanged. Read it
-with `workspace_read_mcp_content_reference`, follow `next_offset` through
-`eof`, concatenate decoded base64 bytes before UTF-8 decoding, and verify
-`byte_count` and `sha256` before parsing and comparing the captured JSON. This
-retrieval never replays the editor mutation.
+with `workspace_read_mcp_content_reference` through the reader's page protocol
+([Oversized MCP Response References](mcp-repository-model.md#oversized-mcp-response-references)),
+which `raw_validation_failure.reassembly` states before its own final UTF-8
+decoding step, then parse and compare the captured JSON. This retrieval never
+replays the editor mutation.
 
 <!-- editor-retrieval-example:start -->
 ```json
@@ -1075,8 +1163,11 @@ whole-record validation that run after schema parsing.
 owner-derived view over the registry and those supplied MCP request facts. It
 can return the complete unpaged `facade:true` inventory or detail for one field
 and record/slice scope, including every action, value constraint, task-selector
-shape, and schema-valid example shape. It imports no MCP module and performs no
-mutation dispatch.
+shape, and schema-valid example shape. An example for a declared string format
+comes from that format's illustration, which must pass the format's owner
+validator (`local_branch_name` uses `isCanonicalWorkRecordBaseBranch`); a format
+with no valid illustration fails coverage. An example is never a default. It
+imports no MCP module and performs no mutation dispatch.
 Unsupported future registry shapes fail with an entry-specific coverage error
 instead of receiving fabricated guidance. This internal view is not yet an MCP
 discovery publication surface; delivery paging, budgets,
@@ -1139,9 +1230,10 @@ request rather than a chore handed back to the caller.
   Schema, CAS, identity, integrity and publication checks remain in force, and
   each refusal identifies its mechanical failure or returned policy decision.
   Marking a record `done` supplies no evidence that a forge merge occurred.
-- **Forge confirmation remains authenticated.** The trusted forge helper retains
-  its exact candidate, pull-request head and mergeability checks, two
-  work-record-only closeout commits, confirmed merge and exact reconciliation.
+- **Forge confirmation remains authenticated.** Trusted forge handoff prepares
+  the two work-record-only closeout commits before publication, and the trusted
+  forge merge helper retains its exact candidate, pull-request head and
+  mergeability checks, confirmed merge and exact reconciliation.
   An unconfirmed merge remains unconfirmed regardless of local record status;
   reconciliation failure after a confirmed merge remains typed partial success.
   Ordinary edits neither invoke those operations nor manufacture their evidence.
@@ -1175,7 +1267,7 @@ request rather than a chore handed back to the caller.
   and the caller is told to inspect the canonical record rather than repeat the
   write.
 
-## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+## Common fixed-fork squash candidate, independent review and exact forge lifecycle
 
 Every forge publication publishes the same thing, whichever delivery workflow the
 repository selected.
@@ -1186,20 +1278,31 @@ repository selected.
   publishes `C` unchanged. The current base tip is not a construction input.
   There is no direct-`W` alternative, no second constructor and no additional
   candidate store or ref family.
-- **Terminal review is conditional; candidate authentication is not.** Terminal
-  review belongs to the repository's selected workflow, not to construction. A
-  workflow that selects it hands publication a reviewer materialization, and that
-  checkout is authenticated. A workflow that does not select it hands publication
-  no materialization: no terminal-review unit is invented, no review evidence is
-  fabricated and no reviewer checkout is required. The candidate object binding,
-  its tree and sole-parent topology, its version selection and the controlled
-  generation authority are authenticated on every publication alike, and the
-  published result names which workflow it ran under.
-- **A selected candidate is publishable on its own terms.** When no terminal
-  review target exists, publication state is recovered from the candidate already
-  selected on its durable current ref: its base, tree and sole parent come from
-  the candidate object itself, and the WK ref is named by the canonical record
-  that candidate carries. Recovery consults no current landing state.
+- **The candidate is publication material; review is an independent consumer.**
+  Every fresh final integration constructs `C` and materializes its squashed
+  candidate worktree, whether or not the canonical record designates a terminal
+  review unit. No review unit, review contract, review evidence or retained
+  reviewer context is an input to construction, reconstruction, recovery,
+  materialization or publication, and the candidate bytes carry no review field.
+  Publication requires the squashed candidate worktree bound to exactly `C`; its
+  presence says nothing about whether a review ran. The candidate object binding,
+  its tree and sole-parent topology, the worktree, the selected version and the
+  controlled generation are authenticated on every publication, and the result
+  carries no review-selection fact. A terminal review, when one is dispatched,
+  consumes this same exact candidate.
+- **A selected candidate is resolved from durable state on every call.** Forge
+  publication resolves `C` from the fixed current-selection ref through the
+  terminal-candidate coordinator: it authenticates the exact-`W` generation,
+  re-derives and verifies `C`, converges its selected version and materializes
+  the worktree. Process memory does not participate, so a fresh process and a
+  warm one resolve the same state. When the current ref is absent but the durable
+  fork and WK refs survive, the same candidate is reconstructed byte for byte; when
+  either durable ref is absent the stable
+  `terminal_candidate_recovery_current_ref_absent` verdict is genuine absence. A
+  failed read, an invalid candidate or an authentication failure is never absence:
+  it keeps its authenticated cause, stops that attempt before any forge effect,
+  and the registered `workspace_wk_forge_handoff` route reports it with
+  `stage: "candidate_resolution"`. Recovery consults no current landing state.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
   the existing exclusion before the branch or the proposal is touched. A moved or
@@ -1208,16 +1311,19 @@ repository selected.
   enacted; the absence of a configured decision is not a local denial.
 - **Publication is create-or-observe and nothing more.** The result reports the
   exact candidate and proposal identity and the truthful effects. Repeating a
-  handoff recovers the same proposal rather than opening a duplicate, a branch
+  handoff recovers the same proposal and the already-published closeout chain
+  rather than opening a duplicate or appending closeout commits again, a branch
   already present at different bytes refuses rather than being republished, and
-  publication neither merges nor completes the WK.
-- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
-  exactly two WK-only commits carrying the actual applicable closure evidence and
-  then the parent review-to-done transition; a workflow without terminal review
-  has no terminal-review record fabricated for it. Merge takes the exact
-  authenticated pull-request head only on confirmed mergeability, and an
-  unmerged, unknown, moved or foreign state leaves the canonical parent in
-  review. The confirmed merged base record is canonical, and a reconciliation
+  publication neither merges nor completes the WK on the base branch.
+- **Closeout preserves the published bytes.** Before initial publication, both
+  workflows keep `C` beneath exactly two WK-only commits carrying the actual
+  applicable closure evidence and then the parent review-to-done transition, so
+  the initially published pull request already carries parent status `done`;
+  that status is branch-local until a confirmed merge. A workflow without
+  terminal review has no terminal-review record fabricated for it. Merge takes
+  the exact authenticated pull-request head only on confirmed mergeability and
+  adds no commits, and an unmerged, unknown, moved or foreign state leaves the
+  canonical parent in review. The confirmed merged base record is canonical, and a reconciliation
   failure is a typed partial success.
 
 ## Recorded managed-worker proof verification

@@ -1,6 +1,7 @@
 import {
   createBoundedToolDiscoveryListEnvelope,
   TOOL_DISCOVERY_LIST_DEFAULT_LIMIT,
+  TOOL_DISCOVERY_LIST_MAX_BYTES,
   TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery/projection.mjs";
 import { buildNextCall } from
@@ -30,12 +31,17 @@ export const WORK_RECORD_EDIT_INPUT_CONTRACT_CODES = Object.freeze({
 
 const EDITOR_FIELD_INVENTORY_FRAME_RESERVE_BYTES = 16384;
 
+const GENERIC_STRUCTURED_UNDER_FRAME_MARGIN_BYTES =
+  TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES - TOOL_DISCOVERY_LIST_MAX_BYTES;
 function editorFieldInventoryByteCeilings(env = process.env) {
   const resultByteLimit = Math.max(
     TOOL_DISCOVERY_LIST_RESULT_MAX_BYTES,
     activeMcpInlineByteLimit(env) - EDITOR_FIELD_INVENTORY_FRAME_RESERVE_BYTES
   );
-  return { resultByteLimit, byteLimit: Math.floor(resultByteLimit / 2) };
+  return {
+    resultByteLimit,
+    byteLimit: resultByteLimit - GENERIC_STRUCTURED_UNDER_FRAME_MARGIN_BYTES
+  };
 }
 
 function clone(value) {
@@ -123,7 +129,7 @@ function initialGuidance({
     buildContinuation,
     workRecordEditInputFieldsArguments({
       offset: 0,
-      limit: TOOL_DISCOVERY_LIST_DEFAULT_LIMIT,
+      limit: Math.max(TOOL_DISCOVERY_LIST_DEFAULT_LIMIT, inventory.total_count),
       expectedSourceDigest: digest
     }),
     "editor_input_contract.first_page_returned"
@@ -145,17 +151,29 @@ function initialGuidance({
   };
 }
 
-function fieldGuidance({ selector, registryOptions = {}, requestFacts, digest }) {
+function fieldGuidance({ selector, registryOptions = {}, requestFacts, inventory, digest, buildContinuation }) {
   const result = createWorkRecordEditFieldGuidance({
     ...registryOptions,
     field: selector.field,
     scope: selector.scope,
     requestFacts
   });
+  const correction = result.ok === false && result.diagnostic?.code === "unsupported_edit_field"
+    ? [checkedWorkRecordEditInputContinuation(
+      buildContinuation,
+      workRecordEditInputFieldsArguments({
+        offset: 0,
+        limit: Math.max(TOOL_DISCOVERY_LIST_DEFAULT_LIMIT, inventory.total_count),
+        expectedSourceDigest: digest
+      }),
+      "editor_input_contract.first_page_returned"
+    )]
+    : null;
   return {
     ...result,
     source_contract: WORK_RECORD_EDIT_INPUT_CONTRACT_SOURCE,
-    source_digest: digest
+    source_digest: digest,
+    ...(correction === null ? {} : { next_calls: correction })
   };
 }
 
@@ -367,7 +385,7 @@ export function deliverWorkRecordEditInputGuidance({
     });
   }
   if (selector.kind === "field") {
-    return fieldGuidance({ selector, registryOptions, requestFacts, digest });
+    return fieldGuidance({ selector, registryOptions, requestFacts, inventory, digest, buildContinuation });
   }
   if (selector.kind === "fields") {
     return fieldsGuidance({

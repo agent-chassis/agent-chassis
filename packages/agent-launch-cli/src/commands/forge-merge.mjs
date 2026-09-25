@@ -1,8 +1,10 @@
 import { validateWorkRecord } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
+  assertDispatchRuntimeTestComposition,
   buildDispatchRuntime,
+  DISPATCH_RUNTIME_HANDOFF_TEST_COMPOSITION_FIELDS,
   createTerminalCandidateCoordinator,
-  createWkForgeHandoffPublicationStateResolver,
+  createWkForgeHandoffAuthenticationObserver,
   resolveDispatchWorktreeProvisioningConfig
 } from "../../../wiki-mcp/src/lib/dispatch-launch-runtime.mjs";
 import { trustedWkForgeMerge } from "../lib/wk-forge-merge.mjs";
@@ -23,24 +25,25 @@ function render(result) {
   return JSON.stringify(result, null, 2);
 }
 
-function terminalReviewComplete(record) {
-  const terminalReviews = Array.isArray(record?.slices)
-    ? record.slices.filter((slice) => slice?.review_purpose === "terminal_whole_wk")
-    : [];
-  return record?.status === "review" && terminalReviews.length === 1 &&
-    terminalReviews[0]?.work_kind === "review" && terminalReviews[0]?.status === "review";
-}
-
-export function createProductionForgeMergeDependencies({ env = process.env } = {}) {
-  const provisioning = resolveDispatchWorktreeProvisioningConfig(env);
+export function createProductionForgeMergeDependencies({
+  env = process.env,
+  testComposition = null
+} = {}) {
+  const composition = assertDispatchRuntimeTestComposition(testComposition);
+  if (composition !== null &&
+      DISPATCH_RUNTIME_HANDOFF_TEST_COMPOSITION_FIELDS.some((field) => Object.hasOwn(composition, field))) {
+    throw new TypeError("forge merge test composition does not accept forge handoff dependencies");
+  }
+  const provisioning = resolveDispatchWorktreeProvisioningConfig(env, {
+    testWorktreeRoot: composition?.worktreeRoot ?? null
+  });
   if (provisioning === null) {
     throw new Error("forge merge requires launcher-minted workspace provisioning");
   }
 
-  const runtime = buildDispatchRuntime(env);
-  if (!runtime.dispatchBackend ||
-      typeof runtime.dispatchBackend.resolveTerminalCandidatePublicationState !== "function") {
-    throw new Error("forge merge trusted terminal-candidate resolver is unavailable");
+  const runtime = buildDispatchRuntime(env, { testComposition: composition });
+  if (!runtime.dispatchBackend) {
+    throw new Error("forge merge trusted launcher runtime is unavailable");
   }
   const terminalCandidateCoordinator = createTerminalCandidateCoordinator({
     mainRepo: provisioning.mainRepo,
@@ -49,18 +52,18 @@ export function createProductionForgeMergeDependencies({ env = process.env } = {
   return {
     mainRepo: provisioning.mainRepo,
 
-    resolveTerminalCandidatePublicationState:
-      createWkForgeHandoffPublicationStateResolver({
-        dispatchBackend: runtime.dispatchBackend,
-        terminalCandidateCoordinator
-      }),
+    resolveAuthenticatedWkForgeHandoff: createWkForgeHandoffAuthenticationObserver({
+      mainRepo: provisioning.mainRepo,
+      terminalCandidateCoordinator
+    }),
     validateWorkRecord: (record, options = {}) => {
+      const { closeoutReady = false, ...schemaOptions } = options;
       const valid = validateWorkRecord(record, {
         sourcePath: `wiki/work-records/${options.id}.json`,
-        ...options
+        ...schemaOptions
       }).length === 0;
 
-      return valid && (!options.terminalComplete || terminalReviewComplete(record));
+      return valid && (!closeoutReady || record?.status === "review");
     }
   };
 }

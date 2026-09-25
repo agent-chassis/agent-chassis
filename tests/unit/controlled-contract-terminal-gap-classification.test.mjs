@@ -5,7 +5,8 @@ import test from "node:test";
 import {
   CONTROLLED_CONTRACT_TERMINAL_GAP_CLASSES,
   classifyControlledContractTerminalGapCode,
-  classifyControlledContractTerminalGaps
+  classifyControlledContractTerminalGaps,
+  projectControlledContractTerminalGapDetails
 } from
   "../../packages/wiki-core/src/operations/controlled-contract/terminal-gap-classification.mjs";
 
@@ -21,7 +22,8 @@ const WORKBENCH_OWNER_SOURCES = Object.freeze([
 ].map((path) => new URL(path, import.meta.url)));
 
 const RETIRED_REASON_CODES = Object.freeze(new Set([
-  "explicit_gap_retains_runtime_proof_binding"
+  "explicit_gap_retains_runtime_proof_binding",
+  "obligation_coverage_explicit_gap"
 ]));
 
 const COMPOSED_REASON_CODE_STEMS = Object.freeze(new Map([
@@ -195,9 +197,63 @@ test("evidence is bounded and reports its exact omitted count", () => {
   const gaps = classifyControlledContractTerminalGaps({
     workbench: workbench([], rows), evidenceLimit: 20 });
   assert.equal(gaps.total_gap_count, 25, "the denominator stays exact");
+  assert.equal(gaps.observation_count, 25);
+  assert.equal(gaps.logical_cause_count, 1,
+    "twenty-five owner observations share one canonical logical cause");
+  assert.deepEqual(gaps.recovery_status_counts, {
+    authored_correction_available: 0,
+    system_owner_failure: 0,
+    inspection_only: 1
+  });
   assert.equal(gaps.evidence.length, 20);
   assert.equal(gaps.evidence_omitted, 5);
   assert.equal(gaps.gap_class_counts.missing_proof_or_evidence, 25);
+});
+
+test("one correction observed by multiple owners is one logical cause", () => {
+  const observations = ["semantic-owner", "readiness-owner", "dispatch-owner"]
+    .map((owner, index) => ({
+      ...row(`owner:${index}`, {
+        reasons: ["obligation_coverage_statement_missing"],
+        nonActionable: "obligation_coverage_statement_missing"
+      }),
+      semantic_identity: { obligation_id: "OBL-SHARED" },
+      diagnostic_provenance: { owner },
+      repair_authority: { status: "unavailable", semantic_owner: null }
+    }));
+  const gaps = classifyControlledContractTerminalGaps({
+    workbench: workbench([], observations)
+  });
+  assert.equal(gaps.observation_count, 3);
+  assert.equal(gaps.gap_group_count, 3, "owner provenance remains distinct");
+  assert.equal(gaps.logical_cause_count, 1,
+    "the obligation correction is independent of how many owners observed it");
+  assert.deepEqual(gaps.recovery_status_counts, {
+    authored_correction_available: 0,
+    system_owner_failure: 0,
+    inspection_only: 1
+  });
+});
+
+test("the same missing meaning on distinct obligations remains distinct causes", () => {
+  const observations = ["OBL-FIRST", "OBL-SECOND"].flatMap((obligationId) =>
+    ["semantic-owner", "dispatch-owner"].map((owner, index) => ({
+      ...row(`${obligationId}:${index}`, {
+        reasons: ["obligation_coverage_statement_missing"],
+        nonActionable: "obligation_coverage_statement_missing"
+      }),
+      semantic_identity: { obligation_id: obligationId },
+      diagnostic_provenance: { owner },
+      repair_authority: { status: "unavailable", semantic_owner: null }
+    })));
+  const gaps = classifyControlledContractTerminalGaps({
+    workbench: workbench([], observations)
+  });
+  assert.equal(gaps.observation_count, 4);
+  assert.equal(gaps.gap_group_count, 2);
+  assert.equal(gaps.logical_cause_count, 2,
+    "each obligation needs its own authored correction");
+  assert.equal(gaps.recovery_status_counts.inspection_only, 2);
 });
 
 test("the classification is stable across runs for one workbench", () => {
@@ -208,4 +264,49 @@ test("the classification is stable across runs for one workbench", () => {
   });
   assert.deepEqual(JSON.parse(JSON.stringify(build())),
     JSON.parse(JSON.stringify(build())));
+});
+
+test("bounded cause previews have lossless source-bound detail for every group and identity", () => {
+  const rows = Array.from({ length: 10 }, (_, index) => ({
+    ...row(`cross_owner_consistency:${index}`, {
+      reasons: [`cause_${index}_missing`],
+      nonActionable: "no_single_incumbent_semantic_transition"
+    }),
+    semantic_identity: { obligation_id: `OBL-${index}`,
+      claim_id: `claim-${index}` },
+    evidence: { missing_fields: [`field_${index}`],
+      competing_values: [`left-${index}`, `right-${index}`] },
+    diagnostic_provenance: { owner: "deriveControlledContractDesignWorkbench",
+      owner_identity: { generation: "generation-one" },
+      dimension_id: "cross_owner_consistency" },
+    repair_authority: { status: "unavailable", semantic_owner: null,
+      response_kinds: [] }
+  }));
+  const subject = { wk_id: "WK-2668", selected_unit: null, focus: null,
+    generation_id: "generation-one", manifest_digest: `sha256:${"a".repeat(64)}` };
+  const population = { subject, actionable_rows: [], non_actionable_rows: rows };
+  const summary = classifyControlledContractTerminalGaps({ workbench: population });
+  const details = projectControlledContractTerminalGapDetails({ workbench: population });
+  assert.equal(summary.gap_group_count, 10);
+  assert.equal(summary.observation_count, 10);
+  assert.equal(summary.logical_cause_count, 10);
+  assert.equal(summary.gap_groups.length, 6);
+  assert.equal(summary.gap_groups_omitted, 4);
+  assert.equal(summary.affected_obligation_count, 10);
+  assert.equal(summary.affected_obligation_ids.length, 8);
+  assert.equal(summary.affected_obligation_ids_omitted, 2);
+  assert.equal(details.groups.length, 10);
+  assert.equal(details.observation_count, 10);
+  assert.equal(details.logical_cause_count, 10);
+  assert.deepEqual(details.groups.flatMap(group => group.occurrences)
+    .map(occurrence => occurrence.semantic_identity.obligation_id).sort(),
+  rows.map(entry => entry.semantic_identity.obligation_id).sort());
+  for (const group of details.groups) {
+    assert.equal(group.detail_call.tool, "workspace_validate_proof");
+    assert.equal(group.detail_call.arguments.diagnostic_group_id,
+      group.diagnostic_group_id);
+    assert.equal(group.recovery.status, "inspection_only");
+    assert.equal(group.recovery.actor_recovery, "none");
+    assert.equal(group.occurrences[0].evidence.competing_values.length, 2);
+  }
 });

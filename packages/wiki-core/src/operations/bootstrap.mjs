@@ -17,6 +17,7 @@ import {
   WIKI_MCP_DECLARATION_RELATIVE_PATH
 } from "../lib/wiki-scaffold.mjs";
 import { ensureLexicalSearchIndex } from "../lib/search.mjs";
+import { getStaticIn0001AdoptionSeed } from "../lib/adoption-seed.mjs";
 import { SIDECAR_DEFAULT_CACHE_DIR } from "../lib/sidecar-status.mjs";
 import { CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT } from
   "../lib/controlled-contract-private-path-policy.mjs";
@@ -164,7 +165,6 @@ export async function bootstrapRepo({
 
   const agentsBoilerplate = await ensureAgentsBoilerplateTemplate(targetDir);
 
-  const { getStaticIn0001AdoptionSeed } = await import("../index.mjs");
   const adoptionSeed = getStaticIn0001AdoptionSeed();
   const adoption = await ensureAdoptionInitiative(targetDir, { seed: adoptionSeed });
 

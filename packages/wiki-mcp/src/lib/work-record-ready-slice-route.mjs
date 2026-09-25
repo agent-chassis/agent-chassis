@@ -25,8 +25,6 @@ import {
 import {
   classifyMechanicalRuntimeBlocker
 } from "./dispatch-tools/runtime-blocker-classifier.mjs";
-import { coverageUnitAddress } from
-  "@agent-chassis/wiki-core/src/lib/controlled-contract-unit-address.mjs";
 
 const READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION =
   "ready-slice-structural-readiness.v1";
@@ -669,12 +667,13 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
         record: parent.record
       });
     } catch (error) {
-      const recovery = {
-        tool: "workspace_controlled_contract_obligation_coverage_query",
-        arguments: { unit: coverageUnitAddress({ wkId: request.unit, selectedUnit }) },
-        follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert",
-        recommended: true
-      };
+      const recovery = Object.freeze({
+        status: "system_owner_failure",
+        actor_recovery: "system_owner",
+        explanation: "Controlled-acceptance classification failed internally; no authored-input correction is established.",
+        source_code: error?.code ?? null,
+        source_details: structuredClone(error?.details ?? null)
+      });
       return jsonContent({
         schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
         selected_unit: { kind: "slice",
@@ -698,18 +697,18 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
           check: "controlled_acceptance_state", status: "error",
           path: "proof_posture", authority_limb: "mechanical",
           cause: error?.code ?? "controlled_acceptance_proof_posture_invalid",
-          actor_recovery: "agent",
-          next_action:
-            `Query then upsert the ${recovery.arguments.unit} proof-authoring inputs` }],
-        next_calls: [recovery]
+          actor_recovery: "system_owner",
+          next_action: recovery.explanation }],
+        controlled_acceptance_recovery: recovery,
+        next_calls: []
       });
     }
 
     if (!state.semantic.admission.admits) {
       const code = state.semantic.admission.blocked_reason_code;
-      const recovery = state.recovery ?? null;
-      const supportedNextCall = typeof recovery?.tool === "string"
-        ? recovery : null;
+      const admission = state.semantic.admission;
+      const recovery = admission.recovery_capability ?? null;
+      const supportedNextCall = admission.supported_next_call ?? null;
       return jsonContent({
         schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
         selected_unit: { kind: "slice",
@@ -727,11 +726,13 @@ export async function runWorkspaceWorkRecordReadySliceRoute({
           path: "proof_posture",
           authority_limb: "mechanical",
           cause: code,
-          actor_recovery: supportedNextCall === null ? "system_owner" : "agent",
+          actor_recovery: recovery?.actor_recovery ?? "none",
           next_action: supportedNextCall === null
-            ? recovery?.operator_action ?? recovery?.explanation ??
-              `Resolve ${recovery?.stage ?? "controlled_acceptance"} through ${recovery?.responsible_owner ?? "its reported owner"}`
-            : "Use the reported proof-authoring recovery call" }],
+            ? admission.recovery_explanation ??
+              "Inspect the reported semantic causes; no authenticated correction is available"
+            : recovery?.status === "authored_correction_available"
+              ? "Inspect the reported causes, then use the authenticated authoring correction"
+              : "Inspect the reported semantic causes" }],
         controlled_acceptance_recovery: recovery,
         next_calls: supportedNextCall === null ? [] : [supportedNextCall]
       });

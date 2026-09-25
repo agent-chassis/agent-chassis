@@ -11,6 +11,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { profileDigest } from "../../lib/verification-profile-v1.mjs";
 import { executableDependencyClosure } from
   "../support/executable-dependency-closure.mjs";
+import {
+  CERTIFICATION_ARCHIVE_NAME,
+  certificationMember,
+  readCertificationArchive,
+  readDefinitionDocument,
+  writeCertificationArchive
+} from "../support/certification-artifact.mjs";
 
 const execute = promisify(execFile);
 const packageRoot = path.resolve(fileURLToPath(new URL("../../", import.meta.url)));
@@ -22,14 +29,6 @@ const generator = path.join(
 );
 const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
-
-const reconciliation = await readJson(path.join(packageRoot, "test/parameter-cutover-reconciliation.json"));
-const catalogRow = id => reconciliation.definitions.find(row => row.profile_id === id);
-
-const CURRENT_TEST_VALIDITY_VERSION = "10.0.0";
-const expectedVersion = id => id === "proof.verification.test-validity"
-  ? CURRENT_TEST_VALIDITY_VERSION : catalogRow(id).current_version;
-const sourceVersionFor = id => catalogRow(id).baseline_version;
 
 async function filesBelow(directory, prefix = "") {
   const output = [];
@@ -72,21 +71,11 @@ async function assertGeneratorRefusesWithoutEffects(isolated, owner, name) {
   assert.deepEqual(await readdir(destination), [], name);
 }
 
-function normalizedProfile(profile) {
-  const value = structuredClone(profile);
-  for (const field of ["schema_version", "profile_version", "contract_schema_version",
-    "vocabulary_version", "vocabulary_signature_digest", "vocabulary_algebra_digest",
-    "vocabulary_definitions_digest", "vocabulary_complete_digest"]) delete value[field];
-  return value;
-}
-
 test("the current portfolio is one complete stable-v1 universe", async () => {
-  const [runtimeCatalog, certificationCatalog, intentCatalog] = await Promise.all([
+  const [runtimeCatalog, intentCatalog] = await Promise.all([
     readJson(path.join(profilesRoot, "catalog.json")),
-    readJson(path.join(certificationRoot, "catalog.json")),
     readJson(path.join(packageRoot, "proof-intents/catalog.json"))
   ]);
-  assert.deepEqual(certificationCatalog, runtimeCatalog);
   assert.equal(runtimeCatalog.packs.length, 37);
   assert.equal(new Set(runtimeCatalog.packs.map(({ profile_id: id }) => id)).size, 37);
   assert.equal(intentCatalog.intents.length, 37);
@@ -94,7 +83,6 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
     (sum, intent) => sum + intent.capable_packs.length, 0), 39);
   const currentCatalogUniverse = JSON.stringify({
     runtime_profiles: runtimeCatalog,
-    certification_profiles: certificationCatalog,
     proof_intents: intentCatalog
   });
   assert.doesNotMatch(currentCatalogUniverse,
@@ -104,19 +92,23 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
   ));
   const admissionVersions = { v3: 0 };
   for (const pack of runtimeCatalog.packs) {
-    assert.equal(pack.profile_version, expectedVersion(pack.profile_id));
-    const runtimeDirectory = path.join(profilesRoot, pack.profile_id, pack.profile_version);
+    assert.equal(pack.path, `profiles/${pack.profile_id}/${pack.profile_version}`);
     const certificationDirectory = path.join(
       certificationRoot, pack.profile_id, pack.profile_version
     );
-    const [profile, certifiedProfile, admission, certifiedAdmission] = await Promise.all([
-      readJson(path.join(runtimeDirectory, "profile.json")),
-      readJson(path.join(certificationDirectory, "profile.json")),
-      readJson(path.join(runtimeDirectory, "admission.json")),
-      readJson(path.join(certificationDirectory, "admission.json"))
+    const [profile, admission, adequacy] = await Promise.all([
+      readDefinitionDocument(pack, "profile.json"),
+      readDefinitionDocument(pack, "admission.json"),
+      readDefinitionDocument(pack, "adequacy.json")
     ]);
-    assert.deepEqual(certifiedProfile, profile);
-    assert.deepEqual(certifiedAdmission, admission);
+
+    assert.deepEqual((await readdir(certificationDirectory)).filter(
+      (name) => name !== "README.md"), [CERTIFICATION_ARCHIVE_NAME], pack.profile_id);
+    assert.equal(adequacy.profile_id, pack.profile_id);
+    assert.equal(adequacy.profile_version, pack.profile_version);
+    assert.equal(adequacy.profile_digest, profileDigest(profile));
+    assert.equal(admission.guarantee, adequacy.guarantee);
+    assert.deepEqual(admission.explicit_exclusions, [...adequacy.explicit_exclusions].sort());
     assert.equal(profile.schema_version, "controlled-contract-verification-profile.v2");
     assert.equal(profile.contract_schema_version, "controlled-acceptance-contract.v1");
     assert.equal(profile.vocabulary_version, "controlled-contract-vocabulary.v1");
@@ -124,25 +116,24 @@ test("the current portfolio is one complete stable-v1 universe", async () => {
     assert.equal(admission.schema_version, "controlled-contract-admitted-proof-pack.v3");
     admissionVersions.v3 += 1;
     assert.match(admission.parameter_contract_digest, /^[a-f0-9]{64}$/u);
-    if (pack.profile_id !== "proof.verification.test-validity") {
-      const sourceVersion = sourceVersionFor(pack.profile_id);
-      const source = await readJson(path.join(
-        profilesRoot, pack.profile_id, sourceVersion, "profile.json"
-      ));
-      assert.deepEqual(normalizedProfile(profile), normalizedProfile(source),
-        `${pack.profile_id} unaccounted semantic delta`);
-      const [sourceAdequacy, targetAdequacy] = await Promise.all([
-        readJson(path.join(certificationRoot, pack.profile_id, sourceVersion, "adequacy.json")),
-        readJson(path.join(certificationDirectory, "adequacy.json"))
-      ]);
-      assert.equal(targetAdequacy.guarantee, sourceAdequacy.guarantee);
-      assert.deepEqual(targetAdequacy.explicit_exclusions,
-        sourceAdequacy.explicit_exclusions);
-    }
 
     assert.equal(Object.hasOwn(admission, "exact_binding"), false, pack.profile_id);
   }
   assert.deepEqual(admissionVersions, { v3: runtimeCatalog.packs.length });
+
+  for (const root of [profilesRoot, certificationRoot]) {
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        assert.equal(root === profilesRoot && entry.name === "catalog.json", true,
+          `${root}/${entry.name}`);
+        continue;
+      }
+      for (const version of await readdir(path.join(root, entry.name))) {
+        assert.ok(current.has(`${entry.name}@${version}`),
+          `retired identity remains: ${entry.name}@${version}`);
+      }
+    }
+  }
   for (const intent of intentCatalog.intents) {
     for (const pack of intent.capable_packs) assert.ok(current.has(
       `${pack.profile_id}@${pack.profile_version}`
@@ -173,9 +164,7 @@ test("current declarations name the complete neutral stable runtime closure", as
   );
   let forbiddenDeclarations = 0;
   for (const pack of generic) {
-    const adequacy = await readJson(path.join(
-      certificationRoot, pack.profile_id, pack.profile_version, "adequacy.json"
-    ));
+    const adequacy = await readDefinitionDocument(pack, "adequacy.json");
     for (const {path: dependencyPath, sha256: digest} of
       adequacy.executable_dependency_digests) {
       assert.match(digest, /^[a-f0-9]{64}$/u, `${pack.profile_id}: ${dependencyPath}`);
@@ -224,16 +213,11 @@ test("named invalid prospective states refuse before caller-visible effects", as
   try {
     const isolated = await copyGeneratorRepository(owner, "repository");
     const runtimeCatalogPath = path.join(isolated.packageRoot, "profiles/catalog.json");
-    const certificationCatalogPath = path.join(
-      isolated.packageRoot, "test/certification/profiles/catalog.json"
-    );
     const intentCatalogPath = path.join(isolated.packageRoot, "proof-intents/catalog.json");
     const originalRuntime = await readFile(runtimeCatalogPath);
-    const originalCertification = await readFile(certificationCatalogPath);
     const originalIntent = await readFile(intentCatalogPath);
     const restoreCatalogs = async () => Promise.all([
       writeFile(runtimeCatalogPath, originalRuntime),
-      writeFile(certificationCatalogPath, originalCertification),
       writeFile(intentCatalogPath, originalIntent)
     ]);
 
@@ -241,30 +225,18 @@ test("named invalid prospective states refuse before caller-visible effects", as
       ["partial", async () => {
         const catalog = JSON.parse(originalRuntime);
         catalog.packs.pop();
-        const bytes = `${JSON.stringify(catalog, null, 2)}\n`;
-        await Promise.all([
-          writeFile(runtimeCatalogPath, bytes),
-          writeFile(certificationCatalogPath, bytes)
-        ]);
+        await writeFile(runtimeCatalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
       }],
       ["duplicate", async () => {
         const catalog = JSON.parse(originalRuntime);
         catalog.packs.at(-1).profile_id = catalog.packs[0].profile_id;
         catalog.packs.at(-1).profile_version = catalog.packs[0].profile_version;
-        const bytes = `${JSON.stringify(catalog, null, 2)}\n`;
-        await Promise.all([
-          writeFile(runtimeCatalogPath, bytes),
-          writeFile(certificationCatalogPath, bytes)
-        ]);
+        await writeFile(runtimeCatalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
       }],
       ["unknown", async () => {
         const catalog = JSON.parse(originalRuntime);
         catalog.packs.at(-1).profile_id = "proof.unknown.fixture";
-        const bytes = `${JSON.stringify(catalog, null, 2)}\n`;
-        await Promise.all([
-          writeFile(runtimeCatalogPath, bytes),
-          writeFile(certificationCatalogPath, bytes)
-        ]);
+        await writeFile(runtimeCatalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
       }],
       ["mixed", async () => {
         const catalog = JSON.parse(originalIntent);
@@ -283,13 +255,25 @@ test("named invalid prospective states refuse before caller-visible effects", as
     await restoreCatalogs();
     const catalog = JSON.parse(originalRuntime);
     const first = catalog.packs[0];
-    const adequacyPath = path.join(isolated.packageRoot,
-      "test/certification/profiles", first.profile_id, first.profile_version,
-      "adequacy.json");
-    const adequacy = JSON.parse(await readFile(adequacyPath));
+    const firstCertification = path.join(isolated.packageRoot,
+      "test/certification/profiles", first.profile_id, first.profile_version);
+    const archiveBytes = await readFile(path.join(firstCertification, CERTIFICATION_ARCHIVE_NAME));
+    const archive = await readCertificationArchive(firstCertification, { identity: first });
+    const adequacy = certificationMember(archive, "adequacy.json").value;
     adequacy.profile_digest = "0".repeat(64);
-    await writeFile(adequacyPath, `${JSON.stringify(adequacy, null, 2)}\n`);
+    const members = new Map(archive.members);
+    members.set("adequacy.json", Buffer.from(`${JSON.stringify(adequacy, null, 2)}\n`));
+    await writeCertificationArchive(firstCertification, first, members);
     await assertGeneratorRefusesWithoutEffects(isolated, owner, "destination-stale");
+
+    await writeFile(path.join(firstCertification, CERTIFICATION_ARCHIVE_NAME),
+      archiveBytes.subarray(0, archiveBytes.length - 5));
+    await assertGeneratorRefusesWithoutEffects(isolated, owner, "destination-truncated");
+
+    await writeFile(path.join(firstCertification, CERTIFICATION_ARCHIVE_NAME), archiveBytes);
+    await writeFile(path.join(firstCertification, "adequacy.json"), "{}\n");
+    await assertGeneratorRefusesWithoutEffects(isolated, owner, "destination-raw-leftover");
+    await rm(path.join(firstCertification, "adequacy.json"));
 
     await restoreCatalogs();
     await rm(path.join(isolated.packageRoot, first.path, "profile.json"));
@@ -305,9 +289,9 @@ test("a deterministic 27th-pack failure leaves the caller destination empty", as
     const isolated = await copyGeneratorRepository(owner, "repository");
     const catalog = await readJson(path.join(isolated.packageRoot, "profiles/catalog.json"));
     const pack = catalog.packs[26];
-    const adequacy = await readJson(path.join(isolated.packageRoot,
-      "test/certification/profiles", pack.profile_id, pack.profile_version,
-      "adequacy.json"));
+    const adequacy = await readDefinitionDocument(pack, "adequacy.json", {
+      root: path.join(isolated.packageRoot, "test/certification/profiles")
+    });
     await writeFile(path.join(isolated.root, adequacy.executable_module),
       "throw new Error(\"deterministic late-pack refusal\");\n");
     await assertGeneratorRefusesWithoutEffects(

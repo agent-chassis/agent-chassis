@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import {
-  lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile
+  chmod, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile
 } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -23,6 +23,8 @@ const MANIFEST_FILENAME = "manifest.json";
 const CODE_FILENAME = "validators.cjs";
 const PUBLISH_TEMP_PREFIX = ".publish-";
 const CONDEMNED_TEMP_PREFIX = ".condemned-";
+
+const CACHE_DIRECTORY_MODE = 0o700;
 
 const AJV_OPTIONS = Object.freeze({ strict: true, allErrors: true });
 const AJV_CODE_OPTIONS = Object.freeze({ source: true, esm: false, lines: false });
@@ -335,8 +337,17 @@ async function replaceOccupiedTarget(cacheRoot, parent, target, expected, stagin
   }
 }
 
+async function ensureOwnerOnlyDirectory(directory) {
+  const firstCreated = await mkdir(directory, { recursive: true, mode: CACHE_DIRECTORY_MODE });
+  if (firstCreated === undefined) return;
+  for (let current = directory; ; current = path.dirname(current)) {
+    await chmod(current, CACHE_DIRECTORY_MODE);
+    if (current === firstCreated) return;
+  }
+}
+
 async function publishGroupArtifact(cacheRoot, parent, target, expected, manifest, code) {
-  await mkdir(parent, { recursive: true });
+  await ensureOwnerOnlyDirectory(parent);
   const staging = await mkdtemp(path.join(parent, PUBLISH_TEMP_PREFIX));
   try {
     await writeGroupArtifact(staging, manifest, code);

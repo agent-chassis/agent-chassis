@@ -350,7 +350,7 @@ export function registerWorkRecordWriteTools({
     {
       writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
       description:
-        "Clean update or semantic no-op returns exactly {ok:true}; clean creation also returns slice_id (actual server-allocated ID). Optional summary, why_it_matters and agent_notes use the shared text/ref/parts carrier and persist resolved strings. It acknowledges persisted caller-authored data only and grants no authority. Actionable warnings, refusals, nonclean publication outcomes, effect certainty, and supported recovery remain detailed. Read details and current source_digest via workspace_work_record_summary or workspace_read_page with selected_slice. Implementation needs complete or opted-out proof posture.",
+        "Clean update or semantic no-op returns exactly {ok:true}; clean creation also returns slice_id (actual server-allocated ID). A new slice must explicitly define read_scope, repo_paths, write_scope, depends_on, acceptance.criteria, and acceptance.validation; there is no parent inheritance, and depends_on:[] explicitly means no dependencies. Partial updates preserve already-authored fields. Optional summary, why_it_matters and agent_notes use the shared text/ref/parts carrier and persist resolved strings. It acknowledges persisted caller-authored data only and grants no authority. Actionable warnings, refusals, nonclean publication outcomes, effect certainty, and supported recovery remain detailed. Read details and current source_digest via workspace_work_record_summary or workspace_read_page with selected_slice. Implementation needs complete or opted-out proof posture.",
       inputSchema: createReadySliceInputSchema(z)
     },
     async (args) => {

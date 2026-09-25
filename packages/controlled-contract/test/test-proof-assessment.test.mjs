@@ -329,7 +329,8 @@ test("a complete authenticated receipt population proves runtime truth", () => {
   assert.equal(assessment.runtime_truth, "proven");
   assert.equal(assessment.profile_discrimination, "proven");
   assert.deepEqual(assessment.population,
-    { candidate_count: 1, falsifier_count: 1, traversal_count: 1, complete: true });
+    { candidate_count: 1, falsifier_count: 1, falsifier_unavailable_count: 0, traversal_count: 1,
+      complete: true });
   assert.deepEqual(assessment.receipts.map(({ kind }) => kind),
     ["candidate", "falsifier", "traversal"]);
   assert.deepEqual(assessment.receipts.map(({ status }) => status),
@@ -388,7 +389,8 @@ test("a multi-verification population proves across its whole population", () =>
   assert.equal(assessment.profile_discrimination, "proven");
 
   assert.deepEqual(assessment.population,
-    { candidate_count: 2, falsifier_count: 2, traversal_count: 2, complete: true });
+    { candidate_count: 2, falsifier_count: 2, falsifier_unavailable_count: 0, traversal_count: 2,
+      complete: true });
   assert.deepEqual(assessment.assessment_identity.verifications, [
     { verification_id: "claim-second-test", test_id: "test-second" },
     { verification_id: "claim-suite-covers-component", test_id: "test-component" }
@@ -524,6 +526,42 @@ test("sibling tests observed in the same run neither earn nor withhold credit", 
   assert.equal(assessment.assessment_status, "proven");
   assert.equal(assessment.runtime_truth, "proven");
   assert.equal(assessment.diagnostics.length, 0);
+});
+
+function unavailableFalsifier(value) {
+  const limitation = { reason_code: "test_proof_native_instrumentation_unsupported",
+    detail: { reason: "body_not_single_scalar_return" } };
+  const [row] = value.falsifier_executions;
+  Object.assign(row, { provider_support: "unsupported", isolated: false,
+    falsified_status: "not_run", failure_reason_code: null, status: "review_only",
+    limitation: structuredClone(limitation), evidence_artifact_ids: [] });
+  row.mutation.observed = false;
+  value.capability_limitations = [{ check_kind: "falsifier", check_id: row.falsifier_id,
+    ...limitation }];
+  value.artifacts = value.artifacts.filter(({ kind }) => kind !== "falsifier_result");
+  return value;
+}
+
+test("an unavailable falsifier is a counted limitation, not missing credit", () => {
+  const assessment = assessTestProofContract(migrated(), runtime([unavailableFalsifier(receipt())]));
+  assert.equal(assessment.assessment_status, "proven");
+  assert.equal(assessment.runtime_truth, "proven");
+  assert.equal(assessment.profile_discrimination, "proven");
+  assert.deepEqual(assessment.population, { candidate_count: 1, falsifier_count: 1,
+    falsifier_unavailable_count: 1, traversal_count: 1, complete: true });
+
+  assert.deepEqual(assessment.receipts.map(({ kind, status }) => `${kind}:${status}`),
+    ["candidate:passed", "traversal:proven"]);
+  assert.equal(validateRuntimeTestProofAssessmentSchema(assessment), true);
+});
+
+test("an unevaluable supported falsifier refuses distinctly from a survivor", () => {
+  const unreached = receipt();
+  Object.assign(unreached.falsifier_executions[0], { status: "not_detected",
+    falsified_status: "passed", failure_reason_code: null });
+  unreached.falsifier_executions[0].mutation.observed = false;
+  assert.deepEqual(refusalCodes(migrated(), [unreached]),
+    ["test_proof_runtime_falsifier_unevaluable"]);
 });
 
 test("an inert falsifier or an unproven traversal refuses", () => {

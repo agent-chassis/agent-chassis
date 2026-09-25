@@ -6,7 +6,7 @@ When a declared failure is injected at a declared boundary positioned between tw
 
 Profile digest: ab3b0b152fbe27cd65c673f674789cecaf085b86dfe9dbb596b4476f6a054189. Parameter digest: 19510d87460c76011178b0689d5bc10920707e03509e54f384490f8d74a51b85.
 
-Admission digest: 7e69ff84d6551354bb307e627182f5e83ef81470fe3a6fea5bed2bb26e9a7a58.
+Admission digest: cf818165f93745adbde56881a17e09b4f86c3f236b4745ecd8784fad4b254894.
 
 Roles: 21/21 accounted; 2 owned gaps. Semantic parameters: 18; internal roles: 3.
 

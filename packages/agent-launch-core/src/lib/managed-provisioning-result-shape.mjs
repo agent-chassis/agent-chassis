@@ -3,6 +3,8 @@
 import path from "node:path";
 
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+import { isCanonicalWorkRecordBaseBranch } from
+  "@agent-chassis/wiki-core/src/lib/work-record-base-branch.mjs";
 
 if (typeof RUNTIME_BLOCKER_CODES.MANAGED_WORKTREE_PROVISIONING_UNAVAILABLE !== "string") {
   throw new Error(
@@ -358,7 +360,7 @@ export function assertManagedBindingShape({
   const expectedSliceId = expectedName.kind === "slice" ? expectedName.slice_id : null;
   const expectedBaseRef = expectedName.kind === "slice"
     ? `wk/${expectedName.initiative}/${expectedName.wk_id}`
-    : "main";
+    : null;
 
   const expectedSchemaVersion = sliceMode === "full"
     ? WORKTREE_IDENTITY_BINDING_SCHEMA_VERSION_V2
@@ -372,7 +374,6 @@ export function assertManagedBindingShape({
     initiative: [binding.initiative, expectedName.initiative],
     record_id: [binding.record_id, expectedName.wk_id],
     slice_id: [binding.slice_id ?? null, expectedSliceId],
-    base_ref: [binding.base_ref, expectedBaseRef],
     output_branch: [binding.output_branch, expectedName.output_branch],
     worktree_path: [
       path.resolve(binding.worktree_path), path.resolve(expectedName.worktree_path)
@@ -382,6 +383,11 @@ export function assertManagedBindingShape({
       `wiki/work-records/${expectedName.wk_id}.json${expectedSliceId ? `#${expectedSliceId}` : ""}`
     ]
   };
+  if (expectedName.kind === "slice") {
+    mismatches.base_ref = [binding.base_ref, expectedBaseRef];
+  } else if (!isCanonicalWorkRecordBaseBranch(binding.base_ref)) {
+    mismatches.base_ref = [binding.base_ref, "<canonical local branch name>"];
+  }
   const mismatch = Object.entries(mismatches).find(([, [actual, expected]]) => actual !== expected);
   if (mismatch) {
     const [field, [actual, expected]] = mismatch;

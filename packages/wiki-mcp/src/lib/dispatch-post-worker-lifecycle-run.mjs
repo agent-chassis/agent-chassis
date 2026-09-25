@@ -14,6 +14,7 @@ import {
   delegateSliceIntegrationToHost,
   lifecycleError,
   POST_WORKER_LIFECYCLE_PHASES,
+  recordReconciliationOutstanding,
   recoverIntegratedSliceResult,
   resolveManagedLifecycleBindings,
   resolvedCommit,
@@ -248,29 +249,42 @@ async function consumeAuthenticatedIntegrationContinuation(continuation, {
   const integration = continuation.integration;
   const state = integration.integrated_state;
   const authenticated = recovered ?? (typeof reconcile === "function" ? await reconcile() : null);
+
+  const outstanding = recordReconciliationOutstanding(integration);
   const mismatches = [
     ["integrated", integration.integrated, true],
     ["continuation_reviewed_sha", continuation.reviewed_sha, reviewedSha],
     ["delivery_sha", integration.delivery_sha, reviewedSha],
     ["slice_ref", integration.slice_ref, sliceRef],
     ["wk_ref", integration.wk_ref, wkRef],
-    ["integrated_state",
-      state === RECOVERED_INTEGRATED_STATES.FINAL || state === RECOVERED_INTEGRATED_STATES.NON_FINAL,
-      true],
-    ["final_without_current_wk_tip_ownership",
-      state === RECOVERED_INTEGRATED_STATES.FINAL && integration.slice_sha !== integration.wk_sha,
-      false],
-    ["non_final_with_whole_wk_review_target",
-      state === RECOVERED_INTEGRATED_STATES.NON_FINAL && integration.review_target != null,
-      false],
+    ...(outstanding ? [
+      ["outstanding_integrated_state", state, null],
+      ["outstanding_review_target", integration.review_target ?? null, null]
+    ] : [
+      ["integrated_state",
+        state === RECOVERED_INTEGRATED_STATES.FINAL || state === RECOVERED_INTEGRATED_STATES.NON_FINAL,
+        true],
+      ["final_without_current_wk_tip_ownership",
+        state === RECOVERED_INTEGRATED_STATES.FINAL && integration.slice_sha !== integration.wk_sha,
+        false],
+      ["non_final_with_whole_wk_review_target",
+        state === RECOVERED_INTEGRATED_STATES.NON_FINAL && integration.review_target != null,
+        false]
+    ]),
     ...(recovered === null ? [] : [
       ["recovered_delivery_sha", integration.delivery_sha, recovered.delivery_sha],
       ["recovered_slice_sha", integration.slice_sha, recovered.slice_sha],
       ["recovered_wk_sha", integration.wk_sha, recovered.wk_sha]
     ]),
-    ...(authenticated === null
-      ? (integration.empty_delivery === true ? [] : [["recovered_integrated_state", state, null]])
-      : [["recovered_integrated_state", state, authenticated.integrated_state]])
+    ...(outstanding
+      ? (authenticated === null ? [] : [
+          ["authenticated_integrated", authenticated.integrated, true],
+          ["authenticated_slice_sha", authenticated.slice_sha, integration.slice_sha],
+          ["authenticated_delivery_sha", authenticated.delivery_sha, integration.delivery_sha]
+        ])
+      : authenticated === null
+        ? (integration.empty_delivery === true ? [] : [["recovered_integrated_state", state, null]])
+        : [["recovered_integrated_state", state, authenticated.integrated_state]])
   ].filter(([, actual, expected]) => actual !== expected);
   if (mismatches.length > 0) {
     throw lifecycleError(
@@ -353,6 +367,67 @@ async function retireNoCommitAttempt({
   );
 }
 
+function outstandingRecordFailure(integration, { wkId, sliceId }) {
+  const blocked = integration?.record_reconciliation?.state === "blocked";
+  return closeLifecycleSeamRefusal(
+    CLOSED_LIFECYCLE_FAILURE_SEAMS.COMMITTED_SLICE_INTEGRATION,
+    blocked
+      ? CLOSED_LIFECYCLE_REFUSAL_REASONS.RECORD_RECONCILIATION_BLOCKED
+      : CLOSED_LIFECYCLE_REFUSAL_REASONS.RECORD_RECONCILIATION_PENDING,
+    {
+      assigned_unit: `${wkId}#${sliceId}`,
+      integrated: true,
+      record_reconciliation: integration?.record_reconciliation ?? null,
+      integration
+    }
+  );
+}
+
+async function reconcileIntegratedRecord({
+  checkpoint, hostRequested, status, bindings, binding, workspace, sliceRef, wkRef, runGit, deps,
+  wkId, sliceId
+}) {
+  const observed = checkpoint.integration;
+  if (hostRequested) throw outstandingRecordFailure(observed, { wkId, sliceId });
+  if (typeof deps.hostSliceIntegrationAdapter !== "function") {
+    throw new Error("managed post-worker lifecycle requires the writable host slice integration adapter");
+  }
+  const repaired = await integrateThroughHost({
+    status,
+    bindings,
+    adapter: deps.hostSliceIntegrationAdapter
+  });
+  if (repaired?.integrated !== true || repaired.slice_ref !== observed.slice_ref ||
+      repaired.slice_sha !== observed.slice_sha || repaired.delivery_sha !== observed.delivery_sha ||
+      repaired.wk_ref !== observed.wk_ref || repaired.empty_delivery !== observed.empty_delivery) {
+    throw lifecycleFactError(
+      "record reconciliation result does not match the exact integrated delivery",
+      { integration: observed, record_reconciliation_result: repaired ?? null }
+    );
+  }
+  if (recordReconciliationOutstanding(repaired)) {
+
+    checkpoint.integration = Object.freeze({
+      ...observed,
+      record_reconciliation: repaired.record_reconciliation
+    });
+    throw outstandingRecordFailure(checkpoint.integration, { wkId, sliceId });
+  }
+  const reobserved = await reconcileIntegratedSlice({
+    mainRepo: workspace.dir, binding, sliceRef, wkRef, runGit, deps
+  });
+  if (reobserved?.integrated !== true || recordReconciliationOutstanding(reobserved) ||
+      reobserved.slice_sha !== observed.slice_sha ||
+      reobserved.delivery_sha !== observed.delivery_sha ||
+      reobserved.integrated_state !== repaired.integrated_state) {
+    throw lifecycleFactError(
+      "re-observation does not confirm the reconciled record of the exact integrated delivery",
+      { integration: observed, record_reconciliation_result: repaired, reobserved: reobserved ?? null }
+    );
+  }
+  checkpoint.integration = Object.freeze({ ...repaired, recovered: true });
+}
+
 export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps = {} } = {}) {
   const subject = typeof status?.subject === "string" ? status.subject.match(WORKER_SLICE_SUBJECT_RE) : null;
   if (status?.role !== "worker" || status?.terminal !== true || status?.status !== "succeeded" || !subject) {
@@ -368,6 +443,8 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
     throw lifecycleFactError("post-worker lifecycle checkpoint carries an invalid phase",
       { phase: checkpoint.phase });
   }
+
+  let hostRequested = false;
 
   if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION &&
       checkpoint.failure_attempts > 0) {
@@ -427,11 +504,16 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
 
         checkpoint.integration = continuedIntegration;
         checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
+      } else if (recordReconciliationOutstanding(recovered)) {
+
+        checkpoint.integration = recovered;
+        checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
       } else {
 
       if (typeof deps.hostSliceIntegrationAdapter !== "function") {
         throw new Error("managed post-worker lifecycle requires the writable host slice integration adapter");
       }
+      hostRequested = true;
       const trustedIntegration = assertIntegratedCleanupOnlyDelegation(
         await integrateThroughHost({
           status,
@@ -515,6 +597,7 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
       if (typeof deps.hostSliceIntegrationAdapter !== "function") {
         throw new Error("managed post-worker lifecycle requires the writable host slice integration adapter");
       }
+      hostRequested = true;
       checkpoint.integration = await integrateThroughHost({
         status,
         bindings,
@@ -522,6 +605,14 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
       });
       checkpoint.phase = POST_WORKER_LIFECYCLE_PHASES.INTEGRATED;
     }
+  }
+
+  if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.INTEGRATED &&
+      recordReconciliationOutstanding(checkpoint.integration)) {
+    await reconcileIntegratedRecord({
+      checkpoint, hostRequested, status, bindings, binding, workspace, sliceRef, wkRef,
+      runGit, deps, wkId, sliceId
+    });
   }
 
   if (checkpoint.phase === POST_WORKER_LIFECYCLE_PHASES.FINALIZED) {
@@ -551,32 +642,17 @@ export async function runPostWorkerSliceLifecycleBody({ workspace, status, deps 
   assertTerminalTargetOwnership(integration);
 
   let terminalCandidate = null;
-  const reviewUnit = finalIntegration && integration.review_target != null &&
-      typeof deps.prepareTerminalCandidate === "function" &&
-      typeof deps.resolveDeclaredTerminalReviewUnit === "function"
-    ? deps.resolveDeclaredTerminalReviewUnit({ mainRepo: workspace.dir, wkId })
-    : null;
-  if (reviewUnit !== null) {
-    if (reviewUnit?.record_id !== wkId || reviewUnit?.initiative !== initiative) {
-      throw lifecycleFactError(
-        "declared terminal review unit does not match the exact launcher WK identity",
-        { expected_record_id: wkId, expected_initiative: initiative, review_unit: reviewUnit }
-      );
-    }
+  if (finalIntegration && integration.review_target != null &&
+      typeof deps.prepareTerminalCandidate === "function") {
 
     try {
       terminalCandidate = await deps.prepareTerminalCandidate({
         integration,
-        reviewUnit,
         initiative,
         wkId,
         wkRef,
         baseSha: bindings.wk?.base_sha,
-        baseRef: bindings.wk?.base_ref ?? "main",
-        authenticateAuthoredState: ({ historicalReviewUnit }) =>
-          deps.authenticateTerminalCandidatePreparation({
-            historicalReviewUnit
-          })
+        baseRef: bindings.wk?.base_ref
       });
     } catch (error) {
       throw closeLifecycleSeamFailure(

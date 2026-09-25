@@ -7,15 +7,15 @@ import { resolveExactProofEvaluator } from
   "../../packages/controlled-contract/lib/proof-evaluator-registry.mjs";
 
 test("current test-validity definitions resolve only by exact identity", async () => {
-  for (const profileVersion of ["2.0.0", "4.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0"]) {
+  for (const profileVersion of ["2.0.0", "4.0.0", "6.0.0", "7.0.0", "8.0.0", "9.0.0", "10.0.0"]) {
     await assert.rejects(loadExactAdmittedProofPack({
       profileId: "proof.verification.test-validity", profileVersion
     }), { code: "proof_pack_exact_version_not_current" });
   }
   const pack = await loadExactAdmittedProofPack({
-    profileId: "proof.verification.test-validity", profileVersion: "10.0.0"
+    profileId: "proof.verification.test-validity", profileVersion: "11.0.0"
   });
-  assert.equal(pack.profile.profile_version, "10.0.0");
+  assert.equal(pack.profile.profile_version, "11.0.0");
   assert.deepEqual({
     status: pack.test_validity_evaluator.status,
     profile_id: pack.test_validity_evaluator.profile_id,
@@ -25,9 +25,9 @@ test("current test-validity definitions resolve only by exact identity", async (
   }, {
     status: "resolved",
     profile_id: "proof.verification.test-validity",
-    profile_version: "10.0.0",
+    profile_version: "11.0.0",
     implementation_id: "proof.verification.test-validity.execution-evaluator",
-    implementation_version: "8.0.0"
+    implementation_version: "9.0.0"
   });
   const absent = await resolveExactProofEvaluator({
     proofPack: { profile: { profile_id: "proof.verification.test-validity",

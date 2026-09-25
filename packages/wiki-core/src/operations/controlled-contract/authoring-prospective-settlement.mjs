@@ -150,7 +150,9 @@ export function validateControlledContractAuthoringProspectiveMembers(prospectiv
 
 export async function settleControlledContractAuthoringProspectiveMembers({
   repoRoot, wkId, focus = null, source, prospective, coverage = null,
-  obligationSource = null, obligationSources = [], publishCarriers = true, targetRecord = null, selectedUnit = null, assertDefinitions = async () => {}
+  obligationSource = null, obligationSources = [], publishCarriers = true,
+  targetRecord = null, selectedUnit = null, assertDefinitions = async () => {},
+  compilerContract = null, proofSourceOverride = null
 }, {
   prepareCarrierSettlement = prepareControlledContractRefactorCarrierSettlement,
   prepareCoverageSettlement = prepareControlledContractRefactorCoverageSettlement,
@@ -212,6 +214,9 @@ export async function settleControlledContractAuthoringProspectiveMembers({
           expected_manifest_digest: source.manifest_content_digest,
           sourceLease: source.lease,
           canonical_members: prospective.canonical_members
+        }, {
+          compilerContract,
+          proofSourceOverride
         });
         return Object.freeze({ ...prepared, commit: async () => {
           carrierReceipt = await prepared.commit();
@@ -250,6 +255,8 @@ export async function settleControlledContractAuthoringProspectiveMembers({
     return Object.freeze({ ...receipt, receipt_identity: retained.identity });
   } catch (error) {
     if (!settled && carrierReceipt === null || error.details?.settlement_status === 'compensated') throw error;
+
+    if (!settled && Array.isArray(error.details?.compensation_failures)) throw error;
 
     const { changed: _changed, ...details } = error?.details ?? {};
     throw new ControlledContractToolError(

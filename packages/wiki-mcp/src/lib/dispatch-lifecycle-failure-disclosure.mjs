@@ -2,7 +2,6 @@
 
 import {
   CLOSED_CANDIDATE_FAILURE_KINDS,
-  closedContinuationFailure,
   captureLifecycleFailureEvidence,
   closedFailureCause,
   projectClosedLifecycleFailure,
@@ -59,9 +58,6 @@ export function buildLifecycleFailure(checkpoint, error) {
     const candidateFailure = publishableCandidateFailure(closed.candidate_failure);
     if (candidateFailure !== null) failure.candidate_failure = candidateFailure;
 
-    const continuationFailure = closedContinuationFailure(closed.continuation_failure);
-    if (continuationFailure !== null) failure.continuation_failure = continuationFailure;
-
     const failureCause = closedFailureCause(closed.failure_cause);
     if (failureCause !== null) failure.failure_cause = failureCause;
   }
@@ -70,7 +66,6 @@ export function buildLifecycleFailure(checkpoint, error) {
 }
 
 const CLOSED_ADDITIVE_FAILURE_FACTS = Object.freeze([
-  ["continuation_failure", closedContinuationFailure],
   ["failure_cause", closedFailureCause]
 ]);
 

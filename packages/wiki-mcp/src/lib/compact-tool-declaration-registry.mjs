@@ -110,10 +110,12 @@ export function completeToolInputContract(toolName) {
   if (entry.projected === null) {
     const served =
       entry.inputContractSchemaSource === INPUT_CONTRACT_SCHEMA_SOURCES.SERVED_DECLARATION;
+
     const projected = projectZodRequestContract(
       entry.inputContractSchemaSource === INPUT_CONTRACT_SCHEMA_SOURCES.ADVERTISED
         ? entry.advertisedSchema
-        : entry.authoritativeSchema
+        : entry.authoritativeSchema,
+      { shareIdenticalProjections: true }
     );
     if (projected === null) return null;
     const omissions = [
@@ -151,6 +153,14 @@ export function registeredToolInputGuidance(toolName) {
 
 export function registeredToolInputGuidanceRequestLocations(toolName) {
   return compactDeclarations.get(toolName)?.requestGuidanceLocations ?? [];
+}
+
+export function compactToolInputContractSchema(toolName) {
+  const entry = compactDeclarations.get(toolName);
+  if (entry === undefined) return null;
+  return entry.inputContractSchemaSource === INPUT_CONTRACT_SCHEMA_SOURCES.ADVERTISED
+    ? entry.advertisedSchema
+    : entry.authoritativeSchema;
 }
 
 export function hasCompactToolDeclaration(toolName) {

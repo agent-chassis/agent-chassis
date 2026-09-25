@@ -1,3 +1,5 @@
+import { SIDECAR_STORE_SCHEMA_VERSION } from "./sidecar-store-schema.mjs";
+
 export const SIDECAR_SCHEMA_VERSION = "repo-code-index.v1";
 export const SIDECAR_RESULT_SCHEMA_FIELD = "schema_version";
 
@@ -255,7 +257,7 @@ function makeFixture({
   dirtyState,
   staleness,
   dirtyDetails = {},
-  artifactSchemaVersion = "repo-code-store.v5"
+  artifactSchemaVersion = SIDECAR_STORE_SCHEMA_VERSION
 }) {
   return createSidecarResultEnvelope({
     source_kind: "code_index",

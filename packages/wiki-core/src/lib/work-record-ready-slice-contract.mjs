@@ -525,7 +525,14 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
     if (incomingIntent && (incomingIntent.intended_agent_role !== shape.role || incomingIntent.target_unit !== "slice")) readyInputError("ready_slice_shaping_conflict", "dispatch_intent contradicts shaping_mode", "dispatch_intent");
 
     if (create) {
-      for (const field of ["title", "read_scope", "repo_paths", "acceptance"]) {
+      for (const field of [
+        "title",
+        "depends_on",
+        "read_scope",
+        "repo_paths",
+        "write_scope",
+        "acceptance"
+      ]) {
         if (!hasOwn(supplied, field)) readyInputError("ready_slice_missing_required_field", `${field} is required on create`, field);
       }
     }
@@ -536,10 +543,10 @@ export function planWorkRecordReadySlice(record, request = {}, { repository = nu
       status: supplied.status ?? "todo",
       priority: supplied.priority ?? "medium",
       owner: supplied.owner ?? "unassigned",
-      depends_on: supplied.depends_on ?? [],
+      depends_on: supplied.depends_on,
       read_scope: supplied.read_scope,
       repo_paths: supplied.repo_paths,
-      write_scope: supplied.write_scope ?? [],
+      write_scope: supplied.write_scope,
       dispatch_intent: incomingIntent ?? {
         intended_agent_role: shape.role,
         target_unit: "slice",

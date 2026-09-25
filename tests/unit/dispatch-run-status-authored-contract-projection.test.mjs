@@ -1,20 +1,24 @@
 
 
 import assert from "node:assert/strict";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import {
   createResumableLifecycleHarness,
   createDispatchToolRegistry,
-  parseStructuredTextResponse
+  readStructuredResult
 } from "../../packages/wiki-mcp/src/lib/dispatch-tools-test-helpers.mjs";
 import {
   RUN_STATUS_AUTHORED_CONTRACT_PROJECTION_SCHEMA_VERSION,
+  RUN_STATUS_CONTROLLED_GENERATION_PROJECTION_SCHEMA_VERSION,
   TERMINAL_CANDIDATE_AUTHORED_CONTRACT_MEMBERS,
+  projectPublishedControlledGeneration,
   projectPublishedSliceLifecycle,
-  readTerminalCandidateAuthoredContracts
+  readTerminalCandidateAuthoredContracts,
+  readTerminalCandidateControlledGeneration
 } from "../../packages/wiki-mcp/src/lib/dispatch-run-status-authored-contract-projection.mjs";
 import {
   readSelectedResponseSource,
@@ -24,12 +28,16 @@ import {
 import {
   BASE,
   CANDIDATE,
+  GENERATION_REPOSITORY_ROOT,
   MALFORMED_FINAL_RESULT,
+  REPOSITORY,
   SLICE_ID,
   SUBJECT,
   TIP,
   WK_ID,
   authoredRecord,
+  controlledGeneration,
+  controlledGenerationIdentity,
   finalizedLifecycle,
   followRetrievalCall,
   observationBackend,
@@ -38,9 +46,25 @@ import {
   retrievalRegistry,
   sha256Hex,
   terminalCandidate,
-  terminalWorkerStatus
+  syntheticRecordedInvocation,
+  terminalWorkerStatus,
+  unfailedAttemptSelection,
+  versionDecision
 } from "../helpers/run-status-authored-document-fixture.mjs";
+import {
+  assertDefaultStatusFrame,
+  defaultStatusConclusion,
+  responseRepetitions
+} from "../helpers/mcp-journey-accounting.mjs";
+
+const COMPLETE = Object.freeze({ subject: SUBJECT, include_final_result: true });
+
+const defaultFrame = (observed, label) =>
+  assertDefaultStatusFrame([{ raw: observed.result, entry: { id: label } }], label);
 import { createTestResourceScope } from "../helpers/test-resource-scope.mjs";
+import { createAuthoredContractRetention } from
+  "../../packages/wiki-mcp/src/lib/dispatch-run-status-authored-contract-retention.mjs";
+import { measureMcpInlineResultBytes } from "../../packages/wiki-mcp/src/lib/mcp-response.mjs";
 
 function authoredContractsOf(structured) {
   return structured.slice_lifecycle.terminal_candidate.review_unit.authored_contracts;
@@ -52,11 +76,10 @@ function unprojectedBytes(observed, candidate) {
   delete reviewUnit.authored_contracts;
   reviewUnit.canonical_parent_wk_contract = candidate.contracts.canonical_parent_wk_contract;
   reviewUnit.review_unit_contract = candidate.contracts.slice_review_contract;
-  const text = JSON.stringify(clone);
-  return Buffer.byteLength(JSON.stringify({ content: [{ type: "text", text }], structuredContent: clone }), "utf8");
+  return measureMcpInlineResultBytes(clone);
 }
 
-test("WK-2691: the reproduced leak — default run status publishes the authored contracts as identity, not as documents", async () => {
+test("WK-2691: the reproduced leak — run status publishes the authored contracts as identity, not as documents", async () => {
   const scope = createTestResourceScope();
   try {
   const record = authoredRecord();
@@ -66,7 +89,7 @@ test("WK-2691: the reproduced leak — default run status publishes the authored
     lifecycle: finalizedLifecycle(candidate)
   }));
 
-  const observed = await observe(tools, { subject: SUBJECT });
+  const observed = await observe(tools, COMPLETE);
   const reviewUnit = observed.structured.slice_lifecycle.terminal_candidate.review_unit;
 
   for (const { member } of TERMINAL_CANDIDATE_AUTHORED_CONTRACT_MEMBERS) {
@@ -109,7 +132,8 @@ test("WK-2691: the reproduced leak — default run status publishes the authored
       base: BASE,
       wk_tip: TIP,
       candidate_schema_version: "terminal-wk-candidate.v3",
-      candidate_version: 1
+
+      candidate_version: null
     }
   });
   assert.deepEqual(retrieval.carrier_members,
@@ -146,7 +170,7 @@ test("WK-2691: the reproduced leak — default run status publishes the authored
   }
 });
 
-test("WK-2691: omitted, false and true include_final_result observe the same retained state without the record echo", async () => {
+test("WK-2691/WK-2671: omitted and false publish the compact view, true the complete result, neither the record echo", async () => {
   const record = authoredRecord();
   const candidate = terminalCandidate(record);
   const tools = createDispatchToolRegistry({
@@ -161,7 +185,15 @@ test("WK-2691: omitted, false and true include_final_result observe the same ret
   const explicitTrue = await observe(tools, { subject: SUBJECT, include_final_result: true });
 
   assert.deepEqual(explicitFalse.structured, omitted.structured);
-  assert.deepEqual(explicitTrue.structured.slice_lifecycle, omitted.structured.slice_lifecycle);
+  const view = omitted.structured.slice_lifecycle;
+  assert.equal(view.view, "workspace-agent-run-status-compact-lifecycle.v1");
+  assert.ok(view.omitted_members.includes("terminal_candidate.review_unit"));
+  assert.deepEqual(view.terminal_candidate.review_unit,
+    { record_id: WK_ID, slice_id: SLICE_ID, subject: SUBJECT });
+  assert.deepEqual(view.complete.call.arguments,
+    { ...COMPLETE, attempt_id: omitted.structured.attempt_id });
+  assert.equal(authoredContractsOf(explicitTrue.structured).omitted_member_count, 2);
+  defaultFrame(omitted, "compact default with a review unit");
   for (const observation of [omitted, explicitFalse, explicitTrue]) {
     const wire = JSON.stringify(observation.structured);
     assert.equal(wire.includes("parent criterion 19"), false);
@@ -195,7 +227,7 @@ test("WK-2691: compact status does not grow with unrelated parent and sibling au
         status: terminalWorkerStatus(),
         lifecycle: finalizedLifecycle(candidate)
       }));
-      observations.push(await observe(tools, { subject: SUBJECT }));
+      observations.push(await observe(tools, COMPLETE));
     }
     const [leanObserved, paddedObserved] = observations;
 
@@ -219,8 +251,10 @@ test("WK-2691: compact status does not grow with unrelated parent and sibling au
     const growth = paddedObserved.bytes - leanObserved.bytes;
     assert.ok(growth < 32,
       `compact status must not scale with unrelated authored text; grew ${growth} bytes for ${grownBy}`);
-    assert.ok(paddedObserved.bytes < 16_384,
-      `default status stays inside the compact class; was ${paddedObserved.bytes}`);
+
+    const { tools: paddedTools } = await retrievalRegistry(scope, "padded-default",
+      observationBackend({ status: terminalWorkerStatus(), lifecycle: finalizedLifecycle(padded) }));
+    defaultFrame(await observe(paddedTools, { subject: SUBJECT }), "padded parent default");
   } finally {
     await scope.dispose();
   }
@@ -266,10 +300,10 @@ test("WK-2691: repeated observation of the same attempt is byte-stable and adds 
   });
 
   const [first, second] = await Promise.all([
-    observe(tools, { subject: SUBJECT }),
-    observe(tools, { subject: SUBJECT })
+    observe(tools, COMPLETE),
+    observe(tools, COMPLETE)
   ]);
-  const third = await observe(tools, { subject: SUBJECT });
+  const third = await observe(tools, COMPLETE);
 
   assert.equal(lifecycleCalls, 1, "concurrent observers share one lifecycle attempt");
   assert.deepEqual(second.structured, first.structured);
@@ -304,9 +338,7 @@ test("WK-2691: observations with no terminal candidate keep their exact envelope
 
 test("WK-2691: a typed integration-pending failure keeps its exact facts through the projection", async () => {
 
-  const harness = createResumableLifecycleHarness({
-    declaredTerminalReviewUnit: { record_id: "WK-1537", initiative: "IN-0021", subject: SUBJECT }
-  });
+  const harness = createResumableLifecycleHarness();
   harness.deps.prepareTerminalCandidate = async () => {
     throw new Error("injected terminal candidate preparation failure");
   };
@@ -315,11 +347,13 @@ test("WK-2691: a typed integration-pending failure keeps its exact facts through
       getRunStatus: async () => harness.status,
       waitForRunStatus: async () => harness.status,
       runPostWorkerSliceLifecycle: harness.invoke,
-      readManagedRunObservation: async () => ({ ok: false, code: "run_detail_unavailable" })
+      readManagedRunObservation: async (input) => input?.detail === undefined
+        ? unfailedAttemptSelection(harness.status)
+        : ({ ok: false, code: "run_detail_unavailable" })
     }
   });
 
-  const observed = await observe(tools, { subject: harness.status.subject });
+  const observed = await observe(tools, { subject: harness.status.subject, include_final_result: true });
   assert.equal(observed.structured.terminal, false);
   assert.equal(observed.structured.child_terminal, true);
   assert.equal(observed.structured.slice_lifecycle.phase, "integrated");
@@ -336,7 +370,19 @@ test("WK-2691: a typed integration-pending failure keeps its exact facts through
   assert.equal(harness.counts().integrationCalls, 1);
 
   assert.equal(JSON.stringify(observed.structured).includes("parent criterion"), false);
-  assert.ok(observed.bytes < 12000, `a failed observation stays bounded; was ${observed.bytes}`);
+
+  const compact = await observe(tools, { subject: harness.status.subject });
+  defaultFrame(compact, "typed integration-pending failure");
+  assert.ok(compact.structured.slice_lifecycle.omitted_members.includes("evidence"));
+  assert.equal(compact.structured.slice_lifecycle.error_code,
+    observed.structured.slice_lifecycle.error_code);
+  for (const [key, value] of Object.entries(harness.integrationResult)) {
+    if (value === null || typeof value !== "object") {
+      assert.equal(compact.structured.slice_lifecycle.integration[key], value,
+        `integration.${key} keeps its path in the compact view`);
+    }
+  }
+  assert.equal(harness.counts().integrationCalls, 1, "the second observation integrated nothing");
 });
 
 test("WK-2691: the projection replaces two named members and passes everything else through", () => {
@@ -409,7 +455,7 @@ test("WK-2691: following the emitted read reconstructs both omitted documents ex
       lifecycle: finalizedLifecycle(candidate)
     }));
 
-    const observed = await observe(tools, { subject: SUBJECT });
+    const observed = await observe(tools, COMPLETE);
     const projection = authoredContractsOf(observed.structured);
     const retrieval = projection.retrieval;
     assert.equal(retrieval.state, "retained");
@@ -474,17 +520,21 @@ test("WK-2691: a later candidate and a re-authored record do not move the retain
       getRunStatus: async () => ({ ...servedStatus }),
       waitForRunStatus: async () => ({ ...servedStatus }),
       runPostWorkerSliceLifecycle: async () => servedLifecycle,
-      readManagedRunObservation: async () => ({ ok: false, code: "run_detail_unavailable" })
+      readManagedRunObservation: async (input) => input?.detail === undefined
+        ? unfailedAttemptSelection(servedStatus)
+        : ({ ok: false, code: "run_detail_unavailable" })
     });
-    const captured = authoredContractsOf((await observe(tools, { subject: SUBJECT })).structured);
+    const captured = authoredContractsOf((await observe(tools, COMPLETE)).structured);
 
     const rewritten = authoredRecord({ padding: " REAUTHORED AFTER CAPTURE " });
     const laterCandidate = terminalCandidate(rewritten);
     laterCandidate.binding.candidate = "d".repeat(40);
-    laterCandidate.binding.version_decision = { state: "selected", version: 2 };
+    laterCandidate.binding.version_decision = versionDecision({
+      generation: controlledGeneration(), candidate: "d".repeat(40), versionIdentity: "2"
+    });
     servedStatus = terminalWorkerStatus({ run_id: "run-worker-2691-later" });
     servedLifecycle = finalizedLifecycle(laterCandidate);
-    const later = authoredContractsOf((await observe(tools, { subject: SUBJECT })).structured);
+    const later = authoredContractsOf((await observe(tools, COMPLETE)).structured);
 
     assert.notEqual(later.retrieval.ref_id, captured.retrieval.ref_id,
       "a different candidate over different text retains its own source");
@@ -511,7 +561,7 @@ test("WK-2691: a missing or tampered retained source refuses precisely and subst
       lifecycle: finalizedLifecycle(candidate)
     }));
     const retrieval = authoredContractsOf(
-      (await observe(tools, { subject: SUBJECT })).structured).retrieval;
+      (await observe(tools, COMPLETE)).structured).retrieval;
     const reader = tools.get("workspace_read_mcp_content_reference").handler;
     const sourcePath = path.join(dir, `${retrieval.ref_id}.json`);
     const originalBytes = readFileSync(sourcePath);
@@ -569,10 +619,10 @@ test("WK-2691: repeat and concurrent observation reuse one retained artifact and
     }));
 
     const [first, second] = await Promise.all([
-      observe(tools, { subject: SUBJECT }),
-      observe(tools, { subject: SUBJECT })
+      observe(tools, COMPLETE),
+      observe(tools, COMPLETE)
     ]);
-    const third = await observe(tools, { subject: SUBJECT });
+    const third = await observe(tools, COMPLETE);
     const complete = await observe(tools, { subject: SUBJECT, include_final_result: true });
 
     assert.equal(lifecycleCalls, 1, "observation adds no lifecycle attempt");
@@ -604,13 +654,13 @@ test("WK-2691: measured cost of the default answer and of the complete retrieval
     }));
 
     const observed = await observe(tools, { subject: SUBJECT });
-    const before = unprojectedBytes(observed, candidate);
+    const complete = await observe(tools, COMPLETE);
+    const before = unprojectedBytes(complete, candidate);
     const defaultTotal = observed.requestBytes + observed.bytes;
-    assert.ok(defaultTotal < 16_384,
-      `default status stays bounded over a ${authoredBytes}-byte parent contract; was ${defaultTotal}`);
+    defaultFrame(observed, `default status over a ${authoredBytes}-byte parent contract`);
     assert.ok((before - observed.bytes) / before >= 0.7);
 
-    const retrieval = authoredContractsOf(observed.structured).retrieval;
+    const retrieval = authoredContractsOf(complete.structured).retrieval;
     const reader = tools.get("workspace_read_mcp_content_reference").handler;
     let callArguments = { ...retrieval.retained_source_read.arguments };
     let retrievalTotal = 0;
@@ -622,7 +672,7 @@ test("WK-2691: measured cost of the default answer and of the complete retrieval
       retrievalTotal += Buffer.byteLength(JSON.stringify(callArguments), "utf8") +
         Buffer.byteLength(JSON.stringify(result), "utf8");
       pages += 1;
-      const page = parseStructuredTextResponse(result);
+      const page = readStructuredResult(result);
       sourceBytes = page.total_bytes;
       maxLength = page.max_length;
       if (page.next_offset === null) break;
@@ -634,6 +684,650 @@ test("WK-2691: measured cost of the default answer and of the complete retrieval
     assert.equal(pages, Math.ceil(sourceBytes / maxLength));
     assert.ok(defaultTotal + retrievalTotal > before,
       "the projection moves the cost off the default answer; it does not make the bytes smaller");
+  } finally {
+    await scope.dispose();
+  }
+});
+
+function generationSummaryOf(structured) {
+  return structured.slice_lifecycle.terminal_candidate.binding.controlled_generation_summary;
+}
+
+function withGenerationRestored(structured, generation) {
+  const clone = structuredClone(structured);
+  const binding = clone.slice_lifecycle.terminal_candidate.binding;
+  delete binding.controlled_generation_summary;
+  binding.controlled_generation = generation;
+  return clone;
+}
+
+function generationLifecycle({ generation = controlledGeneration(), reviewUnit = false,
+  transitionRecord = null } = {}) {
+  const candidate = terminalCandidate(authoredRecord(), { generation, reviewUnit });
+  return { generation, candidate, lifecycle: finalizedLifecycle(candidate, { transitionRecord }) };
+}
+
+function assertNoGenerationBodies(structured, generation) {
+  const wire = JSON.stringify(structured);
+  for (const descriptor of [...generation.descriptors, ...generation.manifest_descriptors]) {
+    assert.equal(wire.includes(descriptor.bytes_base64), false,
+      `${descriptor.path} body must not be published inline`);
+  }
+  assert.equal(wire.includes("bytes_base64"), false);
+
+  assert.equal(Object.hasOwn(structured.slice_lifecycle.terminal_candidate.binding ?? {},
+    "controlled_generation"), false);
+}
+
+test("WK-2671: a generation without a review unit is summarized, not echoed, for every include_final_result", async (t) => {
+  const scope = createTestResourceScope();
+  try {
+    const generation = controlledGeneration({ descriptorCount: 6, body: "carrier body ".repeat(400) });
+    const { candidate, lifecycle } = generationLifecycle({ generation });
+    assert.equal(Object.hasOwn(candidate, "review_unit"), false);
+    const original = structuredClone(lifecycle);
+    const { tools } = await retrievalRegistry(scope, "generation-flags", observationBackend({
+      status: terminalWorkerStatus(),
+      lifecycle
+    }));
+
+    const omitted = await observe(tools, { subject: SUBJECT });
+    const explicitFalse = await observe(tools, { subject: SUBJECT, include_final_result: false });
+    const explicitTrue = await observe(tools, { subject: SUBJECT, include_final_result: true });
+
+    for (const observation of [omitted, explicitFalse, explicitTrue]) {
+      assertNoGenerationBodies(observation.structured, generation);
+    }
+
+    assert.deepEqual(explicitFalse.structured, omitted.structured);
+    const view = omitted.structured.slice_lifecycle.terminal_candidate;
+    assert.equal(view.candidate, candidate.binding.candidate);
+    assert.equal(view.base, candidate.binding.base);
+    assert.equal(view.wk_tip, candidate.binding.wk_tip);
+    assert.ok(omitted.structured.slice_lifecycle.omitted_members.includes("terminal_candidate.binding"));
+    defaultFrame(omitted, "generation without a review unit");
+    assert.equal(Object.hasOwn(omitted.structured, "final_result"), false);
+    assert.equal(explicitTrue.structured.final_result.full_response.text,
+      MALFORMED_FINAL_RESULT.full_response.text);
+
+    const summary = generationSummaryOf(explicitTrue.structured);
+    assert.equal(summary.schema_version, RUN_STATUS_CONTROLLED_GENERATION_PROJECTION_SCHEMA_VERSION);
+    assert.equal(summary.projection_scope, "terminal_candidate_controlled_generation");
+    assert.equal(summary.grants_authority, false);
+    assert.equal(summary.evidence_class, "historical_attempt_snapshot");
+    assert.equal(summary.current_record_read_is_equivalent, false);
+    assert.equal(summary.source_schema_version, generation.schema_version);
+    assert.deepEqual(summary.identity_source, {
+      path: "terminal_candidate.binding.version_decision.controlled_generation",
+      present: true
+    });
+    assert.deepEqual(summary.source_facts, {
+      repository: generation.repository,
+      record_source_digest: generation.record_source_digest,
+      wk_tip_sha: generation.wk_tip_sha
+    });
+
+    assert.equal(summary.source_facts.repository, GENERATION_REPOSITORY_ROOT);
+    assert.equal(path.isAbsolute(summary.source_facts.repository), true);
+    assert.equal(summary.retrieval.binding.repository, REPOSITORY);
+    assert.notEqual(summary.source_facts.repository, summary.retrieval.binding.repository);
+    assert.equal(summary.descriptor_count, 6);
+    assert.equal(summary.manifest_descriptor_count, 1);
+
+    for (const restated of ["wk_id", "generation_digest", "manifest_identity", "count",
+      "identity", "descriptors"]) {
+      assert.equal(Object.hasOwn(summary, restated), false, `${restated} is not restated`);
+    }
+    const text = JSON.stringify(generation);
+    assert.deepEqual(summary.omitted, {
+      member: "controlled_generation",
+      carrier_member: "terminal_candidate_controlled_generation",
+      digest: `sha256:${sha256Hex(Buffer.from(text, "utf8"))}`,
+      utf8_bytes: Buffer.byteLength(text, "utf8")
+    });
+    assert.equal(summary.retrieval.state, "retained");
+    assert.deepEqual(summary.retrieval.carrier_members, ["terminal_candidate_controlled_generation"]);
+
+    assert.deepEqual(
+      explicitTrue.structured.slice_lifecycle.terminal_candidate.binding.version_decision,
+      candidate.binding.version_decision);
+    assert.deepEqual(
+      explicitTrue.structured.slice_lifecycle.terminal_candidate.binding.version_decision
+        .controlled_generation,
+      controlledGenerationIdentity(generation));
+
+    assert.deepEqual(lifecycle, original);
+    assert.deepEqual(withGenerationRestored(explicitTrue.structured, generation).slice_lifecycle,
+      original);
+    assert.equal(omitted.structured.terminal, true);
+    assert.equal(omitted.structured.child_terminal, true);
+    assert.equal(omitted.structured.settled, true);
+    assert.equal(omitted.structured.slice_lifecycle.phase, "finalized");
+    assert.equal(omitted.structured.slice_lifecycle.integrated, true);
+    assert.equal(omitted.structured.lifecycle_resolution.resolved, true);
+    assert.equal(omitted.structured.proof_verification.state, "none_recorded");
+
+    const bare = createDispatchToolRegistry({
+      backend: observationBackend({
+        status: terminalWorkerStatus(),
+        lifecycle: finalizedLifecycle(terminalCandidate(authoredRecord(), { reviewUnit: false }))
+      })
+    });
+    const bareObserved = await observe(bare, { subject: SUBJECT });
+    const bareComplete = await observe(bare, COMPLETE);
+    for (const fact of ["status", "terminal", "child_terminal", "settled", "next_action",
+      "lifecycle_resolution", "proof_verification", "final_result_summary"]) {
+      assert.deepEqual(omitted.structured[fact], bareObserved.structured[fact], fact);
+    }
+    assert.equal(Object.hasOwn(
+      bareComplete.structured.slice_lifecycle.terminal_candidate.binding,
+      "controlled_generation_summary"), false, "no placeholder summary without a generation");
+
+    const before = measureMcpInlineResultBytes(withGenerationRestored(explicitTrue.structured, generation));
+    const after = measureMcpInlineResultBytes(explicitTrue.structured);
+    assert.ok(before - after >= Buffer.byteLength(text, "utf8") / 2,
+      `the generation body leaves the default answer; ${before} -> ${after}`);
+    t.diagnostic(`WK-2671 generation response bytes: before=${before} after=${after}`);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: the summary is bounded as bodies and inventory grow; the version-decision inventory still scales", async (t) => {
+  const scope = createTestResourceScope();
+  try {
+    const shapes = {
+      small: controlledGeneration({ descriptorCount: 2, body: "short " }),
+      largeUnicodeBodies: controlledGeneration({
+        descriptorCount: 2, body: "ünïcodé ✓ 日本語 контракт ".repeat(2000)
+      }),
+      manyDescriptors: controlledGeneration({ descriptorCount: 40, body: "short " })
+    };
+    const measured = {};
+    for (const [label, generation] of Object.entries(shapes)) {
+      const { lifecycle } = generationLifecycle({ generation });
+      const { tools } = await retrievalRegistry(scope, `generation-scale-${label}`,
+        observationBackend({ status: terminalWorkerStatus(), lifecycle }));
+      const observed = await observe(tools, COMPLETE);
+      assertNoGenerationBodies(observed.structured, generation);
+      const summary = generationSummaryOf(observed.structured);
+      const compact = await observe(tools, { subject: SUBJECT });
+      defaultFrame(compact, `default answer, ${label} generation`);
+      measured[label] = {
+        defaultBytes: compact.bytes,
+        summaryBytes: Buffer.byteLength(JSON.stringify(summary), "utf8"),
+        responseBytes: observed.bytes,
+        before: measureMcpInlineResultBytes(withGenerationRestored(observed.structured, generation)),
+        after: measureMcpInlineResultBytes(observed.structured),
+        summary
+      };
+    }
+    for (const [label, { summaryBytes }] of Object.entries(measured)) {
+      assert.ok(summaryBytes <= 4096, `${label} summary is ${summaryBytes} bytes`);
+      assert.ok(summaryBytes - measured.small.summaryBytes <= 256,
+        `${label} summary grew ${summaryBytes - measured.small.summaryBytes} bytes`);
+    }
+    assert.equal(measured.manyDescriptors.summary.descriptor_count, 40);
+
+    assert.ok(measured.largeUnicodeBodies.after - measured.small.after <= 256,
+      `body growth leaked into the response: ${measured.small.after} -> ${measured.largeUnicodeBodies.after}`);
+
+    assert.ok(measured.manyDescriptors.after > measured.small.after + 38 * 64);
+
+    for (const label of ["largeUnicodeBodies", "manyDescriptors"]) {
+      assert.ok(measured[label].defaultBytes - measured.small.defaultBytes <= 16,
+        `${label} default grew ${measured[label].defaultBytes - measured.small.defaultBytes} bytes`);
+    }
+    t.diagnostic(`WK-2671 generation scale: ${JSON.stringify(Object.fromEntries(
+      Object.entries(measured).map(([label, { summaryBytes, before, after, defaultBytes }]) =>
+        [label, { summaryBytes, before, after, defaultBytes }])))}`);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: the emitted read reconstructs the exact historical generation, and a later one does not move it", async () => {
+  const scope = createTestResourceScope();
+  try {
+    const generation = controlledGeneration({
+      descriptorCount: 5, body: "ünïcodé ✓ 日本語 контракт ".repeat(600)
+    });
+    let servedStatus = terminalWorkerStatus();
+    let servedLifecycle = generationLifecycle({ generation }).lifecycle;
+    const { tools } = await retrievalRegistry(scope, "generation-exact", {
+      getRunStatus: async () => ({ ...servedStatus }),
+      waitForRunStatus: async () => ({ ...servedStatus }),
+      runPostWorkerSliceLifecycle: async () => servedLifecycle,
+      readManagedRunObservation: async (input) => input?.detail === undefined
+        ? unfailedAttemptSelection(servedStatus)
+        : ({ ok: false, code: "run_detail_unavailable" })
+    });
+    const captured = generationSummaryOf((await observe(tools, COMPLETE)).structured);
+    assert.equal(captured.retrieval.state, "retained");
+    assert.equal(captured.retrieval.binding.observation_identity.candidate, CANDIDATE);
+    assert.equal(captured.retrieval.binding.observation_identity.candidate_version, null);
+
+    const reconstruct = async (summary) => {
+      const { bytes, readerDigest } = await followRetrievalCall(tools, summary.retrieval);
+      assert.equal(sha256Hex(bytes), summary.retrieval.sha256);
+      assert.equal(readerDigest, summary.retrieval.sha256);
+      const envelope = JSON.parse(bytes.toString("utf8"));
+      assert.equal(envelope.schema_version, SELECTED_RESPONSE_SOURCE_SCHEMA_VERSION);
+      const text = envelope.carrier.terminal_candidate_controlled_generation;
+      assert.equal(`sha256:${sha256Hex(Buffer.from(text, "utf8"))}`, summary.omitted.digest);
+      assert.equal(Buffer.byteLength(text, "utf8"), summary.omitted.utf8_bytes);
+      assert.deepEqual(envelope.binding.observation_identity,
+        summary.retrieval.binding.observation_identity);
+      return JSON.parse(text);
+    };
+    const restored = await reconstruct(captured);
+    assert.deepEqual(restored, generation);
+    for (const key of ["descriptors", "manifest_descriptors"]) {
+      restored[key].forEach((descriptor, index) => {
+        const expected = generation[key][index];
+        assert.equal(descriptor.path, expected.path);
+        assert.ok(Buffer.from(descriptor.bytes_base64, "base64")
+          .equals(Buffer.from(expected.bytes_base64, "base64")), expected.path);
+        assert.equal(`sha256:${sha256Hex(Buffer.from(descriptor.bytes_base64, "base64"))}`,
+          expected.content_digest);
+      });
+    }
+
+    const laterGeneration = controlledGeneration({ descriptorCount: 5, body: "REWRITTEN " });
+    servedStatus = terminalWorkerStatus({ run_id: "run-worker-2671-later" });
+    servedLifecycle = generationLifecycle({ generation: laterGeneration }).lifecycle;
+    const later = generationSummaryOf((await observe(tools, COMPLETE)).structured);
+    assert.notEqual(later.retrieval.ref_id, captured.retrieval.ref_id);
+    assert.notEqual(later.omitted.digest, captured.omitted.digest);
+    assert.deepEqual(await reconstruct(later), laterGeneration);
+
+    assert.deepEqual(await reconstruct(captured), generation);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: review contracts, integration record and generation share one retained artifact", async () => {
+  const scope = createTestResourceScope();
+  try {
+    const record = authoredRecord();
+    const { generation, candidate, lifecycle } = generationLifecycle({
+      reviewUnit: true, transitionRecord: record
+    });
+    let lifecycleCalls = 0;
+    const { tools, dir } = await retrievalRegistry(scope, "generation-combined", observationBackend({
+      status: terminalWorkerStatus(),
+      lifecycle,
+      onLifecycle: () => { lifecycleCalls += 1; }
+    }));
+
+    const [first, second] = await Promise.all([
+      observe(tools, COMPLETE),
+      observe(tools, COMPLETE)
+    ]);
+    const complete = await observe(tools, { subject: SUBJECT, include_final_result: true });
+    assert.equal(lifecycleCalls, 1);
+    assert.equal(retainedArtifacts(dir).length, 1);
+    assert.deepEqual(second.structured, first.structured);
+    assert.deepEqual(complete.structured.slice_lifecycle, first.structured.slice_lifecycle);
+    assertNoGenerationBodies(first.structured, generation);
+
+    const lifecycleView = first.structured.slice_lifecycle;
+    const members = ["canonical_parent_wk_contract", "review_unit_contract",
+      "terminal_candidate_controlled_generation", "integration_transition_record"];
+    const retrievals = [
+      lifecycleView.terminal_candidate.review_unit.authored_contracts.retrieval,
+      generationSummaryOf(first.structured).retrieval,
+      lifecycleView.integration.transition.written_record.retrieval
+    ];
+    for (const retrieval of retrievals) {
+      assert.equal(retrieval.ref_id, retrievals[0].ref_id);
+      assert.deepEqual(retrieval.carrier_members, members);
+    }
+    const { bytes } = await followRetrievalCall(tools, retrievals[1]);
+    const envelope = JSON.parse(bytes.toString("utf8"));
+    assert.deepEqual(Object.keys(envelope.carrier), members);
+    const retainedGeneration = JSON.parse(envelope.carrier.terminal_candidate_controlled_generation);
+    assert.deepEqual(retainedGeneration, generation);
+
+    assert.equal(retainedGeneration.repository, GENERATION_REPOSITORY_ROOT);
+    assert.equal(envelope.binding.repository, REPOSITORY);
+    assert.equal(envelope.carrier.review_unit_contract, candidate.contracts.slice_review_contract);
+    assert.deepEqual(JSON.parse(envelope.carrier.integration_transition_record), record);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: changed generation content under the same candidate and attempt retains distinct content", () => {
+  const scope = createTestResourceScope();
+  return (async () => {
+    try {
+      const dir = await scope.acquire("generation-memo",
+        () => mkdtempSync(path.join(os.tmpdir(), "wk2671-retained-")),
+        (created) => rmSync(created, { recursive: true, force: true }));
+      const retention = createAuthoredContractRetention({
+        env: { ...process.env, WIKI_MCP_RESPONSE_STATE_DIR: dir }
+      });
+      const status = terminalWorkerStatus();
+      const observeWith = (generation) => retention.retain({
+        repository: "agent-chassis",
+        status,
+        lifecycle: generationLifecycle({ generation }).lifecycle
+      });
+      const first = observeWith(controlledGeneration({ body: "one " }));
+      const repeat = observeWith(controlledGeneration({ body: "one " }));
+      const changed = observeWith(controlledGeneration({ body: "two " }));
+      assert.equal(first.state, "retained");
+      assert.equal(repeat, first, "identical observed state reuses its memoized locator");
+      assert.deepEqual(changed.observation_identity, first.observation_identity,
+        "same attempt and candidate");
+      assert.notEqual(changed.locator.ref_id, first.locator.ref_id);
+      assert.notEqual(changed.locator.sha256, first.locator.sha256);
+      assert.equal(retainedArtifacts(dir).length, 2);
+    } finally {
+      await scope.dispose();
+    }
+  })();
+});
+
+test("WK-2671: unavailable retention and a missing or corrupt artifact stay truthful, with no inline fallback", async () => {
+  const { generation, lifecycle } = generationLifecycle();
+
+  for (const [retention, code] of [
+    [null, "authored_contract_source_not_retained"],
+    [{ state: "unavailable", code: "mcp_response.spill_persistence_failed.v1" },
+      "mcp_response.spill_persistence_failed.v1"]
+  ]) {
+    const projected = projectPublishedControlledGeneration(lifecycle, { retention });
+    const summary = projected.terminal_candidate.binding.controlled_generation_summary;
+    assert.equal(summary.retrieval.state, "unavailable");
+    assert.equal(summary.retrieval.code, code);
+    assert.equal(Object.hasOwn(summary.retrieval, "retained_source_read"), false);
+    assert.equal(JSON.stringify(projected).includes("bytes_base64"), false);
+    assert.equal(summary.omitted.utf8_bytes, Buffer.byteLength(JSON.stringify(generation), "utf8"));
+  }
+
+  const scope = createTestResourceScope();
+  try {
+
+    const root = await scope.acquire("generation-unwritable",
+      () => mkdtempSync(path.join(os.tmpdir(), "wk2671-unwritable-")),
+      (created) => rmSync(created, { recursive: true, force: true }));
+    const blocker = path.join(root, "not-a-directory");
+    writeFileSync(blocker, "file");
+    const failing = createDispatchToolRegistry({
+      backend: observationBackend({ status: terminalWorkerStatus(), lifecycle }),
+      responseEnv: { ...process.env, WIKI_MCP_RESPONSE_STATE_DIR: path.join(blocker, "spill") }
+    });
+    const failed = await observe(failing, COMPLETE);
+    assert.equal(failed.structured.terminal, true);
+    assert.equal(failed.structured.slice_lifecycle.phase, "finalized");
+    const failedSummary = generationSummaryOf(failed.structured);
+    assert.equal(failedSummary.retrieval.state, "unavailable");
+    assert.equal(typeof failedSummary.retrieval.code, "string");
+    assert.equal(Object.hasOwn(failedSummary.retrieval, "retained_source_read"), false);
+    assertNoGenerationBodies(failed.structured, generation);
+
+    const { tools, dir } = await retrievalRegistry(scope, "generation-integrity",
+      observationBackend({ status: terminalWorkerStatus(), lifecycle }));
+    const retrieval = generationSummaryOf((await observe(tools, COMPLETE)).structured)
+      .retrieval;
+    const sourcePath = path.join(dir, `${retrieval.ref_id}.json`);
+    const originalBytes = readFileSync(sourcePath);
+    const tampered = Buffer.from(originalBytes);
+    tampered[tampered.length - 2] = tampered[tampered.length - 2] === 0x20 ? 0x21 : 0x20;
+    writeFileSync(sourcePath, tampered);
+    const afterTamper = await followRetrievalCall(tools, retrieval);
+    assert.notEqual(sha256Hex(afterTamper.bytes), retrieval.sha256);
+
+    rmSync(sourcePath);
+    const missing = await tools.get("workspace_read_mcp_content_reference")
+      .handler({ ...retrieval.retained_source_read.arguments });
+    assert.equal(missing.isError, true);
+    const missingText = JSON.stringify(missing);
+    assert.match(missingText, /content_reference_not_found/u);
+    assert.equal(missingText.includes("bytes_base64"), false);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: the generation projection replaces one named member and passes everything else through", () => {
+  const bare = Object.freeze({ invoked: true, phase: "pre_integration" });
+  assert.equal(projectPublishedControlledGeneration(bare), bare);
+  assert.equal(projectPublishedControlledGeneration(null), null);
+  const noGeneration = finalizedLifecycle(terminalCandidate(authoredRecord(), { reviewUnit: false }));
+  assert.equal(projectPublishedControlledGeneration(noGeneration), noGeneration);
+  assert.equal(readTerminalCandidateControlledGeneration(noGeneration), null);
+
+  const odd = structuredClone(noGeneration);
+  odd.terminal_candidate.binding.controlled_generation = "not-an-object";
+  assert.equal(projectPublishedControlledGeneration(odd), odd);
+
+  const { lifecycle } = generationLifecycle({ reviewUnit: true });
+  lifecycle.terminal_candidate.binding.future_binding_fact = "kept";
+  const composed = projectPublishedControlledGeneration(projectPublishedSliceLifecycle(lifecycle));
+  const reversed = projectPublishedSliceLifecycle(projectPublishedControlledGeneration(lifecycle));
+  assert.deepEqual(composed, reversed);
+  assert.equal(composed.terminal_candidate.binding.future_binding_fact, "kept");
+  assert.equal(Object.hasOwn(composed.terminal_candidate.review_unit, "authored_contracts"), true);
+  assert.equal(Object.hasOwn(composed.terminal_candidate.binding, "controlled_generation"), false);
+  const restored = structuredClone(composed.terminal_candidate.binding);
+  delete restored.controlled_generation_summary;
+  const expected = structuredClone(lifecycle.terminal_candidate.binding);
+  delete expected.controlled_generation;
+  assert.deepEqual(restored, expected);
+
+  const noIdentity = structuredClone(lifecycle);
+  delete noIdentity.terminal_candidate.binding.version_decision.controlled_generation;
+  assert.equal(projectPublishedControlledGeneration(noIdentity)
+    .terminal_candidate.binding.controlled_generation_summary.identity_source.present, false);
+});
+
+const LIMITATION = "test_proof_registry_falsification_unsupported";
+
+function populatedObservation({ proofRows = 1, recordedCount = 3, recoveryText = "",
+  workerText = null, diagnosticDepth = 0, materializationPath = null, descriptorCount = 6,
+  padding = "" } = {}) {
+  const record = authoredRecord({ padding });
+  const generation = controlledGeneration({ descriptorCount, body: "carrier ".repeat(50) });
+  const candidate = terminalCandidate(record, { generation });
+  if (materializationPath !== null) candidate.materialization.root = materializationPath;
+  const lifecycle = finalizedLifecycle(candidate, { transitionRecord: record });
+  if (diagnosticDepth > 0) {
+    let evidence = { message: "诊断 🙂 ".repeat(400) };
+    for (let level = 0; level < diagnosticDepth; level += 1) {
+      evidence = { level, stack: `frame ${level} ✓ `.repeat(40), cause: evidence };
+    }
+    lifecycle.evidence = evidence;
+  }
+  const status = terminalWorkerStatus(workerText === null ? {} : {
+    final_result: { ...MALFORMED_FINAL_RESULT, full_response: { text: workerText } } });
+  const invocation = syntheticRecordedInvocation({ rows: proofRows, status: "unproven",
+    limitation: LIMITATION, recoveryText });
+  return { candidate, lifecycle, status, invocation, recordedCount };
+}
+
+async function observePopulated(scope, label, shape, hooks = {}) {
+  const { tools } = await retrievalRegistry(scope, label, observationBackend({
+    status: shape.status, lifecycle: shape.lifecycle, recordedCount: shape.recordedCount,
+    lastRecordedInvocation: shape.invocation, ...hooks
+  }));
+  return { tools, observed: await observe(tools, { subject: SUBJECT }) };
+}
+
+function assertPopulatedDefault(observed, shape, label) {
+  const conclusion = defaultStatusConclusion(observed.structured, label);
+  const binding = shape.candidate.binding;
+  assert.deepEqual(conclusion.run, { attempt_id: shape.status.run_id, subject: SUBJECT,
+    child_status: "succeeded", terminal: true, child_terminal: true }, label);
+  assert.deepEqual(conclusion.delivery, { delivery_sha: TIP, wk_sha: TIP, previous_wk_sha: BASE },
+    label);
+  assert.deepEqual(conclusion.candidate, { candidate: binding.candidate, base: binding.base,
+    wk_tip: binding.wk_tip, candidate_ref: binding.candidate_ref }, label);
+  assert.equal(conclusion.cleanup, "complete", label);
+  assert.equal(conclusion.verification.recorded, shape.recordedCount, label);
+  assert.equal(conclusion.verification.latest.status, "unproven", label);
+  assert.equal(conclusion.verification.latest.tested_source,
+    shape.invocation.tested_source.source_snapshot_digest, label);
+  const latest = observed.structured.proof_verification.last_recorded_invocation;
+  const carried = latest.outcome.proofs_returned;
+  assert.ok(carried >= 1, `${label}: at least one proof row is carried`);
+  assert.equal(carried + latest.outcome.proofs_omitted, shape.invocation.outcome_summary.proofs.length,
+    `${label}: rows not carried are counted`);
+  assert.deepEqual(conclusion.verification.latest.proofs,
+    shape.invocation.outcome_summary.proofs.slice(0, carried).map((row) => ({ status: row.status,
+      execution_status: row.execution_status, selected_status: row.selected_status,
+      limitations: [LIMITATION] })), `${label}: every carried row keeps its limitation`);
+  assert.equal(latest.outcome.reasons["reason-1"].reason_code,
+    "verify_proof.selected_test_failed.v1", `${label}: the failing row's reason`);
+  return conclusion;
+}
+
+test("WK-2671: the compact default answer carries the populated facts within the shared budget", async (t) => {
+  const scope = createTestResourceScope();
+  try {
+    const shape = populatedObservation();
+    const { tools, observed } = await observePopulated(scope, "compact-populated", shape);
+    const frame = defaultFrame(observed, "synthetic populated finalized default");
+    assertPopulatedDefault(observed, shape, "synthetic populated finalized default");
+    assert.deepEqual(responseRepetitions(observed.structured), []);
+
+    const view = observed.structured.slice_lifecycle;
+    const complete = await observe(tools, COMPLETE);
+    for (const member of view.omitted_members) {
+      const [head, ...rest] = member.split(".");
+      assert.notEqual(rest.reduce((node, key) => node?.[key], complete.structured.slice_lifecycle[head]),
+        undefined, `the complete result carries ${member}`);
+    }
+    for (const omitted of ["terminal_candidate.binding", "terminal_candidate.materialization",
+      "terminal_candidate.version_decision", "terminal_candidate.review_unit",
+      "integration.transition.written_record"]) {
+      assert.ok(view.omitted_members.includes(omitted), omitted);
+    }
+    assert.equal(complete.structured.proof_verification.last_recorded_invocation.outcome_summary
+      .reasons["reason-1"].recovery.next_step.startsWith("rerun"), true,
+    "the recovery text the default leaves out is the complete result's");
+    t.diagnostic(`WK-2671 compact default: ${frame.utf8_bytes} bytes; complete: ${complete.bytes}`);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: each growth dimension, and all of them at once, stay within the default budget", async (t) => {
+  const scope = createTestResourceScope();
+  try {
+    const dimensions = {
+      baseline: {},
+      carrierBodies: { padding: "z".repeat(21000) },
+      descriptorInventory: { descriptorCount: 200 },
+      proofRowsAndInvocations: { proofRows: 12, recordedCount: 500,
+        recoveryText: "é".repeat(3000) },
+      diagnosticDepthMultibyte: { diagnosticDepth: 30 },
+      workerText: { workerText: "日本語の作業結果 ".repeat(20000) },
+      materializationPath: { materializationPath: `/${"deep-segment/".repeat(600)}candidate` }
+    };
+    dimensions.combined = Object.assign({}, ...Object.values(dimensions));
+    const measured = {};
+    for (const [label, options] of Object.entries(dimensions)) {
+      const shape = populatedObservation(options);
+      const { observed } = await observePopulated(scope, `growth-${label}`, shape);
+      measured[label] = defaultFrame(observed, `${label} default`).utf8_bytes;
+      assertPopulatedDefault(observed, shape, `${label} default`);
+      assert.deepEqual(responseRepetitions(observed.structured), [], label);
+    }
+
+    for (const label of ["carrierBodies", "descriptorInventory", "diagnosticDepthMultibyte",
+      "workerText", "materializationPath"]) {
+      assert.ok(measured[label] - measured.baseline <= 32,
+        `${label} grew the default answer by ${measured[label] - measured.baseline} bytes`);
+    }
+    t.diagnostic(`WK-2671 default growth: ${JSON.stringify(measured)}`);
+  } finally {
+    await scope.dispose();
+  }
+});
+
+test("WK-2671: the default-answer oracles detect bloat, lost facts, false claims, wrong identities and repeated effects", async () => {
+  const scope = createTestResourceScope();
+  try {
+    let lifecycleCalls = 0;
+    let detailReads = 0;
+    const shape = populatedObservation({ descriptorCount: 200, proofRows: 4 });
+    const { tools, observed } = await observePopulated(scope, "sensitivity", shape, {
+      onLifecycle: () => { lifecycleCalls += 1; },
+      onDetail: () => { detailReads += 1; }
+    });
+    const label = "sensitivity default";
+    defaultFrame(observed, label);
+    assertPopulatedDefault(observed, shape, label);
+    const clone = () => structuredClone(observed.structured);
+    const asFrame = (structured) => ({ raw: { content: [], structuredContent: structured },
+      entry: { id: "control" } });
+
+    const complete = await observe(tools, COMPLETE);
+    const restored = clone();
+    restored.slice_lifecycle.terminal_candidate.binding =
+      complete.structured.slice_lifecycle.terminal_candidate.binding;
+    assert.throws(() => assertDefaultStatusFrame([asFrame(restored)], "restored binding"),
+      /output_budget_exceeded/u);
+
+    const duplicated = clone();
+    const block = { descriptors: shape.candidate.binding.version_decision.controlled_generation.descriptors };
+    duplicated.slice_lifecycle.integration.metadata = block;
+    duplicated.slice_lifecycle.terminal_candidate.metadata = structuredClone(block);
+    assert.ok(responseRepetitions(duplicated).some((finding) =>
+      finding.kind === "duplicate_response_subtree"));
+
+    const noLimitation = clone();
+    delete noLimitation.proof_verification.last_recorded_invocation.outcome.proofs[0]
+      .capability_limitations;
+    assert.throws(() => assertPopulatedDefault({ structured: noLimitation }, shape, "no limitation"),
+      assert.AssertionError);
+    const noReason = clone();
+    noReason.proof_verification.last_recorded_invocation.outcome.reasons = {};
+    assert.throws(() => assertPopulatedDefault({ structured: noReason }, shape, "no reason"));
+    const running = clone();
+    running.terminal = false;
+    delete running.next_action;
+    assert.throws(() => defaultStatusConclusion(running, "no next action"),
+      /default_status_fact_missing/u);
+
+    const falseCompletion = clone();
+    falseCompletion.slice_lifecycle.phase = "integrated";
+    assert.throws(() => defaultStatusConclusion(falseCompletion, "false completion"),
+      /default_status_fact_missing/u);
+    const booleanProof = clone();
+    booleanProof.proof_verification.last_recorded_invocation.outcome = { proven: true };
+    assert.throws(() => defaultStatusConclusion(booleanProof, "boolean proof"),
+      /default_status_fact_missing/u);
+    const published = clone();
+    published.slice_lifecycle.terminal_candidate.merged = true;
+    assert.throws(() => defaultStatusConclusion(published, "publication claim"),
+      /default_status_fact_missing/u);
+
+    const swapped = clone();
+    swapped.slice_lifecycle.terminal_candidate.candidate =
+      shape.invocation.tested_source.source_snapshot_digest;
+    assert.throws(() => assertPopulatedDefault({ structured: swapped }, shape, "tested source as candidate"));
+    const stale = clone();
+    stale.slice_lifecycle.integration.delivery_sha = BASE;
+    assert.throws(() => assertPopulatedDefault({ structured: stale }, shape, "stale delivery"));
+
+    const lifecycleBefore = lifecycleCalls;
+    await observe(tools, { subject: SUBJECT, detail: { kind: "proof_verification" } });
+    await observe(tools, COMPLETE);
+    assert.equal(lifecycleCalls, lifecycleBefore, "reads drove no lifecycle");
+    assert.ok(detailReads >= 1);
+    const replaying = createDispatchToolRegistry({ backend: observationBackend({
+      status: shape.status, lifecycle: shape.lifecycle, recordedCount: shape.recordedCount,
+      lastRecordedInvocation: shape.invocation,
+      onDetail: () => { lifecycleCalls += 1; }
+    }) });
+    await observe(replaying, { subject: SUBJECT, detail: { kind: "proof_verification" } });
+    assert.throws(() => assert.equal(lifecycleCalls, lifecycleBefore, "a replaying read"),
+      assert.AssertionError);
   } finally {
     await scope.dispose();
   }

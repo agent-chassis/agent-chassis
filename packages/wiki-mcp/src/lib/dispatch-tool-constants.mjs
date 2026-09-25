@@ -113,6 +113,8 @@ export const AGENT_DISPATCH_TOOL_NAME = "workspace_agent_dispatch";
 
 export const WK_FORGE_HANDOFF_TOOL_NAME = "workspace_wk_forge_handoff";
 
+export const WK_LANDING_STATUS_TOOL_NAME = "workspace_wk_landing_status";
+
 const RETIRED_DISPATCH_BLOCKER_CODE_SET = new Set(RETIRED_DISPATCH_BLOCKER_CODE_IDENTITIES);
 for (const [mapName, map] of [
   ["DISPATCH_BLOCKER_CODES", DISPATCH_BLOCKER_CODES],

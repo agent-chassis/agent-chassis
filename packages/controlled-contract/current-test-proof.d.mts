@@ -246,6 +246,12 @@ export interface ControlledContractAssessmentV3 {
   readonly population: Readonly<{
     readonly candidate_count: number;
     readonly falsifier_count: number;
+    /**
+     * Falsifier checks this run could not apply (capability limitations). They
+     * earn no detection credit and are not counterevidence; a proven assessment
+     * with a nonzero count is proven with that mutation limitation.
+     */
+    readonly falsifier_unavailable_count: number;
     readonly traversal_count: number;
     readonly complete: boolean;
   }>;

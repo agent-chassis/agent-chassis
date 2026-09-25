@@ -14,7 +14,11 @@ import {
   defaultWriteBindingFile,
   defaultRunGit
 } from "./worktree-substrate.mjs";
-import { branchExists } from "./worktree-substrate-primitives.mjs";
+import {
+  WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
+  WorktreeSubstrateError,
+  branchExists
+} from "./worktree-substrate-primitives.mjs";
 
 import {
   allocateOrAdoptExactUnitWorktree as defaultAllocateOrAdoptExactUnitWorktree,
@@ -52,8 +56,6 @@ const loadDefaultClassifyControlledAcceptanceState = async () => (
 ).classifyControlledAcceptanceStateOperation;
 import { assertControlledAcceptanceStateProjection } from
   "@agent-chassis/wiki-core/src/lib/work-record-proof-posture.mjs";
-import { coverageUnitAddress } from
-  "@agent-chassis/wiki-core/src/lib/controlled-contract-unit-address.mjs";
 import {
   admitVerifiedReceipt,
   defaultControlledContractGenerationRunGit,
@@ -220,6 +222,8 @@ export const MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES = Object.fr
     "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_disposition_missing.v1",
   CONTROLLED_ACCEPTANCE_INCOMPLETE:
     "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_incomplete.v1",
+  CONTROLLED_ACCEPTANCE_SOURCE_NOT_CURRENT:
+    "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_source_not_current.v1",
   PROOF_POSTURE_INVALID:
     "agent_launch.worktree_provisioning_dispatch.controlled_acceptance_proof_posture_invalid.v1"
 });
@@ -1246,51 +1250,55 @@ async function establishManagedWkLifecycleLocked({
     controlledAcceptanceState = await classifyControlledAcceptance({ repoRoot: repo, wkId,
       selectedUnit: sliceId, record: canonicalRecord });
   } catch (error) {
+    const sourceCode = error?.code ?? "controlled_acceptance_internal_failure";
     fail(
       MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
-      "the canonical controlled-acceptance proof posture is invalid",
-      { issue: "controlled_acceptance_proof_posture_invalid", record_id: wkId,
+      "the controlled-acceptance classifier failed internally",
+      { issue: sourceCode, record_id: wkId,
         selected_unit: sliceId,
-        recovery: {
-          tool: "workspace_controlled_contract_obligation_coverage_query",
-          arguments: { unit: coverageUnitAddress({ wkId, selectedUnit: sliceId }) },
-          follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert"
-        },
-        source_code: error?.code ?? null,
+        recovery: null,
+        failure_ownership: "system",
+        responsible_owner: "classifyControlledAcceptanceStateOperation",
+        source_code: sourceCode,
         source_details: structuredClone(error?.details ?? {}) },
       error
     );
   }
   try {
     assertControlledAcceptanceStateProjection(controlledAcceptanceState, wkId, sliceId);
-  } catch {
+  } catch (error) {
     fail(
       MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.PROOF_POSTURE_INVALID,
       "the derived controlled-acceptance projection is malformed",
       { issue: "controlled_acceptance_state_invalid", record_id: wkId,
         selected_unit: sliceId,
-        recovery: {
-          tool: "workspace_controlled_contract_obligation_coverage_query",
-          arguments: { unit: coverageUnitAddress({ wkId, selectedUnit: sliceId }) },
-          follow_up_tool: "workspace_controlled_contract_obligation_coverage_upsert"
-        } }
+        recovery: null,
+        failure_ownership: "system",
+        responsible_owner: "assertControlledAcceptanceStateProjection",
+        source_code: error?.code ?? null },
+      error
     );
   }
 
   if (implementationContract &&
       !controlledAcceptanceState.semantic.admission.admits) {
+    const blockedReason = controlledAcceptanceState.semantic.admission.blocked_reason_code;
+    const sourceNotCurrent = blockedReason === "controlled_acceptance_source_not_current";
     fail(
       controlledAcceptanceState.state === "absent"
         ? MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.DISPOSITION_MISSING
-        : MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.CONTROLLED_ACCEPTANCE_INCOMPLETE,
+        : sourceNotCurrent
+          ? MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES
+            .CONTROLLED_ACCEPTANCE_SOURCE_NOT_CURRENT
+          : MANAGED_CONTROLLED_CONTRACT_GENERATION_DIAGNOSTIC_CODES.CONTROLLED_ACCEPTANCE_INCOMPLETE,
       controlledAcceptanceState.state === "absent"
         ? "the canonical proof posture has no controlled-acceptance disposition"
-        : controlledAcceptanceState.recovery?.explanation ??
-          "the required controlled-acceptance contract is mechanically incomplete",
+        : sourceNotCurrent
+          ? "the authenticated controlled-acceptance source moved before provisioning"
+          : controlledAcceptanceState.recovery?.explanation ??
+            "the required controlled-acceptance contract is mechanically incomplete",
       {
-        issue: controlledAcceptanceState.state === "absent"
-          ? "controlled_acceptance_disposition_missing"
-          : "controlled_acceptance_incomplete",
+        issue: blockedReason,
         record_id: wkId,
         initiative,
         controlled_acceptance_state: controlledAcceptanceState.state,
@@ -1328,15 +1336,54 @@ async function establishManagedWkLifecycleLocked({
     mkdirSync(roots.worktreeRoot, { recursive: true, mode: 0o700 });
     createdRoots.unshift(roots.worktreeRoot);
   }
-  const wkAllocation = allocateOrAdoptWk({
-    mainRepo: repo,
-    unitAddress: `${initiative}/${wkId}`,
-    launchRef,
-    runId: bindingIdentity(runId, "wk"),
-    retryId,
-    worktreeRoot: roots.worktreeRoot,
-    deps: { ...deps, runGit }
-  });
+  let wkAllocation;
+  try {
+    wkAllocation = allocateOrAdoptWk({
+      mainRepo: repo,
+      unitAddress: `${initiative}/${wkId}`,
+      launchRef,
+      runId: bindingIdentity(runId, "wk"),
+      retryId,
+      worktreeRoot: roots.worktreeRoot,
+      base: canonicalRecord.base_branch,
+      deps: { ...deps, runGit }
+    });
+  } catch (error) {
+
+    const requiredBaseFailure = error instanceof WorktreeSubstrateError &&
+      error.code === WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED &&
+      error.detail?.git_operation === "rev_parse_required_base_commit" &&
+      error.detail?.repository_path === repo &&
+      typeof error.detail?.required_ref === "string";
+    const missingBaseSelection = error instanceof WorktreeSubstrateError &&
+      error.code === WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.INVALID_REF &&
+      error.detail?.base_selection === "work_record.base_branch" &&
+      (error.detail?.required_ref === null || error.detail?.required_ref === undefined);
+    const branchProbe = requiredBaseFailure
+      ? runGit({ repo, args: ["show-ref", "--verify", "--quiet", `refs/heads/${error.detail.required_ref}`] })
+      : null;
+    if (missingBaseSelection || (requiredBaseFailure && branchProbe?.ok === false && branchProbe.status === 1)) {
+      throw new WorktreeSubstrateError(error.message, {
+        code: WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+        cause: error,
+        detail: Object.freeze({
+          ...(error.detail ?? {}),
+          failure_kind: missingBaseSelection
+            ? "required_base_selection_missing"
+            : "required_base_ref_missing",
+          provisioning_stage: "pre_worker_worktree_provisioning",
+          provisioning_operation: "base_ref_resolution",
+          repository_path: repo,
+          required_ref: error.detail?.required_ref ?? null,
+          base_selection: Object.freeze({
+            source: "work_record.base_branch",
+            policy: "explicit_per_wk_branch"
+          })
+        })
+      });
+    }
+    throw error;
+  }
   bindings.wk = wkAllocation.binding;
   receipts.wk = wkAllocation.receipt;
   assertCompleteManagedBinding({

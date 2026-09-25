@@ -85,7 +85,7 @@ function registerPreflightTool({ preflightDispatch = async () => ({}) } = {}) {
     registerTool: (name, descriptor, handler) => tools.set(name, { descriptor, handler }),
     workspaceRepos: {},
     z: makeTestZ(),
-    jsonContent: (value) => ({ content: [{ type: "text", text: JSON.stringify(value) }], value }),
+    jsonContent: (value) => ({ content: [], structuredContent: value, value }),
     errorContent: (error) => ({ isError: true, error }),
     resolveWorkspaceRepo: () => ({ repo: "workspace-repo", dir: "/workspace/project" }),
     createCompactValidateDispatchResponse: (value) => value,

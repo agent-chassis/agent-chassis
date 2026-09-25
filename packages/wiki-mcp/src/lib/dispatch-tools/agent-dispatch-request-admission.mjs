@@ -52,7 +52,7 @@ export const CALLER_TRANSITION_PLAN_AUTHORITY_FIELDS = Object.freeze([
   "launcher_transition_plan", "launcherTransitionPlan", "transition_plan_identity",
   "transitionPlanIdentity", "publication_identity", "publication_identities",
   "forge_confirmed_landed_publication_identity",
-  "resolveForgeConfirmedLandedPublicationIdentity"
+  "resolveLandedPublicationIdentity"
 ]);
 
 export function acceptedSubjectKindsForRole(role) {

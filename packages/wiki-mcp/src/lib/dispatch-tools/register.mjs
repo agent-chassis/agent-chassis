@@ -25,6 +25,7 @@ import { withRecordedRequestSchemas } from "../dispatch-tool-helpers.mjs";
 import { registerCommittedSliceIntegrationRoute } from
   "./committed-slice-integration-route.mjs";
 import { registerForgeHandoffRoute } from "./forge-handoff-route.mjs";
+import { registerLandingStatusRoute } from "./landing-status-route.mjs";
 import {
   CALLER_CCE_POLICY_AUTHORITY_FIELDS,
   CALLER_COMMITTED_SLICE_AUTHORITY_FIELDS,
@@ -48,6 +49,7 @@ export function registerDispatchTools({
   dispatchSessionIdentity,
   launcherNoCceAuthorityCapability = null,
   wkForgeHandoffAdapter = null,
+  wkLandingStatusAdapter = null,
   validateDispatch = validateWorkRecordDispatch,
   validateLaunchIntent = validateWorkRecordDispatchLaunchIntentById,
   revalidatePrivateHandoff = revalidateWorkRecordDispatchPrivateHandoffById,
@@ -117,6 +119,16 @@ export function registerDispatchTools({
     resolveWorkspaceRepo,
     invokeWkForgeHandoffAdapter: typeof wkForgeHandoffAdapter === "function"
       ? async (assignedUnit) => await wkForgeHandoffAdapter({ assigned_unit: assignedUnit })
+      : null
+  });
+  registerLandingStatusRoute({
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    resolveWorkspaceRepo,
+    invokeWkLandingStatusAdapter: typeof wkLandingStatusAdapter === "function"
+      ? async (assignedUnit) => await wkLandingStatusAdapter({ assigned_unit: assignedUnit })
       : null
   });
 

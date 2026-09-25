@@ -11,7 +11,7 @@ Sibling pages: [launch and admission](mcp-dispatch-launch-and-admission.md),
 [terminal review](mcp-dispatch-terminal-review.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
 
-## Common fixed-fork squash candidate, conditional review and exact forge lifecycle
+## Common fixed-fork squash candidate, independent review and exact forge lifecycle
 
 Every forge publication publishes the same thing, whichever delivery workflow the
 repository selected.
@@ -22,20 +22,31 @@ repository selected.
   publishes `C` unchanged. The current base tip is not a construction input.
   There is no direct-`W` alternative, no second constructor and no additional
   candidate store or ref family.
-- **Terminal review is conditional; candidate authentication is not.** Terminal
-  review belongs to the repository's selected workflow, not to construction. A
-  workflow that selects it hands publication a reviewer materialization, and that
-  checkout is authenticated. A workflow that does not select it hands publication
-  no materialization: no terminal-review unit is invented, no review evidence is
-  fabricated and no reviewer checkout is required. The candidate object binding,
-  its tree and sole-parent topology, its version selection and the controlled
-  generation authority are authenticated on every publication alike, and the
-  published result names which workflow it ran under.
-- **A selected candidate is publishable on its own terms.** When no terminal
-  review target exists, publication state is recovered from the candidate already
-  selected on its durable current ref: its base, tree and sole parent come from
-  the candidate object itself, and the WK ref is named by the canonical record
-  that candidate carries. Recovery consults no current landing state.
+- **The candidate is publication material; review is an independent consumer.**
+  Every fresh final integration constructs `C` and materializes its squashed
+  candidate worktree, whether or not the canonical record designates a terminal
+  review unit. No review unit, review contract, review evidence or retained
+  reviewer context is an input to construction, reconstruction, recovery,
+  materialization or publication, and the candidate bytes carry no review field.
+  Publication requires the squashed candidate worktree bound to exactly `C`; its
+  presence says nothing about whether a review ran. The candidate object binding,
+  its tree and sole-parent topology, the worktree, the selected version and the
+  controlled generation are authenticated on every publication, and the result
+  carries no review-selection fact. A terminal review, when one is dispatched,
+  consumes this same exact candidate.
+- **A selected candidate is resolved from durable state on every call.** Forge
+  publication resolves `C` from the fixed current-selection ref through the
+  terminal-candidate coordinator: it authenticates the exact-`W` generation,
+  re-derives and verifies `C`, converges its selected version and materializes
+  the worktree. Process memory does not participate, so a fresh process and a
+  warm one resolve the same state. When the current ref is absent but the durable
+  fork and WK refs survive, the same candidate is reconstructed byte for byte; when
+  either durable ref is absent the stable
+  `terminal_candidate_recovery_current_ref_absent` verdict is genuine absence. A
+  failed read, an invalid candidate or an authentication failure is never absence:
+  it keeps its authenticated cause, stops that attempt before any forge effect,
+  and the registered `workspace_wk_forge_handoff` route reports it with
+  `stage: "candidate_resolution"`. Recovery consults no current landing state.
 - **The fence holds before any external effect.** Repository, WK, fork, tip,
   candidate identity, tree, parent and controlled generation are rechecked under
   the existing exclusion before the branch or the proposal is touched. A moved or
@@ -44,16 +55,19 @@ repository selected.
   enacted; the absence of a configured decision is not a local denial.
 - **Publication is create-or-observe and nothing more.** The result reports the
   exact candidate and proposal identity and the truthful effects. Repeating a
-  handoff recovers the same proposal rather than opening a duplicate, a branch
+  handoff recovers the same proposal and the already-published closeout chain
+  rather than opening a duplicate or appending closeout commits again, a branch
   already present at different bytes refuses rather than being republished, and
-  publication neither merges nor completes the WK.
-- **Closeout preserves the published bytes.** Both workflows keep `C` beneath
-  exactly two WK-only commits carrying the actual applicable closure evidence and
-  then the parent review-to-done transition; a workflow without terminal review
-  has no terminal-review record fabricated for it. Merge takes the exact
-  authenticated pull-request head only on confirmed mergeability, and an
-  unmerged, unknown, moved or foreign state leaves the canonical parent in
-  review. The confirmed merged base record is canonical, and a reconciliation
+  publication neither merges nor completes the WK on the base branch.
+- **Closeout preserves the published bytes.** Before initial publication, both
+  workflows keep `C` beneath exactly two WK-only commits carrying the actual
+  applicable closure evidence and then the parent review-to-done transition, so
+  the initially published pull request already carries parent status `done`;
+  that status is branch-local until a confirmed merge. A workflow without
+  terminal review has no terminal-review record fabricated for it. Merge takes
+  the exact authenticated pull-request head only on confirmed mergeability and
+  adds no commits, and an unmerged, unknown, moved or foreign state leaves the
+  canonical parent in review. The confirmed merged base record is canonical, and a reconciliation
   failure is a typed partial success.
 
 ## Authority boundary and ownership map
@@ -299,6 +313,19 @@ trusted-runtime primitive `defaultIntegrateManagedWorkerSlice`. Those routes
 all supply the compound seam; this is the integrated state at WK tip
 `56a61fe884df4f998736ce858f3be6962d9076c3`.
 
+The complete-WK review target that accompanies the final-slice transition, on
+fresh integration, record-only reconciliation, and read-only observation or
+recovery alike, takes its diff base as `merge-base(refs/heads/<base_ref>, <WK
+tip>)`. `<base_ref>` is the WK's authenticated captured base branch from the
+launcher identity store; the branch name is never defaulted, so a repository
+without `main`, a divergent `main`, or a different checkout branch cannot change
+it. A WK without that captured identity refuses target construction with
+`agent_launch.slice_integration.binding_mismatch.v1`; an already-advanced WK ref
+keeps its integrated fact with `blocked` record reconciliation and is never
+reintegrated. The selected branch's current tip is read only to derive that diff
+base; the WK's frozen fork `base_sha` and the terminal candidate's immutable base
+are unaffected.
+
 A final implementation slice left at `review` under a parent already at
 `review` is a defect state, not a valid steady state. The active-parent
 requirement in `backend-slice-review-authority.mjs` surfaces it by refusing
@@ -312,6 +339,71 @@ exact slice target to the current accumulated WK tree with `git merge-tree`. A
 nonempty result retains the ordinary immutable replay and WK-ref compare-and-swap.
 A zero-delta result instead advances the WK ref to one launcher-owned evidence
 commit; leaving the ref byte-identical is not a durable success state.
+
+All three explicit-base `merge-tree` consumers — committed-slice admission,
+remaining-delta detection, and immutable delivery replay — share one result
+interpreter. Exit status 1 without a process fault is a content conflict. A
+positively identified rejection of the required `--merge-base` option is instead
+a typed serving-runtime prerequisite failure; other nonzero, signalled, or faulted
+results remain execution failures rather than conflicts. Public diagnostic
+evidence retains bounded operation/argument, repository, base/current/incoming
+object, status, signal, process-error, stdout, and stderr facts. Bounded text is
+an exact prefix of what Git emitted, cut on a character boundary. The trusted Git
+runners keep the first 2,048 UTF-16 code units of stderr and report
+`stderr_truncated` and the emitted `stderr_bytes`; the diagnostic's own
+8,192-byte bound applies on top. `stderr_truncated` is true when either bound cut
+the text, and `stderr_bytes` is the number of bytes Git emitted. A timed-out
+process keeps the stderr received before it was stopped, under the same bound.
+When the output exceeded the runner's buffer, the capture is discarded: the
+result reports `overflow`, an empty stderr, `stderr_truncated: true`, and
+`stderr_bytes: null`, because the emitted size is unknown. Executable path
+and Git version are reported as unavailable when the runner did not observe them.
+There is no alternate merge algorithm or older-Git fallback: the serving runtime
+must provide Git with the required explicit-base merge-tree capability, and this
+repository change does not upgrade a consuming installation. A managed run
+refused for this prerequisite reports it as an advisory `required_correction` on
+its status response (see
+[managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md)).
+
+The repository's installed-runtime witness boots an installed `wiki-mcp`
+entrypoint and, inside that serving process, runs the installed launcher Git
+runners with this shared argument builder, interpreter and capability probe
+against fixture-owned commits. It records the installed package versions and
+content digests, the entrypoint, working directory, the Git executable the serving
+process selects from its own `PATH` and its version, the complete argv, the runner
+outcome and bounded output. By default it checks an isolated local-tarball
+installation; `INSTALLED_GIT_WITNESS_TARGET` (install root) and
+`INSTALLED_GIT_WITNESS_TARGET_NODE` select an existing installation instead,
+without reinstalling it, when the test runs inside that installation's serving
+runtime:
+
+```bash
+INSTALLED_GIT_WITNESS_TARGET=/opt/agent-chassis/install \
+INSTALLED_GIT_WITNESS_TARGET_NODE=/opt/agent-chassis/node/bin/node \
+node tests/run-tests.mjs integration tests/integration/managed-observation-installed-git.test.mjs
+```
+
+A pass establishes installed boot and runner capability for the checked
+installation and environment only. It does not certify another deployment,
+package digest or runtime image, and it is not live-worker end-to-end execution.
+An unavailable target, no selectable Git, a timeout, spawn failure or
+indeterminate probe is reported unavailable, never capable.
+
+The coherent observation journey
+(`tests/integration/managed-observation-source-installed-journey.test.mjs`)
+runs the same ordered public MCP calls against this checkout's packages and
+against one isolated local-tarball installation. The full registered server
+dispatches one deterministic confined worker that commits one fixture delivery.
+A test-owned wrapper ahead of the serving process's own Git then rejects
+`--merge-base`. The journey observes the actionable prerequisite, unchanged
+observations and detail reads that repeat no effect, one integration of the same
+delivery after the stimulus is corrected, and a fresh server that recognizes
+completion and still returns the original failure. Branches cover oversized
+multibyte diagnostics read through content references, a restart while blocked,
+and an integration whose canonical-record write fails. The wrapper delegates to
+the Git that the installed-runtime check observed inside a serving process of the
+same package set. The worker's model output, the Git stimulus and the record
+fault are test machinery, so a pass is not live-model or deployment evidence.
 
 The evidence commit has the exact current WK tree and exactly one parent, the
 expected-old WK tip. Its raw UTF-8/LF message is mechanically minted as:
@@ -469,6 +561,67 @@ never synthesize recovery authority. This contract owns durable integration
 result reconstruction only; cross-generation delivery of that result to an
 original monitor remains a separate transport concern.
 
+### Authenticated integration and record reconciliation
+
+Git integration of an exact delivery and reconciliation of its canonical record
+are separate facts. Once the existing owners authenticate that this exact
+delivery is integrated, that is an occurred fact; a stale, contradictory or
+unwritable record cannot turn it back into "not integrated" or authorize another
+integration attempt.
+
+`observeIntegratedSliceDelivery` is the one read-only observation. It reuses the
+zero-delta evidence classifier and the ordinary exact-delivery marker classifier
+(`resolveExactDeliveryMarkerFromObservation`, shared with `advanceSliceRefCas`),
+and returns one of:
+
+- `null` — no authenticated integration of the delivery on the slice ref. A
+  same-subject marker for a different (for example corrective) delivery, or a
+  record status claiming completion without evidence, is not an integration.
+- `integrated: true` with `record_reconciliation.state` `pending` or `blocked` —
+  the exact Git integration with its delivery, marker or evidence, base and WK
+  tip. `integrated_state`, `review_target` and `transition` are `null`: finality
+  and a review target are never guessed from an unreconciled record. `blocked`
+  names a current record constraint (a cancelled or reopened slice, a terminal
+  parent over a non-done slice, or historical evidence or a historical marker
+  that would own a final parent transition) with its refusal evidence.
+- `integrated: true` with `record_reconciliation.state` `reconciled` — the
+  pre-existing recovered result, including the closed `final`/`non_final`
+  discriminator and review-target ownership.
+
+An authenticity, identity or integrity failure (indeterminate or ambiguous
+evidence, a retained tip that is not the exact marker) still refuses; it is
+neither absence nor a fabricated integration. `reconcileIntegratedSliceRecord`
+keeps answering only the reconciled case.
+
+`record_reconciliation` is an observation, never a request option, receipt or
+authority flag. No store, journal event or receipt records it.
+
+The writable owner, `requestCommittedSliceIntegration`, classifies
+already-integrated work before fresh committed-range admission, through
+`reconcileIntegratedSliceRecordOnly`. Only pending or blocked bookkeeping is
+answered there; a delivery whose record is already reconciled continues to fresh
+admission, whose existing answer for already-applied work is unchanged, and no
+write is made. A pending record is repaired through the existing compound CAS writer
+(`driveRecordCasWrite`) and the existing validated record writer: every attempt
+rereads the record and live WK tip, re-authenticates the exact evidence or
+marker, recomputes sibling completeness and keeps slice `done` plus a final
+parent `review` in one `expectedSourceDigest` write that preserves unrelated
+record edits. The branch has no path to `advanceSliceRefCas`, object replay,
+evidence minting, ref movement or fresh-integration reaping. Its authorization is
+that of this mutation boundary: a retained exact admitted target is re-authorized
+through the configured policy and current-binding checks; configured CCE without
+such a target refuses the metadata write; the free substrate has no policy gate.
+Any unconfirmed or refused write returns the integrated fact with the
+outstanding substate and the original exception as evidence. After a confirmed
+write the delivery is observed again, and only that reconciled answer carries
+finality or a review target.
+
+When the first integration's ref CAS succeeds and its record write then fails,
+`integrateCommittedSlice` returns `integrated: true` with a `pending` (or, for a
+refusal or incompatible movement, `blocked`) substate and the original exception,
+instead of discarding the Git result as a refusal. Such a result is not retained
+as a completed integration, so a later request reaches the record-only branch.
+
 The same coordinator-owned lifecycle transition is then permitted. Findings,
 clean output, malformed or plural review evidence, and absent historical attempt
 state remain advisory facts; configured CCE policy is the only policy gate. A
@@ -555,28 +708,31 @@ findings, historical status, and generic operator settings grant no recovery or
 integration authority.
 
 The live backend retains one additional index entry for each successful
-authenticated integration, keyed by repository, unit, exact delivery and base,
-and admitted write scope. This lets the original worker monitor recognize a
-completion even when an earlier pre-integration failure occurred before its
-frozen review context was retained. Observation must still authenticate the
-launcher-minted run, monitor, retry and binding pair, the delivery parent and
-live slice/WK refs, and the integration's original boundary-authorization target.
-A refused or in-flight attempt creates no entry. The index is process-local and
-non-authoritative after restart: absence continues through the durable recovery
-path, including its unchanged canonical-generation checks and
-`controlled_contract_generation_missing` refusal.
+authenticated integration, keyed by repository, unit, exact delivery and base.
+This lets the original worker monitor recognize a completion even when an
+earlier pre-integration failure occurred before its frozen review context was
+retained. Observation must still authenticate the launcher-minted run, monitor,
+retry and binding pair, the delivery parent and live slice/WK refs, and the
+integration's original boundary-authorization target. A refused or in-flight
+attempt creates no entry. The index is process-local and non-authoritative after
+restart: absence continues through the durable recovery path, including its
+unchanged canonical-generation checks and `controlled_contract_generation_missing`
+refusal.
 
-The admitted write scope stays in the key, so a completion admitted after the
-slice's canonical `write_scope` was revised is not a completion the original
-worker may consume. When the lookup under the retained binding scope misses, the
-live backend performs one further exact lookup under the current canonical
-slice scope, in the binding owner's normalized form. Only if that finds an entry
-whose delivery passes the same run, monitor, retry, binding-pair, delivery-base,
-live-ref and boundary-target checks does observation refuse with
-`completed_integration_write_scope_mismatch`. It never consumes the completion,
-reintegrates, rewrites the binding, or selects another generation. An unreadable
-or unchanged canonical scope, or a miss under both scopes, keeps the absence
-answer and its durable fall-through; missing, pending, refused, foreign or moved
-evidence therefore never produces the mismatch. The public monitor projection of
-that refusal is described under
-[seam-keyed lifecycle failure codes](mcp-dispatch-managed-run-lifecycle.md#seam-keyed-lifecycle-failure-codes).
+Git is authoritative about an integration that already happened. Neither the
+index key nor durable recovery depends on the slice's current canonical
+`write_scope`, so a scope revision made before or after the integration cannot
+hide an authenticated completion, turn it into absence, or make another
+integration attempt eligible. Both the live and the restarted monitor recognize
+the completion before considering whether another attempt is warranted, and
+consuming it performs no integration request, ref movement, worker launch or
+proof execution. A WK or slice status, matching scope, bare ancestry, or a
+caller-supplied SHA is not integration evidence.
+
+Recognizing a completion grants nothing new. The worker's original write scope
+still bounds its commits, pre-integration admission and configured CCE still
+decide every integration attempt, and later candidate, review, forge and
+new-worker actions keep their own current-contract checks. A refusal by one of
+those later actions is published as that action's failure and leaves the
+delivery reported as integrated. Integration of one delivery is not completion of
+the WK: cleanup and coordination that remain pending are reported as pending.

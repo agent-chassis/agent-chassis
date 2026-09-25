@@ -345,15 +345,24 @@ export function projectedSelectedPackCount({ content, operations }) {
 
 export async function readCanonicalProofPlanInputsImpl({
   repoRoot, wkId, focus = null, requestContent, evaluationOverrides = {},
-  canonicalSet = null
+  canonicalSet = null, proofSourceOverride = null
 }, { resolveCanonicalControlledContractCarrierSet }) {
   normalizeControlledContractIdentity({ wkId, focus });
   canonicalSet ??= await resolveCanonicalControlledContractCarrierSet({
     repoRoot, wkId, focus
   });
-  const contract = carrierFromCanonicalSet({
+  const canonicalContract = carrierFromCanonicalSet({
     canonicalSet, wkId, focus, carrierKind: "contract", required: true
   });
+  const { resolveSavedProofSource, resolveDerivedProofContract } = await import(
+    "../operations/controlled-contract/saved-proof-source.mjs"
+  );
+  const proofSource = proofSourceOverride ?? await resolveSavedProofSource({
+    repoRoot, wkId, focus, selectedUnit: null
+  });
+  const contract = await resolveDerivedProofContract({
+    ...proofSource, canonicalContract, canonicalSet
+  }) ?? canonicalContract;
   const request = requestContent === undefined
     ? carrierFromCanonicalSet({
       canonicalSet, wkId, focus, carrierKind: "proof_plan_request", required: true
@@ -396,5 +405,10 @@ export async function readCanonicalProofPlanInputsImpl({
       if (selected) evaluationInputs[evaluationPath] = structuredClone(selected.content);
     }
   }
-  return Object.freeze({ store, contract, request, evaluationInputs });
+  return Object.freeze({ store, contract, canonicalContract, request, evaluationInputs,
+    proofSourceIdentity: Object.freeze({
+      case_source_content_digest: proofSource.caseSource?.content_digest ?? null,
+      case_population_digest: digestBytes(canonicalJsonBytes(proofSource.cases ?? [])),
+      record_source_digest: proofSource.recordSourceDigest ?? null
+    }) });
 }

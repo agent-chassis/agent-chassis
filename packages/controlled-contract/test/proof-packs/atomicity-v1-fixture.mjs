@@ -10,7 +10,7 @@ import {
 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const ATOMICITY_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.atomicity.failure-boundary/3.0.0/profile.json",
+  "../../profiles/proof.atomicity.failure-boundary/4.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
